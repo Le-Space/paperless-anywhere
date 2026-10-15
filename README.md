@@ -40,6 +40,10 @@ Paperless-ngx usually lives on one machine at home. This project moves it to ren
 | 5 | **Hardening:** own domain, Paperless two-factor login | here (#4) |
 | 6 | **Akash** as a second target: the same compose stack as a multi-service SDL | here, after [akash-deploy-pwa](https://github.com/Le-Space/akash-deploy-pwa) (#5) |
 
+## If this becomes a product
+
+Customers buy packages from Le Space with fiat (card, SEPA, …) or crypto; Le Space buys the Aleph credits and USDFC the packages consume and keeps a margin (#6). Each customer's usage is paid from a prepaid account derived from *their* master secret and topped up by Le Space, so a package cannot be overspent and Le Space never holds a customer key or sees an archive (#7).
+
 ## Keys
 
 A random **master secret** is kept twice, sealed: once by the YubiKey's PRF output, once by a key derived from the seed phrase. Either opens it; a second YubiKey can be added later. Nothing secret is stored unsealed, and the master secret lives only in the browser's memory while you use it.
