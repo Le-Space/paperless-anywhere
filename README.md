@@ -34,11 +34,11 @@ Paperless-ngx usually lives on one machine at home. This project moves it to ren
 | Step | What | Where |
 |---|---|---|
 | 1 | **Confidential VMs in relay-button:** choose an SEV-SNP node, encrypted rootfs, measure before the secret goes in; release | [NiKrause/relay-button#154](https://github.com/NiKrause/relay-button/issues/154) |
-| 2 | **Paperless rootfs:** Docker, the compose stack, Caddy, the backup script; deployed through relay-button's Actions path on a confidential node, archive restored by hand — proves image, performance and restore | here |
-| 3 | **Guest bootstrap:** take the launch secret, restore from Filecoin, backup before erase, idle shutdown | here |
-| 4 | **PWA:** unlock with YubiKey or seed, derive keys, start and stop with one button, from any device | here, on `@le-space/core` / `@le-space/browser` |
-| 5 | **Hardening:** own domain, Paperless two-factor login | here |
-| 6 | **Akash** as a second target: the same compose stack as a multi-service SDL | here, after [akash-deploy-pwa](https://github.com/Le-Space/akash-deploy-pwa) |
+| 2 | **Paperless rootfs:** Docker, the compose stack, Caddy, the backup script; deployed through relay-button's Actions path on a confidential node, archive restored by hand — proves image, performance and restore | here (#1) |
+| 3 | **Guest bootstrap:** take the launch secret, restore from Filecoin, backup before erase, idle shutdown | here (#2) |
+| 4 | **PWA:** unlock with YubiKey or seed, derive keys, start and stop with one button, from any device | here, on `@le-space/core` / `@le-space/browser` (#3) |
+| 5 | **Hardening:** own domain, Paperless two-factor login | here (#4) |
+| 6 | **Akash** as a second target: the same compose stack as a multi-service SDL | here, after [akash-deploy-pwa](https://github.com/Le-Space/akash-deploy-pwa) (#5) |
 
 ## Keys
 
