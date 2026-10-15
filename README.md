@@ -1,0 +1,72 @@
+# paperless-anywhere
+
+**Start your own Paperless-ngx from any computer or phone, when you need it — on a confidential VM, unlocked with a YubiKey or a seed phrase.**
+
+Paperless-ngx usually lives on one machine at home. This project moves it to rented, decentralised compute instead, without giving the operator a look inside:
+
+- **On demand.** Press a button in a PWA: a VM starts, restores your archive, and you work. When you are done, it backs up and deletes itself. Nothing runs (and nothing is billed) in between.
+- **Your data stays yours.** The archive lives encrypted on [Filecoin Onchain Cloud](https://docs.filecoin.cloud), with several independent providers at once (see [paperless-backup-filecoin](https://github.com/Le-Space/paperless-backup-filecoin)). The VM is disposable.
+- **Confidential.** The VM runs on AMD SEV-SNP: memory and disk are encrypted by the CPU, and the keys reach it only after the PWA has checked what was booted.
+- **No fixed computer, no password file.** A YubiKey (WebAuthn PRF) or a seed phrase unlocks a master secret in the browser. From it come the account that pays for the VM and the passwords of your Paperless; the backup key travels sealed with it.
+
+> Status: planning (October 2026). Nothing here runs yet. The pieces it builds on are in use: the Filecoin backup runs daily, and [relay-button](https://github.com/NiKrause/relay-button) deploys Aleph VMs from a browser.
+
+## How it fits together
+
+```
+ PWA (any device)                      Aleph confidential VM (SEV-SNP)
+ ─────────────────                     ───────────────────────────────
+ YubiKey / seed ──► master secret      encrypted rootfs (LUKS2):
+   ├─ Aleph account (pays credits)       Debian · Docker · Caddy
+   ├─ Paperless admin/DB/secret key      Paperless · Postgres · Valkey · Tika · Gotenberg
+   └─ age key + Filecoin wallet (sealed) bootstrap: restore ◄── Filecoin Onchain Cloud
+                                          daily backup ──► (3 providers, Europe)
+ [Start] ─► deploy ─► measure ─► inject secrets ─► https://…/  ─► [Stop] ─► backup ─► erase
+```
+
+1. **Start:** the PWA signs an INSTANCE message with the derived Aleph account, asks for a confidential node, checks the launch measurement against the image's manifest, and only then injects the disk key and the secrets.
+2. **Restore:** the guest fetches the newest encrypted export from Filecoin, decrypts it, and imports it into an empty Paperless. Then the web UI comes up behind Caddy on HTTPS.
+3. **Run:** Paperless as you know it, including its mail rules; the backup runs as on the Mac today.
+4. **Stop:** a last backup, then the VM is erased. An idle timer does the same if you forget.
+
+## Plan
+
+| Step | What | Where |
+|---|---|---|
+| 1 | **Confidential VMs in relay-button:** choose an SEV-SNP node, encrypted rootfs, measure before the secret goes in; release | [NiKrause/relay-button#154](https://github.com/NiKrause/relay-button/issues/154) |
+| 2 | **Paperless rootfs:** Docker, the compose stack, Caddy, the backup script; deployed through relay-button's Actions path on a confidential node, archive restored by hand — proves image, performance and restore | here |
+| 3 | **Guest bootstrap:** take the launch secret, restore from Filecoin, backup before erase, idle shutdown | here |
+| 4 | **PWA:** unlock with YubiKey or seed, derive keys, start and stop with one button, from any device | here, on `@le-space/core` / `@le-space/browser` |
+| 5 | **Hardening:** own domain, Paperless two-factor login | here |
+| 6 | **Akash** as a second target: the same compose stack as a multi-service SDL | here, after [akash-deploy-pwa](https://github.com/Le-Space/akash-deploy-pwa) |
+
+## Keys
+
+A random **master secret** is kept twice, sealed: once by the YubiKey's PRF output, once by a key derived from the seed phrase. Either opens it; a second YubiKey can be added later. Nothing secret is stored unsealed, and the master secret lives only in the browser's memory while you use it.
+
+From the master secret, by HKDF with distinct labels:
+
+- the **Aleph account** (secp256k1) that signs the VM and pays its credits,
+- the **Paperless admin password**, the **database password** and `PAPERLESS_SECRET_KEY`.
+
+Carried sealed under the master secret (they exist already and old backups depend on them):
+
+- the **age identity** that decrypts the backups,
+- the **Filecoin wallet key** that pays for storage.
+
+## What this does not protect against
+
+- A bug in the CPU's SEV-SNP or in the hypervisor that breaks confidentiality.
+- Losing both the YubiKey and the seed phrase.
+- Someone with your unlocked device while a session is open.
+
+## Related
+
+- [paperless-backup-filecoin](https://github.com/Le-Space/paperless-backup-filecoin) — the encrypted backup this restores from
+- [relay-button](https://github.com/NiKrause/relay-button) — Aleph VM deployment from the browser
+- [akash-deploy-pwa](https://github.com/Le-Space/akash-deploy-pwa) — Akash deployment from the browser
+- [aleph-rs](https://github.com/aleph-im/aleph-rs) — Aleph SDK with SEV / SEV-SNP attestation
+
+## License
+
+MIT — by [Le Space](https://github.com/Le-Space).
