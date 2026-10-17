@@ -2,7 +2,8 @@
 # on the host network: the confidential guest kernel has no bridge and no
 # nftables, so Docker runs without networking of its own. There is no
 # firewall either, and the guest has a public IPv6 address, so every service
-# binds to 127.0.0.1. Only sshd (22) and Caddy (443) face the network;
+# binds to 127.0.0.1. Only sshd (22), Caddy (443) and Aleph's attestation
+# agent (8443, in the measured init) face the network;
 # paperless-anywhere-check fails if anything else does.
 name: paperless
 
@@ -42,12 +43,28 @@ services:
   tika:
     <<: *host
     image: docker.io/apache/tika:3.3.1.0
-    command: ["-h", "127.0.0.1"]
+    # The image's entrypoint passes `-h 0.0.0.0` before any arguments, and
+    # the first -h wins, so the same java call is spelled out here. The jar
+    # matches the tag (the image sets TIKA_VERSION=3.3.1).
+    entrypoint:
+      - java
+      - -cp
+      - /tika-server-standard-3.3.1.jar:/tika-extras/*
+      - org.apache.tika.server.core.TikaServerCli
+      - -h
+      - 127.0.0.1
+      - -p
+      - "9998"
 
   paperless:
     <<: *host
     image: ghcr.io/paperless-ngx/paperless-ngx:3.2.1
     depends_on: [postgres, valkey, gotenberg, tika]
+    # The image's healthcheck runs through `docker exec`, which does not work
+    # in the confidential guest, so it would report "unhealthy" forever.
+    # paperless-anywhere-check and the trial probe the web server instead.
+    healthcheck:
+      disable: true
     env_file: /etc/paperless-anywhere/paperless.env
     environment:
       PAPERLESS_REDIS: redis://127.0.0.1:6379

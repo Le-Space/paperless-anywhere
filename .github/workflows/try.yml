@@ -1,0 +1,295 @@
+name: Paperless on a confidential node
+
+# Boots the encrypted Paperless rootfs on an SEV-SNP node with Aleph's CLI,
+# attests and unlocks it, waits for the stack, serves it on HTTPS through
+# the node's 2n6 hostname, imports made-up documents and measures. The VM
+# stays up for keep_minutes so it can be looked at by hand (ssh with the key
+# in PAPERLESS_SSH_PUBLIC_KEY), then it is forgotten. Made-up data only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rootfs_item_hash:
+        description: Encrypted Paperless rootfs (the STORE from "Paperless rootfs")
+        required: true
+        type: string
+      crn:
+        description: SEV-SNP node (hash or unique prefix)
+        required: true
+        default: bb0aa1a9fc75
+        type: string
+      disk_gb:
+        description: Instance disk in GB (vfs keeps every image layer and container in full)
+        required: false
+        default: '80'
+        type: string
+      test_documents:
+        description: Import five made-up documents (off for a restore by hand into an empty Paperless)
+        required: false
+        default: true
+        type: boolean
+      keep_minutes:
+        description: Minutes to keep it running after the checks
+        required: false
+        default: '30'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paperless-try
+  cancel-in-progress: false
+
+env:
+  ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+  ITEM: ${{ inputs.rootfs_item_hash }}
+  CRN: ${{ inputs.crn }}
+  NAME: paperless-try-${{ github.run_id }}
+
+jobs:
+  try:
+    runs-on: ubuntu-24.04
+    # Above the longest hold (keep_minutes <= 240) plus the setup, or GitHub
+    # cancels the job; the cleanup job below runs either way.
+    timeout-minutes: 300
+    steps:
+      - name: Check inputs
+        run: |
+          [[ "$ITEM" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::rootfs_item_hash is not an item hash"; exit 1; }
+          [[ "$CRN" =~ ^[0-9a-f]{6,64}$ ]] || { echo "::error::crn is not a hash or prefix"; exit 1; }
+          [[ "${{ inputs.keep_minutes }}" =~ ^[0-9]{1,3}$ ]] && [ "${{ inputs.keep_minutes }}" -le 240 ] || { echo "::error::keep_minutes must be a number up to 240"; exit 1; }
+          [[ "${{ inputs.disk_gb || '80' }}" =~ ^[0-9]{2,4}$ ]] || { echo "::error::disk_gb is not a number"; exit 1; }
+
+      - name: Install the aleph CLI
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/aleph" https://github.com/aleph-im/aleph-rs/releases/download/v0.22.0/aleph-cli-linux-x86_64
+          echo "41b8ced717d9962683ce2d4409725774e826643be0bae1bfc623f6c0c7fb19d7  $RUNNER_TEMP/aleph" | sha256sum -c -
+          sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
+
+      - name: The passphrase and a key for this run
+        env:
+          LUKS: ${{ secrets.PAPERLESS_LUKS_PASSPHRASE }}
+        run: |
+          umask 077
+          printf '%s' "$LUKS" | tr -d '\r\n' > "$RUNNER_TEMP/luks.pass"
+          ssh-keygen -q -t ed25519 -N '' -C paperless-try -f "$RUNNER_TEMP/try_ed25519"
+
+      - name: Create the confidential instance
+        id: create
+        run: |
+          set -o pipefail
+          start=$(date +%s)
+          aleph instance create "$NAME" --confidential --image "$ITEM" \
+            --vcpus 2 --memory 4GB --disk-size "${{ inputs.disk_gb || '80' }}GB" --crn "$CRN" \
+            --ssh-pubkey-file "$RUNNER_TEMP/try_ed25519.pub" --chain eth --wait 600 2>&1 | tee "$RUNNER_TEMP/create.log" || status=$?
+          hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/create.log" | grep -oE '[0-9a-f]{64}' | head -1 || true)"
+          echo "item_hash=$hash" >> "$GITHUB_OUTPUT"
+          echo "T_CREATE=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+          [ -n "$hash" ] || { echo "::error::no INSTANCE item hash in the CLI output"; exit 1; }
+          exit "${status:-0}"
+
+      - name: Forward 443
+        env:
+          HASH: ${{ steps.create.outputs.item_hash }}
+        run: |
+          aleph instance port-forward create "$HASH" 443 --tcp true --chain eth
+          aleph instance port-forward refresh "$HASH" --chain eth || true
+          # The node restarts the VM to apply a new mapping; an unlock before
+          # that is lost with the restart. Wait until 443 is mapped.
+          crn_url="$(curl -fsS 'https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel' \
+            | jq -r --arg p "$CRN" '.data.corechannel.resource_nodes[] | select(.hash | startswith($p)) | .address' | head -1)"
+          crn_url="${crn_url%/}"
+          echo "CRN_URL=$crn_url" >> "$GITHUB_ENV"
+          for i in $(seq 1 30); do
+            mapped="$(curl -fsS --max-time 15 "$crn_url/v2/about/executions/list" | jq -r --arg h "$HASH" '.[$h].networking.mapped_ports["443"].host // empty' || true)"
+            [ -n "$mapped" ] && { echo "443 mapped to $mapped"; break; }
+            sleep 10
+          done
+          [ -n "$mapped" ] || { echo "::error::the node did not map 443"; exit 1; }
+          sleep 15
+
+      - name: Attest and unlock (with this run's key as authorized_keys)
+        env:
+          HASH: ${{ steps.create.outputs.item_hash }}
+        run: |
+          start=$(date +%s)
+          ok=""
+          for i in $(seq 1 12); do
+            if aleph instance unlock "$HASH" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
+                --secret "authorized_keys=$(cat "$RUNNER_TEMP/try_ed25519.pub")" --chain eth > "$RUNNER_TEMP/unlock.log" 2>&1; then
+              ok=1; break
+            fi
+            tail -3 "$RUNNER_TEMP/unlock.log"
+            sleep 20
+          done
+          [ -n "$ok" ] || { cat "$RUNNER_TEMP/unlock.log"; exit 1; }
+          grep -iE 'measurement|verified|inject' "$RUNNER_TEMP/unlock.log" | head -5 || true
+          echo "T_UNLOCK=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+
+      - name: Wait for SSH and the stack
+        id: up
+        env:
+          HASH: ${{ steps.create.outputs.item_hash }}
+        run: |
+          crn_url="$CRN_URL"
+          for i in $(seq 1 30); do
+            entry="$(curl -fsS --max-time 15 "$crn_url/v2/about/executions/list" | jq -c --arg h "$HASH" '.[$h] // {}' || echo '{}')"
+            HOST="$(jq -r '.networking.host_ipv4 // empty' <<<"$entry")"
+            PORT="$(jq -r '.networking.mapped_ports["22"].host // empty' <<<"$entry")"
+            P443="$(jq -r '.networking.mapped_ports["443"].host // empty' <<<"$entry")"
+            [ -n "$HOST" ] && [ -n "$PORT" ] && [ -n "$P443" ] && break
+            sleep 10
+          done
+          [ -n "$HOST" ] && [ -n "$PORT" ] || { echo "::error::no host address or mapped SSH port"; exit 1; }
+          echo "host=$HOST" >> "$GITHUB_OUTPUT"; echo "port=$PORT" >> "$GITHUB_OUTPUT"
+          # GITHUB_ENV applies from the next step on; this step needs it too.
+          SSH_ARGS="-i $RUNNER_TEMP/try_ed25519 -p $PORT -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$HOST"
+          echo "SSH_ARGS=$SSH_ARGS" >> "$GITHUB_ENV"
+          echo "mapped: ssh $HOST:$PORT, https ${P443:-not mapped}"
+          ssh_up=""
+          for i in $(seq 1 30); do
+            ssh $SSH_ARGS true 2>/dev/null && { ssh_up=1; break; }
+            # A restart after the unlock leaves the disk locked again: unlock once more.
+            if [ "$i" = 9 ]; then
+              echo "no SSH after 90 s; unlocking again"
+              aleph instance unlock "$HASH" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
+                --secret "authorized_keys=$(cat "$RUNNER_TEMP/try_ed25519.pub")" --chain eth > "$RUNNER_TEMP/unlock2.log" 2>&1 || tail -3 "$RUNNER_TEMP/unlock2.log"
+            fi
+            sleep 10
+          done
+          [ -n "$ssh_up" ] || { ssh $SSH_ARGS true || true; echo "::error::SSH did not come up after the unlock"; exit 1; }
+          echo "SSH is up"
+          start=$(date +%s)
+          # The containers are pulled now (after the unlock); Paperless answers
+          # once the stack is up and migrated.
+          up=""
+          for i in $(seq 1 120); do
+            code="$(ssh $SSH_ARGS 'curl -s -o /dev/null -w "%{http_code}" --max-time 10 http://127.0.0.1:8000/api/' 2>/dev/null || true)"
+            case "$code" in 200|302|401|403) up=1; break ;; esac
+            # A stack that has given up will not answer: stop waiting.
+            [ "$(ssh $SSH_ARGS 'systemctl is-active paperless-stack.service' 2>/dev/null)" = failed ] && break
+            [ $((i % 6)) -eq 0 ] && ssh $SSH_ARGS 'docker ps --format "{{.Names}} {{.Status}}"; df -h / | tail -1' 2>/dev/null | sed 's/^/  /'
+            sleep 15
+          done
+          echo "T_STACK=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+          if [ -z "$up" ]; then
+            ssh $SSH_ARGS 'for u in containerd docker paperless-stack; do echo "== $u: $(systemctl is-active $u.service)"; journalctl -u $u.service --no-pager 2>/dev/null | grep -v level=info | tail -15; done; docker ps -a; for c in $(docker ps -aq); do echo "== $(docker inspect -f "{{.Name}} {{.State.Status}} exit={{.State.ExitCode}}" $c)"; docker logs --tail 15 $c 2>&1; done; ls -ld /srv/paperless/*' || true
+            echo "::error::Paperless did not answer"; exit 1
+          fi
+          ssh $SSH_ARGS 'docker images --format "{{.Repository}}:{{.Tag}} {{.Size}}"; docker system df; df -h / | tail -1; free -m | sed -n 2p'
+
+      - name: Nothing but sshd, Caddy and the attestation agent faces the network
+        run: ssh $SSH_ARGS paperless-anywhere-check
+
+      - name: HTTPS through the 2n6 hostname
+        id: https
+        env:
+          HASH: ${{ steps.create.outputs.item_hash }}
+        run: |
+          host=""
+          for i in $(seq 1 30); do
+            host="$(curl -fsS "https://api.2n6.me/api/hash/$HASH" | jq -r '.subdomain // .url // empty' | sed -E 's#^https?://##; s#/.*##')" || true
+            [ -n "$host" ] && break
+            sleep 10
+          done
+          [ -n "$host" ] || { echo "::error::no 2n6 hostname for $HASH"; exit 1; }
+          case "$host" in *.*) ;; *) host="$host.2n6.me" ;; esac
+          echo "hostname=$host" >> "$GITHUB_OUTPUT"
+          ssh $SSH_ARGS "paperless-https $host"
+          start=$(date +%s)
+          ok=""
+          for i in $(seq 1 40); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://$host/api/" || true)"
+            case "$code" in 200|302|401|403) ok=1; break ;; esac
+            sleep 15
+          done
+          echo "T_HTTPS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+          [ -n "$ok" ] || { ssh $SSH_ARGS 'journalctl -u caddy --no-pager 2>/dev/null | tail -30' || true; echo "::error::https://$host did not answer"; exit 1; }
+          echo "https://$host answers $code"
+
+      - name: Import made-up documents
+        id: docs
+        # A dispatch decides; other events (no inputs) import them.
+        if: github.event_name != 'workflow_dispatch' || inputs.test_documents
+        run: |
+          # A few invented receipts, rendered as PDFs inside the guest's
+          # Paperless container, then consumed and OCR'd.
+          ssh $SSH_ARGS 'sh -s' <<'EOF'
+          set -e
+          cd /srv/paperless/consume
+          for n in 1 2 3 4 5; do
+            printf 'Wolkenfabrik Hosting GmbH\nRechnung TEST-%04d\nBetrag: 12,34 EUR\nMade-up document for a test.\n' "$n" > "test-$n.txt"
+          done
+          EOF
+          start=$(date +%s)
+          for i in $(seq 1 60); do
+            left="$(ssh $SSH_ARGS 'ls /srv/paperless/consume | wc -l')"
+            [ "$left" = 0 ] && break
+            sleep 10
+          done
+          echo "T_IMPORT=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+          ssh $SSH_ARGS 'paperless-manage shell -c "from documents.models import Document; print(\"documents:\", Document.objects.count())" 2>/dev/null | grep documents' || true
+
+      - name: Keep it running
+        if: success()
+        run: |
+          echo "ssh -p ${{ steps.up.outputs.port }} root@${{ steps.up.outputs.host }} (with the key in PAPERLESS_SSH_PUBLIC_KEY)"
+          echo "https://${{ steps.https.outputs.hostname }}  (admin password: ssh in, cat /etc/paperless-anywhere/paperless_admin_password)"
+          sleep $(( ${{ inputs.keep_minutes }} * 60 ))
+
+      - name: Forget the instance
+        if: always()
+        env:
+          HASH: ${{ steps.create.outputs.item_hash }}
+        run: |
+          hashes="$HASH $(aleph instance list --json --chain eth 2>/dev/null | jq -r --arg n "$NAME" '.[] | select((.name // .metadata.name // "") == $n) | (.item_hash // .hash)' || true)"
+          for h in $(printf '%s\n' $hashes | sort -u); do
+            echo y | aleph instance delete "$h" --reason "paperless try ${GITHUB_RUN_ID}" --chain eth || true
+            aleph instance port-forward delete "$h" --chain eth --yes 2>/dev/null || true
+          done
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Paperless on a confidential node"
+            echo
+            echo "| Phase | Seconds |"
+            echo "|---|---|"
+            echo "| Create (INSTANCE until running) | ${T_CREATE:-?} |"
+            echo "| Attest and unlock | ${T_UNLOCK:-?} |"
+            echo "| Stack up (pull, migrate) | ${T_STACK:-?} |"
+            echo "| HTTPS certificate and answer | ${T_HTTPS:-?} |"
+            echo "| Import 5 made-up documents | ${T_IMPORT:-?} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Runs even when the trial job was cancelled or hit its timeout, which
+  # skips that job's own cleanup step: a VM with data on it must not outlive
+  # the run. Finds the run's instances by name, erases them on the node,
+  # forgets them and removes their port forwards.
+  cleanup:
+    needs: try
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Install the aleph CLI
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/aleph" https://github.com/aleph-im/aleph-rs/releases/download/v0.22.0/aleph-cli-linux-x86_64
+          echo "41b8ced717d9962683ce2d4409725774e826643be0bae1bfc623f6c0c7fb19d7  $RUNNER_TEMP/aleph" | sha256sum -c -
+          sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
+
+      - name: Erase, forget and unmap every instance of this run
+        run: |
+          pip install -q eth-account
+          addr="$(python3 -c 'import os; from eth_account import Account; k = os.environ["ALEPH_PRIVATE_KEY"].strip(); print(Account.from_key(k if k.startswith("0x") else "0x" + k).address)')"
+          hashes="$(curl -fsS "https://api2.aleph.im/api/v0/messages.json?addresses=$addr&msgTypes=INSTANCE&pagination=50" \
+            | jq -r --arg n "$NAME" '.messages[] | select((.content.metadata.name // "") == $n) | .item_hash')"
+          [ -n "$hashes" ] || { echo "no instance of this run is left"; exit 0; }
+          for h in $hashes; do
+            echo "cleaning up $h"
+            aleph instance erase "$h" --crn "$CRN" --chain eth || true
+            echo y | aleph instance delete "$h" --reason "paperless try ${GITHUB_RUN_ID} (cleanup)" --chain eth || true
+            aleph instance port-forward delete "$h" --chain eth --yes || true
+          done

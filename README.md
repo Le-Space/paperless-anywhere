@@ -36,6 +36,7 @@ Paperless-ngx usually lives on one machine at home. This project moves it to ren
 | 1 | **Confidential VMs in relay-button:** choose an SEV-SNP node, encrypted rootfs, measure before the secret goes in; release | [NiKrause/relay-button#154](https://github.com/NiKrause/relay-button/issues/154) |
 | 2 | **Paperless rootfs:** Docker, the compose stack, Caddy, the backup script; deployed through relay-button's Actions path on a confidential node, archive restored by hand — proves image, performance and restore | here (#1) |
 | 3 | **Guest bootstrap:** take the launch secret, restore from Filecoin, backup before erase, idle shutdown | here (#2) |
+| 3b | **Security audit:** attestation and unlock, secrets in the guest, network exposure (IPv4 and IPv6), supply chain, backup and restore, erase. Before real documents and before the PWA | here (#9) |
 | 4 | **PWA:** unlock with YubiKey or seed, derive keys, start and stop with one button, from any device | here, on `@le-space/core` / `@le-space/browser` (#3) |
 | 5 | **Hardening:** own domain, Paperless two-factor login | here (#4) |
 | 6 | **Akash** as a second target: the same compose stack as a multi-service SDL | here, after [akash-deploy-pwa](https://github.com/Le-Space/akash-deploy-pwa) (#5) |
@@ -82,6 +83,7 @@ MIT — by [Le Space](https://github.com/Le-Space).
 - The containers are pulled after the unlock, so the image stays small. Docker uses vfs and the host network, because the confidential guest kernel has no overlayfs, bridge or nftables.
 - Every service binds to 127.0.0.1. The guest has no firewall and a public IPv6 address. Only sshd and Caddy face the network, and `paperless-anywhere-check` fails if anything else does.
 - `paperless-secrets` takes the database password, `PAPERLESS_SECRET_KEY` and the admin password from `/tmp/secrets` when they came with the unlock. Otherwise it makes them once on the encrypted disk.
-- `paperless-https <hostname>` writes the Caddyfile for `https://<hostname>` and restarts Caddy and the stack.
+- `paperless-https <hostname>` writes the Caddyfile for `https://<hostname>`, restarts Caddy and recreates the Paperless container with `PAPERLESS_URL`. Without it, Django refuses logins from that origin (CSRF).
+- `paperless-manage <args>` runs a Paperless management command (`document_importer`, `document_thumbnails`, `shell`, …) in a one-off container. `docker exec` does not work in the confidential guest, because Docker runs inside the measured init's chroot. For the same reason the image's healthcheck is turned off.
 
 The workflow needs the `ALEPH_PRIVATE_KEY` and `PAPERLESS_LUKS_PASSPHRASE` secrets and the `PAPERLESS_SSH_PUBLIC_KEY` variable.

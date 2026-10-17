@@ -1,0 +1,10 @@
+#!/bin/sh
+# paperless-manage <manage.py arguments>: a Paperless management command
+# (document_importer, document_thumbnails, shell, ...) in a one-off container.
+# `docker exec` does not work in the confidential guest (Docker runs inside
+# the measured init's chroot), so commands run in a container of their own,
+# with the stack's environment (s6 drops it unless with-contenv is used).
+set -eu
+cd /opt/paperless
+exec docker compose run --rm --no-deps -T paperless /command/with-contenv \
+  sh -c 'cd /usr/src/paperless/src && exec python3 manage.py "$@"' paperless-manage "$@"

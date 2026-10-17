@@ -33,7 +33,8 @@ install -D -m 644 "$here/files/daemon.json" "$root/etc/docker/daemon.json"
 install -D -m 644 "$here/files/compose.yml" "$root/opt/paperless/compose.yml"
 install -D -m 644 "$here/files/Caddyfile" "$root/etc/caddy/Caddyfile"
 install -D -m 644 "$here/files/paperless-stack.service" "$root/etc/systemd/system/paperless-stack.service"
-for script in paperless-secrets paperless-https paperless-anywhere-check; do
+install -D -m 644 "$here/files/docker.service" "$root/etc/systemd/system/docker.service"
+for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage; do
   install -D -m 755 "$here/files/$script" "$root/usr/local/sbin/$script"
 done
 install -d -m 700 "$root/etc/paperless-anywhere"
@@ -42,6 +43,8 @@ printf 'PermitRootLogin prohibit-password\nPasswordAuthentication no\nUseDNS no\
   > "$root/etc/ssh/sshd_config.d/paperless-anywhere.conf"
 echo paperless-anywhere > "$root/etc/hostname"
 : > "$root/etc/resolv.conf"
+# No socket activation in the confidential rootfs (see files/docker.service).
+chroot "$root" systemctl disable docker.socket >/dev/null 2>&1 || true
 chroot "$root" systemctl enable docker.service containerd.service caddy.service ssh.service paperless-stack.service >/dev/null 2>&1
 
 rm -rf "$root"/var/cache/apt/* "$root"/var/lib/apt/lists/* "$root"/usr/share/doc/* \
