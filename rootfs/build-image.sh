@@ -8,6 +8,13 @@
 # the image stays small. Needs root and debootstrap.
 set -euo pipefail
 
+# Node and the backup tool (Le-Space/paperless-backup-filecoin), for the
+# backups the VM makes itself with a session key.
+NODE_VERSION=v22.21.0
+NODE_SHA256=71a04f4b9144870c9407b8019fe912514229e50246bc706862eded3ac8e9025d
+BACKUP_TOOL_REPO=https://github.com/Le-Space/paperless-backup-filecoin.git
+BACKUP_TOOL_COMMIT=7d20d5d6ed8f02bd56b7166c80749aa9d469ca73
+
 COMPOSE_VERSION=v5.6.0
 COMPOSE_SHA256=40343e21ca777173e69cff5dbafeb37c6f81f3b0d57d9e597f036e95eb63e76a
 
@@ -29,12 +36,28 @@ curl -fsSL -o "$work/docker-compose" \
 echo "${COMPOSE_SHA256}  $work/docker-compose" | sha256sum -c - >/dev/null
 install -m 755 "$work/docker-compose" "$root/usr/libexec/docker/cli-plugins/docker-compose"
 
+curl -fsSL -o "$work/node.tar.xz" "https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.xz"
+echo "${NODE_SHA256}  $work/node.tar.xz" | sha256sum -c - >/dev/null
+install -d "$root/usr/local/lib/nodejs"
+tar -xJf "$work/node.tar.xz" -C "$root/usr/local/lib/nodejs" --strip-components=1 \
+  --exclude='*/include' --exclude='*/share' --exclude='*/lib/node_modules/corepack'
+ln -sf /usr/local/lib/nodejs/bin/node "$root/usr/local/bin/node"
+
+git clone -q "$BACKUP_TOOL_REPO" "$work/backup-tool"
+git -C "$work/backup-tool" checkout -q "$BACKUP_TOOL_COMMIT"
+(cd "$work/backup-tool" && PATH="$root/usr/local/lib/nodejs/bin:$PATH" npm ci --omit=dev --no-audit --no-fund --loglevel=error)
+install -d -m 700 "$root/opt/backup-filecoin"
+cp -a "$work/backup-tool/backup.mjs" "$work/backup-tool/package.json" "$work/backup-tool/node_modules" "$root/opt/backup-filecoin/"
+
 install -D -m 644 "$here/files/daemon.json" "$root/etc/docker/daemon.json"
 install -D -m 644 "$here/files/compose.yml" "$root/opt/paperless/compose.yml"
 install -D -m 644 "$here/files/Caddyfile" "$root/etc/caddy/Caddyfile"
 install -D -m 644 "$here/files/paperless-stack.service" "$root/etc/systemd/system/paperless-stack.service"
 install -D -m 644 "$here/files/docker.service" "$root/etc/systemd/system/docker.service"
-for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage; do
+install -D -m 644 "$here/files/paperless-restore.service" "$root/etc/systemd/system/paperless-restore.service"
+install -D -m 644 "$here/files/paperless-backup.service" "$root/etc/systemd/system/paperless-backup.service"
+install -D -m 644 "$here/files/paperless-backup.timer" "$root/etc/systemd/system/paperless-backup.timer"
+for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup; do
   install -D -m 755 "$here/files/$script" "$root/usr/local/sbin/$script"
 done
 install -d -m 700 "$root/etc/paperless-anywhere"
@@ -45,7 +68,7 @@ echo paperless-anywhere > "$root/etc/hostname"
 : > "$root/etc/resolv.conf"
 # No socket activation in the confidential rootfs (see files/docker.service).
 chroot "$root" systemctl disable docker.socket >/dev/null 2>&1 || true
-chroot "$root" systemctl enable docker.service containerd.service caddy.service ssh.service paperless-stack.service >/dev/null 2>&1
+chroot "$root" systemctl enable docker.service containerd.service caddy.service ssh.service paperless-stack.service paperless-restore.service paperless-backup.timer >/dev/null 2>&1
 
 rm -rf "$root"/var/cache/apt/* "$root"/var/lib/apt/lists/* "$root"/usr/share/doc/* \
   "$root"/usr/share/man/* "$root"/usr/share/info/* "$root"/usr/share/locale/*

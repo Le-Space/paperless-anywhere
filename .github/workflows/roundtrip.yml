@@ -1,0 +1,263 @@
+name: Paperless backup and restore round trip
+
+# The guest bootstrap end to end on the Calibration testnet, with made-up
+# documents only (#2):
+#   1. A session key: the testnet wallet authorizes a fresh key for creating
+#      data sets and adding pieces, for three hours. The VMs never see the wallet.
+#      The pieces go into the existing test data sets (paperless-backup-test).
+#   2. VM 1 imports made-up documents and backs them up with paperless-backup,
+#      signed by the session key, encrypted to this run's age recipient.
+#   3. VM 1 is forgotten. VM 2 gets the backup's ledger entry and the age
+#      identity with the unlock; paperless-restore fetches, checks, decrypts and
+#      imports it. The run compares the document counts.
+#   4. The session key is revoked; the cleanup job forgets every VM of the run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rootfs_item_hash:
+        description: Encrypted Paperless rootfs (the STORE from "Paperless rootfs")
+        required: true
+        type: string
+      crn:
+        description: SEV-SNP node (hash or unique prefix)
+        required: true
+        default: bb0aa1a9fc75
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paperless-try
+  cancel-in-progress: false
+
+env:
+  ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+  ITEM: ${{ inputs.rootfs_item_hash }}
+  CRN: ${{ inputs.crn }}
+  NAME: paperless-roundtrip-${{ github.run_id }}
+  BACKUP_TOOL_COMMIT: 7d20d5d6ed8f02bd56b7166c80749aa9d469ca73
+
+jobs:
+  roundtrip:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Check inputs
+        run: |
+          [[ "$ITEM" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::rootfs_item_hash is not an item hash"; exit 1; }
+          [[ "$CRN" =~ ^[0-9a-f]{6,64}$ ]] || { echo "::error::crn is not a hash or prefix"; exit 1; }
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+
+      - name: Tools
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/aleph" https://github.com/aleph-im/aleph-rs/releases/download/v0.22.0/aleph-cli-linux-x86_64
+          echo "41b8ced717d9962683ce2d4409725774e826643be0bae1bfc623f6c0c7fb19d7  $RUNNER_TEMP/aleph" | sha256sum -c -
+          sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
+          sudo apt-get install -y -qq age >/dev/null
+          git clone -q https://github.com/Le-Space/paperless-backup-filecoin.git "$RUNNER_TEMP/tool"
+          git -C "$RUNNER_TEMP/tool" checkout -q "$BACKUP_TOOL_COMMIT"
+          (cd "$RUNNER_TEMP/tool" && npm ci --omit=dev --no-audit --no-fund --loglevel=error)
+
+      - name: Keys for this run (disk, SSH, age, session key)
+        id: keys
+        env:
+          LUKS: ${{ secrets.PAPERLESS_LUKS_PASSPHRASE }}
+          WALLET: ${{ secrets.CALIBRATION_WALLET_KEY }}
+        run: |
+          umask 077
+          printf '%s' "$LUKS" | tr -d '\r\n' > "$RUNNER_TEMP/luks.pass"
+          printf '%s' "$WALLET" | tr -d '\r\n' > "$RUNNER_TEMP/wallet.key"
+          ssh-keygen -q -t ed25519 -N '' -C paperless-roundtrip -f "$RUNNER_TEMP/rt_ed25519"
+          age-keygen -o "$RUNNER_TEMP/age.txt" 2>/dev/null
+          recipient="$(age-keygen -y "$RUNNER_TEMP/age.txt")"
+          payer="$(cd "$RUNNER_TEMP/tool" && node -e 'const { privateKeyToAccount } = require("viem/accounts"); const k = require("fs").readFileSync(process.argv[1], "utf8").trim(); console.log(privateKeyToAccount(k.startsWith("0x") ? k : "0x" + k).address)' "$RUNNER_TEMP/wallet.key")"
+          jq -n --arg r "$recipient" --arg p "$payer" \
+            '{network: "calibration", copies: 2, providerIds: [9, 4], regions: [], datasetMetadata: {app: "paperless-backup-test"}, keepWeeks: 1, ageRecipient: $r, payer: $p}' \
+            > "$RUNNER_TEMP/backup_config.json"
+          printf '{"network":"calibration","providerIds":[9,4],"regions":[],"copies":2,"datasetMetadata":{"app":"paperless-backup-test"},"keepWeeks":1,"ageRecipient":"%s"}\n' "$recipient" > "$RUNNER_TEMP/wallet-config.json"
+          (cd "$RUNNER_TEMP/tool" && BACKUP_CONFIG="$RUNNER_TEMP/wallet-config.json" WALLET_KEY_FILE="$RUNNER_TEMP/wallet.key" \
+            node backup.mjs session-login 3 "$RUNNER_TEMP/session.key")
+          session="$(cd "$RUNNER_TEMP/tool" && node -e 'const { privateKeyToAccount } = require("viem/accounts"); console.log(privateKeyToAccount(require("fs").readFileSync(process.argv[1], "utf8").trim()).address)' "$RUNNER_TEMP/session.key")"
+          echo "session=$session" >> "$GITHUB_OUTPUT"
+          # wait_ssh <hash> <secret args file>: SSH up after the unlock, or unlock
+          # again. The node can restart a VM after it was unlocked; the disk is
+          # then locked again and sshd never starts. Logs when the node started it.
+          cat > "$RUNNER_TEMP/wait_ssh.sh" <<'EOS'
+          wait_ssh() {
+            for i in $(seq 1 36); do
+              $SSH true 2>/dev/null && { echo "SSH is up"; return 0; }
+              if [ "$i" = 9 ] || [ "$i" = 21 ]; then
+                started="$(curl -fsS --max-time 15 "$CRN_URL/v2/about/executions/list" | jq -r --arg h "$1" '.[$h].status.started_at // "?"' || echo '?')"
+                echo "no SSH yet; the node started the VM at $started; unlocking again"
+                xargs -0 -a "$2" aleph instance unlock "$1" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" --chain eth > "$RUNNER_TEMP/reunlock.log" 2>&1 \
+                  && echo "unlocked again" || tail -2 "$RUNNER_TEMP/reunlock.log" | grep -v -i secret
+              fi
+              sleep 10
+            done
+            echo "::error::SSH did not come up after the unlock"
+            return 1
+          }
+          EOS
+          echo "payer=$payer" >> "$GITHUB_OUTPUT"
+
+      - name: VM 1 - start, unlock with the backup config and the session key
+        id: vm1
+        run: |
+          set -o pipefail
+          start=$(date +%s)
+          aleph instance create "$NAME-a" --confidential --image "$ITEM" --vcpus 2 --memory 4GB --disk-size 80GB --crn "$CRN" \
+            --ssh-pubkey-file "$RUNNER_TEMP/rt_ed25519.pub" --chain eth --wait 600 2>&1 | tee "$RUNNER_TEMP/create1.log"
+          hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/create1.log" | grep -oE '[0-9a-f]{64}' | head -1)"
+          [ -n "$hash" ] || { echo "::error::no INSTANCE item hash"; exit 1; }
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+          ok=""
+          umask 077
+          printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=test" \
+            --secret "backup_config=$(cat "$RUNNER_TEMP/backup_config.json")" --secret "backup_session_key=$(cat "$RUNNER_TEMP/session.key")" \
+            > "$RUNNER_TEMP/secrets1.args"
+          ok=""
+          for i in $(seq 1 12); do
+            xargs -0 -a "$RUNNER_TEMP/secrets1.args" aleph instance unlock "$hash" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
+              --chain eth > "$RUNNER_TEMP/unlock1.log" 2>&1 && { ok=1; break; }
+            tail -2 "$RUNNER_TEMP/unlock1.log" | grep -v -i secret; sleep 20
+          done
+          [ -n "$ok" ] || { echo "::error::VM 1 could not be unlocked"; exit 1; }
+          echo "VM1_UP=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+
+      - name: VM 1 - wait for the stack, import made-up documents, back up
+        id: backup
+        env:
+          HASH: ${{ steps.vm1.outputs.hash }}
+        run: |
+          . "$RUNNER_TEMP/wait_ssh.sh"
+          crn_url="$(curl -fsS 'https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel' \
+            | jq -r --arg p "$CRN" '.data.corechannel.resource_nodes[] | select(.hash | startswith($p)) | .address' | head -1)"; crn_url="${crn_url%/}"
+          echo "CRN_URL=$crn_url" >> "$GITHUB_ENV"; CRN_URL="$crn_url"
+          for i in $(seq 1 30); do
+            entry="$(curl -fsS --max-time 15 "$crn_url/v2/about/executions/list" | jq -c --arg h "$HASH" '.[$h] // {}' || echo '{}')"
+            HOST="$(jq -r '.networking.host_ipv4 // empty' <<<"$entry")"; PORT="$(jq -r '.networking.mapped_ports["22"].host // empty' <<<"$entry")"
+            [ -n "$HOST" ] && [ -n "$PORT" ] && break; sleep 10
+          done
+          SSH="ssh -i $RUNNER_TEMP/rt_ed25519 -p $PORT -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@$HOST"
+          wait_ssh "$HASH" "$RUNNER_TEMP/secrets1.args" || exit 1
+          for i in $(seq 1 120); do
+            code="$($SSH 'curl -s -o /dev/null -w "%{http_code}" --max-time 10 http://127.0.0.1:8000/api/' 2>/dev/null || true)"
+            case "$code" in 200|302|401|403) break ;; esac; sleep 15
+          done
+          $SSH 'sh -s' <<'EOS'
+          set -e
+          cd /srv/paperless/consume
+          for n in 1 2 3 4 5; do
+            printf 'Wolkenfabrik Hosting GmbH\nRechnung TEST-%04d\nBetrag: 12,34 EUR\nMade-up document for a round trip.\n' "$n" > "roundtrip-$n.txt"
+          done
+          EOS
+          for i in $(seq 1 60); do [ "$($SSH 'ls /srv/paperless/consume | wc -l')" = 0 ] && break; sleep 10; done
+          docs="$($SSH 'paperless-backup fingerprint' | jq -r .documents)"
+          echo "documents in VM 1: $docs"
+          [ "$docs" = 5 ] || { echo "::error::VM 1 has $docs documents, expected 5"; exit 1; }
+          start=$(date +%s)
+          $SSH 'paperless-backup run; cat /run/paperless-anywhere/backup.json' || { $SSH 'tail -20 /var/log/paperless-anywhere/backup.log' | grep -vE 'AGE-SECRET|0x[0-9a-fA-F]{64}'; exit 1; }
+          echo "BACKUP_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+          $SSH 'cat /opt/backup-filecoin/ledger.calibration.json' | jq '.[-1]' > "$RUNNER_TEMP/entry.json"
+          jq '{name, pieceCid, complete, copies: (.copies | length)}' "$RUNNER_TEMP/entry.json"
+          [ "$(jq -r .complete "$RUNNER_TEMP/entry.json")" = true ] || { echo "::error::the backup is not complete"; exit 1; }
+
+      - name: VM 1 - forget
+        if: always() && steps.vm1.outputs.hash != ''
+        env:
+          HASH: ${{ steps.vm1.outputs.hash }}
+        run: |
+          aleph instance erase "$HASH" --crn "$CRN" --chain eth || true
+          echo y | aleph instance delete "$HASH" --reason "paperless round trip ${GITHUB_RUN_ID}" --chain eth || true
+
+      - name: VM 2 - start, unlock with the ledger entry and the age identity, restore
+        id: vm2
+        run: |
+          set -o pipefail
+          aleph instance create "$NAME-b" --confidential --image "$ITEM" --vcpus 2 --memory 4GB --disk-size 80GB --crn "$CRN" \
+            --ssh-pubkey-file "$RUNNER_TEMP/rt_ed25519.pub" --chain eth --wait 600 2>&1 | tee "$RUNNER_TEMP/create2.log"
+          hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/create2.log" | grep -oE '[0-9a-f]{64}' | head -1)"
+          [ -n "$hash" ] || { echo "::error::no INSTANCE item hash"; exit 1; }
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+          ok=""
+          umask 077
+          printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=test" \
+            --secret "restore_ledger_entry=$(jq -c . "$RUNNER_TEMP/entry.json")" --secret "age_identity=$(cat "$RUNNER_TEMP/age.txt")" \
+            > "$RUNNER_TEMP/secrets2.args"
+          ok=""
+          for i in $(seq 1 12); do
+            xargs -0 -a "$RUNNER_TEMP/secrets2.args" aleph instance unlock "$hash" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
+              --chain eth > "$RUNNER_TEMP/unlock2.log" 2>&1 && { ok=1; break; }
+            tail -2 "$RUNNER_TEMP/unlock2.log" | grep -v -i secret; sleep 20
+          done
+          [ -n "$ok" ] || { echo "::error::VM 2 could not be unlocked"; exit 1; }
+          . "$RUNNER_TEMP/wait_ssh.sh"
+          for i in $(seq 1 30); do
+            entry="$(curl -fsS --max-time 15 "$CRN_URL/v2/about/executions/list" | jq -c --arg h "$hash" '.[$h] // {}' || echo '{}')"
+            HOST="$(jq -r '.networking.host_ipv4 // empty' <<<"$entry")"; PORT="$(jq -r '.networking.mapped_ports["22"].host // empty' <<<"$entry")"
+            [ -n "$HOST" ] && [ -n "$PORT" ] && break; sleep 10
+          done
+          SSH="ssh -i $RUNNER_TEMP/rt_ed25519 -p $PORT -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@$HOST"
+          wait_ssh "$hash" "$RUNNER_TEMP/secrets2.args" || exit 1
+          result=""
+          for i in $(seq 1 120); do
+            result="$($SSH 'cat /run/paperless-anywhere/restore.json 2>/dev/null' || true)"
+            case "$(jq -r '.status // empty' <<<"$result" 2>/dev/null)" in done|failed|skipped) break ;; esac
+            sleep 15
+          done
+          echo "$result" | jq .
+          echo "RESTORE=$(jq -c . <<<"$result")" >> "$GITHUB_ENV"
+          [ "$(jq -r .status <<<"$result")" = done ] || { $SSH 'tail -15 /var/log/paperless-anywhere/restore.log' | grep -vE 'AGE-SECRET' || true; echo "::error::restore did not complete"; exit 1; }
+          [ "$(jq -r .documents <<<"$result")" = 5 ] || { echo "::error::VM 2 has $(jq -r .documents <<<"$result") documents, expected 5"; exit 1; }
+          $SSH 'test -e /tmp/secrets/age_identity && echo "AGE IDENTITY STILL THERE" || echo "age identity removed"; ls /srv/paperless/export'
+          echo "round trip: 5 made-up documents backed up from VM 1 and restored in VM 2"
+
+      - name: Revoke the session key
+        if: always() && steps.keys.outputs.session != ''
+        env:
+          SESSION: ${{ steps.keys.outputs.session }}
+        run: |
+          cd "$RUNNER_TEMP/tool" && BACKUP_CONFIG="$RUNNER_TEMP/wallet-config.json" WALLET_KEY_FILE="$RUNNER_TEMP/wallet.key" node backup.mjs session-revoke "$SESSION"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Paperless backup and restore round trip (Calibration)"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| VM 1 up (create + unlock) | ${VM1_UP:-?} s |"
+            echo "| Backup with the session key | ${BACKUP_SECONDS:-?} s |"
+            echo "| Restore in VM 2 | \`${RESTORE:-none}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Runs even when the round trip was cancelled or timed out.
+  cleanup:
+    needs: roundtrip
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Install the aleph CLI
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/aleph" https://github.com/aleph-im/aleph-rs/releases/download/v0.22.0/aleph-cli-linux-x86_64
+          echo "41b8ced717d9962683ce2d4409725774e826643be0bae1bfc623f6c0c7fb19d7  $RUNNER_TEMP/aleph" | sha256sum -c -
+          sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
+      - name: Erase and forget every VM of this run
+        run: |
+          pip install -q eth-account
+          addr="$(python3 -c 'import os; from eth_account import Account; k = os.environ["ALEPH_PRIVATE_KEY"].strip(); print(Account.from_key(k if k.startswith("0x") else "0x" + k).address)')"
+          hashes="$(curl -fsS "https://api2.aleph.im/api/v0/messages.json?addresses=$addr&msgTypes=INSTANCE&pagination=50" \
+            | jq -r --arg n "$NAME" '.messages[] | select((.content.metadata.name // "") | startswith($n)) | .item_hash')"
+          [ -n "$hashes" ] || { echo "no VM of this run is left"; exit 0; }
+          for h in $hashes; do
+            echo "cleaning up $h"
+            aleph instance erase "$h" --crn "$CRN" --chain eth || true
+            echo y | aleph instance delete "$h" --reason "paperless round trip ${GITHUB_RUN_ID} (cleanup)" --chain eth || true
+          done

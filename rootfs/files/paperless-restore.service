@@ -1,0 +1,18 @@
+[Unit]
+Description=Restore the Paperless backup named at the unlock (once)
+After=paperless-stack.service
+Wants=paperless-stack.service
+
+[Service]
+# Not oneshot: the confidential systemctl replacement starts enabled units one
+# after another and waits for a oneshot to finish. This one waits for the
+# stack, which would then never start (nor would sshd). As a simple unit it
+# runs beside them and waits for Paperless itself. Nothing to do without
+# /tmp/secrets/restore_ledger_entry; it writes its outcome to
+# /run/paperless-anywhere/restore.json.
+Type=simple
+ExecStart=/usr/local/sbin/paperless-restore
+Restart=no
+
+[Install]
+WantedBy=multi-user.target
