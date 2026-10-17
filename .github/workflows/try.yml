@@ -119,9 +119,14 @@ jobs:
           done
           [ -n "$HOST" ] && [ -n "$PORT" ] || { echo "::error::no host address or mapped SSH port"; exit 1; }
           echo "host=$HOST" >> "$GITHUB_OUTPUT"; echo "port=$PORT" >> "$GITHUB_OUTPUT"
-          echo "SSH_ARGS=-i $RUNNER_TEMP/try_ed25519 -p $PORT -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$HOST" >> "$GITHUB_ENV"
+          # GITHUB_ENV applies from the next step on; this step needs it too.
+          SSH_ARGS="-i $RUNNER_TEMP/try_ed25519 -p $PORT -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$HOST"
+          echo "SSH_ARGS=$SSH_ARGS" >> "$GITHUB_ENV"
           echo "mapped: ssh $HOST:$PORT, https ${P443:-not mapped}"
-          for i in $(seq 1 30); do ssh -i "$RUNNER_TEMP/try_ed25519" -p "$PORT" -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "root@$HOST" true 2>/dev/null && break; sleep 10; done
+          ssh_up=""
+          for i in $(seq 1 30); do ssh $SSH_ARGS true 2>/dev/null && { ssh_up=1; break; }; sleep 10; done
+          [ -n "$ssh_up" ] || { ssh $SSH_ARGS true || true; echo "::error::SSH did not come up after the unlock"; exit 1; }
+          echo "SSH is up"
           start=$(date +%s)
           # The containers are pulled now (after the unlock); Paperless answers
           # once the stack is up and migrated.
