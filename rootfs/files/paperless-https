@@ -1,0 +1,24 @@
+#!/bin/sh
+# paperless-https <hostname>: serve Paperless on https://<hostname> through
+# Caddy on 443 (ACME over TLS-ALPN on 443, the one port mapped for it).
+set -eu
+host="${1:?usage: paperless-https <hostname>}"
+case "$host" in *[!A-Za-z0-9.-]*|"") echo "not a hostname: $host" >&2; exit 1 ;; esac
+printf '%s\n' "$host" > /etc/paperless-anywhere/hostname
+cat > /etc/caddy/Caddyfile <<CADDY
+{
+  auto_https disable_redirects
+}
+
+https://${host} {
+  tls {
+    issuer acme {
+      disable_http_challenge
+    }
+  }
+  reverse_proxy 127.0.0.1:8000
+}
+CADDY
+systemctl restart caddy.service
+# PAPERLESS_URL follows the hostname.
+systemctl restart paperless-stack.service

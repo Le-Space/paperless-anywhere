@@ -1,0 +1,13 @@
+#!/bin/sh
+# What faces the network: every TCP/UDP listener not bound to loopback.
+# Exits 1 if anything other than sshd (22) or Caddy (443) does.
+bad=$(ss -Hltnu 2>/dev/null | awk '{print $5}' \
+  | grep -vE '^(127\.[0-9.]+|\[::1\]|::1):' \
+  | grep -vE ':(22|443)$' || true)
+echo "listening (not loopback):"
+ss -Hltnup 2>/dev/null | grep -vE ' (127\.[0-9.]+|\[::1\]):' || true
+if [ -n "$bad" ]; then
+  echo "FAIL: reachable from the network: $(echo $bad)" >&2
+  exit 1
+fi
+echo "OK: only sshd and Caddy face the network"

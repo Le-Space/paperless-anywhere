@@ -1,0 +1,7 @@
+{
+  "storage-driver": "vfs",
+  "iptables": false,
+  "ip6tables": false,
+  "bridge": "none",
+  "log-driver": "local"
+}

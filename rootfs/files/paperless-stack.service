@@ -1,0 +1,16 @@
+[Unit]
+Description=Paperless-ngx compose stack (Paperless, Postgres, Valkey, Tika, Gotenberg)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStartPre=/usr/local/sbin/paperless-secrets
+ExecStart=/usr/bin/docker compose --project-directory /opt/paperless up --remove-orphans
+ExecStop=/usr/bin/docker compose --project-directory /opt/paperless down
+Restart=on-failure
+RestartSec=15
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

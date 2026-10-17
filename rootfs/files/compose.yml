@@ -1,0 +1,66 @@
+# Paperless-ngx and its helpers, as in upstream's docker-compose.postgres-tika.yml,
+# on the host network: the confidential guest kernel has no bridge and no
+# nftables, so Docker runs without networking of its own. There is no
+# firewall either, and the guest has a public IPv6 address, so every service
+# binds to 127.0.0.1. Only sshd (22) and Caddy (443) face the network;
+# paperless-anywhere-check fails if anything else does.
+name: paperless
+
+x-host: &host
+  network_mode: host
+  restart: unless-stopped
+
+services:
+  postgres:
+    <<: *host
+    image: docker.io/library/postgres:18
+    env_file: /etc/paperless-anywhere/postgres.env
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+    command: ["postgres", "-c", "listen_addresses=127.0.0.1"]
+    volumes:
+      - /srv/paperless/pg:/var/lib/postgresql
+
+  valkey:
+    <<: *host
+    image: docker.io/valkey/valkey:9-alpine
+    command: ["valkey-server", "--bind", "127.0.0.1", "--protected-mode", "yes"]
+    volumes:
+      - /srv/paperless/valkey:/data
+
+  gotenberg:
+    <<: *host
+    image: docker.io/gotenberg/gotenberg:8.37
+    command:
+      - gotenberg
+      - --api-bind-ip=127.0.0.1
+      - --api-port=3000
+      - --chromium-disable-javascript=true
+      - --chromium-allow-list=^file:///tmp/.*
+
+  tika:
+    <<: *host
+    image: docker.io/apache/tika:3.3.1.0
+    command: ["-h", "127.0.0.1"]
+
+  paperless:
+    <<: *host
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.2.1
+    depends_on: [postgres, valkey, gotenberg, tika]
+    env_file: /etc/paperless-anywhere/paperless.env
+    environment:
+      PAPERLESS_REDIS: redis://127.0.0.1:6379
+      PAPERLESS_DBHOST: 127.0.0.1
+      PAPERLESS_TIKA_ENABLED: "1"
+      PAPERLESS_TIKA_ENDPOINT: http://127.0.0.1:9998
+      PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://127.0.0.1:3000
+      PAPERLESS_BIND_ADDR: 127.0.0.1
+      PAPERLESS_PORT: "8000"
+      PAPERLESS_OCR_LANGUAGE: deu+eng
+      PAPERLESS_TIME_ZONE: Europe/Berlin
+    volumes:
+      - /srv/paperless/data:/usr/src/paperless/data
+      - /srv/paperless/media:/usr/src/paperless/media
+      - /srv/paperless/consume:/usr/src/paperless/consume
+      - /srv/paperless/export:/usr/src/paperless/export
