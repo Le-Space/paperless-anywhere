@@ -1,0 +1,22 @@
+# Replaces Debian's docker.service, which starts `dockerd -H fd://` and so
+# needs systemd's socket activation (docker.socket). The confidential rootfs
+# runs a systemctl replacement without socket activation, so dockerd listens
+# on its own unix socket here. Storage and networking: /etc/docker/daemon.json.
+[Unit]
+Description=Docker Application Container Engine
+After=network-online.target containerd.service
+Wants=network-online.target containerd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/dockerd --containerd=/run/containerd/containerd.sock
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=5
+LimitNOFILE=infinity
+LimitNPROC=infinity
+Delegate=yes
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

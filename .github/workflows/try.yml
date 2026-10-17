@@ -134,11 +134,16 @@ jobs:
           for i in $(seq 1 120); do
             code="$(ssh $SSH_ARGS 'curl -s -o /dev/null -w "%{http_code}" --max-time 10 http://127.0.0.1:8000/api/' 2>/dev/null || true)"
             case "$code" in 200|302|401|403) up=1; break ;; esac
+            # A stack that has given up will not answer: stop waiting.
+            [ "$(ssh $SSH_ARGS 'systemctl is-active paperless-stack.service' 2>/dev/null)" = failed ] && break
             [ $((i % 6)) -eq 0 ] && ssh $SSH_ARGS 'docker ps --format "{{.Names}} {{.Status}}"; df -h / | tail -1' 2>/dev/null | sed 's/^/  /'
             sleep 15
           done
           echo "T_STACK=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
-          [ -n "$up" ] || { ssh $SSH_ARGS 'systemctl status paperless-stack.service 2>&1 | tail -20; docker ps -a' || true; echo "::error::Paperless did not answer"; exit 1; }
+          if [ -z "$up" ]; then
+            ssh $SSH_ARGS 'for u in containerd docker paperless-stack; do echo "== $u: $(systemctl is-active $u.service)"; journalctl -u $u.service --no-pager 2>/dev/null | tail -25; done; docker ps -a' || true
+            echo "::error::Paperless did not answer"; exit 1
+          fi
           ssh $SSH_ARGS 'docker images --format "{{.Repository}}:{{.Tag}} {{.Size}}"; df -h / | tail -1'
 
       - name: Nothing but sshd and Caddy faces the network
