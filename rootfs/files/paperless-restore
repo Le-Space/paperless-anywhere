@@ -22,7 +22,7 @@ state_dir=/run/paperless-anywhere
 state="$state_dir/restore.json"
 log_dir=/var/log/paperless-anywhere
 work=/srv/paperless/export/restore   # /usr/src/paperless/export/restore in the container
-mkdir -p "$state_dir" "$log_dir"
+mkdir -p "$state_dir" "$log_dir" /var/lib/paperless-anywhere
 chmod 700 "$log_dir"
 log="$log_dir/restore.log"
 
@@ -116,6 +116,9 @@ if [ "$role" != primary ]; then
 fi
 counts="$(paperless-manage shell -c 'from documents.models import Document; a = Document.objects.count(); g = Document.global_objects.count() if hasattr(Document, "global_objects") else a; print("counts", a, g - a)' 2>>"$log" | sed -n 's/^counts //p' | tail -1)"
 documents="${counts%% *}"; trash="${counts##* }"
+
+# What was restored needs no new backup: the first check compares against it.
+paperless-backup fingerprint > /var/lib/paperless-anywhere/backed-up.fingerprint 2>>"$log" || true
 
 status done ",\"backup\":\"$name\",\"provider\":\"$got\",\"documents\":${documents:-0},\"trash\":${trash:-0},\"mail_rules\":\"$mail\",\"role\":\"$role\",\"seconds\":{\"download\":$((t2 - t1)),\"decrypt\":$((t3 - t2)),\"import\":$((t4 - t3)),\"total\":$((t4 - t0))}"
 echo "paperless-restore: $name restored, ${documents:-?} documents, mail rules $mail"

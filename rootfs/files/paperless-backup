@@ -1,0 +1,107 @@
+#!/bin/sh
+# paperless-backup [check|run|fingerprint]: back up this Paperless with
+# paperless-backup-filecoin, signed by a session key, never by the wallet.
+#
+#   check        back up if Paperless changed since the last backup or the restore
+#                (the timer runs this every two hours; stop runs it last)
+#   run          back up now
+#   fingerprint  print what "changed" compares (documents, trash, last change, labels)
+#
+# Comes with the unlock, over the attested channel:
+#   /tmp/secrets/backup_config       paperless-backup-filecoin config.json: network,
+#                                    providers, ageRecipient (public), datasetMetadata,
+#                                    payer (the wallet the session key acts for)
+#   /tmp/secrets/backup_session_key  a session key the wallet authorized for creating
+#                                    data sets and adding pieces only, until it expires
+#   /tmp/secrets/paperless_role      "primary" backs up to mainnet; anything else is a
+#                                    test and must use the calibration network
+#
+# No age identity is needed: backups are encrypted to ageRecipient. The session key
+# cannot delete pieces, so pruning stays with the wallet. Outcome:
+# /run/paperless-anywhere/backup.json; the tool's log stays on the encrypted disk.
+set -u
+secrets=/tmp/secrets
+state_dir=/run/paperless-anywhere
+state="$state_dir/backup.json"
+lib=/var/lib/paperless-anywhere
+log_dir=/var/log/paperless-anywhere
+mkdir -p "$state_dir" "$lib" "$log_dir"
+chmod 700 "$lib" "$log_dir"
+cmd="${1:-check}"
+
+status() {
+  printf '{"status":"%s","at":"%s"%s}\n' "$1" "$(date -u +%FT%TZ)" "${2:-}" > "$state.tmp" && mv "$state.tmp" "$state"
+}
+fail() {
+  echo "paperless-backup: $*" >&2
+  status failed ",\"reason\":\"$(printf '%s' "$*" | tr -d '"\\\n' | cut -c1-200)\""
+  exit 1
+}
+
+fingerprint() {
+  paperless-manage shell -c '
+from documents.models import Document, Tag, Correspondent, DocumentType, Note
+from django.db.models import Max
+import json
+d = Document.global_objects
+print("FP" + json.dumps({
+  "documents": d.filter(deleted_at__isnull=True).count(),
+  "trash": d.filter(deleted_at__isnull=False).count(),
+  "modified": str(d.aggregate(m=Max("modified"))["m"]),
+  "notes": Note.objects.count(),
+  "labels": [m.objects.count() for m in (Tag, Correspondent, DocumentType)],
+  "labelIds": [m.objects.aggregate(m=Max("id"))["m"] for m in (Tag, Correspondent, DocumentType)],
+}, sort_keys=True))' 2>/dev/null | sed -n 's/^FP//p' | tail -1
+}
+
+if [ "$cmd" = fingerprint ]; then fingerprint; exit 0; fi
+case "$cmd" in check|run) ;; *) echo "usage: paperless-backup [check|run|fingerprint]" >&2; exit 2 ;; esac
+
+if [ ! -s "$secrets/backup_config" ]; then
+  status skipped ',"reason":"no backup_config came with the unlock"'
+  exit 0
+fi
+[ -s "$secrets/backup_session_key" ] || fail "a backup_config came without a backup_session_key"
+role="$(cat "$secrets/paperless_role" 2>/dev/null || echo test)"
+
+# The config as the tool reads it; the network must fit the role, and the
+# machine never prunes (a session key may not remove pieces anyway).
+config="$state_dir/backup-config.json"
+python3 - "$secrets/backup_config" "$config" "$role" <<'PY' || fail "unusable backup_config"
+import json, re, sys
+c = json.load(open(sys.argv[1]))
+role = sys.argv[3]
+want = "mainnet" if role == "primary" else "calibration"
+if c.get("network") != want:
+    sys.exit(f"role {role} needs network {want}, the config says {c.get('network')}")
+if not re.fullmatch(r"0x[0-9a-fA-F]{40}", str(c.get("payer", ""))):
+    sys.exit("backup_config has no payer address")
+if not str(c.get("ageRecipient", "")).startswith("age1"):
+    sys.exit("backup_config has no ageRecipient")
+c.pop("mail", None)
+c["daily"] = {**c.get("daily", {}), "prune": False}
+json.dump(c, open(sys.argv[2], "w"))
+PY
+chmod 600 "$config"
+
+now="$(fingerprint)"
+[ -n "$now" ] || fail "could not read Paperless's state"
+if [ "$cmd" = check ] && [ -s "$lib/backed-up.fingerprint" ] && [ "$now" = "$(cat "$lib/backed-up.fingerprint")" ]; then
+  status unchanged ",\"role\":\"$role\""
+  exit 0
+fi
+
+status running ",\"role\":\"$role\""
+t0=$(date +%s)
+cd /opt/backup-filecoin || fail "no backup tool in /opt/backup-filecoin"
+export BACKUP_CONFIG="$config" SESSION_KEY_FILE="$secrets/backup_session_key" \
+  PAPERLESS_DIR=/srv/paperless PAPERLESS_MANAGE=/usr/local/sbin/paperless-manage
+node backup.mjs run >>"$log_dir/backup.log" 2>&1 || fail "the backup did not complete (see $log_dir/backup.log)"
+printf '%s\n' "$now" > "$lib/backed-up.fingerprint"
+entry="$(python3 -c '
+import json, sys
+e = json.load(open(sys.argv[1]))[-1]
+print(json.dumps({"name": e.get("name"), "pieceCid": e.get("pieceCid"), "complete": e.get("complete"), "copies": len(e.get("copies", []))}))' \
+  "$( [ "$role" = primary ] && echo ledger.json || echo ledger.calibration.json )")"
+status done ",\"role\":\"$role\",\"backup\":$entry,\"seconds\":$(( $(date +%s) - t0 ))"
+echo "paperless-backup: done, $entry"
