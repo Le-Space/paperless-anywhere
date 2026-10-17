@@ -1,0 +1,15 @@
+[Unit]
+Description=Restore the Paperless backup named at the unlock (once)
+After=paperless-stack.service
+Wants=paperless-stack.service
+
+[Service]
+Type=oneshot
+# Waits for the stack itself: the confidential systemctl replacement does not
+# order units by After=. Nothing to do without /tmp/secrets/restore_ledger_entry.
+ExecStart=/usr/local/sbin/paperless-restore
+RemainAfterExit=yes
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,121 @@
+#!/bin/sh
+# paperless-restore: import a backup into the empty Paperless, once, after the
+# unlock. What to restore comes with the unlock, over the attested channel:
+#
+#   /tmp/secrets/restore_ledger_entry  one entry of paperless-backup-filecoin's
+#                                      ledger.json (name, pieceCid, sealedSha256,
+#                                      copies[].retrievalUrl); absent: nothing to do
+#   /tmp/secrets/age_identity          the age identity that decrypts it
+#   /tmp/secrets/paperless_role        "primary" keeps the imported mail rules on;
+#                                      anything else ("test") switches them off,
+#                                      since another instance reads that mailbox
+#
+# The piece is fetched from a provider, checked against the ledger's SHA-256,
+# decrypted with age as a stream (no copy in memory), unpacked and imported
+# with document_importer. The identity is overwritten and removed afterwards,
+# and so is every plaintext copy, whether the restore worked or not. The
+# outcome goes to /run/paperless-anywhere/restore.json; document names stay in
+# /var/log/paperless-anywhere/restore.log on the encrypted disk.
+set -u
+secrets=/tmp/secrets
+state_dir=/run/paperless-anywhere
+state="$state_dir/restore.json"
+log_dir=/var/log/paperless-anywhere
+work=/srv/paperless/export/restore   # /usr/src/paperless/export/restore in the container
+mkdir -p "$state_dir" "$log_dir"
+chmod 700 "$log_dir"
+log="$log_dir/restore.log"
+
+status() { # status <state> [extra json fields]
+  printf '{"status":"%s","at":"%s"%s}\n' "$1" "$(date -u +%FT%TZ)" "${2:-}" > "$state.tmp" && mv "$state.tmp" "$state"
+}
+fail() {
+  echo "paperless-restore: $*" >&2
+  status failed ",\"reason\":\"$(printf '%s' "$*" | tr -d '"\\\n' | cut -c1-200)\""
+  exit 1
+}
+forget_secrets() {
+  for f in "$secrets/age_identity" "$secrets/restore_ledger_entry"; do
+    [ -e "$f" ] || continue
+    size=$(stat -c %s "$f" 2>/dev/null || echo 0)
+    dd if=/dev/zero of="$f" bs=1 count="$size" conv=notrunc 2>/dev/null
+    rm -f "$f"
+  done
+}
+cleanup() {
+  forget_secrets
+  rm -rf "$work"
+}
+trap cleanup EXIT
+
+if [ ! -s "$secrets/restore_ledger_entry" ]; then
+  status skipped ',"reason":"no restore_ledger_entry came with the unlock"'
+  exit 0
+fi
+[ -s "$secrets/age_identity" ] || fail "a restore_ledger_entry came without an age_identity"
+role="$(cat "$secrets/paperless_role" 2>/dev/null || echo test)"
+status running
+t0=$(date +%s)
+
+# The entry, read without a shell parser.
+eval "$(python3 - "$secrets/restore_ledger_entry" <<'PY'
+import json, re, shlex, sys
+e = json.load(open(sys.argv[1]))
+sha = str(e.get("sealedSha256", ""))
+urls = [c.get("retrievalUrl", "") for c in e.get("copies", [])]
+urls = [u for u in urls if re.fullmatch(r"https://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9/._-]*", u)]
+if not re.fullmatch(r"[0-9a-f]{64}", sha) or not urls:
+    sys.exit("the ledger entry has no SHA-256 or no https retrieval URL")
+print("name=" + shlex.quote(str(e.get("name", "backup"))[:80]))
+print("sha=" + sha)
+print("urls=" + shlex.quote(" ".join(urls)))
+PY
+)" || fail "unusable restore_ledger_entry"
+
+# Paperless must be up and empty: an import over existing documents mixes two archives.
+i=0
+until case "$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:8000/api/ || true)" in 200|302|401|403) true ;; *) false ;; esac; do
+  i=$((i + 1)); [ "$i" -le 120 ] || fail "Paperless did not come up"; sleep 5
+done
+count="$(paperless-manage shell -c 'from documents.models import Document; print("count", Document.global_objects.count() if hasattr(Document, "global_objects") else Document.objects.count())' 2>>"$log" | sed -n 's/^count //p' | tail -1)"
+[ "$count" = 0 ] || fail "Paperless is not empty (${count:-unknown} documents); refusing to import over it"
+
+rm -rf "$work" && mkdir -p "$work" && chmod 700 "$work"
+t1=$(date +%s); got=""
+for u in $urls; do
+  if curl -fsSL --retry 2 --max-time 1800 -o "$work/sealed.age" "$u"; then got="${u#https://}"; got="${got%%/*}"; break; fi
+done
+[ -n "$got" ] || fail "no provider delivered the piece"
+[ "$(sha256sum "$work/sealed.age" | cut -d' ' -f1)" = "$sha" ] || fail "the downloaded piece does not match the ledger's SHA-256"
+t2=$(date +%s)
+
+age -d -i "$secrets/age_identity" -o "$work/export.zip" "$work/sealed.age" 2>>"$log" || fail "age could not decrypt the piece"
+forget_secrets
+rm -f "$work/sealed.age"
+t3=$(date +%s)
+
+python3 - "$work/export.zip" "$work/import" <<'PY' 2>>"$log" || fail "the export zip is broken or unsafe"
+import os, sys, zipfile
+z = zipfile.ZipFile(sys.argv[1])
+names = z.namelist()
+bad = [n for n in names if n.startswith("/") or ".." in n.split("/")]
+if bad or len(names) != len(set(names)) or "manifest.json" not in names or z.testzip() is not None:
+    sys.exit("refused")
+z.extractall(sys.argv[2])
+PY
+rm -f "$work/export.zip"
+
+paperless-manage document_importer ../export/restore/import --no-progress-bar >>"$log" 2>&1 || fail "document_importer failed (see $log)"
+t4=$(date +%s)
+
+mail="kept"
+if [ "$role" != primary ]; then
+  paperless-manage shell -c 'from paperless_mail.models import MailRule; print("disabled", MailRule.objects.update(enabled=False))' >>"$log" 2>&1 \
+    || fail "could not switch off the imported mail rules"
+  mail="off"
+fi
+counts="$(paperless-manage shell -c 'from documents.models import Document; a = Document.objects.count(); g = Document.global_objects.count() if hasattr(Document, "global_objects") else a; print("counts", a, g - a)' 2>>"$log" | sed -n 's/^counts //p' | tail -1)"
+documents="${counts%% *}"; trash="${counts##* }"
+
+status done ",\"backup\":\"$name\",\"provider\":\"$got\",\"documents\":${documents:-0},\"trash\":${trash:-0},\"mail_rules\":\"$mail\",\"role\":\"$role\",\"seconds\":{\"download\":$((t2 - t1)),\"decrypt\":$((t3 - t2)),\"import\":$((t4 - t3)),\"total\":$((t4 - t0))}"
+echo "paperless-restore: $name restored, ${documents:-?} documents, mail rules $mail"
