@@ -152,7 +152,7 @@ jobs:
           fi
           ssh $SSH_ARGS 'docker images --format "{{.Repository}}:{{.Tag}} {{.Size}}"; docker system df; df -h / | tail -1; free -m | sed -n 2p'
 
-      - name: Nothing but sshd and Caddy faces the network
+      - name: Nothing but sshd, Caddy and the attestation agent faces the network
         run: ssh $SSH_ARGS paperless-anywhere-check
 
       - name: HTTPS through the 2n6 hostname
