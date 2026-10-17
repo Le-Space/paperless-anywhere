@@ -4,10 +4,10 @@
 # attestation agent (8443, run by the measured init before this rootfs is
 # even unlocked; attestation and unlock go through it) does.
 bad=$(ss -Hltnu 2>/dev/null | awk '{print $5}' \
-  | grep -vE '^(127\.[0-9.]+|\[::1\]|::1):' \
+  | grep -vE '^(127\.[0-9.]+|\[::1\]|::1|\[::ffff:127\.[0-9.]+\]):' \
   | grep -vE ':(22|443|8443)$' || true)
 echo "listening (not loopback):"
-ss -Hltnup 2>/dev/null | grep -vE ' (127\.[0-9.]+|\[::1\]):' || true
+ss -Hltnup 2>/dev/null | grep -vE ' (127\.[0-9.]+|\[::1\]|\[::ffff:127\.[0-9.]+\]):' || true
 if [ -n "$bad" ]; then
   echo "FAIL: reachable from the network: $(echo $bad)" >&2
   exit 1
