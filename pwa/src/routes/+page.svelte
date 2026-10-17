@@ -2,6 +2,7 @@
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey } from '$lib/keys/derive.js';
 	import { createVault, forgetVault, loadVault, unlockWithPasskey, unlockWithSeedPhrase } from '$lib/keys/vault.js';
+	import Setup from '$lib/Setup.svelte';
 
 	let vault = $state(loadVault());
 	/** @type {Uint8Array | null} the master secret, in memory only */
@@ -89,6 +90,7 @@
 		{/if}
 		<p>Entsperrt. Schlüssel dieser App für Aleph: <code data-testid="address">{address}</code></p>
 		<button onclick={lock}>Sperren</button>
+		{#if !shownPhrase}<Setup {master} />{/if}
 	{/if}
 
 	{#if error}<p class="error" role="alert">{error}</p>{/if}

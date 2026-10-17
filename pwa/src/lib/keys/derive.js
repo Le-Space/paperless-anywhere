@@ -11,7 +11,9 @@ export const LABELS = Object.freeze({
 	paperlessAdminPassword: 'paperless-anywhere/paperless-admin-password/v1',
 	paperlessDbPassword: 'paperless-anywhere/paperless-db-password/v1',
 	paperlessSecretKey: 'paperless-anywhere/paperless-secret-key/v1',
-	vaultKey: 'paperless-anywhere/vault-key/v1'
+	vaultKey: 'paperless-anywhere/vault-key/v1',
+	filecoinSession: 'paperless-anywhere/filecoin-session-key/v1',
+	profileKey: 'paperless-anywhere/profile-key/v1'
 });
 
 // The order of secp256k1: a private key must be in [1, n).
@@ -33,14 +35,22 @@ const base64url = (bytes) => btoa(String.fromCharCode(...bytes)).replaceAll('+',
  * @param {Uint8Array} master
  * @returns {`0x${string}`}
  */
-export function alephPrivateKey(master) {
+export function alephPrivateKey(master, label = LABELS.alephAccount) {
 	for (let i = 0; i < 16; i++) {
-		const bytes = deriveBytes(master, i === 0 ? LABELS.alephAccount : `${LABELS.alephAccount}#${i}`);
+		const bytes = deriveBytes(master, i === 0 ? label : `${label}#${i}`);
 		const k = BigInt(`0x${hex(bytes)}`);
 		if (k > 0n && k < SECP256K1_N) return `0x${hex(bytes)}`;
 	}
 	throw new Error('could not derive a secp256k1 key');
 }
+
+/**
+ * The Filecoin session key the paying account authorizes (add pieces, create
+ * data sets) for some days. The VMs back up with it; it cannot delete pieces
+ * or move funds.
+ * @param {Uint8Array} master
+ */
+export const filecoinSessionPrivateKey = (master) => alephPrivateKey(master, LABELS.filecoinSession);
 
 /** Paperless's secrets, as URL-safe text. @param {Uint8Array} master */
 export function paperlessSecrets(master) {
