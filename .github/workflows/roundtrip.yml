@@ -37,7 +37,7 @@ env:
   ITEM: ${{ inputs.rootfs_item_hash }}
   CRN: ${{ inputs.crn }}
   NAME: paperless-roundtrip-${{ github.run_id }}
-  BACKUP_TOOL_COMMIT: 7d20d5d6ed8f02bd56b7166c80749aa9d469ca73
+  BACKUP_TOOL_COMMIT: f2de20798cccd2fb8bd8dff3b55e303b679b845b
 
 jobs:
   roundtrip:
