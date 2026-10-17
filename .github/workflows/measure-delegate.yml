@@ -1,0 +1,110 @@
+name: Measure who pays for a delegated INSTANCE
+
+# #3: the PWA is to start VMs with its own key, authorized by the paying
+# account for INSTANCE and FORGET only. Which account's credits does such an
+# INSTANCE draw on: the owner's (content.address) or the sender's? A fresh
+# delegate without credits starts a small, normal (not confidential) VM on
+# behalf of the owner (ALEPH_PRIVATE_KEY); both credit histories are compared
+# for expenses that reference that VM. Then the delegate forgets it (FORGET by
+# delegation) and the owner revokes the authorization.
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: Minutes to let the VM run before reading the credit histories
+        required: false
+        default: '15'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paperless-try
+  cancel-in-progress: false
+
+env:
+  ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+  NAME: delegate-measure-${{ github.run_id }}
+
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Tools and keys
+        id: keys
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/aleph" https://github.com/aleph-im/aleph-rs/releases/download/v0.22.0/aleph-cli-linux-x86_64
+          echo "41b8ced717d9962683ce2d4409725774e826643be0bae1bfc623f6c0c7fb19d7  $RUNNER_TEMP/aleph" | sha256sum -c -
+          sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
+          pip install -q eth-account
+          umask 077
+          python3 - "$RUNNER_TEMP" <<'PY' >> "$GITHUB_OUTPUT"
+          import os, sys, secrets
+          from eth_account import Account
+          k = os.environ["ALEPH_PRIVATE_KEY"].strip()
+          owner = Account.from_key(k if k.startswith("0x") else "0x" + k).address
+          d = "0x" + secrets.token_hex(32)
+          open(os.path.join(sys.argv[1], "delegate.key"), "w").write(d)
+          print(f"owner={owner}")
+          print(f"delegate={Account.from_key(d).address}")
+          PY
+          ssh-keygen -q -t ed25519 -N '' -f "$RUNNER_TEMP/m_ed25519"
+
+      - name: Balances before
+        env:
+          OWNER: ${{ steps.keys.outputs.owner }}
+          DELEGATE: ${{ steps.keys.outputs.delegate }}
+        run: |
+          for a in "$OWNER" "$DELEGATE"; do echo "$a: $(aleph account balance "$a" --json | jq -c '{credits}')"; done
+          echo "START=$(date -u +%FT%TZ)" >> "$GITHUB_ENV"
+
+      - name: The owner authorizes the delegate for INSTANCE and FORGET
+        env:
+          DELEGATE: ${{ steps.keys.outputs.delegate }}
+        run: aleph authorization add "$DELEGATE" --message-types instance,forget --chain eth
+
+      - name: The delegate starts a VM on behalf of the owner
+        id: vm
+        env:
+          OWNER: ${{ steps.keys.outputs.owner }}
+        run: |
+          set -o pipefail
+          sleep 20
+          aleph instance create "$NAME" --image debian12 --size 1vcpu-2gb --ssh-pubkey-file "$RUNNER_TEMP/m_ed25519.pub" \
+            --on-behalf-of "$OWNER" --private-key "$(cat "$RUNNER_TEMP/delegate.key")" --chain eth --wait 600 2>&1 | tee "$RUNNER_TEMP/create.log" || status=$?
+          hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/create.log" | grep -oE '[0-9a-f]{64}' | head -1 || true)"
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+          [ -n "$hash" ] || { echo "::error::the delegate's INSTANCE was not accepted"; exit 1; }
+          curl -fsS "https://api2.aleph.im/api/v0/messages/$hash" | jq -c '{status, sender: .message.sender, address: .message.content.address, payment: .message.content.payment}'
+          exit "${status:-0}"
+
+      - name: Let it run, then read who paid
+        env:
+          OWNER: ${{ steps.keys.outputs.owner }}
+          DELEGATE: ${{ steps.keys.outputs.delegate }}
+          HASH: ${{ steps.vm.outputs.hash }}
+        run: |
+          sleep $(( ${{ inputs.minutes || '15' }} * 60 ))
+          for a in "$OWNER" "$DELEGATE"; do
+            echo "== $a"
+            echo "balance: $(aleph account balance "$a" --json | jq -c '{credits}')"
+            aleph credit history --address "$a" --start "$START" --page-size 200 --json \
+              | jq -c --arg h "$HASH" '[.credit_history[] | select(.credit_ref == $h)] | {expenses_for_this_vm: length, credits: (map(.amount) | add // 0)}'
+          done
+
+      - name: The delegate forgets the VM; the owner revokes the authorization
+        if: always()
+        env:
+          OWNER: ${{ steps.keys.outputs.owner }}
+          DELEGATE: ${{ steps.keys.outputs.delegate }}
+          HASH: ${{ steps.vm.outputs.hash }}
+        run: |
+          if [ -n "$HASH" ]; then
+            echo y | aleph instance delete "$HASH" --reason "delegate measure ${GITHUB_RUN_ID}" \
+              --on-behalf-of "$OWNER" --private-key "$(cat "$RUNNER_TEMP/delegate.key")" --chain eth \
+              && echo "FORGET by the delegate: accepted" || { echo "FORGET by the delegate failed; the owner forgets it"; echo y | aleph instance delete "$HASH" --reason "delegate measure ${GITHUB_RUN_ID}" --chain eth || true; }
+          fi
+          aleph authorization revoke "$DELEGATE" --chain eth || true
