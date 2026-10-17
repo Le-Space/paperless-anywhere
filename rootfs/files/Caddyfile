@@ -1,0 +1,4 @@
+# Replaced by paperless-https <hostname>. Until then Caddy serves nothing.
+{
+  auto_https off
+}

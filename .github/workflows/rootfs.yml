@@ -1,0 +1,70 @@
+name: Paperless rootfs
+
+# Builds the Paperless rootfs (rootfs/build-image.sh), makes it confidential
+# and encrypts it with relay-button's aleph-confidential-rootfs action, and
+# publishes it as an Aleph STORE (paid in credits by ALEPH_PRIVATE_KEY).
+# The STORE hash in the summary is what an instance boots from.
+#
+# Secrets: ALEPH_PRIVATE_KEY (pays), PAPERLESS_LUKS_PASSPHRASE (the disk key).
+# Variable: PAPERLESS_SSH_PUBLIC_KEY (root's authorized_keys in the image).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paperless-rootfs
+  cancel-in-progress: false
+
+jobs:
+  rootfs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the secrets
+        env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+          LUKS: ${{ secrets.PAPERLESS_LUKS_PASSPHRASE }}
+          SSH_KEY: ${{ vars.PAPERLESS_SSH_PUBLIC_KEY }}
+        run: |
+          [ -n "$ALEPH_PRIVATE_KEY" ] || { echo "::error::set the ALEPH_PRIVATE_KEY secret"; exit 1; }
+          [ -n "$LUKS" ] || { echo "::error::set the PAPERLESS_LUKS_PASSPHRASE secret"; exit 1; }
+          [[ "$SSH_KEY" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp256)\  ]] || { echo "::error::set the PAPERLESS_SSH_PUBLIC_KEY variable to a .pub line"; exit 1; }
+
+      - name: Build the plain image
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq debootstrap >/dev/null
+          start=$(date +%s)
+          sudo ./rootfs/build-image.sh "$RUNNER_TEMP/paperless.ext4"
+          sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/paperless.ext4"
+          echo "BUILD_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+          echo "PLAIN_BYTES=$(stat -c %s "$RUNNER_TEMP/paperless.ext4")" >> "$GITHUB_ENV"
+
+      - name: Confidential, encrypted, published
+        id: rootfs
+        uses: NiKrause/relay-button/.github/actions/aleph-confidential-rootfs@v0.10.0
+        with:
+          image_path: ${{ runner.temp }}/paperless.ext4
+          ssh_public_key: ${{ vars.PAPERLESS_SSH_PUBLIC_KEY }}
+          luks_passphrase: ${{ secrets.PAPERLESS_LUKS_PASSPHRASE }}
+          aleph_private_key: ${{ secrets.ALEPH_PRIVATE_KEY }}
+
+      - name: Summary
+        if: always()
+        env:
+          STORE: ${{ steps.rootfs.outputs.rootfs_item_hash }}
+          SIZE_MIB: ${{ steps.rootfs.outputs.rootfs_size_mib }}
+        run: |
+          {
+            echo "## Paperless rootfs"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Encrypted rootfs (STORE) | \`${STORE:-none}\` |"
+            echo "| Plain image | $(( ${PLAIN_BYTES:-0} / 1048576 )) MiB, built in ${BUILD_SECONDS:-?} s |"
+            echo "| Encrypted image | ${SIZE_MIB:-?} MiB |"
+          } >> "$GITHUB_STEP_SUMMARY"

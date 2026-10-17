@@ -74,3 +74,14 @@ Carried sealed under the master secret (they exist already and old backups depen
 ## License
 
 MIT — by [Le Space](https://github.com/Le-Space).
+
+## The rootfs (step 2, #1)
+
+`rootfs/build-image.sh` builds the image: Debian 12 with systemd, Docker and the compose plugin, Caddy, age, and the stack in `/opt/paperless/compose.yml` (Paperless, Postgres, Valkey, Tika, Gotenberg). The workflow *Paperless rootfs* hands it to relay-button's `aleph-confidential-rootfs` action, which makes it confidential and encrypts it, then publishes it as an Aleph STORE.
+
+- The containers are pulled after the unlock, so the image stays small. Docker uses vfs and the host network, because the confidential guest kernel has no overlayfs, bridge or nftables.
+- Every service binds to 127.0.0.1. The guest has no firewall and a public IPv6 address. Only sshd and Caddy face the network, and `paperless-anywhere-check` fails if anything else does.
+- `paperless-secrets` takes the database password, `PAPERLESS_SECRET_KEY` and the admin password from `/tmp/secrets` when they came with the unlock. Otherwise it makes them once on the encrypted disk.
+- `paperless-https <hostname>` writes the Caddyfile for `https://<hostname>` and restarts Caddy and the stack.
+
+The workflow needs the `ALEPH_PRIVATE_KEY` and `PAPERLESS_LUKS_PASSPHRASE` secrets and the `PAPERLESS_SSH_PUBLIC_KEY` variable.
