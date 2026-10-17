@@ -84,6 +84,25 @@ jobs:
             node backup.mjs session-login 3 "$RUNNER_TEMP/session.key")
           session="$(cd "$RUNNER_TEMP/tool" && node -e 'const { privateKeyToAccount } = require("viem/accounts"); console.log(privateKeyToAccount(require("fs").readFileSync(process.argv[1], "utf8").trim()).address)' "$RUNNER_TEMP/session.key")"
           echo "session=$session" >> "$GITHUB_OUTPUT"
+          # wait_ssh <hash> <secret args file>: SSH up after the unlock, or unlock
+          # again. The node can restart a VM after it was unlocked; the disk is
+          # then locked again and sshd never starts. Logs when the node started it.
+          cat > "$RUNNER_TEMP/wait_ssh.sh" <<'EOS'
+          wait_ssh() {
+            for i in $(seq 1 36); do
+              $SSH true 2>/dev/null && { echo "SSH is up"; return 0; }
+              if [ "$i" = 9 ] || [ "$i" = 21 ]; then
+                started="$(curl -fsS --max-time 15 "$CRN_URL/v2/about/executions/list" | jq -r --arg h "$1" '.[$h].status.started_at // "?"' || echo '?')"
+                echo "no SSH yet; the node started the VM at $started; unlocking again"
+                xargs -0 -a "$2" aleph instance unlock "$1" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" --chain eth > "$RUNNER_TEMP/reunlock.log" 2>&1 \
+                  && echo "unlocked again" || tail -2 "$RUNNER_TEMP/reunlock.log" | grep -v -i secret
+              fi
+              sleep 10
+            done
+            echo "::error::SSH did not come up after the unlock"
+            return 1
+          }
+          EOS
           echo "payer=$payer" >> "$GITHUB_OUTPUT"
 
       - name: VM 1 - start, unlock with the backup config and the session key
@@ -97,13 +116,13 @@ jobs:
           [ -n "$hash" ] || { echo "::error::no INSTANCE item hash"; exit 1; }
           echo "hash=$hash" >> "$GITHUB_OUTPUT"
           ok=""
+          umask 077
+          printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=test" \
+            --secret "backup_config=$(cat "$RUNNER_TEMP/backup_config.json")" --secret "backup_session_key=$(cat "$RUNNER_TEMP/session.key")" \
+            > "$RUNNER_TEMP/secrets1.args"
           ok=""
           for i in $(seq 1 12); do
-            aleph instance unlock "$hash" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
-              --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" \
-              --secret "paperless_role=test" \
-              --secret "backup_config=$(cat "$RUNNER_TEMP/backup_config.json")" \
-              --secret "backup_session_key=$(cat "$RUNNER_TEMP/session.key")" \
+            xargs -0 -a "$RUNNER_TEMP/secrets1.args" aleph instance unlock "$hash" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
               --chain eth > "$RUNNER_TEMP/unlock1.log" 2>&1 && { ok=1; break; }
             tail -2 "$RUNNER_TEMP/unlock1.log" | grep -v -i secret; sleep 20
           done
@@ -115,16 +134,17 @@ jobs:
         env:
           HASH: ${{ steps.vm1.outputs.hash }}
         run: |
+          . "$RUNNER_TEMP/wait_ssh.sh"
           crn_url="$(curl -fsS 'https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel' \
             | jq -r --arg p "$CRN" '.data.corechannel.resource_nodes[] | select(.hash | startswith($p)) | .address' | head -1)"; crn_url="${crn_url%/}"
-          echo "CRN_URL=$crn_url" >> "$GITHUB_ENV"
+          echo "CRN_URL=$crn_url" >> "$GITHUB_ENV"; CRN_URL="$crn_url"
           for i in $(seq 1 30); do
             entry="$(curl -fsS --max-time 15 "$crn_url/v2/about/executions/list" | jq -c --arg h "$HASH" '.[$h] // {}' || echo '{}')"
             HOST="$(jq -r '.networking.host_ipv4 // empty' <<<"$entry")"; PORT="$(jq -r '.networking.mapped_ports["22"].host // empty' <<<"$entry")"
             [ -n "$HOST" ] && [ -n "$PORT" ] && break; sleep 10
           done
           SSH="ssh -i $RUNNER_TEMP/rt_ed25519 -p $PORT -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@$HOST"
-          for i in $(seq 1 30); do $SSH true 2>/dev/null && break; sleep 10; done
+          wait_ssh "$HASH" "$RUNNER_TEMP/secrets1.args" || exit 1
           for i in $(seq 1 120); do
             code="$($SSH 'curl -s -o /dev/null -w "%{http_code}" --max-time 10 http://127.0.0.1:8000/api/' 2>/dev/null || true)"
             case "$code" in 200|302|401|403) break ;; esac; sleep 15
@@ -165,24 +185,25 @@ jobs:
           [ -n "$hash" ] || { echo "::error::no INSTANCE item hash"; exit 1; }
           echo "hash=$hash" >> "$GITHUB_OUTPUT"
           ok=""
+          umask 077
+          printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=test" \
+            --secret "restore_ledger_entry=$(jq -c . "$RUNNER_TEMP/entry.json")" --secret "age_identity=$(cat "$RUNNER_TEMP/age.txt")" \
+            > "$RUNNER_TEMP/secrets2.args"
           ok=""
           for i in $(seq 1 12); do
-            aleph instance unlock "$hash" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
-              --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" \
-              --secret "paperless_role=test" \
-              --secret "restore_ledger_entry=$(jq -c . "$RUNNER_TEMP/entry.json")" \
-              --secret "age_identity=$(cat "$RUNNER_TEMP/age.txt")" \
+            xargs -0 -a "$RUNNER_TEMP/secrets2.args" aleph instance unlock "$hash" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
               --chain eth > "$RUNNER_TEMP/unlock2.log" 2>&1 && { ok=1; break; }
             tail -2 "$RUNNER_TEMP/unlock2.log" | grep -v -i secret; sleep 20
           done
           [ -n "$ok" ] || { echo "::error::VM 2 could not be unlocked"; exit 1; }
+          . "$RUNNER_TEMP/wait_ssh.sh"
           for i in $(seq 1 30); do
             entry="$(curl -fsS --max-time 15 "$CRN_URL/v2/about/executions/list" | jq -c --arg h "$hash" '.[$h] // {}' || echo '{}')"
             HOST="$(jq -r '.networking.host_ipv4 // empty' <<<"$entry")"; PORT="$(jq -r '.networking.mapped_ports["22"].host // empty' <<<"$entry")"
             [ -n "$HOST" ] && [ -n "$PORT" ] && break; sleep 10
           done
           SSH="ssh -i $RUNNER_TEMP/rt_ed25519 -p $PORT -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@$HOST"
-          for i in $(seq 1 30); do $SSH true 2>/dev/null && break; sleep 10; done
+          wait_ssh "$hash" "$RUNNER_TEMP/secrets2.args" || exit 1
           result=""
           for i in $(seq 1 120); do
             result="$($SSH 'cat /run/paperless-anywhere/restore.json 2>/dev/null' || true)"
