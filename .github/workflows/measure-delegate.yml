@@ -103,8 +103,16 @@ jobs:
           HASH: ${{ steps.vm.outputs.hash }}
         run: |
           if [ -n "$HASH" ]; then
-            echo y | aleph instance delete "$HASH" --reason "delegate measure ${GITHUB_RUN_ID}" \
-              --on-behalf-of "$OWNER" --private-key "$(cat "$RUNNER_TEMP/delegate.key")" --chain eth \
-              && echo "FORGET by the delegate: accepted" || { echo "FORGET by the delegate failed; the owner forgets it"; echo y | aleph instance delete "$HASH" --reason "delegate measure ${GITHUB_RUN_ID}" --chain eth || true; }
+            # `aleph instance delete` has no --on-behalf-of, and refuses an
+            # instance whose sender is someone else; a raw FORGET does both.
+            if aleph message forget "$HASH" --reason "delegate measure ${GITHUB_RUN_ID}" \
+                --on-behalf-of "$OWNER" --private-key "$(cat "$RUNNER_TEMP/delegate.key")" --chain eth -y; then
+              echo "FORGET by the delegate: accepted"
+            else
+              echo "FORGET by the delegate failed; the owner forgets it"
+              aleph message forget "$HASH" --reason "delegate measure ${GITHUB_RUN_ID}" --chain eth -y || true
+            fi
+            sleep 20
+            echo "instance now: $(curl -fsS "https://api2.aleph.im/api/v0/messages/$HASH" | jq -r .status)"
           fi
           aleph authorization revoke "$DELEGATE" --chain eth || true
