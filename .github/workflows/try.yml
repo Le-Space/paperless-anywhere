@@ -147,7 +147,7 @@ jobs:
           done
           echo "T_STACK=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
           if [ -z "$up" ]; then
-            ssh $SSH_ARGS 'for u in containerd docker paperless-stack; do echo "== $u: $(systemctl is-active $u.service)"; journalctl -u $u.service --no-pager 2>/dev/null | tail -25; done; docker ps -a' || true
+            ssh $SSH_ARGS 'for u in containerd docker paperless-stack; do echo "== $u: $(systemctl is-active $u.service)"; journalctl -u $u.service --no-pager 2>/dev/null | grep -v level=info | tail -15; done; docker ps -a; for c in $(docker ps -aq); do echo "== $(docker inspect -f "{{.Name}} {{.State.Status}} exit={{.State.ExitCode}}" $c)"; docker logs --tail 15 $c 2>&1; done; ls -ld /srv/paperless/*' || true
             echo "::error::Paperless did not answer"; exit 1
           fi
           ssh $SSH_ARGS 'docker images --format "{{.Repository}}:{{.Tag}} {{.Size}}"; docker system df; df -h / | tail -1; free -m | sed -n 2p'
