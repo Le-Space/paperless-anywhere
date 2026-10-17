@@ -38,13 +38,19 @@ export async function createPasskey(name) {
 	return b64u(credential.rawId);
 }
 
-/** The passkey's PRF answer for the master secret: one touch. @param {string} credentialId */
+/**
+ * The passkey's PRF answer for the master secret: one touch. With a credential
+ * id, only that passkey may answer; without one (a device that has not seen
+ * this vault yet), the person picks one of their passkeys.
+ * @param {string} [credentialId]
+ * @returns {Promise<{ prf: Uint8Array, credentialId: string }>}
+ */
 export async function readPrf(credentialId) {
 	const assertion = /** @type {PublicKeyCredential} */ (
 		await navigator.credentials.get({
 			publicKey: {
 				challenge: crypto.getRandomValues(new Uint8Array(32)),
-				allowCredentials: [{ type: 'public-key', id: unb64u(credentialId) }],
+				...(credentialId ? { allowCredentials: [{ type: 'public-key', id: unb64u(credentialId) }] } : {}),
 				userVerification: 'required',
 				extensions: /** @type {any} */ ({ prf: { eval: { first: PRF_INPUT } } })
 			}
@@ -52,5 +58,5 @@ export async function readPrf(credentialId) {
 	);
 	const first = /** @type {any} */ (assertion.getClientExtensionResults())?.prf?.results?.first;
 	if (!first || first.byteLength < 32) throw new PrfUnavailableError();
-	return new Uint8Array(first);
+	return { prf: new Uint8Array(first), credentialId: b64u(assertion.rawId) };
 }

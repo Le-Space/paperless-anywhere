@@ -33,9 +33,13 @@
 		master = result.master;
 		shownPhrase = result.phrase;
 	});
-	const unlockPasskey = () => run(async () => (master = await unlockWithPasskey(vault)));
+	const unlockPasskey = () => run(async () => {
+		master = await unlockWithPasskey(vault);
+		vault = loadVault();
+	});
 	const unlockPhrase = () => run(async () => {
 		master = await unlockWithSeedPhrase(vault, phrase);
+		vault = loadVault();
 		phrase = '';
 	});
 	function lock() {
@@ -59,6 +63,13 @@
 		<p>Ein Passkey schützt den Zugang. Dazu bekommst du eine Wiederherstellungsphrase aus 24 Wörtern.</p>
 		<label>Name des Passkeys <input bind:value={name} /></label>
 		<button onclick={create} disabled={busy}>Passkey anlegen</button>
+		<h2>Schon eingerichtet?</h2>
+		<button onclick={unlockPasskey} disabled={busy}>Auf diesem Gerät mit Passkey öffnen</button>
+		<details>
+			<summary>Auf diesem Gerät mit Wiederherstellungsphrase öffnen</summary>
+			<textarea bind:value={phrase} rows="3" autocomplete="off" spellcheck="false"></textarea>
+			<button onclick={unlockPhrase} disabled={busy || !phrase.trim()}>Öffnen</button>
+		</details>
 	{:else if state === 'locked'}
 		<button onclick={unlockPasskey} disabled={busy}>Mit Passkey entsperren</button>
 		<details>

@@ -1,15 +1,21 @@
 import { expect, test } from '@playwright/test';
+import { alephMock } from './aleph-mock.js';
 
-// A virtual authenticator that can evaluate PRF stands for the YubiKey.
-test.beforeEach(async ({ page }) => {
+/** A virtual authenticator that can evaluate PRF stands for the YubiKey. */
+async function authenticator(page) {
 	const cdp = await page.context().newCDPSession(page);
 	await cdp.send('WebAuthn.enable');
-	await cdp.send('WebAuthn.addVirtualAuthenticator', {
+	const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
 		options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, hasPrf: true }
 	});
-});
+	return { cdp, authenticatorId };
+}
 
-test('a passkey and a seed phrase open the same vault; nothing open is stored', async ({ page }) => {
+test('a passkey and a seed phrase open the same vault, also on another device; nothing open is stored', async ({ page, browser }) => {
+	const install = alephMock();
+	const aggregates = await install(page.context());
+	await authenticator(page);
+
 	await page.goto('/');
 	await expect(page.getByTestId('state')).toHaveText('new');
 	await page.getByRole('button', { name: 'Passkey anlegen' }).click();
@@ -20,14 +26,18 @@ test('a passkey and a seed phrase open the same vault; nothing open is stored', 
 	expect(address).toMatch(/^0x[0-9a-fA-F]{40}$/);
 	await page.getByRole('button', { name: 'Aufgeschrieben' }).click();
 
-	// What the browser keeps: the passkey id and two sealed boxes, nothing else.
+	// In Aleph: two vault entries (passkey, phrase), each only a sealed box.
+	expect(aggregates.size).toBe(2);
+	for (const data of aggregates.values()) {
+		const entry = data['paperless-anywhere-vault'];
+		expect(Object.keys(entry.box).sort()).toEqual(['ct', 'iv', 'purpose', 'v']);
+		expect(JSON.stringify(entry)).not.toContain(words.join(' '));
+	}
+
+	// In this browser: the passkey id and the sealed boxes, nothing else.
 	const stored = await page.evaluate(() => ({ ...localStorage }));
 	expect(Object.keys(stored)).toEqual(['paperless-anywhere.vault']);
-	const vault = JSON.parse(stored['paperless-anywhere.vault']);
-	expect(Object.keys(vault).sort()).toEqual(['byPasskey', 'bySeed', 'createdAt', 'credentialId', 'v']);
-	expect(JSON.stringify(vault)).not.toContain(words.join(' '));
-	const idb = await page.evaluate(async () => (await indexedDB.databases()).length);
-	expect(idb).toBe(0);
+	expect(await page.evaluate(async () => (await indexedDB.databases()).length)).toBe(0);
 
 	await page.getByRole('button', { name: 'Sperren' }).click();
 	await page.reload();
@@ -35,16 +45,30 @@ test('a passkey and a seed phrase open the same vault; nothing open is stored', 
 	await page.getByRole('button', { name: 'Mit Passkey entsperren' }).click();
 	await expect(page.getByTestId('address')).toHaveText(address);
 
-	await page.getByRole('button', { name: 'Sperren' }).click();
-	await page.getByText('Mit Wiederherstellungsphrase entsperren').click();
-	await page.locator('textarea').fill(words.join(' '));
-	await page.getByRole('button', { name: 'Entsperren', exact: true }).click();
+	// The same browser without its local vault: the passkey finds the vault in Aleph.
+	await page.evaluate(() => localStorage.clear());
+	await page.reload();
+	await expect(page.getByTestId('state')).toHaveText('new');
+	await page.getByRole('button', { name: 'Auf diesem Gerät mit Passkey öffnen' }).click();
 	await expect(page.getByTestId('address')).toHaveText(address);
 
-	await page.getByRole('button', { name: 'Sperren' }).click();
-	await page.getByText('Mit Wiederherstellungsphrase entsperren').click();
-	await page.locator('textarea').fill(words.slice().reverse().join(' '));
-	await page.getByRole('button', { name: 'Entsperren', exact: true }).click();
-	await expect(page.getByRole('alert')).toBeVisible();
-	await expect(page.getByTestId('state')).toHaveText('locked');
+	// Another device, with the phrase only.
+	const other = await browser.newContext();
+	await install(other);
+	const phone = await other.newPage();
+	await phone.goto('/');
+	await phone.getByText('Auf diesem Gerät mit Wiederherstellungsphrase öffnen').click();
+	await phone.locator('textarea').fill(words.join(' '));
+	await phone.getByRole('button', { name: 'Öffnen', exact: true }).click();
+	await expect(phone.getByTestId('address')).toHaveText(address);
+
+	// A wrong phrase finds nothing.
+	await phone.getByRole('button', { name: 'Sperren' }).click();
+	await phone.evaluate(() => localStorage.clear());
+	await phone.reload();
+	await phone.getByText('Auf diesem Gerät mit Wiederherstellungsphrase öffnen').click();
+	await phone.locator('textarea').fill(words.slice().reverse().join(' '));
+	await phone.getByRole('button', { name: 'Öffnen', exact: true }).click();
+	await expect(phone.getByRole('alert')).toBeVisible();
+	await other.close();
 });

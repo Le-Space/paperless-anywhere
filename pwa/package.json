@@ -12,6 +12,7 @@
 		"e2e": "playwright test"
 	},
 	"dependencies": {
+		"@le-space/core": "0.10.0",
 		"@noble/hashes": "2.4.0",
 		"@scure/bip39": "2.4.0",
 		"viem": "2.57.2"
