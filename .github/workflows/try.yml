@@ -208,7 +208,8 @@ jobs:
 
       - name: Import made-up documents
         id: docs
-        if: inputs.test_documents != false
+        # A dispatch decides; other events (no inputs) import them.
+        if: github.event_name != 'workflow_dispatch' || inputs.test_documents
         run: |
           # A few invented receipts, rendered as PDFs inside the guest's
           # Paperless container, then consumed and OCR'd.
