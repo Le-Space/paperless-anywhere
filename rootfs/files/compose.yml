@@ -60,6 +60,11 @@ services:
     <<: *host
     image: ghcr.io/paperless-ngx/paperless-ngx:3.2.1
     depends_on: [postgres, valkey, gotenberg, tika]
+    # The image's healthcheck runs through `docker exec`, which does not work
+    # in the confidential guest, so it would report "unhealthy" forever.
+    # paperless-anywhere-check and the trial probe the web server instead.
+    healthcheck:
+      disable: true
     env_file: /etc/paperless-anywhere/paperless.env
     environment:
       PAPERLESS_REDIS: redis://127.0.0.1:6379

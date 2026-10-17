@@ -20,5 +20,8 @@ https://${host} {
 }
 CADDY
 systemctl restart caddy.service
-# PAPERLESS_URL follows the hostname.
-systemctl restart paperless-stack.service
+# PAPERLESS_URL follows the hostname (Django trusts that origin for CSRF).
+# A restart through the systemctl replacement does not reliably recreate the
+# container with the new environment, so recreate it directly.
+/usr/local/sbin/paperless-secrets
+cd /opt/paperless && docker compose up -d --force-recreate --no-deps paperless

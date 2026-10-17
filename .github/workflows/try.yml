@@ -23,6 +23,11 @@ on:
         required: false
         default: '80'
         type: string
+      test_documents:
+        description: Import five made-up documents (off for a restore by hand into an empty Paperless)
+        required: false
+        default: true
+        type: boolean
       keep_minutes:
         description: Minutes to keep it running after the checks
         required: false
@@ -88,6 +93,19 @@ jobs:
         run: |
           aleph instance port-forward create "$HASH" 443 --tcp true --chain eth
           aleph instance port-forward refresh "$HASH" --chain eth || true
+          # The node restarts the VM to apply a new mapping; an unlock before
+          # that is lost with the restart. Wait until 443 is mapped.
+          crn_url="$(curl -fsS 'https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel' \
+            | jq -r --arg p "$CRN" '.data.corechannel.resource_nodes[] | select(.hash | startswith($p)) | .address' | head -1)"
+          crn_url="${crn_url%/}"
+          echo "CRN_URL=$crn_url" >> "$GITHUB_ENV"
+          for i in $(seq 1 30); do
+            mapped="$(curl -fsS --max-time 15 "$crn_url/v2/about/executions/list" | jq -r --arg h "$HASH" '.[$h].networking.mapped_ports["443"].host // empty' || true)"
+            [ -n "$mapped" ] && { echo "443 mapped to $mapped"; break; }
+            sleep 10
+          done
+          [ -n "$mapped" ] || { echo "::error::the node did not map 443"; exit 1; }
+          sleep 15
 
       - name: Attest and unlock (with this run's key as authorized_keys)
         env:
@@ -112,9 +130,7 @@ jobs:
         env:
           HASH: ${{ steps.create.outputs.item_hash }}
         run: |
-          crn_url="$(curl -fsS 'https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel' \
-            | jq -r --arg p "$CRN" '.data.corechannel.resource_nodes[] | select(.hash | startswith($p)) | .address' | head -1)"
-          crn_url="${crn_url%/}"
+          crn_url="$CRN_URL"
           for i in $(seq 1 30); do
             entry="$(curl -fsS --max-time 15 "$crn_url/v2/about/executions/list" | jq -c --arg h "$HASH" '.[$h] // {}' || echo '{}')"
             HOST="$(jq -r '.networking.host_ipv4 // empty' <<<"$entry")"
@@ -130,7 +146,16 @@ jobs:
           echo "SSH_ARGS=$SSH_ARGS" >> "$GITHUB_ENV"
           echo "mapped: ssh $HOST:$PORT, https ${P443:-not mapped}"
           ssh_up=""
-          for i in $(seq 1 30); do ssh $SSH_ARGS true 2>/dev/null && { ssh_up=1; break; }; sleep 10; done
+          for i in $(seq 1 30); do
+            ssh $SSH_ARGS true 2>/dev/null && { ssh_up=1; break; }
+            # A restart after the unlock leaves the disk locked again: unlock once more.
+            if [ "$i" = 9 ]; then
+              echo "no SSH after 90 s; unlocking again"
+              aleph instance unlock "$HASH" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
+                --secret "authorized_keys=$(cat "$RUNNER_TEMP/try_ed25519.pub")" --chain eth > "$RUNNER_TEMP/unlock2.log" 2>&1 || tail -3 "$RUNNER_TEMP/unlock2.log"
+            fi
+            sleep 10
+          done
           [ -n "$ssh_up" ] || { ssh $SSH_ARGS true || true; echo "::error::SSH did not come up after the unlock"; exit 1; }
           echo "SSH is up"
           start=$(date +%s)
@@ -183,6 +208,7 @@ jobs:
 
       - name: Import made-up documents
         id: docs
+        if: inputs.test_documents != false
         run: |
           # A few invented receipts, rendered as PDFs inside the guest's
           # Paperless container, then consumed and OCR'd.
@@ -200,7 +226,7 @@ jobs:
             sleep 10
           done
           echo "T_IMPORT=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
-          ssh $SSH_ARGS 'docker exec paperless-paperless-1 python3 manage.py shell -c "from documents.models import Document; print(\"documents:\", Document.objects.count())"' || true
+          ssh $SSH_ARGS 'paperless-manage shell -c "from documents.models import Document; print(\"documents:\", Document.objects.count())" 2>/dev/null | grep documents' || true
 
       - name: Keep it running
         if: success()

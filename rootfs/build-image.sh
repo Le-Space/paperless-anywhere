@@ -34,7 +34,7 @@ install -D -m 644 "$here/files/compose.yml" "$root/opt/paperless/compose.yml"
 install -D -m 644 "$here/files/Caddyfile" "$root/etc/caddy/Caddyfile"
 install -D -m 644 "$here/files/paperless-stack.service" "$root/etc/systemd/system/paperless-stack.service"
 install -D -m 644 "$here/files/docker.service" "$root/etc/systemd/system/docker.service"
-for script in paperless-secrets paperless-https paperless-anywhere-check; do
+for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage; do
   install -D -m 755 "$here/files/$script" "$root/usr/local/sbin/$script"
 done
 install -d -m 700 "$root/etc/paperless-anywhere"
