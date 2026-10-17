@@ -50,13 +50,15 @@ env:
 jobs:
   try:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    # Above the longest hold (keep_minutes <= 240) plus the setup, or GitHub
+    # cancels the job; the cleanup job below runs either way.
+    timeout-minutes: 300
     steps:
       - name: Check inputs
         run: |
           [[ "$ITEM" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::rootfs_item_hash is not an item hash"; exit 1; }
           [[ "$CRN" =~ ^[0-9a-f]{6,64}$ ]] || { echo "::error::crn is not a hash or prefix"; exit 1; }
-          [[ "${{ inputs.keep_minutes }}" =~ ^[0-9]{1,3}$ ]] || { echo "::error::keep_minutes is not a number"; exit 1; }
+          [[ "${{ inputs.keep_minutes }}" =~ ^[0-9]{1,3}$ ]] && [ "${{ inputs.keep_minutes }}" -le 240 ] || { echo "::error::keep_minutes must be a number up to 240"; exit 1; }
           [[ "${{ inputs.disk_gb || '80' }}" =~ ^[0-9]{2,4}$ ]] || { echo "::error::disk_gb is not a number"; exit 1; }
 
       - name: Install the aleph CLI
@@ -244,7 +246,7 @@ jobs:
           hashes="$HASH $(aleph instance list --json --chain eth 2>/dev/null | jq -r --arg n "$NAME" '.[] | select((.name // .metadata.name // "") == $n) | (.item_hash // .hash)' || true)"
           for h in $(printf '%s\n' $hashes | sort -u); do
             echo y | aleph instance delete "$h" --reason "paperless try ${GITHUB_RUN_ID}" --chain eth || true
-            aleph instance port-forward delete "$h" --chain eth 2>/dev/null || true
+            aleph instance port-forward delete "$h" --chain eth --yes 2>/dev/null || true
           done
 
       - name: Summary
@@ -261,3 +263,33 @@ jobs:
             echo "| HTTPS certificate and answer | ${T_HTTPS:-?} |"
             echo "| Import 5 made-up documents | ${T_IMPORT:-?} |"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Runs even when the trial job was cancelled or hit its timeout, which
+  # skips that job's own cleanup step: a VM with data on it must not outlive
+  # the run. Finds the run's instances by name, erases them on the node,
+  # forgets them and removes their port forwards.
+  cleanup:
+    needs: try
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Install the aleph CLI
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/aleph" https://github.com/aleph-im/aleph-rs/releases/download/v0.22.0/aleph-cli-linux-x86_64
+          echo "41b8ced717d9962683ce2d4409725774e826643be0bae1bfc623f6c0c7fb19d7  $RUNNER_TEMP/aleph" | sha256sum -c -
+          sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
+
+      - name: Erase, forget and unmap every instance of this run
+        run: |
+          pip install -q eth-account
+          addr="$(python3 -c 'import os; from eth_account import Account; k = os.environ["ALEPH_PRIVATE_KEY"].strip(); print(Account.from_key(k if k.startswith("0x") else "0x" + k).address)')"
+          hashes="$(curl -fsS "https://api2.aleph.im/api/v0/messages.json?addresses=$addr&msgTypes=INSTANCE&pagination=50" \
+            | jq -r --arg n "$NAME" '.messages[] | select((.content.metadata.name // "") == $n) | .item_hash')"
+          [ -n "$hashes" ] || { echo "no instance of this run is left"; exit 0; }
+          for h in $hashes; do
+            echo "cleaning up $h"
+            aleph instance erase "$h" --crn "$CRN" --chain eth || true
+            echo y | aleph instance delete "$h" --reason "paperless try ${GITHUB_RUN_ID} (cleanup)" --chain eth || true
+            aleph instance port-forward delete "$h" --chain eth --yes || true
+          done
