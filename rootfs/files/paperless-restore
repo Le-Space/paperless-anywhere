@@ -57,17 +57,25 @@ role="$(cat "$secrets/paperless_role" 2>/dev/null || echo test)"
 status running
 t0=$(date +%s)
 
-# The entry, read without a shell parser.
+# The entry, read without a shell parser. It names the piece and where to get
+# it; it may carry the ledger's SHA-256 (backups made on the Mac) or not (an
+# entry the app found on chain): the piece CID is then the check.
 eval "$(python3 - "$secrets/restore_ledger_entry" <<'PY'
 import json, re, shlex, sys
 e = json.load(open(sys.argv[1]))
-sha = str(e.get("sealedSha256", ""))
+sha = str(e.get("sealedSha256", "") or "")
+cid = str(e.get("pieceCid", "") or "")
 urls = [c.get("retrievalUrl", "") for c in e.get("copies", [])]
 urls = [u for u in urls if re.fullmatch(r"https://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9/._-]*", u)]
-if not re.fullmatch(r"[0-9a-f]{64}", sha) or not urls:
-    sys.exit("the ledger entry has no SHA-256 or no https retrieval URL")
+if sha and not re.fullmatch(r"[0-9a-f]{64}", sha):
+    sys.exit("the ledger entry's SHA-256 is malformed")
+if not re.fullmatch(r"baga[a-z2-7]{20,}|bafk[a-z2-7]{20,}", cid) and not sha:
+    sys.exit("the ledger entry names neither a piece CID nor a SHA-256")
+if not urls:
+    sys.exit("the ledger entry has no https retrieval URL")
 print("name=" + shlex.quote(str(e.get("name", "backup"))[:80]))
-print("sha=" + sha)
+print("sha=" + shlex.quote(sha))
+print("cid=" + shlex.quote(cid))
 print("urls=" + shlex.quote(" ".join(urls)))
 PY
 )" || fail "unusable restore_ledger_entry"
@@ -86,7 +94,13 @@ for u in $urls; do
   if curl -fsSL --retry 2 --max-time 1800 -o "$work/sealed.age" "$u"; then got="${u#https://}"; got="${got%%/*}"; break; fi
 done
 [ -n "$got" ] || fail "no provider delivered the piece"
-[ "$(sha256sum "$work/sealed.age" | cut -d' ' -f1)" = "$sha" ] || fail "the downloaded piece does not match the ledger's SHA-256"
+if [ -n "$sha" ]; then
+  [ "$(sha256sum "$work/sealed.age" | cut -d' ' -f1)" = "$sha" ] || fail "the downloaded piece does not match the ledger's SHA-256"
+fi
+if [ -n "$cid" ]; then
+  got_cid="$(cd /opt/backup-filecoin && node piece-cid.mjs "$work/sealed.age" 2>>"$log")" || fail "could not compute the piece CID"
+  [ "$got_cid" = "$cid" ] || fail "the downloaded piece is not the piece that was asked for"
+fi
 t2=$(date +%s)
 
 age -d -i "$secrets/age_identity" -o "$work/export.zip" "$work/sealed.age" 2>>"$log" || fail "age could not decrypt the piece"

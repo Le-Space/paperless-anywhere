@@ -26,6 +26,7 @@
 	let relayInput = $state('');
 	let ageInput = $state('');
 	let imageInput = $state('');
+	let ownerInput = $state('');
 	let passInput = $state('');
 	let crnInput = $state('');
 	let error = $state('');
@@ -44,6 +45,7 @@
 				profile = { network: 'calibration', ...p };
 				relayInput = profile.attestRelay ?? '';
 				imageInput = profile.rootfsItemHash ?? '';
+				ownerInput = profile.backupOwner ?? '';
 				crnInput = profile.crnHash ?? '';
 				loaded = true;
 				await refresh();
@@ -91,6 +93,11 @@
 		if (!line || !/^AGE-SECRET-KEY-1[0-9A-Z]{58}$/.test(line)) throw new Error('Kein gültiger age-Schlüssel (AGE-SECRET-KEY-1…).');
 		await save({ ageIdentity: line });
 		ageInput = '';
+	});
+	const saveOwner = () => run(async () => {
+		const owner = ownerInput.trim();
+		if (owner && !/^0x[0-9a-fA-F]{40}$/.test(owner)) throw new Error('Eine Adresse (0x…, 40 Zeichen).');
+		await save({ backupOwner: owner || null });
 	});
 	const saveImage = () => run(async () => {
 		const image = imageInput.trim().toLowerCase();
@@ -143,7 +150,10 @@
 		<input bind:value={relayInput} placeholder="wss://dein-relay.example/attest" />
 		<button onclick={saveRelay} disabled={busy}>Relay speichern</button>
 
-		<h3>5. Schlüssel für die Wiederherstellung (age)</h3>
+		<h3>5. Sicherungen</h3>
+		<input bind:value={ownerInput} placeholder={profile.payer ? `Wallet der Sicherungen (leer = ${profile.payer.slice(0, 10)}…)` : 'Wallet der Sicherungen'} />
+		<button onclick={saveOwner} disabled={busy}>Wallet der Sicherungen speichern</button>
+		<p>Schlüssel für die Wiederherstellung (age):</p>
 		<p data-testid="age-status">{profile.ageIdentity ? 'hinterlegt (versiegelt)' : 'nicht hinterlegt'}</p>
 		<textarea bind:value={ageInput} rows="2" autocomplete="off" spellcheck="false" placeholder="AGE-SECRET-KEY-1…"></textarea>
 		<button onclick={saveAge} disabled={busy || !ageInput.trim()}>Versiegelt hinterlegen</button>
