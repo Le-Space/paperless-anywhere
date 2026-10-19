@@ -1,0 +1,29 @@
+#!/bin/sh
+# paperless-stop: wait for a stop request and answer it with a last backup.
+# The request comes like every secret, over the attested channel and signed by
+# the key that started this VM: /tmp/secrets/stop_request (any new value is a
+# new request). The outcome goes to /run/paperless-anywhere/stop.json; at
+# "ready" the app may erase the VM. Without a backup configuration (a test
+# without backups), the stop is ready at once.
+set -u
+dir=/run/paperless-anywhere
+mkdir -p "$dir"
+handled=""
+status() {
+  printf '{"status":"%s","at":"%s"%s}\n' "$1" "$(date -u +%FT%TZ)" "${2:-}" > "$dir/stop.json.tmp" && mv "$dir/stop.json.tmp" "$dir/stop.json"
+}
+while :; do
+  if [ -s /tmp/secrets/stop_request ]; then
+    request="$(head -c 128 /tmp/secrets/stop_request)"
+    if [ "$request" != "$handled" ]; then
+      handled="$request"
+      status running
+      if paperless-backup run; then
+        status ready ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)"
+      else
+        status failed ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)"
+      fi
+    fi
+  fi
+  sleep 5
+done

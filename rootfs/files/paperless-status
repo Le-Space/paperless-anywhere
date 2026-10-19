@@ -1,0 +1,37 @@
+#!/bin/sh
+# paperless-status: every five seconds, what the app that started this VM may
+# know, in /run/paperless-anywhere/public/status.json (Caddy serves it at
+# /anywhere/status.json): whether Paperless answers, and the outcome of the
+# restore, the backups and a stop request. No secrets, no document names.
+set -u
+dir=/run/paperless-anywhere
+pub="$dir/public"
+mkdir -p "$pub"
+chmod 755 "$pub"
+while :; do
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8000/api/ || true)"
+  case "$code" in 200|302|401|403) up=true ;; *) up=false ;; esac
+  python3 - "$dir" "$up" > "$pub/status.json.tmp" <<'PY' && mv "$pub/status.json.tmp" "$pub/status.json"
+import json, os, sys, time
+d, up = sys.argv[1], sys.argv[2] == "true"
+def read(name):
+    try:
+        return json.load(open(os.path.join(d, name)))
+    except Exception:
+        return None
+restore, backup, stop = read("restore.json"), read("backup.json"), read("stop.json")
+if stop and stop.get("status") in ("running", "ready", "failed"):
+    phase = "stopping" if stop["status"] == "running" else "stopped" if stop["status"] == "ready" else "stop-failed"
+elif restore and restore.get("status") == "running":
+    phase = "restoring"
+elif restore and restore.get("status") == "failed":
+    phase = "restore-failed"
+elif up:
+    phase = "ready"
+else:
+    phase = "starting"
+print(json.dumps({"v": 1, "phase": phase, "paperless": up, "restore": restore, "backup": backup, "stop": stop, "at": int(time.time())}))
+PY
+  chmod 644 "$pub/status.json" 2>/dev/null
+  sleep 5
+done

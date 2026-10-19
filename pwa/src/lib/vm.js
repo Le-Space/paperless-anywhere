@@ -1,0 +1,124 @@
+// Starting and stopping a confidential Paperless from the browser, as the
+// app's own key, on behalf of the paying account: the INSTANCE, the port
+// forward and the FORGET carry `address` = payer (who pays, who owns) and are
+// signed by the app's key (sender). Aleph accepts that with the payer's
+// authorization; the CRN writes the sender into the measured kernel command
+// line, so the app's key is also the one that may unlock the VM.
+import {
+	createInstanceContent,
+	createPortForwardAggregateContent,
+	createUnsignedAggregateMessage,
+	createUnsignedForgetMessage,
+	createUnsignedInstanceMessage,
+	broadcastAlephMessage,
+	signAlephMessage,
+	fetch2n6WebAccessUrl,
+	notifyCrnAllocationWithRetry
+} from '@le-space/core';
+import { ALEPH_API, CHANNEL } from './aleph.js';
+
+export const PAPERLESS_VM = Object.freeze({ vcpus: 2, memoryMiB: 4096, rootfsSizeMiB: 80 * 1024 });
+const CORECHANNEL = '0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10';
+
+export async function sha256Hex(text) {
+	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+	return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Sign `unsigned` (built with the payer as sender, so its content says
+ * address = payer) as the app's key. The item hash covers the content only,
+ * so changing the sender keeps it valid.
+ * @param {import('viem').LocalAccount} app
+ */
+export async function signAsDelegate(unsigned, app) {
+	return signAlephMessage({ ...unsigned, sender: app.address }, (_sender, payload) => app.signMessage({ message: payload }));
+}
+
+async function broadcast(message) {
+	const { httpStatus, response } = await broadcastAlephMessage(message, { apiHost: ALEPH_API, sync: true, fetch: (u, i) => fetch(u, i) });
+	if (httpStatus >= 300) throw new Error(`Aleph refused the ${message.type} (${httpStatus}): ${JSON.stringify(response).slice(0, 200)}`);
+	return response;
+}
+
+/** A node's https address from the corechannel aggregate. */
+export async function crnAddress(crnHash) {
+	const res = await fetch(`${ALEPH_API}/api/v0/aggregates/${CORECHANNEL}.json?keys=corechannel`);
+	const node = (await res.json())?.data?.corechannel?.resource_nodes?.find((n) => n.hash === crnHash);
+	if (!node?.address?.startsWith('https://')) throw new Error(`node ${crnHash.slice(0, 12)} has no https address`);
+	return node.address.replace(/\/+$/, '');
+}
+
+/** The payer's Aleph credits. */
+export async function credits(payer) {
+	const res = await fetch(`${ALEPH_API}/api/v0/addresses/${payer}/balance`, { cache: 'no-store' });
+	return Number((await res.json())?.credit_balance ?? 0);
+}
+
+/**
+ * The INSTANCE for a confidential Paperless: address = payer, sender = app.
+ * @param {{ app: import('viem').LocalAccount, payer: string, rootfsItemHash: string, crnHash: string, trustedExecution: any, name: string }} a
+ */
+export async function instanceMessage(a) {
+	const content = createInstanceContent({
+		address: a.payer,
+		name: a.name,
+		// An encrypted rootfs ignores it; the INSTANCE format wants one key.
+		sshPublicKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIJpcGVycGxlc3MtYW55d2hlcmUtbm8tc3NoLWtleQ paperless-anywhere',
+		rootfsItemHash: a.rootfsItemHash,
+		rootfsSizeMiB: PAPERLESS_VM.rootfsSizeMiB,
+		vcpus: PAPERLESS_VM.vcpus,
+		memoryMiB: PAPERLESS_VM.memoryMiB,
+		crnHash: a.crnHash,
+		trustedExecution: a.trustedExecution
+	});
+	const unsigned = await createUnsignedInstanceMessage({ sender: a.payer, content, hasher: sha256Hex, channel: CHANNEL });
+	return signAsDelegate(unsigned, a.app);
+}
+
+/** Send the INSTANCE; returns its item hash. */
+export async function sendInstance(message) {
+	await broadcast(message);
+	return message.item_hash;
+}
+
+/** Map 443 (Caddy) for the instance, in the payer's port-forwarding aggregate, signed by the app. */
+export async function forward443(app, payer, instanceItemHash) {
+	const content = createPortForwardAggregateContent({ sender: payer, instanceItemHash, requestedPorts: [{ port: 443, tcp: true, udp: false }] });
+	const unsigned = await createUnsignedAggregateMessage({ sender: payer, content, hasher: sha256Hex, channel: CHANNEL });
+	return broadcast(await signAsDelegate(unsigned, app));
+}
+
+/** Ask the node to allocate the instance now. */
+export async function notifyNode(crnUrl, itemHash) {
+	const result = await notifyCrnAllocationWithRetry({ crnUrl, itemHash, fetch: (u, i) => fetch(u, i) });
+	if (result.status === 'unconfirmed') throw new Error(`the node did not take the instance: ${result.reason ?? 'no reason given'}`);
+	return result;
+}
+
+/** The instance's mapped 443, once the node has applied the forward. */
+export async function mapped443(crnUrl, itemHash) {
+	const res = await fetch(`${crnUrl}/v2/about/executions/list`, { cache: 'no-store' });
+	if (!res.ok) return null;
+	return (await res.json())?.[itemHash]?.networking?.mapped_ports?.['443']?.host ?? null;
+}
+
+/** The instance's 2n6 hostname, once 2n6 knows it. */
+export async function hostname(itemHash) {
+	const access = await fetch2n6WebAccessUrl(itemHash, { fetch: (u, i) => fetch(u, i) }).catch(() => null);
+	const raw = access?.subdomain ?? access?.url ?? '';
+	const host = String(raw).replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+	return host ? (host.includes('.') ? host : `${host}.2n6.me`) : null;
+}
+
+/** The VM's status page, or null while it does not answer. */
+export async function vmStatus(host) {
+	const res = await fetch(`https://${host}/anywhere/status.json`, { cache: 'no-store' }).catch(() => null);
+	return res?.ok ? res.json() : null;
+}
+
+/** FORGET the instance on behalf of the payer (the node then stops it). */
+export async function forgetInstance(app, payer, itemHash, reason = 'paperless-anywhere stop') {
+	const unsigned = await createUnsignedForgetMessage({ sender: payer, hashes: [itemHash], reason, hasher: sha256Hex, channel: CHANNEL });
+	return broadcast(await signAsDelegate(unsigned, app));
+}

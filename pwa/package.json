@@ -1,0 +1,31 @@
+{
+	"name": "paperless-anywhere-pwa",
+	"private": true,
+	"license": "MIT",
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"test": "vitest run",
+		"e2e": "playwright test"
+	},
+	"dependencies": {
+		"@filoz/synapse-core": "0.10.0",
+		"@le-space/attest-wasm": "0.10.0",
+		"@le-space/core": "0.10.0",
+		"@noble/hashes": "2.4.0",
+		"@scure/bip39": "2.4.0",
+		"viem": "2.57.2"
+	},
+	"devDependencies": {
+		"@playwright/test": "1.61.1",
+		"@sveltejs/adapter-static": "3.0.8",
+		"@sveltejs/kit": "2.27.0",
+		"@sveltejs/vite-plugin-svelte": "6.1.0",
+		"svelte": "5.37.2",
+		"vite": "7.0.6",
+		"vitest": "3.2.4"
+	}
+}

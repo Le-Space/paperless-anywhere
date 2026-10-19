@@ -1,0 +1,113 @@
+name: PWA start and stop
+
+# The PWA in Chromium starts a confidential Paperless and stops it again, as a
+# person would (#3): a virtual passkey with PRF, the test wallet as the paying
+# account (injected as window.ethereum), the real Aleph, a real SEV-SNP node,
+# and relay-button's attest relay beside the test. The PWA's key starts and
+# forgets the VM on behalf of the test wallet. Made-up nothing: an empty
+# Paperless, no backups.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rootfs_item_hash:
+        description: Encrypted Paperless rootfs (the STORE from "Paperless rootfs")
+        required: true
+        type: string
+      crn:
+        description: SEV-SNP node (full hash)
+        required: true
+        default: bb0aa1a9fc7566286c0db32cd5c660066017430390ca779da4d3a241fa07c337
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paperless-try
+  cancel-in-progress: false
+
+jobs:
+  start-stop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+
+      - name: The attest relay (relay-button v0.10.0) on 127.0.0.1:8787
+        run: |
+          git clone -q --depth 1 --branch v0.10.0 https://github.com/NiKrause/relay-button.git "$RUNNER_TEMP/relay-button"
+          cd "$RUNNER_TEMP/relay-button"
+          pnpm install --frozen-lockfile --prefer-offline --filter @le-space/attest-relay... > /dev/null
+          ATTEST_RELAY_HOST=127.0.0.1 ATTEST_RELAY_PORT=8787 nohup node packages/attest-relay/src/server.ts > "$RUNNER_TEMP/attest-relay.log" 2>&1 &
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8787/health && break; sleep 1; done
+
+      - name: Build the PWA
+        working-directory: pwa
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm exec playwright install --with-deps chromium > /dev/null
+
+      - name: Start and stop from the PWA
+        working-directory: pwa
+        env:
+          PAYER_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+          LUKS_PASSPHRASE: ${{ secrets.PAPERLESS_LUKS_PASSPHRASE }}
+          ROOTFS_ITEM_HASH: ${{ inputs.rootfs_item_hash }}
+          CRN_HASH: ${{ inputs.crn }}
+          RELAY_URL: ws://127.0.0.1:8787/attest
+        run: pnpm exec playwright test -c playwright.live.config.js --reporter=line
+
+      - name: Attest relay log
+        if: always()
+        run: tail -40 "$RUNNER_TEMP/attest-relay.log" || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: pwa-e2e-trace-${{ github.run_id }}
+          path: pwa/test-results
+          retention-days: 7
+
+  # Runs even when the test was cancelled or timed out: forget every
+  # Paperless VM of the test wallet started since this run began, and take
+  # back every authorization a run gave a PWA key.
+  cleanup:
+    needs: start-stop
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+    steps:
+      - name: Install the aleph CLI
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/aleph" https://github.com/aleph-im/aleph-rs/releases/download/v0.22.0/aleph-cli-linux-x86_64
+          echo "41b8ced717d9962683ce2d4409725774e826643be0bae1bfc623f6c0c7fb19d7  $RUNNER_TEMP/aleph" | sha256sum -c -
+          sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
+      - name: Forget leftover VMs, revoke PWA authorizations
+        run: |
+          pip install -q eth-account
+          addr="$(python3 -c 'import os; from eth_account import Account; k = os.environ["ALEPH_PRIVATE_KEY"].strip(); print(Account.from_key(k if k.startswith("0x") else "0x" + k).address)')"
+          since="$(gh run view ${{ github.run_id }} -R ${{ github.repository }} --json createdAt -q .createdAt 2>/dev/null || date -u -d '-2 hours' +%FT%TZ)"
+          hashes="$(curl -fsS "https://api2.aleph.im/api/v0/messages.json?addresses=$addr&msgTypes=INSTANCE&pagination=50" \
+            | jq -r --arg since "$since" '.messages[] | select((.content.metadata.name // "") | startswith("paperless-")) | select((.time | todate) >= $since) | .item_hash')"
+          for h in $hashes; do echo "forgetting $h"; aleph message forget "$h" --reason "pwa e2e ${GITHUB_RUN_ID} (cleanup)" --chain eth -y || true; done
+          [ -n "$hashes" ] || echo "no VM of this run is left"
+          left="$(curl -fsS "https://api2.aleph.im/api/v0/aggregates/$addr.json?keys=security" | jq -c '[.data.security.authorizations[]? | select((.aggregate_keys // []) | index("port-forwarding"))] | length')"
+          if [ "${left:-0}" != 0 ]; then
+            for a in $(curl -fsS "https://api2.aleph.im/api/v0/aggregates/$addr.json?keys=security" | jq -r '.data.security.authorizations[]? | select((.aggregate_keys // []) | index("port-forwarding")) | .address'); do
+              aleph authorization revoke "$a" --chain eth || true
+            done
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
