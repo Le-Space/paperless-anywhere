@@ -170,12 +170,12 @@ jobs:
           $SSH 'paperless-backup run; cat /run/paperless-anywhere/backup.json' || { $SSH 'tail -20 /var/log/paperless-anywhere/backup.log' | grep -vE 'AGE-SECRET|0x[0-9a-fA-F]{64}'; exit 1; }
           echo "BACKUP_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
           $SSH 'cat /opt/backup-filecoin/ledger.calibration.json' | jq '.[-1]' > "$RUNNER_TEMP/entry.json"
-          # As the PWA sends it: the piece CID and the copies, no SHA-256.
+          jq '{name, pieceCid, complete, copies: (.copies | length)}' "$RUNNER_TEMP/entry.json"
+          [ "$(jq -r .complete "$RUNNER_TEMP/entry.json")" = true ] || { echo "::error::the backup is not complete"; exit 1; }
+          # Then, as the PWA sends it: the piece CID and the copies, no SHA-256.
           if [ "${{ inputs.check_by || 'piece-cid' }}" = piece-cid ]; then
             jq '{name, pieceCid, copies: [.copies[] | {retrievalUrl}]}' "$RUNNER_TEMP/entry.json" > "$RUNNER_TEMP/entry.tmp" && mv "$RUNNER_TEMP/entry.tmp" "$RUNNER_TEMP/entry.json"
           fi
-          jq '{name, pieceCid, complete, copies: (.copies | length)}' "$RUNNER_TEMP/entry.json"
-          [ "$(jq -r .complete "$RUNNER_TEMP/entry.json")" = true ] || { echo "::error::the backup is not complete"; exit 1; }
 
       - name: VM 1 - forget
         if: always() && steps.vm1.outputs.hash != ''
