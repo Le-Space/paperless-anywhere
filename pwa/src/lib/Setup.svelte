@@ -25,6 +25,9 @@
 	let sessionUntil = $state(0n);
 	let relayInput = $state('');
 	let ageInput = $state('');
+	let imageInput = $state('');
+	let passInput = $state('');
+	let crnInput = $state('');
 	let error = $state('');
 	let busy = $state(false);
 
@@ -40,6 +43,8 @@
 			.then(async (p) => {
 				profile = { network: 'calibration', ...p };
 				relayInput = profile.attestRelay ?? '';
+				imageInput = profile.rootfsItemHash ?? '';
+				crnInput = profile.crnHash ?? '';
 				loaded = true;
 				await refresh();
 			})
@@ -85,6 +90,14 @@
 		await save({ ageIdentity: line });
 		ageInput = '';
 	});
+	const saveImage = () => run(async () => {
+		const image = imageInput.trim().toLowerCase();
+		const crn = crnInput.trim().toLowerCase();
+		if (!/^[0-9a-f]{64}$/.test(image)) throw new Error('Das Image ist ein 64-stelliger Hash.');
+		if (!/^[0-9a-f]{64}$/.test(crn)) throw new Error('Der Knoten ist ein 64-stelliger Hash.');
+		await save({ rootfsItemHash: image, crnHash: crn, ...(passInput ? { luksPassphrase: passInput } : {}) });
+		passInput = '';
+	});
 	const until = (s) => (s > 0n && Number(s) * 1000 > Date.now() ? new Date(Number(s) * 1000).toLocaleDateString('de-DE') : '');
 </script>
 
@@ -110,7 +123,7 @@
 		{#if profile.payer}
 			<h3>2. Aleph: diese App darf VMs starten und löschen</h3>
 			<p>App-Schlüssel: <code>{pwaAddress}</code></p>
-			<p data-testid="aleph-status">{alephOk ? 'freigegeben (INSTANCE, FORGET)' : 'nicht freigegeben'}</p>
+			<p data-testid="aleph-status">{alephOk ? 'freigegeben (INSTANCE, FORGET, Port-Freigaben)' : 'nicht freigegeben'}</p>
 			{#if alephOk}
 				<button onclick={() => authorize(true)} disabled={busy}>Freigabe zurücknehmen</button>
 			{:else}
@@ -126,12 +139,18 @@
 
 		<h3>4. Attest-Relay</h3>
 		<input bind:value={relayInput} placeholder="wss://dein-relay.example/attest" />
-		<button onclick={saveRelay} disabled={busy}>Speichern</button>
+		<button onclick={saveRelay} disabled={busy}>Relay speichern</button>
 
 		<h3>5. Schlüssel für die Wiederherstellung (age)</h3>
 		<p data-testid="age-status">{profile.ageIdentity ? 'hinterlegt (versiegelt)' : 'nicht hinterlegt'}</p>
 		<textarea bind:value={ageInput} rows="2" autocomplete="off" spellcheck="false" placeholder="AGE-SECRET-KEY-1…"></textarea>
 		<button onclick={saveAge} disabled={busy || !ageInput.trim()}>Versiegelt hinterlegen</button>
+
+		<h3>6. Paperless-Image und Knoten</h3>
+		<input bind:value={imageInput} placeholder="Image (STORE-Hash)" />
+		<input bind:value={crnInput} placeholder="SEV-SNP-Knoten (Hash)" />
+		<input bind:value={passInput} type="password" autocomplete="off" placeholder={profile.luksPassphrase ? 'Passphrase hinterlegt (leer lassen = behalten)' : 'Passphrase des Images'} />
+		<button onclick={saveImage} disabled={busy}>Image und Knoten speichern</button>
 	{/if}
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
 </section>

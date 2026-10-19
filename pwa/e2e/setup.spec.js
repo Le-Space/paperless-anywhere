@@ -53,11 +53,11 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await expect(page.getByTestId('aleph-status')).toHaveText('nicht freigegeben');
 
 	await page.getByRole('button', { name: 'Im Wallet freigeben' }).click();
-	await expect(page.getByTestId('aleph-status')).toHaveText('freigegeben (INSTANCE, FORGET)');
-	expect(aggregates.get(payer.address).security.authorizations).toEqual([OTHER, { address: appAddress, types: ['INSTANCE', 'FORGET'] }]);
+	await expect(page.getByTestId('aleph-status')).toHaveText('freigegeben (INSTANCE, FORGET, Port-Freigaben)');
+	expect(aggregates.get(payer.address).security.authorizations).toEqual([OTHER, { address: appAddress, types: ['INSTANCE', 'FORGET', 'AGGREGATE'], aggregate_keys: ['port-forwarding'] }]);
 
 	await page.getByPlaceholder('wss://dein-relay.example/attest').fill('wss://relay.example.com/attest');
-	await page.getByRole('button', { name: 'Speichern' }).click();
+	await page.getByRole('button', { name: 'Relay speichern' }).click();
 	await page.getByPlaceholder('AGE-SECRET-KEY-1…').fill(AGE);
 	await page.getByRole('button', { name: 'Versiegelt hinterlegen' }).click();
 	await expect(page.getByTestId('age-status')).toHaveText('hinterlegt (versiegelt)');
@@ -80,7 +80,7 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await phone.locator('textarea').first().fill(words.join(' '));
 	await phone.getByRole('button', { name: 'Öffnen', exact: true }).click();
 	await expect(phone.getByTestId('payer')).toHaveText(payer.address);
-	await expect(phone.getByTestId('aleph-status')).toHaveText('freigegeben (INSTANCE, FORGET)');
+	await expect(phone.getByTestId('aleph-status')).toHaveText('freigegeben (INSTANCE, FORGET, Port-Freigaben)');
 	await expect(phone.getByTestId('age-status')).toHaveText('hinterlegt (versiegelt)');
 	await expect(phone.getByPlaceholder('wss://dein-relay.example/attest')).toHaveValue('wss://relay.example.com/attest');
 

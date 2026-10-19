@@ -1,6 +1,6 @@
 // What the paying account grants this app, once, from MetaMask (or a hardware
-// wallet in it): on Aleph, the right to send INSTANCE and FORGET messages on
-// its behalf (measured: an INSTANCE by a delegate without credits is paid by
+// wallet in it): on Aleph, the right to send INSTANCE and FORGET messages, and
+// the port-forwarding aggregate, on its behalf (measured: an INSTANCE by a delegate without credits is paid by
 // the owner, and the delegate may forget it); on Filecoin, a session key that
 // may create data sets and add pieces until it expires. Both are revocable.
 import { createPublicClient, createWalletClient, custom, http, toHex } from 'viem';
@@ -11,7 +11,9 @@ import { broadcastAlephMessage, createUnsignedAggregateMessage, signAlephMessage
 import { ALEPH_API, readAggregate } from './aleph.js';
 import { filecoinSessionPrivateKey } from './keys/derive.js';
 
-export const PWA_TYPES = ['INSTANCE', 'FORGET'];
+export const PWA_TYPES = ['INSTANCE', 'FORGET', 'AGGREGATE'];
+// AGGREGATE only for the payer's port forwards (443 for Caddy).
+export const PWA_AGGREGATE_KEYS = ['port-forwarding'];
 export const SESSION_PERMISSIONS = [SessionKey.CreateDataSetPermission, SessionKey.AddPiecesPermission];
 export const filecoinChain = (network) => (network === 'mainnet' ? mainnet : calibration);
 
@@ -42,7 +44,10 @@ export async function readAuthorizations(payer) {
 /** Is `pwaAddress` allowed to send INSTANCE and FORGET for `payer`? */
 export function isAuthorized(authorizations, pwaAddress) {
 	const entry = authorizations.find((a) => a?.address?.toLowerCase() === pwaAddress.toLowerCase());
-	return !!entry && PWA_TYPES.every((t) => !entry.types || entry.types.includes(t));
+	if (!entry) return false;
+	const typesOk = PWA_TYPES.every((t) => !entry.types || entry.types.includes(t));
+	const keysOk = PWA_AGGREGATE_KEYS.every((k) => !entry.aggregate_keys || entry.aggregate_keys.includes(k));
+	return typesOk && keysOk;
 }
 
 /**
@@ -51,7 +56,7 @@ export function isAuthorized(authorizations, pwaAddress) {
  */
 export async function setAlephAuthorization(payer, pwaAddress, { revoke = false } = {}) {
 	const others = (await readAuthorizations(payer)).filter((a) => a?.address?.toLowerCase() !== pwaAddress.toLowerCase());
-	const authorizations = revoke ? others : [...others, { address: pwaAddress, types: PWA_TYPES }];
+	const authorizations = revoke ? others : [...others, { address: pwaAddress, types: PWA_TYPES, aggregate_keys: PWA_AGGREGATE_KEYS }];
 	const unsigned = await createUnsignedAggregateMessage({
 		sender: payer,
 		content: /** @type {any} */ ({ address: payer, key: 'security', content: { authorizations }, time: Date.now() / 1000 }),
