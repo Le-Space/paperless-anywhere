@@ -9,6 +9,8 @@ name: Measure who pays for a delegated INSTANCE
 # delegation) and the owner revokes the authorization.
 
 on:
+  push:
+    branches: [tmp/measure-hour]
   workflow_dispatch:
     inputs:
       minutes:
@@ -31,7 +33,7 @@ env:
 jobs:
   measure:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 130
     steps:
       - name: Tools and keys
         id: keys
@@ -87,7 +89,7 @@ jobs:
           DELEGATE: ${{ steps.keys.outputs.delegate }}
           HASH: ${{ steps.vm.outputs.hash }}
         run: |
-          sleep $(( ${{ inputs.minutes || '15' }} * 60 ))
+          sleep $(( ${{ inputs.minutes || '75' }} * 60 ))
           for a in "$OWNER" "$DELEGATE"; do
             echo "== $a"
             echo "balance: $(aleph account balance "$a" --json | jq -c '{credits}')"
@@ -116,3 +118,10 @@ jobs:
             echo "instance now: $(curl -fsS "https://api2.aleph.im/api/v0/messages/$HASH" | jq -r .status)"
           fi
           aleph authorization revoke "$DELEGATE" --chain eth || true
+          sleep 600
+          for a in "$OWNER" "$DELEGATE"; do
+            echo "== after the forget: $a"
+            echo "balance: $(aleph account balance "$a" --json | jq -c '{credits}')"
+            aleph credit history --address "$a" --start "$START" --page-size 200 --json \
+              | jq -c '[.credit_history[] | {t: .message_timestamp[11:19], amount, origin_ref, ref: ((.credit_ref // "")[0:12])}]'
+          done
