@@ -13,6 +13,7 @@
 	let name = $state('Paperless');
 	let error = $state('');
 	let busy = $state(false);
+	let profileVersion = $state(0);
 
 	const address = $derived(master ? privateKeyToAccount(alephPrivateKey(master)).address : '');
 	const state = $derived(!vault ? 'new' : master ? 'unlocked' : 'locked');
@@ -91,7 +92,7 @@
 		{/if}
 		<p>Entsperrt. Schlüssel dieser App für Aleph: <code data-testid="address">{address}</code></p>
 		<button onclick={lock}>Sperren</button>
-		{#if !shownPhrase}<Lifecycle {master} /><Setup {master} />{/if}
+		{#if !shownPhrase}<Lifecycle {master} version={profileVersion} /><Setup {master} onsaved={() => profileVersion++} />{/if}
 	{/if}
 
 	{#if error}<p class="error" role="alert">{error}</p>{/if}

@@ -2,8 +2,8 @@
 	import { loadProfile, saveProfile } from '$lib/profile.js';
 	import { startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
 
-	/** @type {{ master: Uint8Array }} */
-	let { master } = $props();
+	/** @type {{ master: Uint8Array, version?: number }} */
+	let { master, version = 0 } = $props();
 
 	/** @type {Record<string, any>} */
 	let profile = $state({});
@@ -12,7 +12,9 @@
 	let busy = $state(false);
 
 	const reload = async () => (profile = await loadProfile(master));
+	// Again whenever the setup saved something (`version` changes).
 	$effect(() => {
+		version;
 		reload().catch((e) => (error = e.message));
 	});
 

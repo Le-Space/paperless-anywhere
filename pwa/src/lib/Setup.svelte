@@ -12,8 +12,8 @@
 		setFilecoinSessionKey
 	} from '$lib/permissions.js';
 
-	/** @type {{ master: Uint8Array }} */
-	let { master } = $props();
+	/** @type {{ master: Uint8Array, onsaved?: () => void }} */
+	let { master, onsaved = () => {} } = $props();
 
 	const pwaAddress = privateKeyToAccount(alephPrivateKey(master)).address;
 	const sessionAddress = sessionKeyAddress(master);
@@ -65,6 +65,7 @@
 	const save = async (patch) => {
 		profile = { ...profile, ...patch };
 		await saveProfile(master, $state.snapshot(profile));
+		onsaved();
 	};
 
 	const connect = () => run(async () => {

@@ -62,11 +62,20 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await page.getByRole('button', { name: 'Versiegelt hinterlegen' }).click();
 	await expect(page.getByTestId('age-status')).toHaveText('hinterlegt (versiegelt)');
 
+	// With image, node and passphrase, the start button comes alive (it reads the saved profile).
+	await expect(page.getByRole('button', { name: 'Paperless starten' })).toBeDisabled();
+	await page.getByPlaceholder('Image (STORE-Hash)').fill('a'.repeat(64));
+	await page.getByPlaceholder('SEV-SNP-Knoten (Hash)').fill('b'.repeat(64));
+	await page.getByPlaceholder('Passphrase des Images').fill('made-up passphrase');
+	await page.getByRole('button', { name: 'Image und Knoten speichern' }).click();
+	await expect(page.getByRole('button', { name: 'Paperless starten' })).toBeEnabled();
+
 	// Aleph holds the profile as a sealed box only.
 	const profile = aggregates.get(appAddress)['paperless-anywhere-profile'];
 	expect(Object.keys(profile.box).sort()).toEqual(['ct', 'iv', 'purpose', 'v']);
 	expect(JSON.stringify(profile)).not.toContain(AGE);
 	expect(JSON.stringify(profile)).not.toContain(payer.address);
+	expect(JSON.stringify(profile)).not.toContain('made-up passphrase');
 
 	// Another device: the phrase opens the vault, and the profile comes with it.
 	const other = await browser.newContext();
