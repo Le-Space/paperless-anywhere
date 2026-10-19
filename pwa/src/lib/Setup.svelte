@@ -81,7 +81,8 @@
 	});
 	const saveRelay = () => run(async () => {
 		const url = relayInput.trim();
-		if (!/^wss:\/\/[A-Za-z0-9.-]+(:[0-9]+)?\/attest$/.test(url)) throw new Error('Erwartet: wss://<host>/attest');
+		// wss:// for a real relay; ws:// only to this machine (a relay beside a test).
+		if (!/^(wss:\/\/[A-Za-z0-9.-]+(:[0-9]+)?|ws:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?)\/attest$/.test(url)) throw new Error('Erwartet: wss://<host>/attest');
 		await save({ attestRelay: url });
 	});
 	const saveAge = () => run(async () => {
