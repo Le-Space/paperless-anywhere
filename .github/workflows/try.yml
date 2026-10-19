@@ -107,6 +107,16 @@ jobs:
             sleep 10
           done
           [ -n "$mapped" ] || { echo "::error::the node did not map 443"; exit 1; }
+          # The HTTPS hostname goes in with the unlock: the VM sets up Caddy
+          # and PAPERLESS_URL itself, before its stack starts.
+          host=""
+          for i in $(seq 1 30); do
+            host="$(curl -fsS "https://api.2n6.me/api/hash/$HASH" | jq -r '.subdomain // .url // empty' | sed -E 's#^https?://##; s#/.*##')" || true
+            [ -n "$host" ] && break; sleep 10
+          done
+          [ -n "$host" ] || { echo "::error::no 2n6 hostname for $HASH"; exit 1; }
+          case "$host" in *.*) ;; *) host="$host.2n6.me" ;; esac
+          echo "HTTPS_HOST=$host" >> "$GITHUB_ENV"
           sleep 15
 
       - name: Attest and unlock (with this run's key as authorized_keys)
@@ -117,7 +127,8 @@ jobs:
           ok=""
           for i in $(seq 1 12); do
             if aleph instance unlock "$HASH" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
-                --secret "authorized_keys=$(cat "$RUNNER_TEMP/try_ed25519.pub")" --chain eth > "$RUNNER_TEMP/unlock.log" 2>&1; then
+                --secret "authorized_keys=$(cat "$RUNNER_TEMP/try_ed25519.pub")" --secret "https_hostname=$HTTPS_HOST" \
+                --chain eth > "$RUNNER_TEMP/unlock.log" 2>&1; then
               ok=1; break
             fi
             tail -3 "$RUNNER_TEMP/unlock.log"
@@ -154,7 +165,8 @@ jobs:
             if [ "$i" = 9 ]; then
               echo "no SSH after 90 s; unlocking again"
               aleph instance unlock "$HASH" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
-                --secret "authorized_keys=$(cat "$RUNNER_TEMP/try_ed25519.pub")" --chain eth > "$RUNNER_TEMP/unlock2.log" 2>&1 || tail -3 "$RUNNER_TEMP/unlock2.log"
+                --secret "authorized_keys=$(cat "$RUNNER_TEMP/try_ed25519.pub")" --secret "https_hostname=$HTTPS_HOST" \
+                --chain eth > "$RUNNER_TEMP/unlock2.log" 2>&1 || tail -3 "$RUNNER_TEMP/unlock2.log"
             fi
             sleep 10
           done
@@ -182,21 +194,11 @@ jobs:
       - name: Nothing but sshd, Caddy and the attestation agent faces the network
         run: ssh $SSH_ARGS paperless-anywhere-check
 
-      - name: HTTPS through the 2n6 hostname
+      - name: HTTPS through the 2n6 hostname, and the status page
         id: https
-        env:
-          HASH: ${{ steps.create.outputs.item_hash }}
         run: |
-          host=""
-          for i in $(seq 1 30); do
-            host="$(curl -fsS "https://api.2n6.me/api/hash/$HASH" | jq -r '.subdomain // .url // empty' | sed -E 's#^https?://##; s#/.*##')" || true
-            [ -n "$host" ] && break
-            sleep 10
-          done
-          [ -n "$host" ] || { echo "::error::no 2n6 hostname for $HASH"; exit 1; }
-          case "$host" in *.*) ;; *) host="$host.2n6.me" ;; esac
+          host="$HTTPS_HOST"
           echo "hostname=$host" >> "$GITHUB_OUTPUT"
-          ssh $SSH_ARGS "paperless-https $host"
           start=$(date +%s)
           ok=""
           for i in $(seq 1 40); do
@@ -205,8 +207,12 @@ jobs:
             sleep 15
           done
           echo "T_HTTPS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
-          [ -n "$ok" ] || { ssh $SSH_ARGS 'journalctl -u caddy --no-pager 2>/dev/null | tail -30' || true; echo "::error::https://$host did not answer"; exit 1; }
+          [ -n "$ok" ] || { ssh $SSH_ARGS 'cat /etc/caddy/Caddyfile; journalctl -u caddy --no-pager 2>/dev/null | tail -30' || true; echo "::error::https://$host did not answer"; exit 1; }
           echo "https://$host answers $code"
+          status="$(curl -fsS --max-time 15 -D "$RUNNER_TEMP/status.headers" "https://$host/anywhere/status.json")"
+          echo "$status" | jq '{phase, paperless, restore: .restore.status}'
+          [ "$(jq -r .phase <<<"$status")" = ready ] || { echo "::error::status page phase is not ready"; exit 1; }
+          grep -qi '^access-control-allow-origin: \*' "$RUNNER_TEMP/status.headers" || { echo "::error::status page without CORS"; exit 1; }
 
       - name: Import made-up documents
         id: docs
@@ -230,6 +236,22 @@ jobs:
           done
           echo "T_IMPORT=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
           ssh $SSH_ARGS 'paperless-manage shell -c "from documents.models import Document; print(\"documents:\", Document.objects.count())" 2>/dev/null | grep documents' || true
+
+      - name: Stop through the attested channel
+        env:
+          HASH: ${{ steps.create.outputs.item_hash }}
+        run: |
+          start=$(date +%s)
+          aleph instance unlock "$HASH" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
+            --secret "stop_request=$(date +%s)" --chain eth > "$RUNNER_TEMP/stop.log" 2>&1 || { tail -3 "$RUNNER_TEMP/stop.log"; exit 1; }
+          for i in $(seq 1 60); do
+            stop="$(curl -fsS --max-time 15 "https://$HTTPS_HOST/anywhere/status.json" | jq -c '{phase, stop}' || true)"
+            case "$(jq -r .phase <<<"$stop" 2>/dev/null)" in stopped|stop-failed) break ;; esac
+            sleep 5
+          done
+          echo "$stop" | jq .
+          echo "T_STOP=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+          [ "$(jq -r .phase <<<"$stop")" = stopped ] || { echo "::error::the stop did not get ready"; exit 1; }
 
       - name: Keep it running
         if: success()
@@ -262,6 +284,7 @@ jobs:
             echo "| Stack up (pull, migrate) | ${T_STACK:-?} |"
             echo "| HTTPS certificate and answer | ${T_HTTPS:-?} |"
             echo "| Import 5 made-up documents | ${T_IMPORT:-?} |"
+            echo "| Stop request until ready | ${T_STOP:-?} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Runs even when the trial job was cancelled or hit its timeout, which

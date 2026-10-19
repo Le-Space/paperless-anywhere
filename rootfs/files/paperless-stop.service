@@ -1,0 +1,11 @@
+[Unit]
+Description=paperless-stop (see /usr/local/sbin/paperless-stop)
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/paperless-stop
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

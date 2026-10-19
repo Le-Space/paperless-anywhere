@@ -1,8 +1,13 @@
 #!/bin/sh
-# paperless-https <hostname>: serve Paperless on https://<hostname> through
-# Caddy on 443 (ACME over TLS-ALPN on 443, the one port mapped for it).
+# paperless-https [--early] <hostname>: serve Paperless on https://<hostname>
+# through Caddy on 443 (ACME over TLS-ALPN on 443, the one port mapped for it),
+# and the start status at /anywhere/status.json for the app that started it.
+# --early (from paperless-secrets, before the stack starts) only writes the
+# Caddyfile and restarts Caddy: PAPERLESS_URL is then right from the start.
 set -eu
-host="${1:?usage: paperless-https <hostname>}"
+early=""
+[ "${1:-}" = --early ] && { early=1; shift; }
+host="${1:?usage: paperless-https [--early] <hostname>}"
 case "$host" in *[!A-Za-z0-9.-]*|"") echo "not a hostname: $host" >&2; exit 1 ;; esac
 printf '%s\n' "$host" > /etc/paperless-anywhere/hostname
 cat > /etc/caddy/Caddyfile <<CADDY
@@ -16,10 +21,20 @@ https://${host} {
       disable_http_challenge
     }
   }
+  # The start status (no secrets: phase, backup names, counts), read by the
+  # app that started this VM from its own origin.
+  handle /anywhere/status.json {
+    header Access-Control-Allow-Origin "*"
+    header Cache-Control "no-store"
+    root * /run/paperless-anywhere/public
+    rewrite * /status.json
+    file_server
+  }
   reverse_proxy 127.0.0.1:8000
 }
 CADDY
 systemctl restart caddy.service
+[ -n "$early" ] && exit 0
 # PAPERLESS_URL follows the hostname (Django trusts that origin for CSRF).
 # A restart through the systemctl replacement does not reliably recreate the
 # container with the new environment, so recreate it directly.
