@@ -24,6 +24,20 @@ on:
         required: true
         default: bb0aa1a9fc75
         type: string
+      runner:
+        description: Where the jobs run. "aleph" needs two runners started with `pnpm relay-button gh-runner up --repo Le-Space/paperless-anywhere --count 2` (one per job); they use no hosted minutes.
+        required: true
+        default: aleph
+        type: choice
+        options:
+          - aleph
+          - github-hosted
+      check_by:
+        description: How VM 2 checks the downloaded piece (sha256 = the ledger's, as from the Mac; piece-cid = its content address, as from the PWA)
+        required: false
+        default: piece-cid
+        type: choice
+        options: [piece-cid, sha256]
 
 permissions:
   contents: read
@@ -41,7 +55,7 @@ env:
 
 jobs:
   roundtrip:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.runner == 'aleph' && fromJSON('["self-hosted","aleph"]') || 'ubuntu-24.04' }}
     timeout-minutes: 120
     steps:
       - name: Check inputs
@@ -58,7 +72,8 @@ jobs:
           curl -fsSL -o "$RUNNER_TEMP/aleph" https://github.com/aleph-im/aleph-rs/releases/download/v0.22.0/aleph-cli-linux-x86_64
           echo "41b8ced717d9962683ce2d4409725774e826643be0bae1bfc623f6c0c7fb19d7  $RUNNER_TEMP/aleph" | sha256sum -c -
           sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
-          sudo apt-get install -y -qq age >/dev/null
+          # The Aleph runner image ships without package lists.
+          sudo apt-get update -qq && sudo apt-get install -y -qq age >/dev/null
           git clone -q https://github.com/Le-Space/paperless-backup-filecoin.git "$RUNNER_TEMP/tool"
           git -C "$RUNNER_TEMP/tool" checkout -q "$BACKUP_TOOL_COMMIT"
           (cd "$RUNNER_TEMP/tool" && npm ci --omit=dev --no-audit --no-fund --loglevel=error)
@@ -166,6 +181,10 @@ jobs:
           $SSH 'cat /opt/backup-filecoin/ledger.calibration.json' | jq '.[-1]' > "$RUNNER_TEMP/entry.json"
           jq '{name, pieceCid, complete, copies: (.copies | length)}' "$RUNNER_TEMP/entry.json"
           [ "$(jq -r .complete "$RUNNER_TEMP/entry.json")" = true ] || { echo "::error::the backup is not complete"; exit 1; }
+          # Then, as the PWA sends it: the piece CID and the copies, no SHA-256.
+          if [ "${{ inputs.check_by || 'piece-cid' }}" = piece-cid ]; then
+            jq '{name, pieceCid, copies: [.copies[] | {retrievalUrl}]}' "$RUNNER_TEMP/entry.json" > "$RUNNER_TEMP/entry.tmp" && mv "$RUNNER_TEMP/entry.tmp" "$RUNNER_TEMP/entry.json"
+          fi
 
       - name: VM 1 - forget
         if: always() && steps.vm1.outputs.hash != ''
@@ -241,7 +260,7 @@ jobs:
   cleanup:
     needs: roundtrip
     if: always()
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.runner == 'aleph' && fromJSON('["self-hosted","aleph"]') || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Install the aleph CLI
@@ -251,8 +270,9 @@ jobs:
           sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
       - name: Erase and forget every VM of this run
         run: |
-          pip install -q eth-account
-          addr="$(python3 -c 'import os; from eth_account import Account; k = os.environ["ALEPH_PRIVATE_KEY"].strip(); print(Account.from_key(k if k.startswith("0x") else "0x" + k).address)')"
+          # Node is on both runners; pip is not usable on the Aleph runner's Debian.
+          npm install -q --prefix "$RUNNER_TEMP/eth" --no-audit --no-fund ethers@6.16.0 >/dev/null
+          addr="$(node -e 'const { Wallet } = require(process.argv[1]); const k = process.env.ALEPH_PRIVATE_KEY.trim(); console.log(new Wallet(k.startsWith("0x") ? k : "0x" + k).address)' "$RUNNER_TEMP/eth/node_modules/ethers")"
           hashes="$(curl -fsS "https://api2.aleph.im/api/v0/messages.json?addresses=$addr&msgTypes=INSTANCE&pagination=50" \
             | jq -r --arg n "$NAME" '.messages[] | select((.content.metadata.name // "") | startswith($n)) | .item_hash')"
           [ -n "$hashes" ] || { echo "no VM of this run is left"; exit 0; }

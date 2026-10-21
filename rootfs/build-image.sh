@@ -48,6 +48,7 @@ git -C "$work/backup-tool" checkout -q "$BACKUP_TOOL_COMMIT"
 (cd "$work/backup-tool" && PATH="$root/usr/local/lib/nodejs/bin:$PATH" npm ci --omit=dev --no-audit --no-fund --loglevel=error)
 install -d -m 700 "$root/opt/backup-filecoin"
 cp -a "$work/backup-tool/backup.mjs" "$work/backup-tool/package.json" "$work/backup-tool/node_modules" "$root/opt/backup-filecoin/"
+install -m 644 "$here/files/piece-cid.mjs" "$root/opt/backup-filecoin/piece-cid.mjs"
 
 install -D -m 644 "$here/files/daemon.json" "$root/etc/docker/daemon.json"
 install -D -m 644 "$here/files/compose.yml" "$root/opt/paperless/compose.yml"
