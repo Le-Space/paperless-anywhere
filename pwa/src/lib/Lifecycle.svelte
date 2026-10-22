@@ -120,7 +120,7 @@
 
 	const start = () => run(async () => {
 		await reload();
-		const chosen = choice === 'own' ? pick(split.own) : choice === 'any' ? pick(backups ?? []) : null;
+		const chosen = choice === 'own' ? pick(split.own) : choice === 'any' ? pick(split.other) : null;
 		const forStart = { ...$state.snapshot(profile), restoreEntry: chosen ? restoreEntry(chosen) : null };
 		const running = await startPaperless(master, forStart, track('start'));
 		profile = { ...profile, running };
@@ -167,8 +167,8 @@
 				</label>
 				{#if split.other.length}
 					<label><input type="radio" bind:group={choice} value="any" />
-						Neueste Sicherung des Kontos ({pick(backups ?? []).pieceCid.slice(-12)})
-						<small>– nur wenn sie mit deinem Schlüssel verschlüsselt ist, z. B. vom Mac mit eingefügtem Schlüssel; {split.other.length} stammen nicht von diesem Tresor</small>
+						Neueste andere Sicherung des Kontos ({pick(split.other).pieceCid.slice(-12)})
+						<small>– nicht von diesem Tresor ({split.other.length}); nur wenn sie mit deinem Schlüssel verschlüsselt ist, z. B. vom Mac mit eingefügtem Schlüssel</small>
 					</label>
 				{/if}
 				<label><input type="radio" bind:group={choice} value="empty" /> Leeres Paperless</label>
@@ -219,7 +219,7 @@
 	{#if !profile.running && profile.lastBackup}
 		{@const b = profile.lastBackup}
 		<details class="backup-card" data-testid="last-backup">
-			<summary>Letzte Sicherung: {b.date ?? b.name} · {b.copies?.length ?? 0}/{b.requestedCopies ?? b.copies?.length} Kopien{b.complete ? '' : ' (unvollständig)'}</summary>
+			<summary>Letzte Sicherung: {b.date ? new Date(b.date).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : b.name} · {b.copies?.length ?? 0}/{b.requestedCopies ?? b.copies?.length} Kopien{b.complete ? '' : ' (unvollständig)'}</summary>
 			<dl>
 				<dt>Netz</dt><dd>Filecoin {b.network === 'mainnet' ? 'Mainnet' : 'Calibration (Testnetz)'}</dd>
 				<dt>Bezahlt von</dt><dd><code>{b.payer}</code></dd>
