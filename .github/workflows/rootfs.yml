@@ -10,6 +10,15 @@ name: Paperless rootfs
 
 on:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: Where the job runs. "aleph" needs a runner started with `pnpm relay-button gh-runner up --repo Le-Space/paperless-anywhere`; it uses no hosted minutes.
+        required: true
+        default: aleph
+        type: choice
+        options:
+          - aleph
+          - github-hosted
 
 permissions:
   contents: read
@@ -20,7 +29,7 @@ concurrency:
 
 jobs:
   rootfs:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.runner == 'aleph' && fromJSON('["self-hosted","aleph"]') || 'ubuntu-24.04' }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4

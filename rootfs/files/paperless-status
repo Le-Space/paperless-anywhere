@@ -8,12 +8,41 @@ dir=/run/paperless-anywhere
 pub="$dir/public"
 mkdir -p "$pub"
 chmod 755 "$pub"
+# When this script first ran: the disk is open and the services are starting.
+[ -s "$dir/timeline.json" ] || printf '{"unlocked":%s}\n' "$(date +%s)" > "$dir/timeline.json"
+compose="docker compose --project-directory /opt/paperless"
 while :; do
   code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8000/api/ || true)"
   case "$code" in 200|302|401|403) up=true ;; *) up=false ;; esac
-  python3 - "$dir" "$up" > "$pub/status.json.tmp" <<'PY' && mv "$pub/status.json.tmp" "$pub/status.json"
+  # How far the start is: dockerd, the images (pulled after the unlock, the
+  # slow part on vfs), the containers, Caddy's certificate.
+  docker=false; images=0; total=0; running=0
+  if docker info >/dev/null 2>&1; then
+    docker=true
+    for image in $($compose config --images 2>/dev/null); do
+      total=$((total + 1))
+      docker image inspect "$image" >/dev/null 2>&1 && images=$((images + 1))
+    done
+    running="$($compose ps --status running -q 2>/dev/null | wc -l | tr -d ' ')"
+  fi
+  cert=false
+  [ -n "$(find /var/lib/caddy /root/.local/share/caddy -name '*.crt' 2>/dev/null | head -1)" ] && cert=true
+  python3 - "$dir" "$up" "$docker" "$images" "$total" "$running" "$cert" > "$pub/status.json.tmp" <<'PY' && mv "$pub/status.json.tmp" "$pub/status.json"
 import json, os, sys, time
 d, up = sys.argv[1], sys.argv[2] == "true"
+docker, images, total, running, cert = sys.argv[3] == "true", int(sys.argv[4]), int(sys.argv[5]), int(sys.argv[6]), sys.argv[7] == "true"
+now = int(time.time())
+# First time each step was seen, kept across loops: the app shows the start
+# step by step once the page is reachable, which is only after the certificate.
+try:
+    timeline = json.load(open(os.path.join(d, "timeline.json")))
+except Exception:
+    timeline = {}
+for step, done in (("docker", docker), ("images", total > 0 and images == total), ("containers", total > 0 and running >= total), ("cert", cert), ("paperless", up)):
+    if done and step not in timeline:
+        timeline[step] = now
+json.dump(timeline, open(os.path.join(d, "timeline.json.tmp"), "w"))
+os.replace(os.path.join(d, "timeline.json.tmp"), os.path.join(d, "timeline.json"))
 def read(name):
     try:
         return json.load(open(os.path.join(d, name)))
@@ -30,7 +59,7 @@ elif up:
     phase = "ready"
 else:
     phase = "starting"
-print(json.dumps({"v": 1, "phase": phase, "paperless": up, "restore": restore, "backup": backup, "stop": stop, "at": int(time.time())}))
+print(json.dumps({"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "stop": stop, "at": now}))
 PY
   chmod 644 "$pub/status.json" 2>/dev/null
   sleep 5
