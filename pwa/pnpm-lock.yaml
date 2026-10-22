@@ -17,9 +17,15 @@ importers:
       '@le-space/core':
         specifier: 0.10.0
         version: 0.10.0(zod@4.4.3)
+      '@noble/curves':
+        specifier: 1.9.1
+        version: 1.9.1
       '@noble/hashes':
         specifier: 2.4.0
         version: 2.4.0
+      '@scure/base':
+        specifier: 1.2.6
+        version: 1.2.6
       '@scure/bip39':
         specifier: 2.4.0
         version: 2.4.0

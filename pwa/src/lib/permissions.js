@@ -3,7 +3,7 @@
 // the port-forwarding aggregate, on its behalf (measured: an INSTANCE by a delegate without credits is paid by
 // the owner, and the delegate may forget it); on Filecoin, a session key that
 // may create data sets and add pieces until it expires. Both are revocable.
-import { createPublicClient, createWalletClient, custom, http, toHex } from 'viem';
+import { createPublicClient, createWalletClient, custom, getAddress, http, toHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import * as SessionKey from '@filoz/synapse-core/session-key';
 import { calibration, mainnet } from '@filoz/synapse-core/chains';
@@ -27,7 +27,9 @@ function ethereum() {
 export async function connectPayer() {
 	const [address] = await ethereum().request({ method: 'eth_requestAccounts' });
 	if (!/^0x[0-9a-fA-F]{40}$/.test(address ?? '')) throw new Error('Das Wallet hat kein Konto freigegeben.');
-	return address;
+	// Aleph keys balances and aggregates by the checksum spelling; MetaMask
+	// answers in lowercase, under which the account has no credits.
+	return getAddress(address);
 }
 
 async function sha256Hex(text) {

@@ -13,7 +13,8 @@ import {
 	broadcastAlephMessage,
 	signAlephMessage,
 	fetch2n6WebAccessUrl,
-	notifyCrnAllocationWithRetry
+	notifyCrnAllocationWithRetry,
+	eraseInstanceOnCrn
 } from '@le-space/core';
 import { ALEPH_API, CHANNEL } from './aleph.js';
 
@@ -121,4 +122,56 @@ export async function vmStatus(host) {
 export async function forgetInstance(app, payer, itemHash, reason = 'paperless-anywhere stop') {
 	const unsigned = await createUnsignedForgetMessage({ sender: payer, hashes: [itemHash], reason, hasher: sha256Hex, channel: CHANNEL });
 	return broadcast(await signAsDelegate(unsigned, app));
+}
+
+/**
+ * This app's Paperless VMs: INSTANCE messages its key sent on behalf of the
+ * payer and named paperless-*, newest first. A start that was interrupted
+ * leaves one that no profile knows about; this finds it too.
+ * @param {string} appAddress @param {string} payer
+ */
+export async function listVms(appAddress, payer) {
+	const url = new URL('/api/v0/messages.json', ALEPH_API);
+	url.searchParams.set('msgTypes', 'INSTANCE');
+	url.searchParams.set('addresses', payer);
+	url.searchParams.set('message_statuses', 'processed,pending');
+	url.searchParams.set('pagination', '50');
+	const res = await fetch(url, { cache: 'no-store' });
+	if (!res.ok) throw new Error(`Aleph: VM-Liste nicht lesbar (${res.status})`);
+	return ownVms((await res.json()).messages ?? [], appAddress);
+}
+
+/** @param {any[]} messages @param {string} appAddress */
+export function ownVms(messages, appAddress) {
+	return messages
+		.filter((m) => String(m.sender).toLowerCase() === appAddress.toLowerCase() && String(m.content?.metadata?.name ?? '').startsWith('paperless-'))
+		.map((m) => ({
+			itemHash: String(m.item_hash),
+			name: String(m.content.metadata.name),
+			createdAt: Math.round(Number(m.time) * 1000),
+			crnHash: m.content?.requirements?.node?.node_hash ?? null
+		}))
+		.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/**
+ * Ask the node to stop and erase the VM now. A FORGET alone works too, but the
+ * node notices it only minutes later (measured: about 4) and keeps the VM
+ * running and its address answering meanwhile. Best effort: the FORGET stays.
+ */
+export async function eraseOnNode(app, itemHash, crnUrl) {
+	return eraseInstanceOnCrn({
+		sender: app.address,
+		signer: (_sender, payload) => app.signMessage({ message: payload }),
+		instanceHash: itemHash,
+		crnUrl,
+		fetch: (u, i) => fetch(u, i)
+	}).catch((e) => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+}
+
+/** The VM's state on its node (running, stopping, …), or null when the node does not list it. */
+export async function nodeState(crnUrl, itemHash) {
+	const res = await fetch(`${crnUrl}/v2/about/executions/list`, { cache: 'no-store' }).catch(() => null);
+	if (!res?.ok) return null;
+	return (await res.json().catch(() => ({})))?.[itemHash]?.state ?? null;
 }

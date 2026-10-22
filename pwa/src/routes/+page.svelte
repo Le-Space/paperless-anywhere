@@ -4,6 +4,7 @@
 	import { createVault, forgetVault, loadVault, unlockWithPasskey, unlockWithSeedPhrase } from '$lib/keys/vault.js';
 	import Setup from '$lib/Setup.svelte';
 	import Lifecycle from '$lib/Lifecycle.svelte';
+	import VmList from '$lib/VmList.svelte';
 
 	let vault = $state(loadVault());
 	/** @type {Uint8Array | null} the master secret, in memory only */
@@ -92,7 +93,7 @@
 		{/if}
 		<p>Entsperrt. Schlüssel dieser App für Aleph: <code data-testid="address">{address}</code></p>
 		<button onclick={lock}>Sperren</button>
-		{#if !shownPhrase}<Lifecycle {master} version={profileVersion} /><Setup {master} onsaved={() => profileVersion++} />{/if}
+		{#if !shownPhrase}<Lifecycle {master} version={profileVersion} onchange={() => profileVersion++} /><VmList {master} version={profileVersion} onchange={() => profileVersion++} /><Setup {master} onsaved={() => profileVersion++} />{/if}
 	{/if}
 
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
