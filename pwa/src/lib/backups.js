@@ -80,3 +80,9 @@ export function splitOwn(backups, own = []) {
 	const mine = new Set(own);
 	return { own: backups.filter((b) => mine.has(b.pieceCid)), other: backups.filter((b) => !mine.has(b.pieceCid)) };
 }
+
+/** "C=GB;ST=Gloucestershire;L=Cheltenham" (a provider's declared location) as "GB, Cheltenham". @param {string} [location] */
+export function place(location) {
+	const parts = Object.fromEntries(String(location ?? '').split(';').map((p) => p.split('=')).filter((p) => p.length === 2).map(([k, v]) => [k.trim(), v.trim()]));
+	return [parts.C, parts.L ?? parts.ST].filter(Boolean).join(', ') || String(location ?? '');
+}

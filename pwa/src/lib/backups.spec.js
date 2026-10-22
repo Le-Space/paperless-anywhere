@@ -35,3 +35,12 @@ describe('own backups', () => {
 		expect(splitOwn(list, ['b'])).toEqual({ own: [{ pieceCid: 'b' }], other: [{ pieceCid: 'a' }, { pieceCid: 'c' }] });
 	});
 });
+
+describe('place', () => {
+	it('shortens a provider location to country and city', async () => {
+		const { place } = await import('./backups.js');
+		expect(place('C=GB;ST=Gloucestershire;L=Cheltenham')).toBe('GB, Cheltenham');
+		expect(place('C=US;ST=Texas')).toBe('US, Texas');
+		expect(place('somewhere')).toBe('somewhere');
+	});
+});

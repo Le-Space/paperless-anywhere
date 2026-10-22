@@ -1,7 +1,7 @@
 <script>
 	import { loadProfile, saveProfile } from '$lib/profile.js';
 	import { startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
-	import { listBackups, pieceCidOfStop, restoreEntry, splitOwn } from '$lib/backups.js';
+	import { listBackups, pieceCidOfStop, place, restoreEntry, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 
 	/** @type {{ master: Uint8Array, version?: number, onchange?: () => void }} */
@@ -229,7 +229,7 @@
 			</dl>
 			<ul>
 				{#each b.copies ?? [] as c (c.providerId + c.dataSetId)}
-					<li>Anbieter {c.providerId}{c.location ? ` (${c.location})` : ''} · Datensatz {c.dataSetId}, Piece {c.pieceId}{c.isNewDataSet ? ' (neuer Datensatz)' : ''}
+					<li>Anbieter {c.providerId}{c.location ? ` (${place(c.location)})` : ''} · Datensatz {c.dataSetId}, Piece {c.pieceId}{c.isNewDataSet ? ' (neuer Datensatz)' : ''}
 						{#if c.retrievalUrl}<br /><a href={c.retrievalUrl} target="_blank" rel="noopener">abrufen</a> <small>(verschlüsselt; nur dein Schlüssel öffnet sie)</small>{/if}</li>
 				{/each}
 			</ul>
