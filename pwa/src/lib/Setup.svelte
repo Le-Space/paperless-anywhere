@@ -2,7 +2,7 @@
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey } from '$lib/keys/derive.js';
 	import { loadProfile, saveProfile } from '$lib/profile.js';
-	import { ageRecipient, newAgeIdentity } from '$lib/keys/age.js';
+	import { ageIdentityFromMaster, ageRecipient } from '$lib/keys/age.js';
 	import { backupConfigFor } from '$lib/backups.js';
 	import {
 		connectPayer,
@@ -98,14 +98,17 @@
 		await save({ ageIdentity: line, ...(profile.backupConfig ? { backupConfig: backupConfigFor(profile.network, ageRecipient(line)) } : {}) });
 		ageInput = '';
 	});
-	// A key made here never leaves the sealed profile; only its recipient is shown.
-	const generateAge = () => run('age', async () => {
-		if (profile.ageIdentity && !confirm('Den hinterlegten Schlüssel ersetzen? Sicherungen, die mit ihm verschlüsselt sind, lassen sich dann nicht mehr wiederherstellen.')) return;
-		const identity = newAgeIdentity();
-		await save({ ageIdentity: identity, ...(profile.backupConfig ? { backupConfig: backupConfigFor(profile.network, ageRecipient(identity)) } : {}) });
+	// The vault's own key, derived from the master secret: the 24 words alone
+	// decrypt every backup made with it. Only its recipient is ever shown.
+	const vaultAge = $derived(ageIdentityFromMaster(master));
+	const useVaultAge = () => run('age', async () => {
+		if (profile.ageIdentity && profile.ageIdentity !== vaultAge && !confirm('Den eingefügten Schlüssel durch den des Tresors ersetzen? Sicherungen, die mit dem alten verschlüsselt sind, brauchen dann weiterhin den alten.')) return;
+		await save({ ageIdentity: vaultAge, ...(profile.backupConfig ? { backupConfig: backupConfigFor(profile.network, ageRecipient(vaultAge)) } : {}) });
 	});
+	// Without a key yet, backups use the vault's own: the default.
 	const toggleBackups = (on) => run('backups', async () => {
-		await save({ backupConfig: on ? backupConfigFor(profile.network, ageRecipient(profile.ageIdentity)) : null });
+		const identity = profile.ageIdentity || vaultAge;
+		await save(on ? { ageIdentity: identity, backupConfig: backupConfigFor(profile.network, ageRecipient(identity)) } : { backupConfig: null });
 	});
 	const recipient = $derived.by(() => {
 		try {
@@ -149,13 +152,15 @@
 
 		<h3>1. Zahlendes Konto</h3>
 		{#if profile.payer}
-			<p>Verbunden: <code data-testid="payer">{profile.payer}</code></p>
+			<p>Verbunden: <code data-testid="payer">{profile.payer}</code>
+				<br /><small class="money">Hier liegt das Geld: Aleph-Credits für die VMs, im Testnetz tFIL und USDFC für die Sicherungen. Der Schlüssel dazu bleibt in deinem Wallet; diese App sieht ihn nie.</small></p>
 		{/if}
 		<button onclick={connect} disabled={busy === 'wallet'}>{profile.payer ? 'Anderes Konto verbinden' : 'Wallet verbinden'}</button>
 
 		{#if profile.payer}
 			<h3>2. Aleph: diese App darf VMs starten und löschen</h3>
-			<p>App-Schlüssel: <code>{pwaAddress}</code></p>
+			<p>App-Schlüssel: <code>{pwaAddress}</code>
+				<br /><small class="nomoney">Hält kein Geld – nichts dorthin überweisen. Er darf nur im Auftrag des zahlenden Kontos VMs starten und löschen.</small></p>
 			<p data-testid="aleph-status">{alephOk ? 'freigegeben (INSTANCE, FORGET, Port-Freigaben)' : 'nicht freigegeben'}</p>
 			{#if alephOk}
 				<button onclick={() => authorize(true)} disabled={busy === 'wallet'}>Freigabe zurücknehmen</button>
@@ -164,7 +169,8 @@
 			{/if}
 
 			<h3>3. Filecoin: Sicherungen hinzufügen</h3>
-			<p>Sitzungsschlüssel: <code>{sessionAddress}</code></p>
+			<p>Sitzungsschlüssel: <code>{sessionAddress}</code>
+				<br /><small class="nomoney">Hält kein Geld – nichts dorthin überweisen. Er darf 30 Tage lang Sicherungen hinzufügen, bezahlt vom zahlenden Konto.</small></p>
 			<p data-testid="session-status">{until(sessionUntil) ? `gültig bis ${until(sessionUntil)}` : 'nicht freigegeben'}</p>
 			<button onclick={() => session()} disabled={busy === 'wallet'}>{until(sessionUntil) ? 'Um 30 Tage verlängern' : 'Für 30 Tage freigeben'}</button>
 			{#if until(sessionUntil)}<button onclick={() => session(true)} disabled={busy === 'wallet'}>Zurücknehmen</button>{/if}
@@ -178,16 +184,16 @@
 		<label>Wallet, dem die Sicherungen gehören (0x…, leer = zahlendes Konto)<input bind:value={ownerInput} placeholder={profile.payer ? `Wallet der Sicherungen (leer = ${profile.payer.slice(0, 10)}…)` : 'Wallet der Sicherungen'} /></label>
 		<button onclick={saveOwner} disabled={busy === 'owner'}>Wallet der Sicherungen speichern</button>
 		<p>Schlüssel der Sicherungen (age): die VM verschlüsselt jede Sicherung für ihn, eine Wiederherstellung braucht ihn.</p>
-		<p data-testid="age-status">{profile.ageIdentity ? 'hinterlegt (versiegelt)' : 'nicht hinterlegt'}</p>
+		<p data-testid="age-status">{!profile.ageIdentity ? 'nicht hinterlegt' : profile.ageIdentity === vaultAge ? 'der Schlüssel des Tresors (die 24 Wörter genügen zur Wiederherstellung)' : 'eingefügt (nicht aus dem Tresor: getrennt aufbewahren!)'}</p>
 		{#if recipient}<p><small>Empfänger: <code data-testid="age-recipient">{recipient}</code></small></p>{/if}
-		<button onclick={generateAge} disabled={busy === 'age'}>{profile.ageIdentity ? 'Neuen Schlüssel erzeugen (ersetzt den alten)' : 'Neuen Schlüssel erzeugen'}</button>
+		{#if profile.ageIdentity !== vaultAge}<button onclick={useVaultAge} disabled={busy === 'age'}>Schlüssel des Tresors verwenden (empfohlen)</button>{/if}
 		<details>
 			<summary>Einen vorhandenen Schlüssel einfügen</summary>
 			<textarea bind:value={ageInput} rows="2" autocomplete="off" spellcheck="false" placeholder="AGE-SECRET-KEY-1…"></textarea>
 			<button onclick={saveAge} disabled={busy === 'age' || !ageInput.trim()}>Versiegelt hinterlegen</button>
 		</details>
 		<label class="check">
-			<input type="checkbox" data-testid="backups-on" checked={!!profile.backupConfig} disabled={busy === 'backups' || !profile.ageIdentity || profile.network !== 'calibration'}
+			<input type="checkbox" data-testid="backups-on" checked={!!profile.backupConfig} disabled={busy === 'backups' || profile.network !== 'calibration'}
 				onchange={(e) => toggleBackups(e.currentTarget.checked)} />
 			Beim Stoppen sichern (Testnetz: 2 Kopien, Datensatz <code>paperless-backup-test</code>)
 		</label>
@@ -211,6 +217,8 @@
 	code { word-break: break-all; }
 	label.check { display: flex; gap: 0.5rem; align-items: baseline; color: #000; font-size: 1rem; }
 	label.check input { width: auto; }
+	.money { color: #2e7d32; }
+	.nomoney { color: #b26a00; }
 	.hint { color: #666; font-size: 0.9rem; }
 	label { display: block; margin-top: 0.5rem; font-size: 0.9rem; color: #444; }
 	.waiting { background: #fff4d6; padding: 0.5rem 0.75rem; border-radius: 4px; }

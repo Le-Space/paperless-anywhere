@@ -25,6 +25,14 @@ test('a passkey and a seed phrase open the same vault, also on another device; n
 	const address = await page.getByTestId('address').textContent();
 	expect(address).toMatch(/^0x[0-9a-fA-F]{40}$/);
 	await page.getByRole('button', { name: 'Aufgeschrieben' }).click();
+	// Three words are asked back; a wrong one keeps the button off.
+	const asked = page.locator('[data-testid^="confirm-"]');
+	await expect(asked).toHaveCount(3);
+	const positions = await asked.evaluateAll((inputs) => inputs.map((i) => Number(i.dataset.testid.split('-')[1])));
+	await asked.nth(0).fill('falsch');
+	await expect(page.getByRole('button', { name: 'Stimmt' })).toBeDisabled();
+	for (const [i, position] of positions.entries()) await asked.nth(i).fill(words[position - 1]);
+	await page.getByRole('button', { name: 'Stimmt' }).click();
 
 	// In Aleph: two vault entries (passkey, phrase), each only a sealed box.
 	expect(aggregates.size).toBe(2);
@@ -60,6 +68,17 @@ test('a passkey and a seed phrase open the same vault, also on another device; n
 	await phone.getByText('Auf diesem Gerät mit Wiederherstellungsphrase öffnen').click();
 	await phone.locator('textarea').fill(words.join(' '));
 	await phone.getByRole('button', { name: 'Öffnen', exact: true }).click();
+	await expect(phone.getByTestId('address')).toHaveText(address);
+
+	// There, a passkey of its own: a third box in Aleph, and the vault opens with it.
+	await authenticator(phone);
+	await phone.getByText('Weiteren Passkey hinzufügen').click();
+	await phone.getByRole('button', { name: /^Passkey für / }).click();
+	await expect(phone.getByTestId('passkey-added')).toBeVisible();
+	expect(aggregates.size).toBe(3);
+	await phone.getByRole('button', { name: 'Sperren' }).click();
+	await phone.reload();
+	await phone.getByRole('button', { name: 'Mit Passkey entsperren' }).click();
 	await expect(phone.getByTestId('address')).toHaveText(address);
 
 	// A wrong phrase finds nothing.

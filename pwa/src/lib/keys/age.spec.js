@@ -18,3 +18,14 @@ describe('age', () => {
 		expect(() => ageRecipient(VECTOR.recipient)).toThrow();
 	});
 });
+
+describe('ageIdentityFromMaster', () => {
+	it('is the same identity for the same master and a different one otherwise', async () => {
+		const { ageIdentityFromMaster } = await import('./age.js');
+		const a = new Uint8Array(32).fill(1);
+		const b = new Uint8Array(32).fill(2);
+		expect(ageIdentityFromMaster(a)).toBe(ageIdentityFromMaster(a));
+		expect(ageIdentityFromMaster(a)).not.toBe(ageIdentityFromMaster(b));
+		expect(ageRecipient(ageIdentityFromMaster(a))).toMatch(/^age1[0-9a-z]{58}$/);
+	});
+});

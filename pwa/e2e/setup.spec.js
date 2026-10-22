@@ -50,6 +50,12 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	const words = await page.getByTestId('phrase').locator('li').allTextContents();
 	const appAddress = await page.getByTestId('address').textContent();
 	await page.getByRole('button', { name: 'Aufgeschrieben' }).click();
+	const asked = page.locator('[data-testid^="confirm-"]');
+	await expect(asked).toHaveCount(3);
+	for (const [i, position] of (await asked.evaluateAll((inputs) => inputs.map((x) => Number(x.dataset.testid.split('-')[1])))).entries()) {
+		await asked.nth(i).fill(words[position - 1]);
+	}
+	await page.getByRole('button', { name: 'Stimmt' }).click();
 
 	await page.getByRole('button', { name: 'Wallet verbinden' }).click();
 	await expect(page.getByTestId('payer')).toHaveText(payer.address);
@@ -64,11 +70,16 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await page.getByText('Einen vorhandenen Schlüssel einfügen').click();
 	await page.getByPlaceholder('AGE-SECRET-KEY-1…').fill(AGE);
 	await page.getByRole('button', { name: 'Versiegelt hinterlegen' }).click();
-	await expect(page.getByTestId('age-status')).toHaveText('hinterlegt (versiegelt)');
+	await expect(page.getByTestId('age-status')).toHaveText('eingefügt (nicht aus dem Tresor: getrennt aufbewahren!)');
 	// Only the recipient is shown; backups on Calibration can be switched on.
 	await expect(page.getByTestId('age-recipient')).toHaveText(ageRecipient(AGE));
 	await page.getByTestId('backups-on').check();
 	await expect(page.getByTestId('backups-on')).toBeChecked();
+	// The vault's own key replaces the pasted one: then the 24 words suffice.
+	page.once('dialog', (d) => d.accept());
+	await page.getByRole('button', { name: 'Schlüssel des Tresors verwenden (empfohlen)' }).click();
+	await expect(page.getByTestId('age-status')).toHaveText('der Schlüssel des Tresors (die 24 Wörter genügen zur Wiederherstellung)');
+	await expect(page.getByTestId('age-recipient')).not.toHaveText(ageRecipient(AGE));
 
 	// With image, node and passphrase, the start button comes alive (it reads the saved profile).
 	await expect(page.getByRole('button', { name: 'Paperless starten' })).toBeDisabled();
@@ -98,7 +109,8 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await phone.getByRole('button', { name: 'Öffnen', exact: true }).click();
 	await expect(phone.getByTestId('payer')).toHaveText(payer.address);
 	await expect(phone.getByTestId('aleph-status')).toHaveText('freigegeben (INSTANCE, FORGET, Port-Freigaben)');
-	await expect(phone.getByTestId('age-status')).toHaveText('hinterlegt (versiegelt)');
+	// The other device derives the same key from the same master: the vault's own key.
+	await expect(phone.getByTestId('age-status')).toHaveText('der Schlüssel des Tresors (die 24 Wörter genügen zur Wiederherstellung)');
 	await expect(phone.getByPlaceholder('wss://dein-relay.example/attest')).toHaveValue('wss://relay.example.com/attest');
 
 	// Revoking removes this app's entry and keeps the others.
