@@ -30,7 +30,7 @@
 					const onNode = crnUrl ? await nodeState(crnUrl, vm.itemHash) : null;
 					// The VM's own page when it answers, otherwise what its node says.
 					const phase = status?.phase ?? (onNode === 'stopping' ? 'wird gestoppt' : onNode ? `auf dem Knoten: ${onNode}` : host ? 'nicht erreichbar' : 'ohne Adresse');
-					vms = (vms ?? []).map((v) => (v.itemHash === vm.itemHash ? { ...v, host, phase } : v));
+					vms = (vms ?? []).map((v) => (v.itemHash === vm.itemHash ? { ...v, host, phase, up: status?.paperless === true } : v));
 				})
 				.catch(() => {});
 		}
@@ -83,7 +83,7 @@
 					<strong>{vm.name}</strong>
 					{#if profile.running?.instanceHash === vm.itemHash}<small>(gestartet)</small>{/if}
 					<br /><small>seit {when(vm.createdAt)} · {vm.phase ?? 'prüfe …'}
-						{#if vm.host && vm.phase === 'ready'} · <a href={`https://${vm.host}/`} target="_blank" rel="noopener">{vm.host}</a>{/if}
+						{#if vm.host && vm.up} · <a href={`https://${vm.host}/`} target="_blank" rel="noopener">{vm.host}</a>{/if}
 						· <code>{vm.itemHash.slice(0, 12)}</code></small>
 					<button type="button" onclick={() => remove(vm)} disabled={busy === vm.itemHash}>Löschen</button>
 				</li>

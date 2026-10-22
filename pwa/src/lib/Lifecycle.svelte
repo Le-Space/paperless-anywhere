@@ -1,7 +1,7 @@
 <script>
 	import { loadProfile, saveProfile } from '$lib/profile.js';
 	import { startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
-	import { listBackups, restoreEntry } from '$lib/backups.js';
+	import { listBackups, pieceCidOfStop, restoreEntry, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 
 	/** @type {{ master: Uint8Array, version?: number, onchange?: () => void }} */
@@ -68,7 +68,12 @@
 	/** @type {any[] | null} */
 	let backups = $state(null);
 	let backupsError = $state('');
-	let choice = $state('newest');
+	// Only this vault's own backups are offered by default: the test data sets
+	// also hold backups encrypted to other keys (round trips), which this vault
+	// cannot decrypt (live: "age could not decrypt the piece").
+	let choice = $state('empty');
+	const split = $derived(splitOwn(backups ?? [], profile.ownBackups ?? []));
+	const pick = (list) => list.find((b) => b.complete) ?? list[0];
 	// The admin password is derived from the master secret; it is shown only on request.
 	let showPassword = $state(false);
 	const adminPassword = $derived(paperlessSecrets(master).adminPassword);
@@ -80,7 +85,7 @@
 		if (owner && profile.ageIdentity && !profile.running) {
 			backupsError = '';
 			listBackups({ network: profile.network ?? 'calibration', owner })
-				.then((list) => (backups = list))
+				.then((list) => ((backups = list), (choice = splitOwn(list, profile.ownBackups ?? []).own.length ? 'own' : 'empty')))
 				.catch(() => ((backups = []), (backupsError = 'Die Sicherungen ließen sich gerade nicht lesen.')));
 		}
 	};
@@ -107,7 +112,7 @@
 
 	const start = () => run(async () => {
 		await reload();
-		const chosen = choice === 'newest' ? backups?.find((b) => b.complete) ?? backups?.[0] : null;
+		const chosen = choice === 'own' ? pick(split.own) : choice === 'any' ? pick(backups ?? []) : null;
 		const forStart = { ...$state.snapshot(profile), restoreEntry: chosen ? restoreEntry(chosen) : null };
 		const running = await startPaperless(master, forStart, track('start'));
 		profile = { ...profile, running };
@@ -116,9 +121,10 @@
 	});
 	const stop = () => run(async () => {
 		await reload();
-		await stopPaperless(master, $state.snapshot(profile), track('stop'));
+		const status = await stopPaperless(master, $state.snapshot(profile), track('stop'));
 		const { running, ...rest } = profile;
-		profile = rest;
+		const made = pieceCidOfStop(status);
+		profile = made ? { ...rest, ownBackups: [made, ...(rest.ownBackups ?? []).filter((c) => c !== made)].slice(0, 50) } : rest;
 		await saveProfile(master, $state.snapshot(profile));
 		onchange();
 	});
@@ -128,6 +134,7 @@
 <section class="lifecycle" data-testid="lifecycle">
 	{#if profile.running}
 		<p>Paperless läuft: <a href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="paperless-link">{profile.running.host}</a></p>
+		{#if profile.running.restore?.status === 'failed'}<p class="error" data-testid="restore-failed">Wiederherstellung fehlgeschlagen ({profile.running.restore.reason ?? 'ohne Grund'}). Paperless läuft leer.</p>{/if}
 		<p data-testid="paperless-login">Anmeldung: <code>admin</code>,
 			{#if showPassword}<code data-testid="admin-password">{adminPassword}</code>{:else}<span>••••••••</span>{/if}
 			<button type="button" onclick={() => (showPassword = !showPassword)}>{showPassword ? 'Verbergen' : 'Passwort anzeigen'}</button>
@@ -138,11 +145,17 @@
 		{#if profile.ageIdentity}
 			<fieldset class="restore">
 				<legend>Beim Start</legend>
-				<label><input type="radio" bind:group={choice} value="newest" disabled={!backups?.length} />
-					Neueste Sicherung wiederherstellen
-					{#if backups?.length}<small data-testid="newest-backup">({backups.find((b) => b.complete)?.pieceCid.slice(-12) ?? backups[0].pieceCid.slice(-12)}, {backups.find((b) => b.complete)?.copies.length ?? backups[0].copies.length} Kopien)</small>
-					{:else if backups}<small>(keine gefunden)</small>{:else}<small>(lese …)</small>{/if}
+				<label><input type="radio" bind:group={choice} value="own" disabled={!split.own.length} />
+					Neueste eigene Sicherung wiederherstellen
+					{#if split.own.length}<small data-testid="newest-backup">({pick(split.own).pieceCid.slice(-12)}, {pick(split.own).copies.length} Kopien)</small>
+					{:else if backups}<small>(dieser Tresor hat noch keine gemacht)</small>{:else}<small>(lese …)</small>{/if}
 				</label>
+				{#if split.other.length}
+					<label><input type="radio" bind:group={choice} value="any" />
+						Neueste Sicherung des Kontos ({pick(backups ?? []).pieceCid.slice(-12)})
+						<small>– nur wenn sie mit deinem Schlüssel verschlüsselt ist, z. B. vom Mac mit eingefügtem Schlüssel; {split.other.length} stammen nicht von diesem Tresor</small>
+					</label>
+				{/if}
 				<label><input type="radio" bind:group={choice} value="empty" /> Leeres Paperless</label>
 				{#if backupsError}<small class="hint">{backupsError}</small>{/if}
 			</fieldset>
