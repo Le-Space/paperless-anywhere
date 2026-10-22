@@ -64,3 +64,19 @@ export function backupConfigFor(network, recipient) {
 	if (!/^age1[0-9a-z]{58}$/.test(recipient)) throw new Error('Ohne age-Schlüssel keine Sicherung.');
 	return { copies: 2, providerIds: [9, 4], regions: [], datasetMetadata: { app: 'paperless-backup-test' }, keepWeeks: 1, ageRecipient: recipient };
 }
+
+/**
+ * The piece CID of the backup a stop made, from the VM's status page
+ * (stop.backup is backup.json: { status, backup: { pieceCid, … } }).
+ * @param {any} status
+ */
+export function pieceCidOfStop(status) {
+	const b = status?.stop?.backup ?? status?.backup;
+	return b?.backup?.pieceCid ?? b?.pieceCid ?? null;
+}
+
+/** Backups split into this vault's own (newest first) and the rest. @param {any[]} backups @param {string[]} own */
+export function splitOwn(backups, own = []) {
+	const mine = new Set(own);
+	return { own: backups.filter((b) => mine.has(b.pieceCid)), other: backups.filter((b) => !mine.has(b.pieceCid)) };
+}

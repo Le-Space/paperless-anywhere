@@ -21,3 +21,17 @@ describe('backupConfigFor', () => {
 		expect(() => backupConfigFor('calibration', '')).toThrow(/age/);
 	});
 });
+
+describe('own backups', () => {
+	it('reads the piece CID a stop made, in either shape', async () => {
+		const { pieceCidOfStop } = await import('./backups.js');
+		expect(pieceCidOfStop({ stop: { backup: { status: 'done', backup: { pieceCid: 'bafkA' } } } })).toBe('bafkA');
+		expect(pieceCidOfStop({ backup: { pieceCid: 'bafkB' } })).toBe('bafkB');
+		expect(pieceCidOfStop({ stop: { backup: { status: 'skipped' } } })).toBeNull();
+	});
+	it('keeps this vault\'s own backups apart from the rest', async () => {
+		const { splitOwn } = await import('./backups.js');
+		const list = [{ pieceCid: 'a' }, { pieceCid: 'b' }, { pieceCid: 'c' }];
+		expect(splitOwn(list, ['b'])).toEqual({ own: [{ pieceCid: 'b' }], other: [{ pieceCid: 'a' }, { pieceCid: 'c' }] });
+	});
+});

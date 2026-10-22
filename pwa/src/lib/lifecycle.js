@@ -102,12 +102,13 @@ export async function startPaperless(master, profile, onProgress) {
 	});
 
 	onProgress({ step: 'ready', detail: 'Paperless startet' });
-	await until('Paperless', async () => {
+	const ready = await until('Paperless', async () => {
 		const status = await vmStatus(host);
 		if (status?.phase) onProgress({ step: 'ready', detail: `Paperless startet (${status.phase})`, status });
-		return status?.phase === 'ready';
+		// A failed restore is final too: Paperless runs (empty), and says why.
+		return status?.phase === 'ready' || (status?.phase === 'restore-failed' && status.paperless) ? status : null;
 	}, { tries: 120, delayMs: 10_000 });
-	return { instanceHash, crnHash: profile.crnHash, host, trustedExecution };
+	return { instanceHash, crnHash: profile.crnHash, host, trustedExecution, ...(ready.phase === 'restore-failed' ? { restore: ready.restore } : {}) };
 }
 
 /**
