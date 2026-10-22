@@ -21,8 +21,11 @@
 			{ step: 'ready', label: 'Paperless startet (Container, Zertifikat)', typical: 300 }
 		],
 		stop: [
-			{ step: 'stop', label: 'Stopp anfordern (letzte Sicherung)', typical: 10 },
-			{ step: 'forget', label: 'VM löschen', typical: 5 }
+			// With backups on, the stop waits for one: export, encryption, upload
+			// to two providers and their confirmation on chain (about 6-8 min,
+			// mostly fixed costs). Erasing waits for the node to confirm.
+			{ step: 'stop', label: 'Stopp anfordern (letzte Sicherung)', typical: 10, typicalWithBackup: 420 },
+			{ step: 'forget', label: 'VM löschen', typical: 60 }
 		]
 	};
 	/** @type {'start' | 'stop' | ''} */
@@ -61,9 +64,12 @@
 			}
 		};
 	};
+	const typicalOf = (s) => (profile.backupConfig && s.typicalWithBackup ? s.typicalWithBackup : s.typical);
 	const seconds = (ms) => `${Math.max(0, Math.round(ms / 1000))} s`;
 	const minutes = (s) => (s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`);
 	let error = $state('');
+	/** @type {string[]} the VM's backup log lines when a backup failed */
+	let errorLog = $state([]);
 	let busy = $state(false);
 	/** @type {any[] | null} */
 	let backups = $state(null);
@@ -97,11 +103,13 @@
 
 	async function run(fn) {
 		error = '';
+		errorLog = [];
 		busy = true;
 		try {
 			await fn();
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
+			errorLog = /** @type {any} */ (e)?.log ?? [];
 		} finally {
 			busy = false;
 			progress = '';
@@ -124,7 +132,14 @@
 		const status = await stopPaperless(master, $state.snapshot(profile), track('stop'));
 		const { running, ...rest } = profile;
 		const made = pieceCidOfStop(status);
-		profile = made ? { ...rest, ownBackups: [made, ...(rest.ownBackups ?? []).filter((c) => c !== made)].slice(0, 50) } : rest;
+		const result = status?.stop?.backup?.backup ?? null;
+		profile = made
+			? {
+					...rest,
+					ownBackups: [made, ...(rest.ownBackups ?? []).filter((c) => c !== made)].slice(0, 50),
+					lastBackup: result && { ...result, network: rest.network ?? 'calibration', payer: rest.payer, seconds: status.stop.backup.seconds ?? null }
+				}
+			: rest;
 		await saveProfile(master, $state.snapshot(profile));
 		onchange();
 	});
@@ -172,7 +187,7 @@
 					{s.label}
 					<small>
 						{#if t}{seconds((t.to ?? now) - t.from)}{/if}
-						(üblich ca. {minutes(s.typical)})
+						(üblich ca. {minutes(typicalOf(s))})
 					</small>
 					{#if s.step === 'ready' && t}
 						{#if vmStart?.timeline}
@@ -194,13 +209,41 @@
 			{/each}
 		</ol>
 		<p class="hint">Gesamt: {seconds((busy ? now : Object.values(times).reduce((m, t) => Math.max(m, t.to ?? 0), startedAt)) - startedAt)}
-			· üblich ca. {minutes(STEPS[action].reduce((a, s) => a + s.typical, 0))}</p>
+			· üblich ca. {minutes(STEPS[action].reduce((a, s) => a + typicalOf(s), 0))}</p>
 	{/if}
 	{#if progress}<p data-testid="progress">{progress} …</p>{/if}
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
+	{#if errorLog.length}
+		<details open class="log"><summary>Letzte Zeilen der Sicherung (aus der VM)</summary><pre data-testid="backup-log">{errorLog.join('\n')}</pre></details>
+	{/if}
+	{#if !profile.running && profile.lastBackup}
+		{@const b = profile.lastBackup}
+		<details class="backup-card" data-testid="last-backup">
+			<summary>Letzte Sicherung: {b.date ?? b.name} · {b.copies?.length ?? 0}/{b.requestedCopies ?? b.copies?.length} Kopien{b.complete ? '' : ' (unvollständig)'}</summary>
+			<dl>
+				<dt>Netz</dt><dd>Filecoin {b.network === 'mainnet' ? 'Mainnet' : 'Calibration (Testnetz)'}</dd>
+				<dt>Bezahlt von</dt><dd><code>{b.payer}</code></dd>
+				<dt>Piece CID</dt><dd><code>{b.pieceCid}</code></dd>
+				{#if b.size}<dt>Größe</dt><dd>{(b.size / 1048576).toFixed(1)} MiB (verschlüsselt)</dd>{/if}
+				{#if b.seconds}<dt>Dauer</dt><dd>{b.seconds} s</dd>{/if}
+			</dl>
+			<ul>
+				{#each b.copies ?? [] as c (c.providerId + c.dataSetId)}
+					<li>Anbieter {c.providerId}{c.location ? ` (${c.location})` : ''} · Datensatz {c.dataSetId}, Piece {c.pieceId}{c.isNewDataSet ? ' (neuer Datensatz)' : ''}
+						{#if c.retrievalUrl}<br /><a href={c.retrievalUrl} target="_blank" rel="noopener">abrufen</a> <small>(verschlüsselt; nur dein Schlüssel öffnet sie)</small>{/if}</li>
+				{/each}
+			</ul>
+			{#if b.failedAttempts}<p class="hint">{b.failedAttempts} Fehlversuch(e) bei Anbietern, ersetzt.</p>{/if}
+		</details>
+	{/if}
 </section>
 
 <style>
+	.log pre { white-space: pre-wrap; font-size: 0.8rem; background: #f6f6f6; padding: 0.5rem; }
+	.backup-card { margin-top: 1rem; }
+	.backup-card dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 0.8rem; }
+	.backup-card dt { color: #666; }
+	.backup-card ul { padding-left: 1.2rem; }
 	.steps { list-style: none; padding: 0; margin: 0.75rem 0; }
 	.steps li { padding: 0.15rem 0; color: #888; }
 	.steps li.active { color: #000; font-weight: 600; }
