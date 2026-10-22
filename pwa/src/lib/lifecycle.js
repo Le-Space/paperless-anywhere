@@ -10,7 +10,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { confidentialTrustedExecution, unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
 import { attestGuest, injectSecrets, websocketTransport } from '@le-space/attest-wasm/ratls';
 import { alephPrivateKey, filecoinSessionPrivateKey, paperlessSecrets } from './keys/derive.js';
-import { crnAddress, credits, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, sendInstance, vmStatus } from './vm.js';
+import { crnAddress, credits, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -102,7 +102,11 @@ export async function startPaperless(master, profile, onProgress) {
 	});
 
 	onProgress({ step: 'ready', detail: 'Paperless startet' });
-	await until('Paperless', async () => (await vmStatus(host))?.phase === 'ready', { tries: 120, delayMs: 10_000 });
+	await until('Paperless', async () => {
+		const status = await vmStatus(host);
+		if (status?.phase) onProgress({ step: 'ready', detail: `Paperless startet (${status.phase})`, status });
+		return status?.phase === 'ready';
+	}, { tries: 120, delayMs: 10_000 });
 	return { instanceHash, crnHash: profile.crnHash, host, trustedExecution };
 }
 
@@ -133,6 +137,8 @@ export async function stopPaperless(master, profile, onProgress) {
 	if (status.phase !== 'stopped') throw new Error('Die letzte Sicherung ist fehlgeschlagen; die VM bleibt.');
 
 	onProgress({ step: 'forget', detail: 'VM löschen' });
+	const crnUrl = await crnAddress(run.crnHash).catch(() => null);
+	if (crnUrl) await eraseOnNode(app, run.instanceHash, crnUrl);
 	await forgetInstance(app, profile.payer, run.instanceHash);
 	return status;
 }

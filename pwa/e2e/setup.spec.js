@@ -1,11 +1,13 @@
 import { expect, test } from '@playwright/test';
 import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
 import { alephMock } from './aleph-mock.js';
+import { ageRecipient, newAgeIdentity } from '../src/lib/keys/age.js';
 
 const payer = privateKeyToAccount(generatePrivateKey());
 const OTHER = { address: '0x00000000000000000000000000000000000000aa', types: ['POST'] };
 // Shaped like an age identity; never used to decrypt anything here.
-const AGE = 'AGE-SECRET-KEY-1' + 'Q'.repeat(58);
+// A real-format identity: the backup toggle derives its recipient.
+const AGE = newAgeIdentity();
 
 /** Only localhost and the Aleph mock: nothing else leaves the test. */
 async function offline(context) {
@@ -15,7 +17,8 @@ async function offline(context) {
 /** MetaMask, as far as this app uses it: accounts and personal_sign, by a test key. */
 async function wallet(context) {
 	await context.exposeBinding('__wallet', async (_source, { method, params }) => {
-		if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [payer.address];
+		// MetaMask answers in lowercase; Aleph knows the account only by its checksum spelling.
+		if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [payer.address.toLowerCase()];
 		if (method === 'personal_sign') return payer.signMessage({ message: { raw: params[0] } });
 		throw new Error(`unsupported ${method}`);
 	});
@@ -58,9 +61,14 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 
 	await page.getByPlaceholder('wss://dein-relay.example/attest').fill('wss://relay.example.com/attest');
 	await page.getByRole('button', { name: 'Relay speichern' }).click();
+	await page.getByText('Einen vorhandenen Schlüssel einfügen').click();
 	await page.getByPlaceholder('AGE-SECRET-KEY-1…').fill(AGE);
 	await page.getByRole('button', { name: 'Versiegelt hinterlegen' }).click();
 	await expect(page.getByTestId('age-status')).toHaveText('hinterlegt (versiegelt)');
+	// Only the recipient is shown; backups on Calibration can be switched on.
+	await expect(page.getByTestId('age-recipient')).toHaveText(ageRecipient(AGE));
+	await page.getByTestId('backups-on').check();
+	await expect(page.getByTestId('backups-on')).toBeChecked();
 
 	// With image, node and passphrase, the start button comes alive (it reads the saved profile).
 	await expect(page.getByRole('button', { name: 'Paperless starten' })).toBeDisabled();

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { recoverMessageAddress } from 'viem';
-import { instanceMessage, sha256Hex, signAsDelegate } from './vm.js';
+import { instanceMessage, sha256Hex, signAsDelegate, ownVms } from './vm.js';
 import { createUnsignedForgetMessage } from '@le-space/core';
 
 const app = privateKeyToAccount(generatePrivateKey());
@@ -26,5 +26,20 @@ describe('delegated messages', () => {
 		expect(m.sender).toBe(app.address);
 		expect(JSON.parse(m.item_content).address).toBe(payer);
 		expect(await signed(m)).toBe(app.address);
+	});
+});
+
+describe('ownVms', () => {
+	const app = '0x' + '11'.repeat(20);
+	const msg = (sender, name, time) => ({ item_hash: name + time, sender, time, content: { metadata: { name }, requirements: { node: { node_hash: 'n' } } } });
+	it('keeps only paperless VMs this app sent, newest first', () => {
+		const list = ownVms([
+			msg(app.toUpperCase().replace('0X', '0x'), 'paperless-a', 1),
+			msg(app, 'paperless-b', 3),
+			msg('0x' + '22'.repeat(20), 'paperless-c', 2),
+			msg(app, 'relay-x', 4)
+		], app);
+		expect(list.map((v) => v.name)).toEqual(['paperless-b', 'paperless-a']);
+		expect(list[0]).toMatchObject({ createdAt: 3000, crnHash: 'n' });
 	});
 });

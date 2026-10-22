@@ -15,7 +15,9 @@
 		"@filoz/synapse-core": "0.10.0",
 		"@le-space/attest-wasm": "0.10.0",
 		"@le-space/core": "0.10.0",
+		"@noble/curves": "1.9.1",
 		"@noble/hashes": "2.4.0",
+		"@scure/base": "1.2.6",
 		"@scure/bip39": "2.4.0",
 		"viem": "2.57.2"
 	},

@@ -51,3 +51,16 @@ export async function listBackups({ network, owner, label }) {
 export function restoreEntry(backup) {
 	return { name: `backup-${backup.pieceCid.slice(-12)}`, pieceCid: backup.pieceCid, copies: backup.copies.map((c) => ({ retrievalUrl: c.retrievalUrl })) };
 }
+
+/**
+ * The backup configuration the VM gets with its unlock (paperless-backup's
+ * config.json without the payer, which the start adds). Calibration only: the
+ * Mac stays the only writer of the mainnet backups until the PWA has been
+ * tested with real ones.
+ * @param {string} network @param {string} recipient age1… of the profile's identity
+ */
+export function backupConfigFor(network, recipient) {
+	if (network !== 'calibration') throw new Error('Sicherungen aus der App vorerst nur im Testnetz (Calibration).');
+	if (!/^age1[0-9a-z]{58}$/.test(recipient)) throw new Error('Ohne age-Schlüssel keine Sicherung.');
+	return { copies: 2, providerIds: [9, 4], regions: [], datasetMetadata: { app: 'paperless-backup-test' }, keepWeeks: 1, ageRecipient: recipient };
+}
