@@ -45,6 +45,8 @@ jobs:
           [[ "$SSH_KEY" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp256)\  ]] || { echo "::error::set the PAPERLESS_SSH_PUBLIC_KEY variable to a .pub line"; exit 1; }
 
       - name: Build the plain image
+        # Usually about a minute; a stuck download on a node hung for 45 min.
+        timeout-minutes: 15
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq debootstrap >/dev/null
           start=$(date +%s)
