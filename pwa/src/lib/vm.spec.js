@@ -31,14 +31,16 @@ describe('delegated messages', () => {
 
 describe('ownVms', () => {
 	const app = '0x' + '11'.repeat(20);
-	const msg = (sender, name, time) => ({ item_hash: name + time, sender, time, content: { metadata: { name }, requirements: { node: { node_hash: 'n' } } } });
+	const payer = '0x' + '33'.repeat(20);
+	const msg = (sender, name, time, address = payer) => ({ item_hash: name + time, sender, time, content: { address, metadata: { name }, requirements: { node: { node_hash: 'n' } } } });
 	it('keeps only paperless VMs this app sent, newest first', () => {
 		const list = ownVms([
 			msg(app.toUpperCase().replace('0X', '0x'), 'paperless-a', 1),
 			msg(app, 'paperless-b', 3),
 			msg('0x' + '22'.repeat(20), 'paperless-c', 2),
-			msg(app, 'relay-x', 4)
-		], app);
+			msg(app, 'relay-x', 4),
+			msg(app, 'paperless-other-payer', 5, '0x' + '44'.repeat(20))
+		], app, payer);
 		expect(list.map((v) => v.name)).toEqual(['paperless-b', 'paperless-a']);
 		expect(list[0]).toMatchObject({ createdAt: 3000, crnHash: 'n' });
 	});

@@ -133,18 +133,21 @@ export async function forgetInstance(app, payer, itemHash, reason = 'paperless-a
 export async function listVms(appAddress, payer) {
 	const url = new URL('/api/v0/messages.json', ALEPH_API);
 	url.searchParams.set('msgTypes', 'INSTANCE');
-	url.searchParams.set('addresses', payer);
+	// `addresses` matches the sender only, never the address a delegate acts
+	// for: ask for the app's own messages, then keep those for this payer.
+	url.searchParams.set('addresses', appAddress);
 	url.searchParams.set('message_statuses', 'processed,pending');
 	url.searchParams.set('pagination', '50');
 	const res = await fetch(url, { cache: 'no-store' });
 	if (!res.ok) throw new Error(`Aleph: VM-Liste nicht lesbar (${res.status})`);
-	return ownVms((await res.json()).messages ?? [], appAddress);
+	return ownVms((await res.json()).messages ?? [], appAddress, payer);
 }
 
-/** @param {any[]} messages @param {string} appAddress */
-export function ownVms(messages, appAddress) {
+/** @param {any[]} messages @param {string} appAddress @param {string} [payer] */
+export function ownVms(messages, appAddress, payer) {
+	const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
 	return messages
-		.filter((m) => String(m.sender).toLowerCase() === appAddress.toLowerCase() && String(m.content?.metadata?.name ?? '').startsWith('paperless-'))
+		.filter((m) => same(m.sender, appAddress) && (!payer || same(m.content?.address, payer)) && String(m.content?.metadata?.name ?? '').startsWith('paperless-'))
 		.map((m) => ({
 			itemHash: String(m.item_hash),
 			name: String(m.content.metadata.name),
