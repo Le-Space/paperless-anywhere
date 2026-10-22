@@ -13,7 +13,10 @@ export const LABELS = Object.freeze({
 	paperlessSecretKey: 'paperless-anywhere/paperless-secret-key/v1',
 	vaultKey: 'paperless-anywhere/vault-key/v1',
 	filecoinSession: 'paperless-anywhere/filecoin-session-key/v1',
-	profileKey: 'paperless-anywhere/profile-key/v1'
+	profileKey: 'paperless-anywhere/profile-key/v1',
+	// The backups' age identity: derived, so the 24 words alone decrypt every
+	// backup, even when the sealed profile is gone.
+	ageIdentity: 'paperless-anywhere/age-identity/v1'
 });
 
 // The order of secp256k1: a private key must be in [1, n).

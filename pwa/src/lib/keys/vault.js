@@ -85,3 +85,35 @@ export async function unlockWithSeedPhrase(vault, phrase) {
 	if (!vault) storeVault({ v: 1, credentialId: null, byPasskey: null, bySeed: box, createdAt: new Date().toISOString() });
 	return master;
 }
+
+/**
+ * Another passkey for an open vault: on a new origin (a passkey belongs to
+ * one, e.g. localhost or the hosted app) or as a spare on a second
+ * authenticator. Its box goes under its own index address, so any of the
+ * passkeys finds the vault; this browser uses the new one from now on.
+ * @param {Uint8Array} master @param {string} name
+ */
+export async function addPasskey(master, name) {
+	const created = await createPasskey(name);
+	const { prf, credentialId } = await readPrf(created);
+	try {
+		const byPasskey = await seal(master, sealingKeyFromPrf(prf), 'master/passkey');
+		await writeAggregate(passkeyIndexAccount(prf), VAULT_KEY, { v: 1, credentialId, box: byPasskey });
+		const current = loadVault();
+		storeVault({ v: 1, credentialId, byPasskey, bySeed: current?.bySeed ?? null, createdAt: current?.createdAt ?? new Date().toISOString() });
+		return credentialId;
+	} finally {
+		prf.fill(0);
+	}
+}
+
+/**
+ * Positions to ask back after the phrase was shown: three distinct ones,
+ * so a phrase that was not written down cannot be clicked past.
+ * @param {number} [count] @param {number} [words]
+ */
+export function confirmationPositions(count = 3, words = 24) {
+	const picked = new Set();
+	while (picked.size < count) picked.add(crypto.getRandomValues(new Uint32Array(1))[0] % words);
+	return [...picked].sort((a, b) => a - b);
+}

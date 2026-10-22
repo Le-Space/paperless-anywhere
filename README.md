@@ -47,22 +47,16 @@ Customers buy packages from Le Space with fiat (card, SEPA, …) or crypto; Le S
 
 ## Keys
 
-A random **master secret** is kept twice, sealed: once by the YubiKey's PRF output, once by a key derived from the seed phrase. Either opens it; a second YubiKey can be added later. Nothing secret is stored unsealed, and the master secret lives only in the browser's memory while you use it.
+A random **master secret** is sealed by each passkey (WebAuthn PRF, e.g. a YubiKey) and by the 24-word recovery phrase; either opens it, and more passkeys can be added (one per address or device). Nothing secret is stored unsealed, and the master secret lives only in the browser's memory.
 
-From the master secret, by HKDF with distinct labels:
+From the master secret, by HKDF with distinct labels: the **app key** (Aleph), the **Filecoin session key**, the **backup key** (age), the **Paperless passwords**. The app key and the session key are delegates: they act for your own wallet, which keeps the money and can revoke them. They hold nothing.
 
-- the **Aleph account** (secp256k1) that signs the VM and pays its credits,
-- the **Paperless admin password**, the **database password** and `PAPERLESS_SECRET_KEY`.
-
-Carried sealed under the master secret (they exist already and old backups depend on them):
-
-- the **age identity** that decrypts the backups,
-- the **Filecoin wallet key** that pays for storage.
+What lives where, what holds money, and what to do when a passkey, a device or the words are lost: [docs/keys-and-recovery.md](docs/keys-and-recovery.md).
 
 ## What this does not protect against
 
 - A bug in the CPU's SEV-SNP or in the hypervisor that breaks confidentiality.
-- Losing both the YubiKey and the seed phrase.
+- Losing every passkey and the 24 words: the backups made with the vault's key are lost (your money is not; it stays in your wallet).
 - Someone with your unlocked device while a session is open.
 
 ## Related

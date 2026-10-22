@@ -1,7 +1,7 @@
 <script>
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey } from '$lib/keys/derive.js';
-	import { createVault, forgetVault, loadVault, unlockWithPasskey, unlockWithSeedPhrase } from '$lib/keys/vault.js';
+	import { addPasskey, confirmationPositions, createVault, forgetVault, loadVault, unlockWithPasskey, unlockWithSeedPhrase } from '$lib/keys/vault.js';
 	import Setup from '$lib/Setup.svelte';
 	import Lifecycle from '$lib/Lifecycle.svelte';
 	import VmList from '$lib/VmList.svelte';
@@ -15,6 +15,32 @@
 	let error = $state('');
 	let busy = $state(false);
 	let profileVersion = $state(0);
+	// After the phrase is shown, three of its words are asked back.
+	/** @type {number[]} */
+	let askPositions = $state([]);
+	/** @type {string[]} */
+	let answers = $state([]);
+	let confirming = $state(false);
+	let added = $state('');
+	const answered = $derived(
+		askPositions.length > 0 && askPositions.every((p, i) => (answers[i] ?? '').trim().toLowerCase() === shownPhrase.split(' ')[p])
+	);
+	function startConfirm() {
+		askPositions = confirmationPositions();
+		answers = askPositions.map(() => '');
+		confirming = true;
+	}
+	function doneConfirm() {
+		shownPhrase = '';
+		confirming = false;
+		askPositions = [];
+		answers = [];
+	}
+	const newPasskey = () => run(async () => {
+		await addPasskey(/** @type {Uint8Array} */ (master), `${name.trim() || 'Paperless'} (${location.host})`);
+		vault = loadVault();
+		added = location.host;
+	});
 
 	const address = $derived(master ? privateKeyToAccount(alephPrivateKey(master)).address : '');
 	const state = $derived(!vault ? 'new' : master ? 'unlocked' : 'locked');
@@ -87,12 +113,30 @@
 			<section class="phrase">
 				<h2>Wiederherstellungsphrase</h2>
 				<p>Schreib sie auf Papier und bewahre sie sicher auf. Sie wird nur jetzt angezeigt.</p>
-				<ol data-testid="phrase">{#each shownPhrase.split(' ') as word}<li>{word}</li>{/each}</ol>
-				<button onclick={() => (shownPhrase = '')}>Aufgeschrieben</button>
+				{#if !confirming}
+					<ol data-testid="phrase">{#each shownPhrase.split(' ') as word}<li>{word}</li>{/each}</ol>
+					<button onclick={startConfirm}>Aufgeschrieben</button>
+				{:else}
+					<p>Zur Probe, von deinem Zettel:</p>
+					{#each askPositions as position, i (position)}
+						<label>Wort {position + 1} <input bind:value={answers[i]} autocomplete="off" spellcheck="false" data-testid={`confirm-${position + 1}`} /></label>
+					{/each}
+					<button onclick={doneConfirm} disabled={!answered}>Stimmt</button>
+					<button class="quiet" onclick={() => (confirming = false)}>Wörter noch einmal zeigen</button>
+				{/if}
 			</section>
 		{/if}
-		<p>Entsperrt. Schlüssel dieser App für Aleph: <code data-testid="address">{address}</code></p>
+		<p>Entsperrt. Schlüssel dieser App für Aleph: <code data-testid="address">{address}</code>
+			<br /><small>Er hält kein Geld: nichts dorthin überweisen. Das Geld liegt beim zahlenden Konto (Einrichtung, Schritt 1).</small></p>
 		<button onclick={lock}>Sperren</button>
+		{#if !shownPhrase}
+			<details class="passkeys">
+				<summary>Weiteren Passkey hinzufügen</summary>
+				<p>Ein Passkey gehört zu einer Adresse ({location.host}). Für die gehostete App oder ein zweites Gerät: dort mit den 24 Wörtern öffnen und hier einen Passkey anlegen. Jeder Passkey öffnet denselben Tresor.</p>
+				<button onclick={newPasskey} disabled={busy}>Passkey für {location.host} anlegen</button>
+				{#if added}<p data-testid="passkey-added">Neuer Passkey für {added} angelegt; dieser Browser nutzt ihn ab jetzt.</p>{/if}
+			</details>
+		{/if}
 		{#if !shownPhrase}<Lifecycle {master} version={profileVersion} onchange={() => profileVersion++} /><VmList {master} version={profileVersion} onchange={() => profileVersion++} /><Setup {master} onsaved={() => profileVersion++} />{/if}
 	{/if}
 
@@ -105,6 +149,8 @@
 	.quiet { background: none; border: none; color: #666; text-decoration: underline; padding: 0; }
 	textarea, input { width: 100%; font-size: 1rem; }
 	.phrase ol { columns: 2; font-family: ui-monospace, monospace; }
+	.passkeys { margin: 1rem 0; }
+	label { display: block; margin: 0.4rem 0; }
 	.state { color: #666; font-size: 0.9rem; }
 	.error { color: #b00020; }
 	code { word-break: break-all; }
