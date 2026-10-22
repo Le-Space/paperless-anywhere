@@ -32,9 +32,28 @@ cmd="${1:-check}"
 status() {
   printf '{"status":"%s","at":"%s"%s}\n' "$1" "$(date -u +%FT%TZ)" "${2:-}" > "$state.tmp" && mv "$state.tmp" "$state"
 }
+# The tool's own log lines, made fit for the public status page: only its
+# timestamped lines (not Python's warnings, which name files), with paths and
+# quoted names blanked, as a JSON array of the last N.
+loglines() {
+  python3 - "$log_dir/backup.log" "${1:-12}" <<'LOG'
+import json, re, sys
+try:
+    lines = open(sys.argv[1], errors="replace").read().splitlines()
+except OSError:
+    lines = []
+keep = [l for l in lines if re.match(r"^\d{4}-\d{2}-\d{2}T[\d:.]+Z ", l)]
+def clean(l):
+    l = re.sub(r"'[^']*'|\"[^\"]*\"", "'…'", l)
+    l = re.sub(r"(?<![\w:])/[^\s]+", "/…", l)
+    l = re.sub(r"\b[0-9a-fA-F]{64}\b", "…", l)
+    return l[:220]
+print(json.dumps([clean(l) for l in keep[-int(sys.argv[2]):]]))
+LOG
+}
 fail() {
   echo "paperless-backup: $*" >&2
-  status failed ",\"reason\":\"$(printf '%s' "$*" | tr -d '"\\\n' | cut -c1-200)\""
+  status failed ",\"reason\":\"$(printf '%s' "$*" | tr -d '"\\\n' | cut -c1-200)\",\"log\":$(loglines 12)"
   exit 1
 }
 
@@ -96,12 +115,27 @@ t0=$(date +%s)
 cd /opt/backup-filecoin || fail "no backup tool in /opt/backup-filecoin"
 export BACKUP_CONFIG="$config" SESSION_KEY_FILE="$secrets/backup_session_key" \
   PAPERLESS_DIR=/srv/paperless PAPERLESS_MANAGE=/usr/local/sbin/paperless-manage
-node backup.mjs run >>"$log_dir/backup.log" 2>&1 || fail "the backup did not complete (see $log_dir/backup.log)"
+# While it runs, its latest lines go to the status page (the app shows them).
+: > "$log_dir/backup.log.run"
+node backup.mjs run > "$log_dir/backup.log.run" 2>&1 &
+pid=$!
+while kill -0 "$pid" 2>/dev/null; do
+  cat "$log_dir/backup.log.run" >> "$log_dir/backup.log" && : > "$log_dir/backup.log.run"
+  status running ",\"role\":\"$role\",\"log\":$(loglines 3)"
+  sleep 5
+done
+wait "$pid"; rc=$?
+cat "$log_dir/backup.log.run" >> "$log_dir/backup.log"; rm -f "$log_dir/backup.log.run"
+[ "$rc" -eq 0 ] || fail "the backup did not complete"
 printf '%s\n' "$now" > "$lib/backed-up.fingerprint"
 entry="$(python3 -c '
 import json, sys
 e = json.load(open(sys.argv[1]))[-1]
-print(json.dumps({"name": e.get("name"), "pieceCid": e.get("pieceCid"), "complete": e.get("complete"), "copies": len(e.get("copies", []))}))' \
+keep = ("providerId", "dataSetId", "pieceId", "retrievalUrl", "location", "isNewDataSet")
+print(json.dumps({"name": e.get("name"), "date": e.get("date"), "pieceCid": e.get("pieceCid"), "size": e.get("size"),
+  "complete": e.get("complete"), "requestedCopies": e.get("requestedCopies"),
+  "copies": [{k: c.get(k) for k in keep} for c in e.get("copies", [])],
+  "failedAttempts": len(e.get("failedAttempts", []))}))' \
   "$( [ "$role" = primary ] && echo ledger.json || echo ledger.calibration.json )")"
 status done ",\"role\":\"$role\",\"backup\":$entry,\"seconds\":$(( $(date +%s) - t0 ))"
 echo "paperless-backup: done, $entry"

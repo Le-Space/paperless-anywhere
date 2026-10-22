@@ -12,6 +12,15 @@ import { attestGuest, injectSecrets, websocketTransport } from '@le-space/attest
 import { alephPrivateKey, filecoinSessionPrivateKey, paperlessSecrets } from './keys/derive.js';
 import { crnAddress, credits, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
+/** The last backup failed; the VM stays. Carries the VM's reason and its tool's last log lines. */
+export class BackupFailedError extends Error {
+	constructor(reason, log) {
+		super(`Die letzte Sicherung ist fehlgeschlagen; die VM bleibt. Grund: ${reason}`);
+		this.name = 'BackupFailedError';
+		this.log = log;
+	}
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function loadWasm() {
@@ -133,9 +142,15 @@ export async function stopPaperless(master, profile, onProgress) {
 	}
 	const status = await until('stop', async () => {
 		const s = await vmStatus(run.host);
+		// The backup's latest log line, while it runs (status page: backup.log).
+		const line = s?.backup?.status === 'running' ? s.backup.log?.at(-1) : null;
+		if (line) onProgress({ step: 'stop', detail: line.replace(/^\S+Z /, ''), status: s });
 		return s && ['stopped', 'stop-failed'].includes(s.phase) ? s : null;
 	}, { tries: 180, delayMs: 10_000 });
-	if (status.phase !== 'stopped') throw new Error('Die letzte Sicherung ist fehlgeschlagen; die VM bleibt.');
+	if (status.phase !== 'stopped') {
+		const b = status.stop?.backup ?? status.backup;
+		throw new BackupFailedError(b?.reason ?? 'ohne Angabe', b?.log ?? []);
+	}
 
 	onProgress({ step: 'forget', detail: 'VM löschen' });
 	const crnUrl = await crnAddress(run.crnHash).catch(() => null);
