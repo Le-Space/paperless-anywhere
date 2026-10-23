@@ -7,11 +7,18 @@ published to Aleph IPFS, and the domain pointed at that CID.
 
 ## Release
 
-A published GitHub release runs `.github/workflows/pwa-deploy.yml`:
+A published GitHub release runs `.github/workflows/pwa-deploy.yml`, one job:
 
-1. **test:** unit tests, build, browser tests with a mocked Aleph;
-2. **publish:** build, pin on Aleph IPFS (the last three are kept);
-3. **link-domain:** point `paperless.le-space.de` at the new CID and note the CID on the release.
+1. unit tests, build, browser tests with a mocked Aleph;
+2. pin the build on Aleph IPFS (the last three are kept);
+3. point `paperless.le-space.de` at the new CID and note the CID on the release.
+
+The repository is private, so hosted minutes are billed; the job runs on an Aleph
+runner. Start one before publishing the release (relay-button):
+
+```bash
+pnpm relay-button gh-runner up --repo Le-Space/paperless-anywhere --count 1
+```
 
 A manual run without `link_domain` only publishes, for a look by CID.
 
