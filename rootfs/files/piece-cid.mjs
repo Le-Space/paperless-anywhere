@@ -1,7 +1,7 @@
 // node piece-cid.mjs <file>: the Filecoin piece CID of a file, read as a
 // stream. paperless-restore compares it with the piece it asked for: the
 // content address, checked without trusting the provider or a ledger.
-// Lives in /opt/backup-filecoin, so @filoz/synapse-core resolves from there.
+// Bundled with esbuild into /opt/backup-filecoin/piece-cid.mjs by build-image.sh.
 import { createReadStream } from 'node:fs'
 import { Readable } from 'node:stream'
 import { calculate } from '@filoz/synapse-core/piece'
