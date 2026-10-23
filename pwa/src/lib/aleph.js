@@ -10,6 +10,33 @@ async function sha256Hex(text) {
 	return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Broadcast `message` and wait until Aleph has processed it. The synchronous
+ * broadcast may never answer when Aleph is slow, although the message was
+ * processed (live, 2026-10-23); after a minute we ask for its status instead.
+ * @returns {Promise<{ httpStatus: number, response: any }>}
+ */
+export async function broadcast(message, { answerMs = 60_000, pollMs = 5_000, waitMs = 15 * 60_000 } = {}) {
+	try {
+		return await broadcastAlephMessage(message, { apiHost: ALEPH_API, sync: true, attempts: 1, fetch: (u, i) => fetch(u, { ...i, signal: AbortSignal.timeout(answerMs) }) });
+	} catch (e) {
+		if (!['TimeoutError', 'AbortError', 'TypeError'].includes(/** @type {any} */ (e)?.name)) throw e;
+	}
+	const until = Date.now() + waitMs;
+	while (Date.now() < until) {
+		const res = await fetch(`${ALEPH_API}/api/v0/messages/${message.item_hash}`, { cache: 'no-store' }).catch(() => null);
+		const status = res?.ok ? (await res.json().catch(() => null))?.status : null;
+		if (status === 'processed') return { httpStatus: 200, response: { message_status: status } };
+		if (status === 'rejected' || status === 'forgotten') return { httpStatus: 422, response: { message_status: status } };
+		// Not known yet (404): the broadcast may not have arrived; send it again, unsynchronised.
+		if (res?.status === 404) await broadcastAlephMessage(message, { apiHost: ALEPH_API, sync: false, fetch: (u, i) => fetch(u, { ...i, signal: AbortSignal.timeout(answerMs) }) }).catch(() => null);
+		await sleep(pollMs);
+	}
+	throw new Error(`Aleph did not process the ${message.type} within ${Math.round(waitMs / 60_000)} minutes`);
+}
+
 /**
  * Write `content` under `key` in the aggregate of `account` (a viem local account).
  * @param {import('viem').LocalAccount} account
@@ -22,7 +49,7 @@ export async function writeAggregate(account, key, content) {
 		channel: CHANNEL
 	});
 	const message = await signAlephMessage(unsigned, (_sender, payload) => account.signMessage({ message: payload }));
-	const { httpStatus, response } = await broadcastAlephMessage(message, { apiHost: ALEPH_API, sync: true, fetch: (u, i) => fetch(u, i) });
+	const { httpStatus, response } = await broadcast(message);
 	if (httpStatus >= 300) throw new Error(`Aleph refused the vault (${httpStatus}): ${JSON.stringify(response).slice(0, 160)}`);
 	return message.item_hash;
 }

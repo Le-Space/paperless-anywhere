@@ -33,7 +33,14 @@ test('start and stop a confidential Paperless from the PWA', async ({ page }) =>
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Passkey anlegen' }).click();
 	await expect(page.getByTestId('phrase').locator('li')).toHaveCount(24, { timeout: 60_000 });
+	const words = await page.getByTestId('phrase').locator('li').allTextContents();
 	await page.getByRole('button', { name: 'Aufgeschrieben' }).click();
+	const asked = page.locator('[data-testid^="confirm-"]');
+	await expect(asked).toHaveCount(3);
+	for (const [i, position] of (await asked.evaluateAll((inputs) => inputs.map((x) => Number(x.dataset.testid.split('-')[1])))).entries()) {
+		await asked.nth(i).fill(words[position - 1]);
+	}
+	await page.getByRole('button', { name: 'Stimmt' }).click();
 
 	await page.getByRole('button', { name: 'Wallet verbinden' }).click();
 	await expect(page.getByTestId('payer')).toHaveText(payer.address, { timeout: 60_000 });

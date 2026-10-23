@@ -7,8 +7,8 @@ import { createPublicClient, createWalletClient, custom, getAddress, http, toHex
 import { privateKeyToAccount } from 'viem/accounts';
 import * as SessionKey from '@filoz/synapse-core/session-key';
 import { calibration, mainnet } from '@filoz/synapse-core/chains';
-import { broadcastAlephMessage, createUnsignedAggregateMessage, signAlephMessage } from '@le-space/core';
-import { ALEPH_API, readAggregate } from './aleph.js';
+import { createUnsignedAggregateMessage, signAlephMessage } from '@le-space/core';
+import { broadcast, readAggregate } from './aleph.js';
 import { filecoinSessionPrivateKey } from './keys/derive.js';
 
 export const PWA_TYPES = ['INSTANCE', 'FORGET', 'AGGREGATE'];
@@ -67,7 +67,7 @@ export async function setAlephAuthorization(payer, pwaAddress, { revoke = false 
 	const message = await signAlephMessage(unsigned, (sender, payload) =>
 		ethereum().request({ method: 'personal_sign', params: [toHex(payload), sender] })
 	);
-	const { httpStatus, response } = await broadcastAlephMessage(message, { apiHost: ALEPH_API, sync: true, fetch: (u, i) => fetch(u, i) });
+	const { httpStatus, response } = await broadcast(message);
 	if (httpStatus >= 300) throw new Error(`Aleph hat die Freigabe abgelehnt (${httpStatus}): ${JSON.stringify(response).slice(0, 160)}`);
 	return authorizations;
 }
