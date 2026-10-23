@@ -29,6 +29,8 @@ Paperless-ngx usually lives on one machine at home. This project moves it to ren
 3. **Run:** Paperless as you know it, including its mail rules; the backup runs as on the Mac today.
 4. **Stop:** a last backup, then the VM is erased. An idle timer does the same if you forget.
 
+Every step as a sequence diagram, the attestation and unlock included: [docs/workflow.md](docs/workflow.md).
+
 ## Plan
 
 | Step | What | Where |
