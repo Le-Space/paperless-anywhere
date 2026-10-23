@@ -1,4 +1,5 @@
 <script>
+	import { PAPERLESS_CREDITS_PER_HOUR } from '$lib/balances.js';
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey } from '$lib/keys/derive.js';
 	import { loadProfile, saveProfile } from '$lib/profile.js';
@@ -82,7 +83,7 @@
 				<li data-testid="vm-row">
 					<strong>{vm.name}</strong>
 					{#if profile.running?.instanceHash === vm.itemHash}<small>(gestartet)</small>{/if}
-					<br /><small>seit {when(vm.createdAt)} · {vm.phase ?? 'prüfe …'}
+					<br /><small>seit {when(vm.createdAt)} · kostet ca. {PAPERLESS_CREDITS_PER_HOUR.toLocaleString('de-DE')} Credits/h · {vm.phase ?? 'prüfe …'}
 						{#if vm.host && vm.up} · <a href={`https://${vm.host}/`} target="_blank" rel="noopener">{vm.host}</a>{/if}
 						· <code>{vm.itemHash.slice(0, 12)}</code></small>
 					<button type="button" onclick={() => remove(vm)} disabled={busy === vm.itemHash}>Löschen</button>

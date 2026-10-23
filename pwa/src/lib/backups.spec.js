@@ -18,6 +18,9 @@ describe('backupConfigFor', () => {
 	});
 	it('refuses mainnet and a missing recipient', () => {
 		expect(() => backupConfigFor('mainnet', recipient)).toThrow(/Testnetz/);
+		expect(backupConfigFor('calibration', recipient, { copies: 3, providerIds: [], regions: ['EUROPE'] })).toMatchObject({ copies: 3, providerIds: [], regions: ['EUROPE'] });
+		expect(backupConfigFor('calibration', recipient, { copies: 1, providerIds: [7, 2], regions: [] })).toMatchObject({ copies: 2, providerIds: [7, 2] });
+		expect(() => backupConfigFor('calibration', recipient, { copies: 4, providerIds: [], regions: [] })).toThrow(/1 bis 3/);
 		expect(() => backupConfigFor('calibration', '')).toThrow(/age/);
 	});
 });

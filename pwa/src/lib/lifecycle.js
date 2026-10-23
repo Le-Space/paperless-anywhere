@@ -10,6 +10,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { confidentialTrustedExecution, unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
 import { attestGuest, injectSecrets, websocketTransport } from '@le-space/attest-wasm/ratls';
 import { alephPrivateKey, filecoinSessionPrivateKey, paperlessSecrets } from './keys/derive.js';
+import { RESERVE_CREDITS } from './balances.js';
 import { crnAddress, credits, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
 /** The last backup failed; the VM stays. Carries the VM's reason and its tool's last log lines. */
@@ -61,7 +62,8 @@ export async function startPaperless(master, profile, onProgress) {
 	const app = privateKeyToAccount(alephPrivateKey(master));
 	const balance = await credits(profile.payer);
 	// About four hours of a 2-vCPU confidential instance plus margin; refuses an empty account early.
-	if (balance < (profile.minCredits ?? 50_000)) throw new Error(`Zu wenig Credits auf dem zahlenden Konto (${balance}).`);
+	const reserve = profile.minCredits ?? RESERVE_CREDITS;
+	if (balance < reserve) throw new Error(`Zu wenig Credits auf dem zahlenden Konto: ${balance.toLocaleString('de-DE')}. Aleph nimmt eine VM erst mit einem Tag Reserve an (${reserve.toLocaleString('de-DE')}).`);
 
 	onProgress({ step: 'measure', detail: 'Messwerte für diesen Start berechnen' });
 	const wasm = await loadWasm();
