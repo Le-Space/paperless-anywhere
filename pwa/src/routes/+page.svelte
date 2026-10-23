@@ -6,8 +6,11 @@
 	import Lifecycle from '$lib/Lifecycle.svelte';
 	import Balances from '$lib/Balances.svelte';
 	import VmList from '$lib/VmList.svelte';
+	import { HOME, sharedOrigin } from '$lib/shared-origin.js';
 
-	let vault = $state(loadVault());
+	// On a path-style gateway the origin is shared: no vault, no passkey there.
+	const shared = sharedOrigin();
+	let vault = $state(shared ? null : loadVault());
 	/** @type {Uint8Array | null} the master secret, in memory only */
 	let master = $state(null);
 	let phrase = $state('');
@@ -88,9 +91,12 @@
 
 <main>
 	<h1>Paperless anywhere</h1>
-	<p class="state" data-testid="state">{state}</p>
+	<p class="state" data-testid="state">{shared ? 'shared origin' : state}</p>
 
-	{#if state === 'new'}
+	{#if shared}
+		<p data-testid="shared-origin">Diese Adresse teilen sich alle Seiten dieses IPFS-Gateways, auch ihr Speicher und ihre Passkeys. Den Tresor öffnet die App hier nicht.
+			Bitte unter <a href={HOME}>{HOME}</a> öffnen.</p>
+	{:else if state === 'new'}
 		<p>Ein Passkey schützt den Zugang. Dazu bekommst du eine Wiederherstellungsphrase aus 24 Wörtern.</p>
 		<label>Name des Passkeys <input bind:value={name} /></label>
 		<button onclick={create} disabled={busy}>Passkey anlegen</button>
