@@ -10,14 +10,28 @@ early=""
 host="${1:?usage: paperless-https [--early] <hostname>}"
 case "$host" in *[!A-Za-z0-9.-]*|"") echo "not a hostname: $host" >&2; exit 1 ;; esac
 printf '%s\n' "$host" > /etc/paperless-anywhere/hostname
+# The second certificate authority's contact (ZeroSSL ties its ACME account to
+# an address); from the unlock if the app sent one.
+email="$(head -c 254 /tmp/secrets/acme_email 2>/dev/null | tr -d '\r\n')"
+case "$email" in *@*.*) ;; *) email="paperless-anywhere@le-space.de" ;; esac
+case "$email" in *[!A-Za-z0-9.@_+-]*) email="paperless-anywhere@le-space.de" ;; esac
 cat > /etc/caddy/Caddyfile <<CADDY
 {
   auto_https disable_redirects
 }
 
 https://${host} {
+  # Two certificate authorities: Let's Encrypt first, ZeroSSL when it fails.
+  # Every start gets a new *.2n6.me name, and all 2n6 users share Let's
+  # Encrypt's 50 certificates per week for 2n6.me (2026-10-22: a start found
+  # no certificate after 35 minutes). Both over TLS-ALPN on 443, the one port
+  # forwarded for it.
   tls {
     issuer acme {
+      disable_http_challenge
+    }
+    issuer zerossl {
+      email ${email}
       disable_http_challenge
     }
   }
