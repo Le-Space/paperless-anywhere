@@ -67,10 +67,24 @@
 		master = result.master;
 		shownPhrase = result.phrase;
 	});
-	const unlockPasskey = () => run(async () => {
-		master = await unlockWithPasskey(vault);
-		vault = loadVault();
-	});
+	// A passkey prompt may never answer (no passkey for this address, a dialog
+	// left open): it blocks only the passkey buttons, never the 24 words.
+	let passkeyWaiting = $state(false);
+	async function unlockPasskey() {
+		error = '';
+		passkeyWaiting = true;
+		try {
+			const opened = await unlockWithPasskey(vault);
+			if (!master) {
+				master = opened;
+				vault = loadVault();
+			} else opened.fill(0);
+		} catch (e) {
+			if (!master) error = e instanceof Error ? e.message : String(e);
+		} finally {
+			passkeyWaiting = false;
+		}
+	}
 	const unlockPhrase = () => run(async () => {
 		master = await unlockWithSeedPhrase(vault, phrase);
 		vault = loadVault();
@@ -101,14 +115,16 @@
 		<label>Name des Passkeys <input bind:value={name} /></label>
 		<button onclick={create} disabled={busy}>Passkey anlegen</button>
 		<h2>Schon eingerichtet?</h2>
-		<button onclick={unlockPasskey} disabled={busy}>Auf diesem Gerät mit Passkey öffnen</button>
+		<button onclick={unlockPasskey} disabled={busy || passkeyWaiting}>Auf diesem Gerät mit Passkey öffnen</button>
+		{#if passkeyWaiting}<p class="state" data-testid="passkey-waiting">Warte auf den Passkey … Gibt es für {location.host} noch keinen, mit den 24 Wörtern öffnen.</p>{/if}
 		<details>
 			<summary>Auf diesem Gerät mit Wiederherstellungsphrase öffnen</summary>
 			<textarea bind:value={phrase} rows="3" autocomplete="off" spellcheck="false"></textarea>
 			<button onclick={unlockPhrase} disabled={busy || !phrase.trim()}>Öffnen</button>
 		</details>
 	{:else if state === 'locked'}
-		<button onclick={unlockPasskey} disabled={busy}>Mit Passkey entsperren</button>
+		<button onclick={unlockPasskey} disabled={busy || passkeyWaiting}>Mit Passkey entsperren</button>
+		{#if passkeyWaiting}<p class="state" data-testid="passkey-waiting">Warte auf den Passkey …</p>{/if}
 		<details>
 			<summary>Mit Wiederherstellungsphrase entsperren</summary>
 			<textarea bind:value={phrase} rows="3" autocomplete="off" spellcheck="false"></textarea>

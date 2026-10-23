@@ -53,7 +53,7 @@ export function startRequirements(profile) {
 /**
  * @param {Uint8Array} master
  * @param {Record<string, any>} profile
- * @param {(p: { step: string, detail?: string }) => void} onProgress
+ * @param {(p: { step: string, detail?: string, instanceHash?: string }) => void} onProgress
  * @returns {Promise<{ instanceHash: string, crnHash: string, host: string, trustedExecution: any }>}
  */
 export async function startPaperless(master, profile, onProgress) {
@@ -75,7 +75,7 @@ export async function startPaperless(master, profile, onProgress) {
 	const crnUrl = await crnAddress(profile.crnHash);
 	await notifyNode(crnUrl, instanceHash);
 
-	onProgress({ step: 'network', detail: 'Port 443 und Adresse' });
+	onProgress({ step: 'network', detail: 'Port 443 und Adresse', instanceHash });
 	await forward443(app, profile.payer, instanceHash);
 	await until('port 443', () => mapped443(crnUrl, instanceHash), { tries: 60 });
 	// The node restarts the VM to apply a mapping; give it a moment before the unlock.
