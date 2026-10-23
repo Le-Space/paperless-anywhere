@@ -1,0 +1,136 @@
+name: PWA deploy
+
+# The PWA goes to paperless.le-space.de the way Belege goes to
+# belege.le-space.de: tested, built, published to Aleph IPFS, and the domain
+# pointed at that CID. Only a published release (or a dispatch with
+# link_domain) moves the domain; a dispatch without it publishes for a look.
+# The site holds no secret: keys come from the passkey in the browser.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      link_domain:
+        description: Point paperless.le-space.de at this build (off for a test publish)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pwa-deploy
+  cancel-in-progress: false
+
+env:
+  SITE_DOMAIN: paperless.le-space.de
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+      - name: Unit tests, build, browser tests (mocked Aleph)
+        working-directory: pwa
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm test
+          pnpm build
+          pnpm exec playwright install --with-deps chromium > /dev/null
+          pnpm exec playwright test --reporter=line
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: pwa-deploy-trace-${{ github.run_id }}
+          path: pwa/test-results
+          retention-days: 7
+
+  publish:
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      cid: ${{ steps.publish.outputs.ipfs_cid }}
+      item_hash: ${{ steps.publish.outputs.item_hash }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+      - name: Build
+        working-directory: pwa
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Install isolated Aleph deploy tooling
+        run: npm install --prefix /tmp/le-space-deployer @le-space/node@0.9.9
+      - name: Publish to Aleph IPFS
+        id: publish
+        env:
+          ALEPH_VM_MODE: site-publish
+          ALEPH_SITE_DIRECTORY: ${{ github.workspace }}/pwa/build
+          ALEPH_SITE_PIN: 'true'
+          ALEPH_SITE_NAME: paperless-anywhere
+          ALEPH_SITE_RETENTION_KEEP_COUNT: '3'
+          ALEPH_SITE_CHANNEL: ALEPH-CLOUDSOLUTIONS
+          ALEPH_SITE_ALEPH_MESSAGE_WAIT_ATTEMPTS: '240'
+          ALEPH_SITE_ALEPH_MESSAGE_WAIT_DELAY_MS: '5000'
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+        run: |
+          for attempt in 1 2 3; do
+            if node --input-type=module -e "import('/tmp/le-space-deployer/node_modules/@le-space/node/index.js').then((m) => m.runSiteMode())" 2> >(tee /tmp/publish-err.txt >&2); then
+              exit 0
+            fi
+            if grep -q 'stayed pending after the wait window' /tmp/publish-err.txt; then
+              echo "::error::Aleph did not process the STORE within 20 minutes. The files are on IPFS; run this workflow again later instead of re-uploading now."
+              exit 1
+            fi
+            echo "::warning::publish attempt $attempt failed, retrying in 30 s"
+            sleep 30
+          done
+          exit 1
+
+  link-domain:
+    needs: publish
+    if: github.event_name == 'release' || inputs.link_domain
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write # the CID goes onto the release
+    steps:
+      - name: Install isolated Aleph deploy tooling
+        run: npm install --prefix /tmp/le-space-deployer @le-space/node@0.9.9
+      - name: Link the custom domain
+        env:
+          ALEPH_VM_MODE: site-domain-link
+          ALEPH_SITE_ITEM_HASH: ${{ needs.publish.outputs.item_hash }}
+          ALEPH_SITE_IPFS_CID: ${{ needs.publish.outputs.cid }}
+          ALEPH_SITE_DOMAIN: ${{ env.SITE_DOMAIN }}
+          ALEPH_SITE_DOMAIN_CATCH_ALL_PATH: /200.html
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+        run: node --input-type=module -e "import('/tmp/le-space-deployer/node_modules/@le-space/node/index.js').then((m) => m.runSiteMode())"
+      - name: Summary
+        run: |
+          echo "**Live:** https://${SITE_DOMAIN}" >> "$GITHUB_STEP_SUMMARY"
+          echo "CID: ${{ needs.publish.outputs.cid }}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Note the CID on the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+          CID: ${{ needs.publish.outputs.cid }}
+        run: |
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json body -q .body > notes.md
+          printf '\n\n**On IPFS:** `%s`\n\nhttps://%s\n' "$CID" "$SITE_DOMAIN" >> notes.md
+          gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --notes-file notes.md
