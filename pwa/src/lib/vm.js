@@ -10,13 +10,12 @@ import {
 	createUnsignedAggregateMessage,
 	createUnsignedForgetMessage,
 	createUnsignedInstanceMessage,
-	broadcastAlephMessage,
 	signAlephMessage,
 	fetch2n6WebAccessUrl,
 	notifyCrnAllocationWithRetry,
 	eraseInstanceOnCrn
 } from '@le-space/core';
-import { ALEPH_API, CHANNEL } from './aleph.js';
+import { ALEPH_API, broadcast as broadcastAndWait, CHANNEL } from './aleph.js';
 
 export const PAPERLESS_VM = Object.freeze({ vcpus: 2, memoryMiB: 4096, rootfsSizeMiB: 80 * 1024 });
 const CORECHANNEL = '0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10';
@@ -37,7 +36,7 @@ export async function signAsDelegate(unsigned, app) {
 }
 
 async function broadcast(message) {
-	const { httpStatus, response } = await broadcastAlephMessage(message, { apiHost: ALEPH_API, sync: true, fetch: (u, i) => fetch(u, i) });
+	const { httpStatus, response } = await broadcastAndWait(message);
 	if (httpStatus >= 300) throw new Error(`Aleph refused the ${message.type} (${httpStatus}): ${JSON.stringify(response).slice(0, 200)}`);
 	return response;
 }
