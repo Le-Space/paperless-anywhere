@@ -94,6 +94,10 @@ jobs:
           ALEPH_SITE_IPFS_CID: ${{ steps.publish.outputs.ipfs_cid }}
           ALEPH_SITE_DOMAIN: ${{ env.SITE_DOMAIN }}
           ALEPH_SITE_DOMAIN_CATCH_ALL_PATH: /200.html
+          # The gateway may serve the previous CID from its cache for a while
+          # (v0.1.1: longer than the default 5 minutes); wait up to 20.
+          ALEPH_SITE_GATEWAY_WAIT_ATTEMPTS: '120'
+          ALEPH_SITE_GATEWAY_WAIT_DELAY_MS: '10000'
           ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: node --input-type=module -e "import('$RUNNER_TEMP/le-space-deployer/node_modules/@le-space/node/index.js').then((m) => m.runSiteMode())"
 
