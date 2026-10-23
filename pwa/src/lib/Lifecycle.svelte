@@ -80,6 +80,7 @@
 	let choice = $state('empty');
 	const split = $derived(splitOwn(backups ?? [], profile.ownBackups ?? []));
 	const pick = (list) => list.find((b) => b.complete) ?? list[0];
+	const wherePlaces = (b) => b.copies.map((c) => c.place || `Anbieter ${c.providerId}`).join(' und ');
 	// The admin password is derived from the master secret; it is shown only on request.
 	let showPassword = $state(false);
 	const adminPassword = $derived(paperlessSecrets(master).adminPassword);
@@ -162,12 +163,12 @@
 				<legend>Beim Start</legend>
 				<label><input type="radio" bind:group={choice} value="own" disabled={!split.own.length} />
 					Neueste eigene Sicherung wiederherstellen
-					{#if split.own.length}<small data-testid="newest-backup">({pick(split.own).pieceCid.slice(-12)}, {pick(split.own).copies.length} Kopien)</small>
+					{#if split.own.length}<small data-testid="newest-backup">({pick(split.own).pieceCid.slice(-12)}, {pick(split.own).copies.length} Kopien: {wherePlaces(pick(split.own))})</small>
 					{:else if backups}<small>(dieser Tresor hat noch keine gemacht)</small>{:else}<small>(lese …)</small>{/if}
 				</label>
 				{#if split.other.length}
 					<label><input type="radio" bind:group={choice} value="any" />
-						Neueste andere Sicherung des Kontos ({pick(split.other).pieceCid.slice(-12)})
+						Neueste andere Sicherung des Kontos ({pick(split.other).pieceCid.slice(-12)}, {wherePlaces(pick(split.other))})
 						<small>– nicht von diesem Tresor ({split.other.length}); nur wenn sie mit deinem Schlüssel verschlüsselt ist, z. B. vom Mac mit eingefügtem Schlüssel</small>
 					</label>
 				{/if}

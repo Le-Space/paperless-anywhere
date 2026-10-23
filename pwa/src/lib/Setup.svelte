@@ -4,6 +4,7 @@
 	import { loadProfile, saveProfile } from '$lib/profile.js';
 	import { ageIdentityFromMaster, ageRecipient } from '$lib/keys/age.js';
 	import { backupConfigFor } from '$lib/backups.js';
+	import BackupPlaces from '$lib/BackupPlaces.svelte';
 	import {
 		connectPayer,
 		isAuthorized,
@@ -95,7 +96,7 @@
 	const saveAge = () => run('age', async () => {
 		const line = ageInput.split('\n').map((l) => l.trim()).find((l) => l.startsWith('AGE-SECRET-KEY-'));
 		if (!line || !/^AGE-SECRET-KEY-1[0-9A-Z]{58}$/.test(line)) throw new Error('Kein gültiger age-Schlüssel (AGE-SECRET-KEY-1…).');
-		await save({ ageIdentity: line, ...(profile.backupConfig ? { backupConfig: backupConfigFor(profile.network, ageRecipient(line)) } : {}) });
+		await save({ ageIdentity: line, ...(profile.backupConfig ? { backupConfig: backupConfigFor(profile.network, ageRecipient(line), profile.backupConfig) } : {}) });
 		ageInput = '';
 	});
 	// The vault's own key, derived from the master secret: the 24 words alone
@@ -103,12 +104,15 @@
 	const vaultAge = $derived(ageIdentityFromMaster(master));
 	const useVaultAge = () => run('age', async () => {
 		if (profile.ageIdentity && profile.ageIdentity !== vaultAge && !confirm('Den eingefügten Schlüssel durch den des Tresors ersetzen? Sicherungen, die mit dem alten verschlüsselt sind, brauchen dann weiterhin den alten.')) return;
-		await save({ ageIdentity: vaultAge, ...(profile.backupConfig ? { backupConfig: backupConfigFor(profile.network, ageRecipient(vaultAge)) } : {}) });
+		await save({ ageIdentity: vaultAge, ...(profile.backupConfig ? { backupConfig: backupConfigFor(profile.network, ageRecipient(vaultAge), profile.backupConfig) } : {}) });
 	});
 	// Without a key yet, backups use the vault's own: the default.
 	const toggleBackups = (on) => run('backups', async () => {
 		const identity = profile.ageIdentity || vaultAge;
 		await save(on ? { ageIdentity: identity, backupConfig: backupConfigFor(profile.network, ageRecipient(identity)) } : { backupConfig: null });
+	});
+	const savePlaces = (places) => run('places', async () => {
+		await save({ backupConfig: backupConfigFor(profile.network, ageRecipient(profile.ageIdentity || vaultAge), places) });
 	});
 	const recipient = $derived.by(() => {
 		try {
@@ -195,8 +199,11 @@
 		<label class="check">
 			<input type="checkbox" data-testid="backups-on" checked={!!profile.backupConfig} disabled={busy === 'backups' || profile.network !== 'calibration'}
 				onchange={(e) => toggleBackups(e.currentTarget.checked)} />
-			Beim Stoppen sichern (Testnetz: 2 Kopien, Datensatz <code>paperless-backup-test</code>)
+			Beim Stoppen sichern (Testnetz, Datensatz <code>paperless-backup-test</code>)
 		</label>
+		{#if profile.backupConfig}
+			<BackupPlaces network={profile.network} payer={profile.backupOwner || profile.payer} config={profile.backupConfig} busy={busy === 'places'} onsave={savePlaces} />
+		{/if}
 		{#if profile.network !== 'calibration'}<p class="hint">Im Hauptnetz sichert vorerst nur der Mac; aus der App erst nach dem Test.</p>
 		{:else if profile.backupConfig && !until(sessionUntil)}<p class="hint">Dafür braucht die VM den Sitzungsschlüssel aus Schritt 3.</p>{/if}
 

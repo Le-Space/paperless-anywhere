@@ -16,7 +16,7 @@ const cidText = (cid) => (typeof cid === 'string' ? cid : (cid?.toString?.() ?? 
 /**
  * Newest first. A backup is complete when every labelled data set holds it.
  * @param {{ network: string, owner: string, label?: string }} a
- * @returns {Promise<Array<{ pieceCid: string, copies: Array<{ providerId: string, retrievalUrl: string }>, complete: boolean, order: number }>>}
+ * @returns {Promise<Array<{ pieceCid: string, copies: Array<{ providerId: string, retrievalUrl: string, place: string }>, complete: boolean, order: number }>>}
  */
 export async function listBackups({ network, owner, label }) {
 	const want = label ?? BACKUP_LABEL[network === 'mainnet' ? 'mainnet' : 'calibration'];
@@ -28,7 +28,8 @@ export async function listBackups({ network, owner, label }) {
 	});
 	if (!sets.length) return [];
 	const providers = await getPDPProvidersByIds(client, { providerIds: [...new Set(sets.map((ds) => BigInt(ds.providerId)))] });
-	const urlOf = (id) => providers.find((p) => String(p.id) === String(id))?.pdp?.serviceURL?.replace(/\/+$/, '');
+	const byId = (id) => providers.find((p) => String(p.id) === String(id));
+	const urlOf = (id) => byId(id)?.pdp?.serviceURL?.replace(/\/+$/, '');
 	const byCid = new Map();
 	for (const ds of sets) {
 		const { items: pieces } = await getActivePiecesByCursor(client, { dataSetId: BigInt(ds.dataSetId ?? ds.id) });
@@ -36,7 +37,7 @@ export async function listBackups({ network, owner, label }) {
 			const cid = cidText(p.cid);
 			const entry = byCid.get(cid) ?? { pieceCid: cid, copies: [], order: 0 };
 			const base = urlOf(ds.providerId);
-			if (base) entry.copies.push({ providerId: String(ds.providerId), retrievalUrl: `${base}/piece/${cid}` });
+			if (base) entry.copies.push({ providerId: String(ds.providerId), retrievalUrl: `${base}/piece/${cid}`, place: place(byId(ds.providerId)?.pdp?.location) });
 			// Piece ids only grow within a data set: the highest is the newest.
 			entry.order = Math.max(entry.order, Number(p.id));
 			byCid.set(cid, entry);
@@ -52,17 +53,25 @@ export function restoreEntry(backup) {
 	return { name: `backup-${backup.pieceCid.slice(-12)}`, pieceCid: backup.pieceCid, copies: backup.copies.map((c) => ({ retrievalUrl: c.retrievalUrl })) };
 }
 
+/** Where backups go until the person chooses: the two endorsed Calibration providers. */
+export const DEFAULT_PLACES = Object.freeze({ copies: 2, providerIds: [9, 4], regions: [] });
+
 /**
  * The backup configuration the VM gets with its unlock (paperless-backup's
  * config.json without the payer, which the start adds). Calibration only: the
  * Mac stays the only writer of the mainnet backups until the PWA has been
  * tested with real ones.
  * @param {string} network @param {string} recipient age1… of the profile's identity
+ * @param {{ copies?: number, providerIds?: number[], regions?: string[] } | null} [places] copies and where, e.g. the current backupConfig
  */
-export function backupConfigFor(network, recipient) {
+export function backupConfigFor(network, recipient, places = DEFAULT_PLACES) {
 	if (network !== 'calibration') throw new Error('Sicherungen aus der App vorerst nur im Testnetz (Calibration).');
 	if (!/^age1[0-9a-z]{58}$/.test(recipient)) throw new Error('Ohne age-Schlüssel keine Sicherung.');
-	return { copies: 2, providerIds: [9, 4], regions: [], datasetMetadata: { app: 'paperless-backup-test' }, keepWeeks: 1, ageRecipient: recipient };
+	const { copies, providerIds, regions } = { ...DEFAULT_PLACES, ...(places ?? {}) };
+	const ids = [...(providerIds ?? [])].map(Number);
+	if (!ids.length && !(copies >= 1 && copies <= 3)) throw new Error('1 bis 3 Kopien.');
+	if (ids.length > 3) throw new Error('Höchstens 3 Anbieter.');
+	return { copies: ids.length || copies, providerIds: ids, regions: [...(regions ?? [])], datasetMetadata: { app: 'paperless-backup-test' }, keepWeeks: 1, ageRecipient: recipient };
 }
 
 /**

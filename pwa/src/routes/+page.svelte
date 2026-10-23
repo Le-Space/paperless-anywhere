@@ -4,6 +4,7 @@
 	import { addPasskey, confirmationPositions, createVault, forgetVault, loadVault, unlockWithPasskey, unlockWithSeedPhrase } from '$lib/keys/vault.js';
 	import Setup from '$lib/Setup.svelte';
 	import Lifecycle from '$lib/Lifecycle.svelte';
+	import Balances from '$lib/Balances.svelte';
 	import VmList from '$lib/VmList.svelte';
 
 	let vault = $state(loadVault());
@@ -137,7 +138,7 @@
 				{#if added}<p data-testid="passkey-added">Neuer Passkey für {added} angelegt; dieser Browser nutzt ihn ab jetzt.</p>{/if}
 			</details>
 		{/if}
-		{#if !shownPhrase}<Lifecycle {master} version={profileVersion} onchange={() => profileVersion++} /><VmList {master} version={profileVersion} onchange={() => profileVersion++} /><Setup {master} onsaved={() => profileVersion++} />{/if}
+		{#if !shownPhrase}<Balances {master} version={profileVersion} /><Lifecycle {master} version={profileVersion} onchange={() => profileVersion++} /><VmList {master} version={profileVersion} onchange={() => profileVersion++} /><Setup {master} onsaved={() => profileVersion++} />{/if}
 	{/if}
 
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
