@@ -3,6 +3,7 @@
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey } from '$lib/keys/derive.js';
 	import { loadProfile, saveProfile } from '$lib/profile.js';
+	import { startingInstance } from '$lib/starting.js';
 	import { crnAddress, eraseOnNode, forgetInstance, hostname, listVms, nodeState, vmStatus } from '$lib/vm.js';
 
 	/** @type {{ master: Uint8Array, version?: number, onchange?: () => void }} */
@@ -65,6 +66,9 @@
 			busy = '';
 		}
 	}
+	// Started by this vault and known: the running one, and one a start in this tab is bringing up.
+	const known = (vm) => vm.itemHash === profile.running?.instanceHash || vm.itemHash === $startingInstance;
+	const strays = $derived((vms ?? []).filter((vm) => !known(vm)).length);
 	const when = (ms) => new Date(ms).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
 </script>
 
@@ -75,14 +79,14 @@
 	{:else if vms.length === 0}
 		<p class="hint">Keine VM läuft.</p>
 	{:else}
-		{#if vms.length > (profile.running ? 1 : 0)}
+		{#if strays > 0}
 			<p class="warn" data-testid="vm-stray">Es laufen VMs, die nicht als gestartet bekannt sind (z. B. ein abgebrochener Start). Sie kosten Credits, bis sie gelöscht sind.</p>
 		{/if}
 		<ul>
 			{#each vms as vm (vm.itemHash)}
 				<li data-testid="vm-row">
 					<strong>{vm.name}</strong>
-					{#if profile.running?.instanceHash === vm.itemHash}<small>(gestartet)</small>{/if}
+					{#if profile.running?.instanceHash === vm.itemHash}<small>(gestartet)</small>{:else if $startingInstance === vm.itemHash}<small data-testid="vm-starting">(startet gerade)</small>{/if}
 					<br /><small>seit {when(vm.createdAt)} · kostet ca. {PAPERLESS_CREDITS_PER_HOUR.toLocaleString('de-DE')} Credits/h · {vm.phase ?? 'prüfe …'}
 						{#if vm.host && vm.up} · <a href={`https://${vm.host}/`} target="_blank" rel="noopener">{vm.host}</a>{/if}
 						· <code>{vm.itemHash.slice(0, 12)}</code></small>

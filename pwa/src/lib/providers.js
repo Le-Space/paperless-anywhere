@@ -84,6 +84,9 @@ export function pickProviders(providers, { copies = 2, providerIds = [], regions
 	return { picked: picked.slice(0, copies), problems };
 }
 
+/** The countries outside the EU among the picked providers ('??' without a declared country). @param {Provider[]} picked */
+export const outsideEu = (picked) => [...new Set(picked.filter((p) => !EU.includes(p.country ?? '')).map((p) => p.country ?? '??'))];
+
 /** Warnings when copies are not independent: same operator or same place. @param {Provider[]} picked */
 export function sharedWarnings(picked) {
 	const warnings = [];

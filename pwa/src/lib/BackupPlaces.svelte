@@ -1,5 +1,5 @@
 <script>
-	import { listProviders, pickProviders, sharedWarnings, storagePrices, monthlyCost, bytesPerCopy } from '$lib/providers.js';
+	import { listProviders, outsideEu, pickProviders, sharedWarnings, storagePrices, monthlyCost, bytesPerCopy } from '$lib/providers.js';
 	import { amount } from '$lib/balances.js';
 
 	/** @type {{ network: string, payer?: string, config: { copies: number, providerIds: number[], regions: string[] }, busy?: boolean, onsave: (places: { copies: number, providerIds: number[], regions: string[] }) => void }} */
@@ -46,6 +46,7 @@
 	const places = $derived(mode === 'providers' ? { copies: chosen.length, providerIds: chosen, regions: [] } : { copies, providerIds: [], regions });
 	const preview = $derived(providers ? pickProviders(providers, places) : null);
 	const warnings = $derived(preview ? sharedWarnings(preview.picked) : []);
+	const abroad = $derived(preview ? outsideEu(preview.picked) : []);
 	const cost = $derived(prices && preview ? monthlyCost(prices, preview.picked.length, bytes) : null);
 	const changed = $derived(JSON.stringify(places) !== JSON.stringify({ copies: config.copies, providerIds: config.providerIds ?? [], regions: config.regions ?? [] }));
 	const valid = $derived(!!preview && !preview.problems.length && preview.picked.length >= 1 && (mode === 'region' || chosen.length <= 3));
@@ -96,7 +97,10 @@
 			{/if}
 			{#each preview.problems as problem}<p class="error">{problem}</p>{/each}
 			{#each warnings as w}<p class="warn" data-testid="places-warning">Nicht unabhängig: {w}</p>{/each}
-			{#if cost !== null}<p><small>Kosten ca. {amount(cost)} USDFC im Monat{bytes ? ` bei ${amount(bytes / 1e9, 1)} GB je Kopie` : ' (Grundgebühr, noch keine Daten)'}.</small></p>{/if}
+			{#if abroad.length}
+				<p class="warn" data-testid="places-outside-eu">Kopien außerhalb der EU ({abroad.join(', ')}). Elektronische Bücher und Aufzeichnungen erlaubt die Abgabenordnung ohne Antrag nur in EU-Mitgliedstaaten (§ 146 Abs. 2a AO); außerhalb braucht es eine Bewilligung des Finanzamts (§ 146 Abs. 2b AO). Für steuerlich relevante Belege mit dem Steuerberater klären.</p>
+			{/if}
+			{#if cost !== null && preview.picked.length}<p><small>Kosten ca. {amount(cost)} USDFC im Monat{bytes ? ` bei ${amount(bytes / 1e9, 1)} GB je Kopie` : ' (Grundgebühr, noch keine Daten)'}.</small></p>{/if}
 		</div>
 	{/if}
 	<button onclick={() => onsave($state.snapshot(places))} disabled={busy || !valid || !changed}>Sicherungsorte speichern</button>

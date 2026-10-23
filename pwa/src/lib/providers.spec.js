@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { monthlyCost, pickProviders, regionCodes, sharedWarnings } from './providers.js';
+import { monthlyCost, outsideEu, pickProviders, regionCodes, sharedWarnings } from './providers.js';
 
 // Made-up providers, shaped like listProviders' answer (endorsed first).
 const p = (id, country, operator, extra = {}) => ({ id, name: `sp-${id}`, location: `C=${country};L=Stadt ${country}`, place: `${country}, Stadt ${country}`, country, operator, endorsed: false, active: true, ...extra });
@@ -47,5 +47,13 @@ describe('monthlyCost', () => {
 	it('is the data-set fee plus the size per copy', () => {
 		expect(monthlyCost({ perTibMonth: 2.5, perDataSetMonth: 0.12 }, 2, 2 ** 40)).toBeCloseTo(5.24);
 		expect(monthlyCost({ perTibMonth: 2.5, perDataSetMonth: 0.12 }, 1, 0)).toBeCloseTo(0.12);
+	});
+});
+
+describe('outsideEu', () => {
+	it('names the countries outside the EU, once each', () => {
+		expect(outsideEu([list[0], list[1], list[2], list[3]])).toEqual(['GB', 'US']);
+		expect(outsideEu([list[3]])).toEqual([]);
+		expect(outsideEu([p(6, null, 'six.example')])).toEqual(['??']);
 	});
 });

@@ -3,6 +3,7 @@
 	import { startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
 	import { listBackups, pieceCidOfStop, place, restoreEntry, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
+	import { startingInstance } from '$lib/starting.js';
 
 	/** @type {{ master: Uint8Array, version?: number, onchange?: () => void }} */
 	let { master, version = 0, onchange = () => {} } = $props();
@@ -54,8 +55,9 @@
 		startedAt = Date.now();
 		clearInterval(ticker);
 		ticker = setInterval(() => (now = Date.now()), 1000);
-		return (/** @type {{ step: string, detail?: string, status?: any }} */ { step, detail, status }) => {
+		return (/** @type {{ step: string, detail?: string, status?: any, instanceHash?: string }} */ { step, detail, status, instanceHash }) => {
 			progress = detail ?? step;
+			if (instanceHash) startingInstance.set(instanceHash);
 			if (status?.start) vmStart = status.start;
 			if (step !== current) {
 				if (current && times[current]) times[current].to = Date.now();
@@ -123,9 +125,13 @@
 		await reload();
 		const chosen = choice === 'own' ? pick(split.own) : choice === 'any' ? pick(split.other) : null;
 		const forStart = { ...$state.snapshot(profile), restoreEntry: chosen ? restoreEntry(chosen) : null };
-		const running = await startPaperless(master, forStart, track('start'));
-		profile = { ...profile, running };
-		await saveProfile(master, $state.snapshot(profile));
+		try {
+			const running = await startPaperless(master, forStart, track('start'));
+			profile = { ...profile, running };
+			await saveProfile(master, $state.snapshot(profile));
+		} finally {
+			startingInstance.set('');
+		}
 		onchange();
 	});
 	const stop = () => run(async () => {
