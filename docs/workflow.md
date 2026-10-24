@@ -1,6 +1,6 @@
 # The workflow, step by step
 
-How a confidential Paperless is set up, started, attested, unlocked, backed up and erased, as the code does it today (PWA `pwa/src/lib/lifecycle.js`, relay-button's `@le-space/attest-wasm`, the guest scripts in `rootfs/files/`). Keys and recovery: [keys-and-recovery.md](keys-and-recovery.md). Deploying the PWA: [deploy.md](deploy.md).
+How a confidential Paperless is set up, started, attested, unlocked, backed up and erased, as the code does it today (PWA `pwa/src/lib/lifecycle.js`, relay-button's `@le-space/attest-wasm`, the guest scripts in `rootfs/files/`). Keys and recovery, with the vault's own diagrams (what comes from where, create, open, add a passkey): [keys-and-recovery.md](keys-and-recovery.md#the-vault-step-by-step). Deploying the PWA: [deploy.md](deploy.md).
 
 **Who takes part**
 
