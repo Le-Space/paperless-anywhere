@@ -22,7 +22,26 @@ What the app keeps, where the money is, and what you need to get back in, or to 
 | **Backup key** (age) | derived from the master secret | no | the 24 words derive it again |
 | **Paperless passwords** | derived from the master secret | no | the 24 words derive them again |
 
-Everything the app needs on every device (paying account, network, relay, image and node, the backup settings) is in a **profile**. The profile is sealed under the master secret and kept on Aleph under the app key. Aleph sees a box, not its content.
+## Where the setup is kept
+
+Everything the app needs on every device is in a **profile**, saved with every change in the setup (and after a start or a stop). It lives **on Aleph**, not in the browser, so any device that opens the vault (passkey or 24 words) finds the same setup.
+
+**Encrypted in the browser before it leaves:** AES-256-GCM, with a key derived from the master secret (HKDF-SHA256, label `paperless-anywhere/profile-key/v1`) and the purpose `profile` bound in as additional data (`pwa/src/lib/profile.js`, `keys/seal.js`). Without the master secret, nobody can open it: not Aleph, not a node, not this website.
+
+**What is inside:**
+- the paying account and the network;
+- the attest relays;
+- the image, the node, and the image's passphrase;
+- the backup settings and copies, the backup wallet, and the backup key (age);
+- the running VM (instance, node, address, measurements);
+- the last backup and this vault's own backups.
+
+**What Aleph sees, publicly:**
+- an aggregate `paperless-anywhere-profile` under the app key's address (channel `paperless-anywhere`), holding a box of a certain size;
+- when it changed, since every save is a new message;
+- that the paying account authorized the app key. That is in the wallet's own `security` aggregate, so the link between the paying account and the app key is public. The content is not.
+
+**In the browser:** only the master secret, sealed by the passkey and by the 24 words, under `localStorage`. The profile itself is not stored there. Opened keys are kept in memory only, until the app is locked or closed.
 
 ## Why the app's addresses hold no money
 
