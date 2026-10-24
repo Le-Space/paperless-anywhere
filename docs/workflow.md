@@ -147,22 +147,26 @@ sequenceDiagram
 
 Without a backup choice, the stop is ready at once. "Meine VMs" erases a VM without the last backup.
 
-## 5. The relay, now and next
+## 5. The relay: WebSocket or libp2p
+
+The setting holds one or more relays, tried in turn: a `wss://…/attest` URL, or the multiaddr of an orbitdb-relay that speaks `/le-space/attest/1.0.0`. The libp2p way needs no domain of the relay's own. The relay reaches the browser over WebSockets with an AutoTLS certificate (`*.libp2p.direct`), or WebRTC-Direct where the relay offers it.
 
 ```mermaid
 sequenceDiagram
     participant PWA as PWA (WASM)
-    participant WSS as Relay wss (today)
-    participant P2P as Relay libp2p (planned, A)
+    participant WSS as Relay, WebSocket route
+    participant P2P as orbitdb-relay, libp2p
+    participant Local as attest relay beside it (127.0.0.1:8787)
     participant Agent as Agent (8443)
 
-    Note over PWA,Agent: Today: WebSocket with a CA certificate on the relay's domain
-    PWA->>WSS: wss://name.2n6.me/attest
+    Note over PWA,Agent: wss://name.2n6.me/attest (CA certificate on the relay's domain)
+    PWA->>WSS: WebSocket, crn and vm in the URL
     WSS->>Agent: TCP
-    Note over PWA,Agent: Planned (A): WebRTC-Direct, only IP, port and certificate hash
-    PWA->>P2P: /webrtc-direct/certhash, stream /le-space/attest/1.0.0
-    P2P->>Agent: TCP
+    Note over PWA,Agent: libp2p (A): /dns4/…libp2p.direct/tcp/…/tls/ws/p2p/… or /webrtc-direct/certhash/…
+    PWA->>P2P: stream /le-space/attest/1.0.0, first line {crn, vm}
+    P2P->>Local: WebSocket, same limits and target lookup
+    Local->>Agent: TCP
     Note over PWA,Agent: Asked of Aleph (B): WebRTC-Direct in the agent, no relay at all
 ```
 
-Why a relay at all: a browser cannot open raw TCP. From an `https://` page it opens WebSockets only with `wss://` and a CA certificate. The agent has neither before the unlock, only its self-signed RA-TLS certificate, whose report the WASM has to check itself. WebRTC needs no CA, only the certificate's fingerprint. Background and plan: [NiKrause/relay-button#200](https://github.com/NiKrause/relay-button/issues/200), [aleph-im/aleph-vm#1314](https://github.com/aleph-im/aleph-vm/issues/1314).
+Why a relay at all: a browser cannot open raw TCP. From an `https://` page it opens WebSockets only with `wss://` and a CA certificate. The agent has neither before the unlock, only its self-signed RA-TLS certificate, whose report the WASM has to check itself. WebRTC needs no CA, only the certificate's fingerprint. On Aleph VMs the orbitdb-relay's WebRTC-Direct listener does not come up today, so the libp2p way uses AutoTLS WebSockets there. Background and plan: [NiKrause/relay-button#200](https://github.com/NiKrause/relay-button/issues/200), [aleph-im/aleph-vm#1314](https://github.com/aleph-im/aleph-vm/issues/1314).

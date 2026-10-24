@@ -8,9 +8,10 @@
 // sealed profile.
 import { privateKeyToAccount } from 'viem/accounts';
 import { confidentialTrustedExecution, unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
-import { attestGuest, injectSecrets, websocketTransport } from '@le-space/attest-wasm/ratls';
+import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
 import { alephPrivateKey, filecoinSessionPrivateKey, paperlessSecrets } from './keys/derive.js';
 import { RESERVE_CREDITS } from './balances.js';
+import { relayList, relayTransports } from './attest-p2p.js';
 import { crnAddress, credits, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
 /** The last backup failed; the VM stays. Carries the VM's reason and its tool's last log lines. */
@@ -100,9 +101,11 @@ export async function startPaperless(master, profile, onProgress) {
 	}
 
 	onProgress({ step: 'unlock', detail: 'VM prüfen (AMD) und entsperren' });
+	const relays = relayList(profile.attestRelay);
 	await unlockInstance({
 		wasm,
-		relayUrl: profile.attestRelay,
+		relayUrl: relays[0],
+		transport: relayTransports(relays),
 		crnHash: profile.crnHash,
 		instanceItemHash: instanceHash,
 		trustedExecution,
@@ -135,8 +138,17 @@ export async function stopPaperless(master, profile, onProgress) {
 	onProgress({ step: 'stop', detail: 'Stopp anfordern (letzte Sicherung)' });
 	const wasm = await loadWasm();
 	const { expectedMeasurements, expectedPolicy } = pinsOf(run.trustedExecution);
-	const url = `${profile.attestRelay}?crn=${run.crnHash}&vm=${run.instanceHash}`;
-	const attested = await attestGuest({ wasm, transport: websocketTransport(url), expectedMeasurements, expectedPolicy });
+	// Each relay once, until one carries the attestation.
+	const relays = relayList(profile.attestRelay);
+	const transports = relayTransports(relays);
+	let attested = null;
+	for (let i = 0; !attested; i++) {
+		try {
+			attested = await attestGuest({ wasm, transport: transports(`?crn=${run.crnHash}&vm=${run.instanceHash}`), expectedMeasurements, expectedPolicy });
+		} catch (error) {
+			if (i + 1 >= relays.length || /rejected|measurement|policy|signature/i.test(String(error))) throw error;
+		}
+	}
 	try {
 		await injectSecrets({ wasm, attested, secrets: { stop_request: String(Date.now()) }, sign: (payload) => app.signMessage({ message: payload }) });
 	} finally {
