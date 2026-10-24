@@ -6,7 +6,7 @@ Requires=docker.service
 [Service]
 Type=simple
 ExecStartPre=/usr/local/sbin/paperless-secrets
-ExecStart=/usr/bin/docker compose --project-directory /opt/paperless up --remove-orphans
+ExecStart=/usr/local/sbin/paperless-stack-up
 ExecStop=/usr/bin/docker compose --project-directory /opt/paperless down
 Restart=on-failure
 RestartSec=15

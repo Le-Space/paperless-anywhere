@@ -1,0 +1,14 @@
+#!/bin/sh
+# paperless-stack-up: start Paperless before its office helpers.
+# `docker compose up` pulls every image before it starts any container, and
+# the images are pulled after the unlock (vfs, no cache). Gotenberg and Tika
+# are about 880 MB of the 1.9 GB, and Paperless needs them only to convert
+# office files and mails, not to start or to restore. So Postgres, Valkey and
+# Paperless come first; Gotenberg and Tika follow, and Paperless uses them
+# once they answer. Then stay in the foreground on the whole stack, as the
+# unit expects.
+set -u
+compose="docker compose --project-directory /opt/paperless"
+$compose up -d --remove-orphans postgres valkey paperless || exit 1
+$compose up -d gotenberg tika || echo "paperless-stack-up: Gotenberg/Tika did not start yet; Paperless runs without them" >&2
+exec $compose up --remove-orphans

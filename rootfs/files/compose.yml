@@ -59,7 +59,10 @@ services:
   paperless:
     <<: *host
     image: ghcr.io/paperless-ngx/paperless-ngx:3.2.1
-    depends_on: [postgres, valkey, gotenberg, tika]
+    # Not on Gotenberg and Tika: they convert office files and mails, and
+    # paperless-stack-up starts them after Paperless (their images are the
+    # larger half of the download at a start).
+    depends_on: [postgres, valkey]
     # The image's healthcheck runs through `docker exec`, which does not work
     # in the confidential guest, so it would report "unhealthy" forever.
     # paperless-anywhere-check and the trial probe the web server instead.
