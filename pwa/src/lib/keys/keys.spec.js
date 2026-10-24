@@ -32,17 +32,20 @@ describe('seal', () => {
 		expect(phrase.split(' ')).toHaveLength(24);
 		const byPasskey = await seal(master, sealingKeyFromPrf(new Uint8Array(32).fill(1)), 'master/passkey');
 		const bySeed = await seal(master, sealingKeyFromSeedPhrase(phrase), 'master/seed');
-		expect(await unseal(byPasskey, sealingKeyFromPrf(new Uint8Array(32).fill(1)))).toEqual(master);
-		expect(await unseal(bySeed, sealingKeyFromSeedPhrase(` ${phrase.toUpperCase()} `))).toEqual(master);
-		await expect(unseal(byPasskey, sealingKeyFromPrf(new Uint8Array(32).fill(2)))).rejects.toThrow();
+		expect(await unseal(byPasskey, sealingKeyFromPrf(new Uint8Array(32).fill(1)), 'master/passkey')).toEqual(master);
+		expect(await unseal(bySeed, sealingKeyFromSeedPhrase(` ${phrase.toUpperCase()} `), 'master/seed')).toEqual(master);
+		await expect(unseal(byPasskey, sealingKeyFromPrf(new Uint8Array(32).fill(2)), 'master/passkey')).rejects.toThrow();
 	});
 	it('notices a changed box or a changed purpose', async () => {
 		const key = sealingKeyFromPrf(new Uint8Array(32).fill(3));
 		const box = await seal(master, key, 'master/passkey');
-		await expect(unseal({ ...box, purpose: 'master/seed' }, key)).rejects.toThrow();
+		await expect(unseal({ ...box, purpose: 'master/seed' }, key, 'master/seed')).rejects.toThrow();
+		// The purpose the caller expects decides, not the one the box names.
+		await expect(unseal(box, key, 'profile')).rejects.toThrow(/sealed for/);
+		await expect(unseal(box, key)).rejects.toThrow(/expected purpose/);
 		const ct = atob(box.ct).split('');
 		ct[0] = String.fromCharCode(ct[0].charCodeAt(0) ^ 1);
-		await expect(unseal({ ...box, ct: btoa(ct.join('')) }, key)).rejects.toThrow();
+		await expect(unseal({ ...box, ct: btoa(ct.join('')) }, key, 'master/passkey')).rejects.toThrow();
 	});
 	it('refuses a seed phrase with a bad checksum', () => {
 		expect(() => sealingKeyFromSeedPhrase('abandon '.repeat(24).trim())).toThrow();

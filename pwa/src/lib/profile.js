@@ -17,7 +17,7 @@ const boxKey = (master) => deriveBytes(master, LABELS.profileKey);
 export async function loadProfile(master) {
 	const entry = await readAggregate(account(master).address, PROFILE_KEY);
 	if (!entry?.box) return {};
-	const profile = JSON.parse(new TextDecoder().decode(await unseal(entry.box, boxKey(master))));
+	const profile = JSON.parse(new TextDecoder().decode(await unseal(entry.box, boxKey(master), 'profile')));
 	// Profiles saved before addresses were normalized hold MetaMask's lowercase.
 	for (const field of ['payer', 'backupOwner']) {
 		if (typeof profile[field] === 'string' && /^0x[0-9a-fA-F]{40}$/.test(profile[field])) profile[field] = getAddress(profile[field]);

@@ -48,11 +48,18 @@ export async function seal(secret, key32, purpose) {
 	return { v: 1, purpose, iv: b64(iv), ct: b64(new Uint8Array(ct)) };
 }
 
-/** Throws if the key is wrong or the box was changed. */
-export async function unseal(box, key32) {
+/**
+ * Throws if the key is wrong, the box was changed, or it was sealed for
+ * another purpose: the caller names the purpose it expects, and that (not
+ * what the box says) is the additional data the ciphertext must match.
+ * @param {any} box @param {Uint8Array} key32 @param {string} purpose
+ */
+export async function unseal(box, key32, purpose) {
 	if (box?.v !== 1) throw new Error('unknown sealed box version');
+	if (typeof purpose !== 'string' || !purpose) throw new Error('unseal needs the expected purpose');
+	if (box.purpose !== purpose) throw new Error(`the box was sealed for ${String(box.purpose).slice(0, 40)}, not ${purpose}`);
 	const pt = await crypto.subtle.decrypt(
-		{ name: 'AES-GCM', iv: unb64(box.iv), additionalData: encoder.encode(box.purpose) },
+		{ name: 'AES-GCM', iv: unb64(box.iv), additionalData: encoder.encode(purpose) },
 		await aesKey(key32, 'decrypt'),
 		unb64(box.ct)
 	);
