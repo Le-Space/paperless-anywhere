@@ -22,6 +22,152 @@ What the app keeps, where the money is, and what you need to get back in, or to 
 | **Backup key** (age) | derived from the master secret | no | the 24 words derive it again |
 | **Paperless passwords** | derived from the master secret | no | the 24 words derive them again |
 
+## The vault, step by step
+
+Code: `pwa/src/lib/keys/` (`passkey.js`, `seal.js`, `index-keys.js`, `vault.js`, `derive.js`, `age.js`).
+
+### What comes from where
+
+One **master secret**: 32 random bytes, made once when the vault is created. Every key the app uses is derived from it by HKDF-SHA256 with its own label, so the same master secret always gives the same keys and one key reveals nothing about another. The master secret itself is only ever stored **sealed**, twice.
+
+```mermaid
+flowchart TB
+    PK["Passkey (WebAuthn, user verification)"] -->|"PRF extension, fixed input"| PRF["PRF answer (32 bytes, never stored)"]
+    W["24 words (BIP39, 256 bits)"] -->|"BIP39 seed"| WS["seed (never stored)"]
+    PRF -->|"HKDF seal-key/passkey"| KP["sealing key P"]
+    PRF -->|"HKDF vault-index/passkey"| IP["index address P (Aleph)"]
+    WS -->|"HKDF seal-key/seed"| KW["sealing key W"]
+    WS -->|"HKDF vault-index/seed"| IW["index address W (Aleph)"]
+    M["master secret (32 random bytes, memory only)"]
+    KP -. "AES-256-GCM, purpose master/passkey" .-> BP["box P"]
+    KW -. "AES-256-GCM, purpose master/seed" .-> BW["box W"]
+    M --> BP
+    M --> BW
+    M -->|"HKDF aleph-account"| A["app key (Aleph, secp256k1)"]
+    M -->|"HKDF filecoin-session-key"| F["session key (Filecoin)"]
+    M -->|"HKDF age-identity"| G["backup key (age, X25519)"]
+    M -->|"HKDF paperless-*"| PW["Paperless admin and DB passwords, secret key"]
+    M -->|"HKDF profile-key"| PRK["profile key (AES-256-GCM)"]
+```
+
+### Where it is stored
+
+| What | Where | In what form |
+|---|---|---|
+| master secret | **memory only**, while the vault is open | plain, wiped on lock or when the page closes |
+| PRF answer, 24 words, derived keys | **memory only**, for the step that needs them | the PRF answer is wiped right after use |
+| box P (master sealed by the passkey) | this browser (`localStorage`) **and** Aleph, aggregate `paperless-anywhere-vault` under index address P | AES-256-GCM |
+| box W (master sealed by the words) | this browser **and** Aleph, aggregate `paperless-anywhere-vault` under index address W | AES-256-GCM |
+| the passkey's private key | the authenticator (phone, laptop, YubiKey, or a synced passkey store) | never leaves it |
+| the profile (setup) | Aleph, aggregate `paperless-anywhere-profile` under the app key, see "Where the setup is kept" | AES-256-GCM |
+
+### Create
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor You
+    participant PWA
+    participant Auth as Authenticator
+    participant Aleph
+
+    You->>PWA: Passkey anlegen
+    PWA->>Auth: create a passkey (resident key, user verification, PRF)
+    Auth-->>PWA: credential id
+    PWA->>Auth: PRF with the fixed input (one touch)
+    Auth-->>PWA: PRF answer
+    PWA->>PWA: master secret = 32 random bytes, 24 words = new BIP39 phrase
+    PWA->>PWA: seal the master twice: box P (key from PRF), box W (key from the words)
+    PWA->>Aleph: AGGREGATE vault {box P, credential id}, signed by index address P
+    PWA->>Aleph: AGGREGATE vault {box W}, signed by index address W
+    PWA->>PWA: store both boxes in this browser, wipe the PRF answer
+    PWA-->>You: the 24 words, shown once, three of them asked back
+```
+
+### Open with the passkey, on this or a new device
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor You
+    participant PWA
+    participant Auth as Authenticator
+    participant Aleph
+
+    You->>PWA: Mit Passkey öffnen
+    PWA->>Auth: PRF with the fixed input (this browser's credential, or any of yours on a new device)
+    Auth-->>PWA: PRF answer
+    alt box P is in this browser
+        PWA->>PWA: take it from localStorage
+    else new device
+        PWA->>PWA: index address P from the PRF answer
+        PWA->>Aleph: read the vault aggregate of index address P
+        Aleph-->>PWA: box P
+        PWA->>PWA: keep box P in this browser
+    end
+    PWA->>PWA: unseal box P with the key from the PRF answer, wipe the PRF answer
+    PWA->>PWA: master secret in memory, derive the keys, read the profile
+```
+
+### Open with the 24 words
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor You
+    participant PWA
+    participant Aleph
+
+    You->>PWA: Mit Wiederherstellungsphrase öffnen (24 words)
+    PWA->>PWA: check the BIP39 checksum, seed from the words
+    alt box W is in this browser
+        PWA->>PWA: take it from localStorage
+    else new device or new address
+        PWA->>Aleph: read the vault aggregate of index address W
+        Aleph-->>PWA: box W
+    end
+    PWA->>PWA: unseal box W, master secret in memory
+```
+
+### Add a passkey (a new address or a second authenticator)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor You
+    participant PWA
+    participant Auth as Authenticator
+    participant Aleph
+
+    Note over PWA: the vault is open (master secret in memory)
+    You->>PWA: Weiteren Passkey hinzufügen
+    PWA->>Auth: create a passkey for this address, then its PRF answer
+    Auth-->>PWA: credential id, PRF answer
+    PWA->>PWA: seal the master as a new box P'
+    PWA->>Aleph: AGGREGATE vault {box P'}, signed by index address P' (from the new PRF answer)
+    PWA->>PWA: this browser opens with the new passkey from now on
+```
+
+**Lock** wipes the master secret from memory. **Diesen Browser vergessen** also removes the boxes from this browser; those on Aleph stay, so the passkey or the words still open the vault elsewhere.
+
+### Getting back in
+
+| Lost | What still works |
+|---|---|
+| a passkey or a device | another passkey, or the 24 words: open, then add a new passkey |
+| this browser's data | the passkey or the words, from box P or W on Aleph |
+| the 24 words, passkey still there | everything works. The words cannot be shown again: they are random and not derived from the master. Keep them on paper from the start. |
+| all passkeys **and** the words | the vault is gone: the app key, the backup key (backups made with it cannot be decrypted), the Paperless passwords. Your money is not affected. Revoke the app key in your wallet (setup, step 2). |
+| the boxes on Aleph **and** in every browser | the 24 words alone do not help: they open box W, they do not compute the master secret. The boxes on Aleph are kept as long as Aleph keeps aggregates. |
+
+### Why the boxes can be public on Aleph
+
+- **Only sealed data is there.** Box P and box W are AES-256-GCM ciphertexts. Their keys come from the passkey's PRF answer (32 bytes from the authenticator, released only to this site's origin and only after user verification) or from the 24 words (256 bits of entropy). Neither can be guessed.
+- **A changed box does not open.** AES-GCM is authenticated, and the purpose (`master/passkey`, `master/seed`, `profile`) is bound in as additional data, so a box cannot be passed off as another.
+- **Only the key holder can write there.** An Aleph aggregate belongs to the address that signs it. Index address P comes from the PRF answer and index address W from the words, so nobody else can put a box under them. The same holds for the profile under the app key.
+- **The index addresses say little.** They are derived per passkey and per phrase and carry no name or wallet. The profile under the app key is linked to the paying account, because the wallet's `security` aggregate authorizes the app key.
+- **What Aleph could still do:** not serve a box (then the copy in this browser or the other secret opens the vault), or serve an older version of the profile. Neither reveals anything. Both are availability questions, not confidentiality.
+
 ## Where the setup is kept
 
 Everything the app needs on every device is in a **profile**, saved with every change in the setup (and after a start or a stop). It lives **on Aleph**, not in the browser, so any device that opens the vault (passkey or 24 words) finds the same setup.
