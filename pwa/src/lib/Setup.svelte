@@ -4,6 +4,7 @@
 	import { loadProfile, saveProfile } from '$lib/profile.js';
 	import { ageIdentityFromMaster, ageRecipient } from '$lib/keys/age.js';
 	import { backupConfigFor } from '$lib/backups.js';
+	import { relayList } from '$lib/attest-p2p.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
 	import {
 		connectPayer,
@@ -88,10 +89,12 @@
 		await refresh();
 	});
 	const saveRelay = () => run('relay', async () => {
-		const url = relayInput.trim();
-		// wss:// for a real relay; ws:// only to this machine (a relay beside a test).
-		if (!/^(wss:\/\/[A-Za-z0-9.-]+(:[0-9]+)?|ws:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?)\/attest$/.test(url)) throw new Error('Erwartet: wss://<host>/attest');
-		await save({ attestRelay: url });
+		// wss://<host>/attest, ws:// only to this machine (a relay beside a test),
+		// or an orbitdb-relay's multiaddr; several are tried in turn.
+		const relays = relayList(relayInput);
+		if (!relays.length) throw new Error('Mindestens ein Relay.');
+		await save({ attestRelay: relays.join('\n') });
+		relayInput = relays.join('\n');
 	});
 	const saveAge = () => run('age', async () => {
 		const line = ageInput.split('\n').map((l) => l.trim()).find((l) => l.startsWith('AGE-SECRET-KEY-'));
@@ -181,7 +184,8 @@
 		{/if}
 
 		<h3>4. Attest-Relay</h3>
-		<label>Adresse des Relays<input bind:value={relayInput} placeholder="wss://dein-relay.example/attest" /></label>
+		<label>Relays, eins pro Zeile, der Reihe nach versucht: <code>wss://…/attest</code> oder die Multiaddr eines orbitdb-relay (<code>/dns4/…/p2p/…</code>)
+			<textarea bind:value={relayInput} rows="3" autocomplete="off" spellcheck="false" placeholder="wss://dein-relay.example/attest" data-testid="relays"></textarea></label>
 		<button onclick={saveRelay} disabled={busy === 'relay'}>Relay speichern</button>
 
 		<h3>5. Sicherungen</h3>
