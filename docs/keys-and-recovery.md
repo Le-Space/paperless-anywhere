@@ -179,7 +179,7 @@ sequenceDiagram
 ### Why the boxes can be public on Aleph
 
 - **Only sealed data is there.** Box P and box W are AES-256-GCM ciphertexts. Their keys come from the passkey's PRF answer (32 bytes from the authenticator, released only to this site's origin and only after user verification) or from the 24 words (256 bits of entropy). Neither can be guessed.
-- **A changed box does not open.** AES-GCM is authenticated, and the purpose (`master/passkey`, `master/seed`, `profile`) is bound in as additional data, so a box cannot be passed off as another.
+- **A changed box does not open.** AES-GCM is authenticated. Each purpose (`master/passkey`, `master/seed`, `profile`) has its own key, and the purpose the caller expects is bound in as additional data and checked, so a box cannot be passed off as another.
 - **Only the key holder can write there.** An Aleph aggregate belongs to the address that signs it. Index address P comes from the PRF answer and index address W from the words, so nobody else can put a box under them. The same holds for the profile under the app key.
 - **The index addresses say little.** They are derived per passkey and per phrase and carry no name or wallet. The profile under the app key is linked to the paying account, because the wallet's `security` aggregate authorizes the app key.
 - **What Aleph could still do:** not serve a box (then the copy in this browser or the other secret opens the vault), or serve an older version of the profile. Neither reveals anything. Both are availability questions, not confidentiality.
