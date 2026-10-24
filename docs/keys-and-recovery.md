@@ -50,6 +50,22 @@ flowchart TB
     M -->|"HKDF profile-key"| PRK["profile key (AES-256-GCM)"]
 ```
 
+### Why a passkey can unlock at all
+
+A passkey normally only signs a random challenge, and a signature is different every time, so it cannot serve as a key. The **PRF extension** of WebAuthn (`hmac-secret` in the authenticator) adds what a key needs:
+- each passkey holds a secret of its own that never leaves the authenticator;
+- given a fixed input, it returns an HMAC of it: 32 bytes, **the same every time** for the same passkey and the same input.
+
+The app always asks with the same fixed input (the SHA-256 of `paperless-anywhere/prf/master/v1`, `passkey.js`). At creation it seals the master secret under a key derived from that answer (box P). To open, it asks again, gets the same 32 bytes, derives the same key and unseals box P. On a new device the same answer also gives index address P, where box P is found on Aleph.
+
+Limits that keep this safe:
+- The passkey answers only after **user verification** (fingerprint, face, PIN).
+- It answers only **to the address it was made for** (its relying party), so another site never gets this value.
+- The app wipes the answer right after use.
+- **Each passkey gives a different value**, which is why every added passkey gets its own box.
+- A **synced passkey** (an iCloud keychain or Google password manager passkey) carries its secret along, so it opens the vault on every device of that account.
+- Without PRF there is no unlock, and the app says so ("Dieser Passkey kann kein PRF"). Current Chrome, Edge, Safari and Android support PRF, and so do YubiKeys from the 5 series.
+
 ### Where it is stored
 
 | What | Where | In what form |
