@@ -145,6 +145,13 @@
 
 <section class="setup" data-testid="setup">
 	<h2>Einrichtung</h2>
+	<details class="where" data-testid="setup-where">
+		<summary>Wo die Einrichtung liegt: verschlüsselt auf Aleph, auf jedem Gerät da</summary>
+		<p>Jede Änderung hier wird <strong>in diesem Browser verschlüsselt</strong> (AES-256-GCM, mit einem Schlüssel aus deinem Tresor) und dann <strong>auf Aleph</strong> gespeichert, unter dem Schlüssel dieser App. Jedes Gerät, das den Tresor öffnet (Passkey oder 24 Wörter), findet dieselbe Einrichtung.</p>
+		<p>Drin sind: zahlendes Konto, Netz, Relays, Image, Knoten und Passphrase des Images, die Sicherungseinstellungen samt Schlüssel der Sicherungen (age) und die laufende VM.</p>
+		<p>Aleph sieht nur einen verschlüsselten Block, wann er sich ändert, und (im Wallet des zahlenden Kontos) dass es diese App freigegeben hat, nicht den Inhalt.
+			Mehr: <a href="https://github.com/Le-Space/paperless-anywhere/blob/main/docs/keys-and-recovery.md#where-the-setup-is-kept" target="_blank" rel="noopener">Schlüssel und Wiederherstellung</a>.</p>
+	</details>
 	{#if busy === 'wallet'}<p class="waiting" data-testid="wallet-waiting">Warte auf MetaMask … (bitte dort bestätigen oder ablehnen)</p>{/if}
 	{#if !loaded}
 		<p>Lade Einstellungen …</p>
@@ -232,6 +239,8 @@
 	.nomoney { color: #b26a00; }
 	.hint { color: #666; font-size: 0.9rem; }
 	label { display: block; margin-top: 0.5rem; font-size: 0.9rem; color: #444; }
+	.where { margin: 0.5rem 0 1rem; font-size: 0.9rem; color: #444; }
+	.where summary { cursor: pointer; }
 	.waiting { background: #fff4d6; padding: 0.5rem 0.75rem; border-radius: 4px; }
 	.error { color: #b00020; }
 </style>
