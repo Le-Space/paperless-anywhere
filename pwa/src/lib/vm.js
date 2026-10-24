@@ -15,6 +15,7 @@ import {
 	notifyCrnAllocationWithRetry,
 	eraseInstanceOnCrn
 } from '@le-space/core';
+import { recoverMessageAddress } from 'viem';
 import { ALEPH_API, broadcast as broadcastAndWait, CHANNEL } from './aleph.js';
 
 export const PAPERLESS_VM = Object.freeze({ vcpus: 2, memoryMiB: 4096, rootfsSizeMiB: 80 * 1024 });
@@ -143,6 +144,27 @@ export async function listVms(appAddress, payer) {
 }
 
 /** @param {any[]} messages @param {string} appAddress @param {string} [payer] */
+/**
+ * The INSTANCE `itemHash` as this app key signed it, checked here (content
+ * hash and signature), so a stop after adopting it pins the measurements this
+ * app put in, not whatever an API answer says.
+ * @param {string} appAddress @param {string} itemHash
+ */
+export async function ownInstance(appAddress, itemHash) {
+	const res = await fetch(`${ALEPH_API}/api/v0/messages/${itemHash}`, { cache: 'no-store' });
+	if (!res.ok) throw new Error(`Aleph: VM ${itemHash.slice(0, 12)} nicht lesbar (${res.status})`);
+	return checkOwnInstance(appAddress, itemHash, (await res.json())?.message);
+}
+
+/** @param {string} appAddress @param {string} itemHash @param {any} m the message as Aleph returns it */
+export async function checkOwnInstance(appAddress, itemHash, m) {
+	if (m?.type !== 'INSTANCE' || m.item_hash !== itemHash || typeof m.item_content !== 'string') throw new Error('Keine INSTANCE mit diesem Hash.');
+	if ((await sha256Hex(m.item_content)) !== itemHash) throw new Error('Der Inhalt der INSTANCE passt nicht zu ihrem Hash.');
+	const signer = await recoverMessageAddress({ message: [m.chain, m.sender, m.type, m.item_hash].join('\n'), signature: m.signature });
+	if (signer.toLowerCase() !== appAddress.toLowerCase()) throw new Error('Diese VM hat nicht der Schlüssel dieser App gestartet.');
+	return JSON.parse(m.item_content);
+}
+
 export function ownVms(messages, appAddress, payer) {
 	const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
 	return messages

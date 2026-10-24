@@ -4,7 +4,8 @@
 	import { alephPrivateKey } from '$lib/keys/derive.js';
 	import { loadProfile, saveProfile } from '$lib/profile.js';
 	import { startingInstance } from '$lib/starting.js';
-	import { crnAddress, eraseOnNode, forgetInstance, hostname, listVms, nodeState, vmStatus } from '$lib/vm.js';
+	import { crnAddress, eraseOnNode, forgetInstance, hostname, listVms, nodeState, ownInstance, vmStatus } from '$lib/vm.js';
+	import { pinsOf } from '@le-space/attest-wasm/instance';
 
 	/** @type {{ master: Uint8Array, version?: number, onchange?: () => void }} */
 	let { master, version = 0, onchange = () => {} } = $props();
@@ -69,6 +70,36 @@
 	// Started by this vault and known: the running one, and one a start in this tab is bringing up.
 	const known = (vm) => vm.itemHash === profile.running?.instanceHash || vm.itemHash === $startingInstance;
 	const strays = $derived((vms ?? []).filter((vm) => !known(vm)).length);
+	// A start whose tab was reloaded or closed leaves a running VM the app no
+	// longer knows. Adopting it makes it the running one again, so "Sichern und
+	// stoppen" works: its measurements come from the INSTANCE this app key
+	// signed (checked here), its address from 2n6, and it must answer as a
+	// paperless-anywhere guest.
+	async function adopt(vm) {
+		if (!confirm(`${vm.name} als laufendes Paperless übernehmen? Danach geht „Sichern und stoppen“ wieder.`)) return;
+		busy = vm.itemHash;
+		error = '';
+		try {
+			const content = await ownInstance(app.address, vm.itemHash);
+			const trustedExecution = content.environment?.trusted_execution;
+			pinsOf(trustedExecution);
+			const crnHash = content.requirements?.node?.node_hash;
+			if (!crnHash) throw new Error('Die VM nennt keinen Knoten.');
+			const host = await hostname(vm.itemHash);
+			if (!host) throw new Error('Die VM hat noch keine Adresse (2n6).');
+			const status = await vmStatus(host);
+			if (!status?.phase) throw new Error('Die VM antwortet nicht als Paperless (noch kein Zertifikat oder nicht entsperrt).');
+			const fresh = await loadProfile(master);
+			if (fresh.running) throw new Error('Es ist schon ein Paperless als laufend bekannt.');
+			profile = { ...fresh, running: { instanceHash: vm.itemHash, crnHash, host, trustedExecution } };
+			await saveProfile(master, $state.snapshot(profile));
+			onchange();
+		} catch (e) {
+			error = e instanceof Error ? e.message : String(e);
+		} finally {
+			busy = '';
+		}
+	}
 	const when = (ms) => new Date(ms).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
 </script>
 
@@ -80,7 +111,7 @@
 		<p class="hint">Keine VM läuft.</p>
 	{:else}
 		{#if strays > 0}
-			<p class="warn" data-testid="vm-stray">Es laufen VMs, die nicht als gestartet bekannt sind (z. B. ein abgebrochener Start). Sie kosten Credits, bis sie gelöscht sind.</p>
+			<p class="warn" data-testid="vm-stray">Es laufen VMs, die nicht als gestartet bekannt sind (z. B. ein abgebrochener Start oder ein neu geladener Tab). Sie kosten Credits, bis sie gelöscht sind. Läuft Paperless darin, „Übernehmen“: dann sichert „Sichern und stoppen“ sie wie gewohnt.</p>
 		{/if}
 		<ul>
 			{#each vms as vm (vm.itemHash)}
@@ -90,6 +121,9 @@
 					<br /><small>seit {when(vm.createdAt)} · kostet ca. {PAPERLESS_CREDITS_PER_HOUR.toLocaleString('de-DE')} Credits/h · {vm.phase ?? 'prüfe …'}
 						{#if vm.host && vm.up} · <a href={`https://${vm.host}/`} target="_blank" rel="noopener">{vm.host}</a>{/if}
 						· <code>{vm.itemHash.slice(0, 12)}</code></small>
+					{#if !profile.running && $startingInstance !== vm.itemHash}
+						<button type="button" onclick={() => adopt(vm)} disabled={busy === vm.itemHash} data-testid="vm-adopt">Übernehmen</button>
+					{/if}
 					<button type="button" onclick={() => remove(vm)} disabled={busy === vm.itemHash}>Löschen</button>
 				</li>
 			{/each}

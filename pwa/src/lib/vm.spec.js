@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { recoverMessageAddress } from 'viem';
-import { instanceMessage, sha256Hex, signAsDelegate, ownVms } from './vm.js';
+import { checkOwnInstance, instanceMessage, sha256Hex, signAsDelegate, ownVms } from './vm.js';
 import { createUnsignedForgetMessage } from '@le-space/core';
 
 const app = privateKeyToAccount(generatePrivateKey());
@@ -43,5 +43,21 @@ describe('ownVms', () => {
 		], app, payer);
 		expect(list.map((v) => v.name)).toEqual(['paperless-b', 'paperless-a']);
 		expect(list[0]).toMatchObject({ createdAt: 3000, crnHash: 'n' });
+	});
+});
+
+describe('checkOwnInstance', () => {
+	const tee = { mode: 'sev_snp', policy: 196608, runtime: '1'.repeat(64), measurements: [{ platform: 'sev_snp', registers: { launch: 'a'.repeat(96) }, vcpu_type: 'EPYC-Genoa' }] };
+	it('returns the content of an INSTANCE this app key signed', async () => {
+		const m = await instanceMessage({ app, payer, rootfsItemHash: 'b'.repeat(64), crnHash: 'c'.repeat(64), trustedExecution: tee, name: 'paperless-x' });
+		const content = await checkOwnInstance(app.address, m.item_hash, m);
+		expect(content.environment.trusted_execution.measurements[0].registers.launch).toBe('a'.repeat(96));
+	});
+	it('refuses changed content and another signer', async () => {
+		const m = await instanceMessage({ app, payer, rootfsItemHash: 'b'.repeat(64), crnHash: 'c'.repeat(64), trustedExecution: tee, name: 'paperless-x' });
+		const changed = { ...m, item_content: m.item_content.replace('a'.repeat(96), 'f'.repeat(96)) };
+		await expect(checkOwnInstance(app.address, m.item_hash, changed)).rejects.toThrow(/Hash/);
+		const other = privateKeyToAccount(generatePrivateKey());
+		await expect(checkOwnInstance(other.address, m.item_hash, m)).rejects.toThrow(/nicht der Schlüssel/);
 	});
 });
