@@ -64,7 +64,7 @@ export async function unlockWithPasskey(vault) {
 			if (!remote?.box) throw new Error('Zu diesem Passkey gibt es keinen Tresor.');
 			box = remote.box;
 		}
-		const master = await unseal(box, sealingKeyFromPrf(prf));
+		const master = await unseal(box, sealingKeyFromPrf(prf), 'master/passkey');
 		if (!vault) storeVault({ v: 1, credentialId, byPasskey: box, bySeed: null, createdAt: new Date().toISOString() });
 		return master;
 	} finally {
@@ -81,7 +81,7 @@ export async function unlockWithSeedPhrase(vault, phrase) {
 		if (!remote?.box) throw new Error('Zu dieser Wiederherstellungsphrase gibt es keinen Tresor.');
 		box = remote.box;
 	}
-	const master = await unseal(box, key);
+	const master = await unseal(box, key, 'master/seed');
 	if (!vault) storeVault({ v: 1, credentialId: null, byPasskey: null, bySeed: box, createdAt: new Date().toISOString() });
 	return master;
 }
