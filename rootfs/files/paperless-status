@@ -49,6 +49,13 @@ def read(name):
     except Exception:
         return None
 restore, backup, stop, data_disk = read("restore.json"), read("backup.json"), read("stop.json"), read("data-disk.json")
+def usage(path):
+    try:
+        st = os.statvfs(path)
+        return {"usedBytes": (st.f_blocks - st.f_bfree) * st.f_frsize, "sizeBytes": st.f_blocks * st.f_frsize}
+    except Exception:
+        return None
+disks = {"system": usage("/"), "data": usage("/srv/sealed") if os.path.ismount("/srv/sealed") else None}
 if stop and stop.get("status") in ("running", "ready", "failed"):
     phase = "stopping" if stop["status"] == "running" else "stopped" if stop["status"] == "ready" else "stop-failed"
 elif restore and restore.get("status") == "running":
@@ -59,7 +66,7 @@ elif up:
     phase = "ready"
 else:
     phase = "starting"
-print(json.dumps({"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "stop": stop, "dataDisk": data_disk, "at": now}))
+print(json.dumps({"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "stop": stop, "dataDisk": data_disk, "disks": disks, "at": now}))
 PY
   chmod 644 "$pub/status.json" 2>/dev/null
   sleep 5

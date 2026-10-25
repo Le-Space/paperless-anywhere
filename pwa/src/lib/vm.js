@@ -18,7 +18,11 @@ import {
 import { recoverMessageAddress } from 'viem';
 import { ALEPH_API, broadcast as broadcastAndWait, CHANNEL } from './aleph.js';
 
-export const PAPERLESS_VM = Object.freeze({ vcpus: 2, memoryMiB: 4096, rootfsSizeMiB: 80 * 1024, dataDiskMiB: 40 * 1024 });
+// The rootfs holds the image and logs only; Docker, Paperless and the exports
+// are on the data disk. Aleph charges about 184 credits per GiB and hour beyond
+// 40 GiB that a confidential instance includes (price estimate, 2026-10-25), so
+// 10 + 40 GiB costs 58,840 credits/h against 71,719 for 80 + 40.
+export const PAPERLESS_VM = Object.freeze({ vcpus: 2, memoryMiB: 4096, rootfsSizeMiB: 10 * 1024, dataDiskMiB: 40 * 1024 });
 
 /**
  * An empty disk on the node next to the rootfs, for what the VM writes. The

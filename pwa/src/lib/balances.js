@@ -7,8 +7,9 @@ import { balance as erc20Balance } from '@filoz/synapse-core/erc20';
 import { ALEPH_API } from './aleph.js';
 import { filecoinChain } from './permissions.js';
 
-// A running Paperless (confidential, 2 vCPU, 4 GB, 80 GB), measured 2026-10-22.
-export const PAPERLESS_CREDITS_PER_HOUR = 63_349;
+// A running Paperless (confidential, 2 vCPU, 4 GB, 10 GiB rootfs + 40 GiB data
+// disk), from Aleph's price estimate on 2026-10-25.
+export const PAPERLESS_CREDITS_PER_HOUR = 58_840;
 // Aleph accepts a VM only with a day of its price in hand (error 6, min_runtime_days: 1).
 export const RESERVE_CREDITS = 24 * PAPERLESS_CREDITS_PER_HOUR;
 // Gas for a session-key renewal or a deposit; below this the setup warns.
