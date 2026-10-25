@@ -27,7 +27,7 @@ root="$work/root"
 trap 'rm -rf "$work"' EXIT
 
 debootstrap --variant=minbase \
-  --include=systemd,systemd-sysv,dbus,python3,openssh-server,docker.io,caddy,age,ca-certificates,curl,iproute2,procps,e2fsprogs,util-linux,kmod,jq,less,cryptsetup-bin \
+  --include=systemd,systemd-sysv,dbus,python3,openssh-server,docker.io,caddy,age,ca-certificates,curl,iproute2,procps,e2fsprogs,util-linux,kmod,jq,less,cryptsetup-bin,dmsetup \
   bookworm "$root" http://deb.debian.org/debian >/dev/null
 
 # The compose plugin (Debian 12 ships only the old Python docker-compose).

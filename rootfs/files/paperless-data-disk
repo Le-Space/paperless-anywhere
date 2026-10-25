@@ -24,8 +24,46 @@ flock 9
 img=/srv/sealed.img
 mnt=/srv/sealed
 started=$(date +%s)
+errlog="$state/data-disk.err"
+: > "$errlog"
+# What the guest offers for this, reported with the outcome (no secrets): the
+# loop and device-mapper control nodes, the kernel's dm targets and crypto,
+# how /dev is mounted, the block devices, and this process's capabilities.
+probe() {
+  python3 - "$errlog" <<'PY'
+import json, os, subprocess, sys
+def run(*cmd):
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        return (r.stdout + r.stderr).strip()[:400]
+    except Exception as e:
+        return f"error: {e}"[:200]
+def read(path, limit=600):
+    try:
+        return open(path).read()[:limit]
+    except Exception as e:
+        return f"error: {type(e).__name__}"
+misc = read("/proc/misc", 2000)
+crypto = read("/proc/crypto", 200000)
+print(json.dumps({
+    "kernel": os.uname().release,
+    "loopControl": os.path.exists("/dev/loop-control"),
+    "loopDevices": sorted(d for d in os.listdir("/dev") if d.startswith("loop"))[:8],
+    "losetupFree": run("losetup", "-f"),
+    "mapperControl": os.path.exists("/dev/mapper/control"),
+    "miscHasLoop": "loop-control" in misc,
+    "miscHasDeviceMapper": "device-mapper" in misc,
+    "dmTargets": run("dmsetup", "targets"),
+    "cryptoXts": "xts(aes)" in crypto or "name         : xts" in crypto,
+    "devMount": run("findmnt", "-n", "-o", "FSTYPE,OPTIONS", "/dev"),
+    "blockDevices": run("lsblk", "-d", "-n", "-o", "NAME,SIZE,TYPE,RO"),
+    "capEff": next((l.split()[1] for l in read("/proc/self/status", 4000).splitlines() if l.startswith("CapEff")), None),
+    "cryptsetupError": read(sys.argv[1], 400).strip(),
+}))
+PY
+}
 report() {
-  printf '{"status":"%s","reason":"%s","bytes":%s,"seconds":%s}\n' "$1" "$2" "${3:-0}" "$(( $(date +%s) - started ))" > "$state/data-disk.json"
+  printf '{"status":"%s","reason":"%s","bytes":%s,"seconds":%s,"probe":%s}\n' "$1" "$2" "${3:-0}" "$(( $(date +%s) - started ))" "$(probe 2>/dev/null || echo null)" > "$state/data-disk.json"
 }
 plain() {
   echo "paperless-data-disk: $1; data stays on the shared-key rootfs" >&2
@@ -42,7 +80,7 @@ size=$(( avail - 2147483648 ))
 
 rm -f "$img"
 truncate -s "$size" "$img" || plain "cannot create the area file"
-head -c 64 /dev/urandom | cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 --key-file - "$img" sealed \
+head -c 64 /dev/urandom | cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 --key-file - "$img" sealed 2>"$errlog" \
   || { rm -f "$img"; plain "dm-crypt or loop device not available"; }
 mkfs.ext4 -q -F -E lazy_itable_init=1,lazy_journal_init=1 -m 0 /dev/mapper/sealed \
   || { cryptsetup close sealed; rm -f "$img"; plain "mkfs failed"; }
