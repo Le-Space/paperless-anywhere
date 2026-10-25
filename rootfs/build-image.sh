@@ -27,7 +27,7 @@ root="$work/root"
 trap 'rm -rf "$work"' EXIT
 
 debootstrap --variant=minbase \
-  --include=systemd,systemd-sysv,dbus,python3,openssh-server,docker.io,caddy,age,ca-certificates,curl,iproute2,procps,e2fsprogs,util-linux,kmod,jq,less \
+  --include=systemd,systemd-sysv,dbus,python3,openssh-server,docker.io,caddy,age,ca-certificates,curl,iproute2,procps,e2fsprogs,util-linux,kmod,jq,less,cryptsetup-bin \
   bookworm "$root" http://deb.debian.org/debian >/dev/null
 
 # The compose plugin (Debian 12 ships only the old Python docker-compose).
@@ -68,7 +68,7 @@ install -D -m 644 "$here/files/paperless-backup.service" "$root/etc/systemd/syst
 install -D -m 644 "$here/files/paperless-backup.timer" "$root/etc/systemd/system/paperless-backup.timer"
 install -D -m 644 "$here/files/paperless-status.service" "$root/etc/systemd/system/paperless-status.service"
 install -D -m 644 "$here/files/paperless-stop.service" "$root/etc/systemd/system/paperless-stop.service"
-for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-status paperless-stop paperless-stack-up; do
+for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-status paperless-stop paperless-stack-up paperless-data-disk; do
   install -D -m 755 "$here/files/$script" "$root/usr/local/sbin/$script"
 done
 install -d -m 700 "$root/etc/paperless-anywhere"

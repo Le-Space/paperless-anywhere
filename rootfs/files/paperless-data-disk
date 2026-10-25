@@ -1,0 +1,61 @@
+#!/bin/sh
+# paperless-data-disk: everything this VM writes goes onto a disk area sealed
+# with a key the VM makes itself at boot and keeps in memory only.
+#
+# The rootfs is one LUKS image for every VM, so its volume key is the same in
+# every copy, and whoever knows the image's passphrase could read what a VM
+# wrote to it on the node's disk. The data here lives one session anyway
+# (restored from the backup at start, erased at stop), so a key that never
+# leaves the VM is enough: nobody, not the node, not CI, not the app, has it.
+#
+# A file on the rootfs, opened with dm-crypt (plain, AES-XTS, 512-bit random
+# key read from a pipe), formatted ext4, mounted at /srv/sealed; the paths the
+# stack writes to are bind-mounted from there. Docker and the stack call it
+# before they start (the first one does the work); Caddy reads its data dir
+# after paperless-https restarts it, which comes later. If any step
+# fails, the VM runs as before and says so in data-disk.json (status page).
+set -u
+state=/run/paperless-anywhere
+mkdir -p "$state"
+exec 9>"$state/data-disk.lock"
+flock 9
+[ -s "$state/data-disk.json" ] && exit 0
+
+img=/srv/sealed.img
+mnt=/srv/sealed
+started=$(date +%s)
+report() {
+  printf '{"status":"%s","reason":"%s","bytes":%s,"seconds":%s}\n' "$1" "$2" "${3:-0}" "$(( $(date +%s) - started ))" > "$state/data-disk.json"
+}
+plain() {
+  echo "paperless-data-disk: $1; data stays on the shared-key rootfs" >&2
+  report plain "$1"
+  exit 0
+}
+
+command -v cryptsetup >/dev/null 2>&1 || plain "no cryptsetup"
+avail=$(df -B1 --output=avail / 2>/dev/null | tail -1 | tr -d ' ')
+[ -n "$avail" ] || plain "free space unknown"
+# Leave 2 GiB to the rootfs (logs, apt state); refuse below 4 GiB of data area.
+size=$(( avail - 2147483648 ))
+[ "$size" -ge 4294967296 ] || plain "only $((avail / 1048576)) MiB free"
+
+rm -f "$img"
+truncate -s "$size" "$img" || plain "cannot create the area file"
+head -c 64 /dev/urandom | cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 --key-file - "$img" sealed \
+  || { rm -f "$img"; plain "dm-crypt or loop device not available"; }
+mkfs.ext4 -q -F -E lazy_itable_init=1,lazy_journal_init=1 -m 0 /dev/mapper/sealed \
+  || { cryptsetup close sealed; rm -f "$img"; plain "mkfs failed"; }
+mkdir -p "$mnt" && mount /dev/mapper/sealed "$mnt" \
+  || { cryptsetup close sealed; rm -f "$img"; plain "mount failed"; }
+
+# Move what the image brings (if anything) and bind every path over.
+for path in /srv/paperless /var/lib/docker /var/lib/caddy /root/.local/share/caddy /etc/paperless-anywhere /var/lib/paperless-anywhere; do
+  target="$mnt$path"
+  mkdir -p "$target" "$path"
+  if [ -n "$(ls -A "$path" 2>/dev/null)" ]; then cp -a "$path/." "$target/" || plain "copying $path failed"; fi
+  chmod --reference="$path" "$target" 2>/dev/null
+  chown --reference="$path" "$target" 2>/dev/null
+  mount --bind "$target" "$path" || plain "bind mount of $path failed"
+done
+report encrypted "" "$size"
