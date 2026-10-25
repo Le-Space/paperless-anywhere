@@ -5,6 +5,9 @@
 # binds to 127.0.0.1. Only sshd (22), Caddy (443) and Aleph's attestation
 # agent (8443, in the measured init) face the network;
 # paperless-anywhere-check fails if anything else does.
+# The images are one-layer copies of the upstream ones, pinned by digest:
+# Docker's vfs driver in the confidential guest keeps every layer as a full
+# copy (the upstream five took about 36 GiB), one layer once.
 name: paperless
 
 x-host: &host
@@ -14,7 +17,8 @@ x-host: &host
 services:
   postgres:
     <<: *host
-    image: docker.io/library/postgres:18
+    # docker.io/library/postgres:18, flattened to one layer (rootfs/images.txt, flat-images.yml)
+    image: ghcr.io/le-space/paperless-anywhere/postgres@sha256:22a3cebb463a0b26440acf955e675162a06af08d63ac6b0534ffef63e725a989
     env_file: /etc/paperless-anywhere/postgres.env
     environment:
       POSTGRES_DB: paperless
@@ -25,14 +29,16 @@ services:
 
   valkey:
     <<: *host
-    image: docker.io/valkey/valkey:9-alpine
+    # docker.io/valkey/valkey:9-alpine, flattened to one layer (rootfs/images.txt, flat-images.yml)
+    image: ghcr.io/le-space/paperless-anywhere/valkey@sha256:9b6765ede311e2bec2959bae9fed2be242807412e2a842a8c5f62b6c371abcfd
     command: ["valkey-server", "--bind", "127.0.0.1", "--protected-mode", "yes"]
     volumes:
       - /srv/paperless/valkey:/data
 
   gotenberg:
     <<: *host
-    image: docker.io/gotenberg/gotenberg:8.37
+    # docker.io/gotenberg/gotenberg:8.37, flattened to one layer (rootfs/images.txt, flat-images.yml)
+    image: ghcr.io/le-space/paperless-anywhere/gotenberg@sha256:1fbc4a31a8b97be4380876bf9d158f07d19bc311d9b17381ff3a86be7e5ccf01
     command:
       - gotenberg
       - --api-bind-ip=127.0.0.1
@@ -42,7 +48,8 @@ services:
 
   tika:
     <<: *host
-    image: docker.io/apache/tika:3.3.1.0
+    # docker.io/apache/tika:3.3.1.0, flattened to one layer (rootfs/images.txt, flat-images.yml)
+    image: ghcr.io/le-space/paperless-anywhere/tika@sha256:612db369c79a9aeebe2e94fceb9efa0019730fab0088d5e25824631e60c651b3
     # The image's entrypoint passes `-h 0.0.0.0` before any arguments, and
     # the first -h wins, so the same java call is spelled out here. The jar
     # matches the tag (the image sets TIKA_VERSION=3.3.1).
@@ -58,7 +65,8 @@ services:
 
   paperless:
     <<: *host
-    image: ghcr.io/paperless-ngx/paperless-ngx:3.2.1
+    # ghcr.io/paperless-ngx/paperless-ngx:3.2.1, flattened to one layer (rootfs/images.txt, flat-images.yml)
+    image: ghcr.io/le-space/paperless-anywhere/paperless@sha256:c0d043e56538a4089661ed1137f018e85792ea5fa783b1ca8d73690a5e4ebe98
     # Not on Gotenberg and Tika: they convert office files and mails, and
     # paperless-stack-up starts them after Paperless (their images are the
     # larger half of the download at a start).
