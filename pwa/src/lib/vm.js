@@ -18,7 +18,22 @@ import {
 import { recoverMessageAddress } from 'viem';
 import { ALEPH_API, broadcast as broadcastAndWait, CHANNEL } from './aleph.js';
 
-export const PAPERLESS_VM = Object.freeze({ vcpus: 2, memoryMiB: 4096, rootfsSizeMiB: 80 * 1024 });
+export const PAPERLESS_VM = Object.freeze({ vcpus: 2, memoryMiB: 4096, rootfsSizeMiB: 80 * 1024, dataDiskMiB: 40 * 1024 });
+
+/**
+ * An empty disk on the node next to the rootfs, for what the VM writes. The
+ * VM seals it with a key it makes at boot and keeps in memory only
+ * (paperless-data-disk in the image); the guest kernel has no loop driver, so
+ * a file on the shared-key rootfs cannot serve. An ephemeral volume would be
+ * limited to 1 GiB, so it is a persistent one, which lives as long as the VM.
+ */
+export const dataDiskVolume = (sizeMiB = PAPERLESS_VM.dataDiskMiB) => ({
+	comment: 'paperless-anywhere: sealed data (dm-crypt, key made in the VM)',
+	mount: '/srv/sealed-disk',
+	persistence: 'host',
+	name: 'sealed-data',
+	size_mib: sizeMiB
+});
 const CORECHANNEL = '0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10';
 
 export async function sha256Hex(text) {
@@ -73,6 +88,7 @@ export async function instanceMessage(a) {
 		crnHash: a.crnHash,
 		trustedExecution: a.trustedExecution
 	});
+	content.volumes = [dataDiskVolume()];
 	const unsigned = await createUnsignedInstanceMessage({ sender: a.payer, content, hasher: sha256Hex, channel: CHANNEL });
 	return signAsDelegate(unsigned, a.app);
 }

@@ -76,16 +76,38 @@ avail=$(df -B1 --output=avail / 2>/dev/null | tail -1 | tr -d ' ')
 [ -n "$avail" ] || plain "free space unknown"
 # Leave 2 GiB to the rootfs (logs, apt state); refuse below 4 GiB of data area.
 size=$(( avail - 2147483648 ))
-[ "$size" -ge 4294967296 ] || plain "only $((avail / 1048576)) MiB free"
+[ "$size" -ge 4294967296 ] || size=0
 
-rm -f "$img"
-truncate -s "$size" "$img" || plain "cannot create the area file"
-head -c 64 /dev/urandom | cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 --key-file - "$img" sealed 2>"$errlog" \
-  || { rm -f "$img"; plain "dm-crypt or loop device not available"; }
+# A spare disk (the app asks Aleph for an empty one next to the rootfs) takes
+# dm-crypt directly; the guest kernel has no loop driver for a file.
+# Only a disk with nothing on it counts: no partitions and no device-mapper
+# holders (the rootfs's disk carries the LUKS mapping, so it is never taken).
+spare=""
+for d in $(lsblk -dn -o NAME,TYPE 2>/dev/null | awk '$2 == "disk" { print $1 }'); do
+  [ "$(lsblk -n -o NAME "/dev/$d" 2>/dev/null | wc -l)" -eq 1 ] || continue
+  [ -z "$(ls -A "/sys/block/$d/holders" 2>/dev/null)" ] || continue
+  [ "$(lsblk -bdno SIZE "/dev/$d" 2>/dev/null)" -ge 4294967296 ] 2>/dev/null || continue
+  [ "$(lsblk -dno RO "/dev/$d" 2>/dev/null | tr -d ' ')" = 0 ] || continue
+  spare="$d"
+  break
+done
+if [ -n "$spare" ]; then
+  for m in $(lsblk -nlo MOUNTPOINT "/dev/$spare" 2>/dev/null); do umount "$m" 2>/dev/null; done
+  size=$(lsblk -bdno SIZE "/dev/$spare")
+  head -c 64 /dev/urandom | cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 --key-file - "/dev/$spare" sealed 2>"$errlog" \
+    || plain "dm-crypt on the spare disk $spare failed"
+  img=""
+else
+  [ "$size" -gt 0 ] || plain "no spare disk, and only $((avail / 1048576)) MiB free on the rootfs"
+  rm -f "$img"
+  truncate -s "$size" "$img" || plain "cannot create the area file"
+  head -c 64 /dev/urandom | cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 --key-file - "$img" sealed 2>"$errlog" \
+    || { rm -f "$img"; plain "no spare disk, and no loop device for a file"; }
+fi
 mkfs.ext4 -q -F -E lazy_itable_init=1,lazy_journal_init=1 -m 0 /dev/mapper/sealed \
-  || { cryptsetup close sealed; rm -f "$img"; plain "mkfs failed"; }
+  || { cryptsetup close sealed; [ -n "$img" ] && rm -f "$img"; plain "mkfs failed"; }
 mkdir -p "$mnt" && mount /dev/mapper/sealed "$mnt" \
-  || { cryptsetup close sealed; rm -f "$img"; plain "mount failed"; }
+  || { cryptsetup close sealed; [ -n "$img" ] && rm -f "$img"; plain "mount failed"; }
 
 # Move what the image brings (if anything) and bind every path over.
 for path in /srv/paperless /var/lib/docker /var/lib/caddy /root/.local/share/caddy /etc/paperless-anywhere /var/lib/paperless-anywhere; do
@@ -96,4 +118,4 @@ for path in /srv/paperless /var/lib/docker /var/lib/caddy /root/.local/share/cad
   chown --reference="$path" "$target" 2>/dev/null
   mount --bind "$target" "$path" || plain "bind mount of $path failed"
 done
-report encrypted "" "$size"
+report encrypted "${spare:-file}" "$size"
