@@ -157,6 +157,8 @@
 	{#if profile.running}
 		<p>Paperless läuft: <a href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="paperless-link">{profile.running.host}</a></p>
 		{#if profile.running.restore?.status === 'failed'}<p class="error" data-testid="restore-failed">Wiederherstellung fehlgeschlagen ({profile.running.restore.reason ?? 'ohne Grund'}). Paperless läuft leer.</p>{/if}
+		{#if profile.running.dataDisk === 'encrypted'}<p class="hint" data-testid="data-disk">Was diese VM schreibt, liegt auf einer eigenen Platte, verschlüsselt mit einem Schlüssel, den nur die VM kennt.</p>
+		{:else if profile.running.dataDisk === 'plain'}<p class="warn" data-testid="data-disk">Diese VM schreibt auf die gemeinsame Image-Platte (ohne eigenen Schlüssel): älteres Image oder keine Zusatzplatte. Neues Image in der Einrichtung, Schritt 6.</p>{/if}
 		<p data-testid="paperless-login">Anmeldung: <code>admin</code>,
 			{#if showPassword}<code data-testid="admin-password">{adminPassword}</code>{:else}<span>••••••••</span>{/if}
 			<button type="button" onclick={() => (showPassword = !showPassword)}>{showPassword ? 'Verbergen' : 'Passwort anzeigen'}</button>
@@ -246,6 +248,7 @@
 </section>
 
 <style>
+	.warn { color: #b26a00; }
 	.log pre { white-space: pre-wrap; font-size: 0.8rem; background: #f6f6f6; padding: 0.5rem; }
 	.backup-card { margin-top: 1rem; }
 	.backup-card dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 0.8rem; }

@@ -176,6 +176,10 @@ sequenceDiagram
 | all passkeys **and** the words | the vault is gone: the app key, the backup key (backups made with it cannot be decrypted), the Paperless passwords. Your money is not affected. Revoke the app key in your wallet (setup, step 2). |
 | the boxes on Aleph **and** in every browser | the 24 words alone do not help: they open box W, they do not compute the master secret. The boxes on Aleph are kept as long as Aleph keeps aggregates. |
 
+### The VM's data area: a key nobody has
+
+The encrypted image is the same for every VM, so its disk key is too. What a VM writes (documents, database, exports, Docker's images, Caddy's certificate key, the generated passwords) therefore goes elsewhere: onto an **empty disk** that the app asks for next to the image. At boot, the VM makes a random 512-bit key in memory and seals that disk with it (dm-crypt, AES-XTS, `paperless-data-disk` in the image). The key never leaves the VM: not to the app, not to the profile, not to the node. That is enough, because the data lives one session (restored from the backup at the start, erased at the stop). What lasts is the backup, sealed with the backup key from the vault. The app shows whether a running VM sealed its data area. An older image without this writes to the image's disk and says so.
+
 ### Why the boxes can be public on Aleph
 
 - **Only sealed data is there.** Box P and box W are AES-256-GCM ciphertexts. Their keys come from the passkey's PRF answer (32 bytes from the authenticator, released only to this site's origin and only after user verification) or from the 24 words (256 bits of entropy). Neither can be guessed.

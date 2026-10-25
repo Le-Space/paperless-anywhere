@@ -5,6 +5,7 @@ Requires=docker.service
 
 [Service]
 Type=simple
+ExecStartPre=/usr/local/sbin/paperless-data-disk
 ExecStartPre=/usr/local/sbin/paperless-secrets
 ExecStart=/usr/local/sbin/paperless-stack-up
 ExecStop=/usr/bin/docker compose --project-directory /opt/paperless down

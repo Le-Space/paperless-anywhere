@@ -48,7 +48,7 @@ def read(name):
         return json.load(open(os.path.join(d, name)))
     except Exception:
         return None
-restore, backup, stop = read("restore.json"), read("backup.json"), read("stop.json")
+restore, backup, stop, data_disk = read("restore.json"), read("backup.json"), read("stop.json"), read("data-disk.json")
 if stop and stop.get("status") in ("running", "ready", "failed"):
     phase = "stopping" if stop["status"] == "running" else "stopped" if stop["status"] == "ready" else "stop-failed"
 elif restore and restore.get("status") == "running":
@@ -59,7 +59,7 @@ elif up:
     phase = "ready"
 else:
     phase = "starting"
-print(json.dumps({"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "stop": stop, "at": now}))
+print(json.dumps({"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "stop": stop, "dataDisk": data_disk, "at": now}))
 PY
   chmod 644 "$pub/status.json" 2>/dev/null
   sleep 5

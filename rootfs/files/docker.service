@@ -9,6 +9,7 @@ Wants=network-online.target containerd.service
 
 [Service]
 Type=simple
+ExecStartPre=/usr/local/sbin/paperless-data-disk
 ExecStart=/usr/sbin/dockerd --containerd=/run/containerd/containerd.sock
 ExecReload=/bin/kill -s HUP $MAINPID
 Restart=always
