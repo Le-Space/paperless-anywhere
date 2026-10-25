@@ -19,8 +19,8 @@ describe('delegated messages', () => {
 		expect(m.item_hash).toBe(await sha256Hex(m.item_content));
 		expect(await signed(m)).toBe(app.address);
 		expect(content.environment.trusted_execution.measurements[0].registers.launch).toBe('a'.repeat(96));
-		// An empty disk on the node for the VM's sealed data area.
-		expect(content.volumes).toEqual([{ comment: expect.any(String), mount: '/srv/sealed-disk', persistence: 'host', name: 'sealed-data', size_mib: 40960 }]);
+		// The data disk is off until the images are flattened.
+		expect(content.volumes).toEqual([]);
 	});
 	it('a FORGET on behalf of the payer keeps the payer as address', async () => {
 		const unsigned = await createUnsignedForgetMessage({ sender: payer, hashes: ['d'.repeat(64)], reason: 'stop', hasher: sha256Hex });

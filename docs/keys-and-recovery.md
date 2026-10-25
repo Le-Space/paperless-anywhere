@@ -178,6 +178,8 @@ sequenceDiagram
 
 ### The VM's data area: a key nobody has
 
+> **Currently off (2026-10-25).** With Docker's `vfs` driver the container images alone take about 36 GiB of the 40 GiB disk, too little for a restore and an export. The app asks for no data disk until the images are flattened (one layer each), and the VM writes to the image's disk as before.
+
 The encrypted image is the same for every VM, so its disk key is too. What a VM writes (documents, database, exports, Docker's images, Caddy's certificate key, the generated passwords) therefore goes elsewhere: onto an **empty disk** that the app asks for next to the image. At boot, the VM makes a random 512-bit key in memory and seals that disk with it (dm-crypt, AES-XTS, `paperless-data-disk` in the image). The key never leaves the VM: not to the app, not to the profile, not to the node. That is enough, because the data lives one session (restored from the backup at the start, erased at the stop). What lasts is the backup, sealed with the backup key from the vault. The app shows whether a running VM sealed its data area. An older image without this writes to the image's disk and says so.
 
 ### Why the boxes can be public on Aleph

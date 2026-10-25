@@ -27,6 +27,8 @@ export const PAPERLESS_VM = Object.freeze({ vcpus: 2, memoryMiB: 4096, rootfsSiz
  * a file on the shared-key rootfs cannot serve. An ephemeral volume would be
  * limited to 1 GiB, so it is a persistent one, which lives as long as the VM.
  */
+export const DATA_DISK = false;
+
 export const dataDiskVolume = (sizeMiB = PAPERLESS_VM.dataDiskMiB) => ({
 	comment: 'paperless-anywhere: sealed data (dm-crypt, key made in the VM)',
 	mount: '/srv/sealed-disk',
@@ -88,7 +90,10 @@ export async function instanceMessage(a) {
 		crnHash: a.crnHash,
 		trustedExecution: a.trustedExecution
 	});
-	content.volumes = [dataDiskVolume()];
+	// Off for now: with Docker's vfs driver the images alone take about 36 GiB
+	// of the 40 GiB disk (measured 2026-10-25), too little for a restore and an
+	// export. Back on once the images are flattened (one layer each).
+	if (DATA_DISK) content.volumes = [dataDiskVolume()];
 	const unsigned = await createUnsignedInstanceMessage({ sender: a.payer, content, hasher: sha256Hex, channel: CHANNEL });
 	return signAsDelegate(unsigned, a.app);
 }
