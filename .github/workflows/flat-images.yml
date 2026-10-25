@@ -1,0 +1,44 @@
+name: Flat images
+
+# A one-layer copy of each image in rootfs/images.txt, pushed to
+# ghcr.io/le-space/paperless-anywhere/<name>:<tag>-flat. Docker in the
+# confidential guest runs with the vfs storage driver (no overlayfs in its
+# kernel), which keeps every layer as a full copy: about 36 GiB for the five
+# images, one layer once. The summary lists the pushed digests for
+# rootfs/files/compose.yml. The packages have to be public for the VM to pull.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: Where the job runs ("aleph" needs a runner started with relay-button's gh-runner up)
+        type: choice
+        options: [aleph, ubuntu-24.04]
+        default: aleph
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  flatten:
+    runs-on: ${{ inputs.runner == 'aleph' && fromJSON('["self-hosted","aleph"]') || 'ubuntu-24.04' }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to ghcr.io
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Flatten and push
+        run: |
+          {
+            echo "| image | flat copy |"
+            echo "|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep -vE '^\s*(#|$)' rootfs/images.txt | while read -r name src; do
+            ref="${src%@*}"; tag="${ref##*:}"
+            dst="ghcr.io/le-space/paperless-anywhere/${name}:${tag}-flat"
+            pushed="$(rootfs/flatten-image.sh "$src" "$dst")"
+            echo "$name: $pushed"
+            echo "| \`$src\` | \`$pushed\` |" >> "$GITHUB_STEP_SUMMARY"
+            docker image rm -f "$src" "$dst" >/dev/null 2>&1 || true
+          done
