@@ -60,7 +60,7 @@ sequenceDiagram
     PWA->>Aleph: credits of the wallet (a day of reserve, else Aleph refuses the VM)
     PWA->>Aleph: the SEV-SNP runtime (firmware, kernel, initrd)
     PWA->>PWA: launch measurement for the app key and 2 vCPUs (in WASM)
-    PWA->>Aleph: INSTANCE (encrypted image, node, trusted_execution with the measurement), address = wallet, signed by the app key
+    PWA->>Aleph: INSTANCE (encrypted image, an empty data disk, node, trusted_execution with the measurement), address = wallet, signed by the app key
     PWA->>CRN: notify the allocation
     CRN->>CRN: boots firmware, kernel and initrd. AMD measures them.
     PWA->>Aleph: AGGREGATE port-forwarding (443/tcp)
@@ -72,6 +72,7 @@ sequenceDiagram
     Relay->>Agent: TLS records only
     Agent->>Agent: opens LUKS, chroots into the rootfs
     Agent->>Guest: starts its init
+    Guest->>Guest: makes a random key in memory, seals the empty data disk (dm-crypt) with it, puts Docker and Paperless data there
     Guest->>Guest: secrets from the unlock (Paperless passwords, hostname, backup config)
     Guest->>Guest: Caddy gets a certificate for name.2n6.me (Let's Encrypt, else ZeroSSL)
     opt a backup was chosen to restore

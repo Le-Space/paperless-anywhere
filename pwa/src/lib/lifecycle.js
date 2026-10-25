@@ -122,7 +122,9 @@ export async function startPaperless(master, profile, onProgress) {
 		// A failed restore is final too: Paperless runs (empty), and says why.
 		return status?.phase === 'ready' || (status?.phase === 'restore-failed' && status.paperless) ? status : null;
 	}, { tries: 120, delayMs: 10_000 });
-	return { instanceHash, crnHash: profile.crnHash, host, trustedExecution, ...(ready.phase === 'restore-failed' ? { restore: ready.restore } : {}) };
+	// Whether the VM sealed its data area with a key of its own (image paperless-data-disk).
+	const dataDisk = ready.dataDisk?.status === 'encrypted' ? 'encrypted' : ready.dataDisk ? 'plain' : 'unknown';
+	return { instanceHash, crnHash: profile.crnHash, host, trustedExecution, dataDisk, ...(ready.phase === 'restore-failed' ? { restore: ready.restore } : {}) };
 }
 
 /**
