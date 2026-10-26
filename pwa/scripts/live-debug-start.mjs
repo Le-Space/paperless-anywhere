@@ -7,11 +7,17 @@
 //   PAYER_KEY=… LUKS_PASSPHRASE=… RELAY_URL=… ROOTFS_ITEM_HASH=… CRN_HASH=… \
 //   SSH_PUBKEY_FILE=~/.ssh/id_ed25519.pub npx vite-node scripts/live-debug-start.mjs
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import * as attestWasm from '@le-space/attest-wasm/pkg/relay_button_attest.js';
 import { privateKeyToAccount } from 'viem/accounts';
 import { alephPrivateKey } from '../src/lib/keys/derive.js';
 import { setAlephAuthorization } from '../src/lib/permissions.js';
 import { startPaperless } from '../src/lib/lifecycle.js';
 import { crnAddress } from '../src/lib/vm.js';
+
+// In Node the WASM cannot fetch its own file: initialize it from disk first;
+// the app's later wasm.default() then finds it ready.
+attestWasm.initSync({ module: readFileSync(createRequire(import.meta.url).resolve('@le-space/attest-wasm/pkg/relay_button_attest_bg.wasm')) });
 
 const env = (name) => {
 	const v = process.env[name]?.trim();
