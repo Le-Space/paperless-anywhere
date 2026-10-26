@@ -67,9 +67,8 @@ install -D -m 644 "$here/files/paperless-restore.service" "$root/etc/systemd/sys
 install -D -m 644 "$here/files/paperless-backup.service" "$root/etc/systemd/system/paperless-backup.service"
 install -D -m 644 "$here/files/paperless-backup.timer" "$root/etc/systemd/system/paperless-backup.timer"
 install -D -m 644 "$here/files/paperless-status.service" "$root/etc/systemd/system/paperless-status.service"
-install -D -m 644 "$here/files/paperless-debug-ssh.service" "$root/etc/systemd/system/paperless-debug-ssh.service"
 install -D -m 644 "$here/files/paperless-stop.service" "$root/etc/systemd/system/paperless-stop.service"
-for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-status paperless-stop paperless-stack-up paperless-data-disk paperless-debug-ssh; do
+for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-status paperless-stop paperless-stack-up paperless-data-disk; do
   install -D -m 755 "$here/files/$script" "$root/usr/local/sbin/$script"
 done
 install -d -m 700 "$root/etc/paperless-anywhere"
@@ -80,7 +79,7 @@ echo paperless-anywhere > "$root/etc/hostname"
 : > "$root/etc/resolv.conf"
 # No socket activation in the confidential rootfs (see files/docker.service).
 chroot "$root" systemctl disable docker.socket >/dev/null 2>&1 || true
-chroot "$root" systemctl enable docker.service containerd.service caddy.service ssh.service paperless-stack.service paperless-restore.service paperless-backup.timer paperless-status.service paperless-stop.service paperless-debug-ssh.service >/dev/null 2>&1
+chroot "$root" systemctl enable docker.service containerd.service caddy.service ssh.service paperless-stack.service paperless-restore.service paperless-backup.timer paperless-status.service paperless-stop.service >/dev/null 2>&1
 
 rm -rf "$root"/var/cache/apt/* "$root"/var/lib/apt/lists/* "$root"/usr/share/doc/* \
   "$root"/usr/share/man/* "$root"/usr/share/info/* "$root"/usr/share/locale/*

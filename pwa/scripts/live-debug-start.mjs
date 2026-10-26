@@ -1,6 +1,6 @@
 // Diagnosis start (not part of the app): starts a confidential Paperless the
 // way the app does, with a fresh vault, and sends a public key as the secret
-// debug_authorized_keys, so the image opens SSH for root (paperless-debug-ssh).
+// authorized_keys, which the confidential init adds for root.
 // Prints the SSH command once the VM is unlocked, waits for Paperless, and
 // leaves the VM running for inspection: forget it afterwards.
 //

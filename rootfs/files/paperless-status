@@ -59,7 +59,7 @@ elif up:
     phase = "ready"
 else:
     phase = "starting"
-print(json.dumps({"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "stop": stop, "dataDisk": data_disk, "debugSsh": os.path.exists(os.path.join(d, "debug-ssh")), "at": now}))
+print(json.dumps({"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "stop": stop, "dataDisk": data_disk, "at": now}))
 PY
   chmod 644 "$pub/status.json" 2>/dev/null
   sleep 5
