@@ -95,6 +95,10 @@ export async function startPaperless(master, profile, onProgress) {
 		secrets.backup_config = JSON.stringify({ ...profile.backupConfig, payer: profile.payer, network: profile.network === 'mainnet' ? 'mainnet' : 'calibration' });
 		secrets.backup_session_key = filecoinSessionPrivateKey(master);
 	}
+	// Diagnosis only: a test may pass a public key; the app's UI never sets it.
+	// The image installs it for root (paperless-debug-ssh), and the status page
+	// shows debugSsh while it is on.
+	if (profile.debugAuthorizedKeys) secrets.debug_authorized_keys = String(profile.debugAuthorizedKeys);
 	if (profile.restoreEntry && profile.ageIdentity) {
 		secrets.restore_ledger_entry = JSON.stringify(profile.restoreEntry);
 		secrets.age_identity = profile.ageIdentity;

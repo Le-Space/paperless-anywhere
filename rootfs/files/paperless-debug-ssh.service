@@ -1,0 +1,10 @@
+[Unit]
+Description=SSH key for diagnosis, only when sent with the unlock (see /usr/local/sbin/paperless-debug-ssh)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/paperless-debug-ssh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
