@@ -37,6 +37,16 @@ globalThis.ethereum = {
 	}
 };
 
+// Log the item hash of each message sent, so a refusal can be looked up.
+const realFetch = globalThis.fetch;
+globalThis.fetch = (url, init) => {
+	try {
+		const body = init?.body && JSON.parse(init.body);
+		if (body?.message?.type) console.log(`sent ${body.message.type} ${body.message.item_hash}`);
+	} catch {}
+	return realFetch(url, init);
+};
+
 const master = crypto.getRandomValues(new Uint8Array(32));
 const app = privateKeyToAccount(alephPrivateKey(master));
 console.log(`app key ${app.address}`);
