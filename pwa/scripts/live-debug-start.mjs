@@ -11,7 +11,7 @@ import { createRequire } from 'node:module';
 import * as attestWasm from '@le-space/attest-wasm/pkg/relay_button_attest.js';
 import { privateKeyToAccount } from 'viem/accounts';
 import { alephPrivateKey } from '../src/lib/keys/derive.js';
-import { setAlephAuthorization } from '../src/lib/permissions.js';
+import { isAuthorized, readAuthorizations, setAlephAuthorization } from '../src/lib/permissions.js';
 import { startPaperless } from '../src/lib/lifecycle.js';
 import { crnAddress } from '../src/lib/vm.js';
 
@@ -41,6 +41,8 @@ const master = crypto.getRandomValues(new Uint8Array(32));
 const app = privateKeyToAccount(alephPrivateKey(master));
 console.log(`app key ${app.address}`);
 await setAlephAuthorization(payer.address, app.address);
+// Aleph refuses the INSTANCE until it has processed the authorization.
+for (let i = 0; i < 60 && !isAuthorized(await readAuthorizations(payer.address), app.address); i++) await new Promise((r) => setTimeout(r, 5000));
 console.log('authorized on Aleph');
 
 const profile = {
