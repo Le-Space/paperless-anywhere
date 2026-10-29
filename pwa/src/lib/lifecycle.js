@@ -31,6 +31,12 @@ async function loadWasm() {
 	return wasm;
 }
 
+// When to hand the secrets over again if the status page has not answered
+// yet (normally it answers 2–6 minutes after the unlock, once the certificate
+// is there), and when to give up.
+const UNLOCK_AGAIN_AFTER_MS = [5 * 60_000, 12 * 60_000];
+const READY_TIMEOUT_MS = 20 * 60_000;
+
 async function until(what, fn, { tries = 60, delayMs = 5000 } = {}) {
 	for (let i = 0; i < tries; i++) {
 		const value = await fn().catch(() => null);
@@ -102,26 +108,48 @@ export async function startPaperless(master, profile, onProgress) {
 
 	onProgress({ step: 'unlock', detail: 'VM prüfen (AMD) und entsperren' });
 	const relays = relayList(profile.attestRelay);
-	await unlockInstance({
-		wasm,
-		relayUrl: relays[0],
-		transport: relayTransports(relays),
-		crnHash: profile.crnHash,
-		instanceItemHash: instanceHash,
-		trustedExecution,
-		passphrase: profile.luksPassphrase,
-		secrets,
-		sign: (payload) => app.signMessage({ message: payload }),
-		onProgress: ({ detail }) => onProgress({ step: 'unlock', detail })
-	});
+	const unlock = () =>
+		unlockInstance({
+			wasm,
+			relayUrl: relays[0],
+			transport: relayTransports(relays),
+			crnHash: profile.crnHash,
+			instanceItemHash: instanceHash,
+			trustedExecution,
+			passphrase: profile.luksPassphrase,
+			secrets,
+			sign: (payload) => app.signMessage({ message: payload }),
+			onProgress: ({ detail }) => onProgress({ step: 'unlock', detail })
+		});
+	await unlock();
 
+	// Sometimes the guest's init never sees the passphrase the agent stored and
+	// waits for it forever (seen on 2026-10-26/27 while Aleph was slow): the
+	// VM then has no status page, no certificate and no SSH. The agent stays
+	// reachable, so when the status page has not answered after a while, the
+	// app attests and hands the secrets over again. A VM that is already up
+	// is not affected by that.
 	onProgress({ step: 'ready', detail: 'Paperless startet' });
-	const ready = await until('Paperless', async () => {
-		const status = await vmStatus(host);
-		if (status?.phase) onProgress({ step: 'ready', detail: `Paperless startet (${status.phase})`, status });
-		// A failed restore is final too: Paperless runs (empty), and says why.
-		return status?.phase === 'ready' || (status?.phase === 'restore-failed' && status.paperless) ? status : null;
-	}, { tries: 120, delayMs: 10_000 });
+	const unlockedAt = Date.now();
+	const again = [...UNLOCK_AGAIN_AFTER_MS];
+	let ready = null;
+	let answered = false;
+	while (!ready) {
+		if (Date.now() - unlockedAt > READY_TIMEOUT_MS) throw new Error('Paperless: no answer in time');
+		const status = await vmStatus(host).catch(() => null);
+		if (status?.phase) {
+			answered = true;
+			onProgress({ step: 'ready', detail: `Paperless startet (${status.phase})`, status });
+			// A failed restore is final too: Paperless runs (empty), and says why.
+			if (status.phase === 'ready' || (status.phase === 'restore-failed' && status.paperless)) ready = status;
+		}
+		if (!ready && !answered && again.length && Date.now() - unlockedAt > again[0]) {
+			again.shift();
+			onProgress({ step: 'ready', detail: 'Noch keine Antwort der VM: Passphrase erneut übergeben' });
+			await unlock().catch((e) => onProgress({ step: 'ready', detail: `Erneute Übergabe fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}` }));
+		}
+		if (!ready) await sleep(10_000);
+	}
 	// Whether the VM sealed its data area with a key of its own (image paperless-data-disk).
 	const dataDisk = ready.dataDisk?.status === 'encrypted' ? 'encrypted' : ready.dataDisk ? 'plain' : 'unknown';
 	return { instanceHash, crnHash: profile.crnHash, host, trustedExecution, dataDisk, ...(ready.phase === 'restore-failed' ? { restore: ready.restore } : {}) };
