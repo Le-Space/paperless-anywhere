@@ -57,7 +57,7 @@ jobs:
 
       - name: Confidential, encrypted, published
         id: rootfs
-        uses: NiKrause/relay-button/.github/actions/aleph-confidential-rootfs@v0.10.0
+        uses: NiKrause/relay-button/.github/actions/aleph-confidential-rootfs@v0.12.1
         with:
           image_path: ${{ runner.temp }}/paperless.ext4
           ssh_public_key: ${{ vars.PAPERLESS_SSH_PUBLIC_KEY }}
