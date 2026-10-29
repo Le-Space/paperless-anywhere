@@ -82,13 +82,16 @@ const sshCommand = async () => {
 	return 'no networking listed';
 };
 try {
-	const running = await startPaperless(master, profile, async ({ step, detail, instanceHash }) => {
+	const running = await startPaperless(master, profile, async ({ step, detail, instanceHash, injected }) => {
 		if (instanceHash) instance = instanceHash;
 		console.log(`[${Math.round((Date.now() - started) / 1000)} s] ${detail ?? step}`);
+		if (injected) console.log(`injected by the agent: ${JSON.stringify(injected)}`);
 		if (step === 'ready' && !printed && instance) {
 			printed = true;
 			console.log(`instance ${instance}`);
 			console.log(`SSH: ${await sshCommand()}`);
+			// STOP_AFTER_UNLOCK: end here, leaving the VM for its console and a forget.
+			if (process.env.STOP_AFTER_UNLOCK) process.exit(0);
 		}
 	});
 	console.log(`Paperless at https://${running.host}/ after ${Math.round((Date.now() - started) / 1000)} s`);

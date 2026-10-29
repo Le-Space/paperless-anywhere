@@ -106,7 +106,7 @@ export async function startPaperless(master, profile, onProgress) {
 
 	onProgress({ step: 'unlock', detail: 'VM prüfen (AMD) und entsperren' });
 	const relays = relayList(profile.attestRelay);
-	await unlockInstance({
+	const unlocked = await unlockInstance({
 		wasm,
 		relayUrl: relays[0],
 		transport: relayTransports(relays),
@@ -119,6 +119,8 @@ export async function startPaperless(master, profile, onProgress) {
 		onProgress: ({ detail }) => onProgress({ step: 'unlock', detail })
 	});
 
+	// Which secrets the guest's agent says it stored (names only).
+	onProgress({ step: 'unlock', detail: 'entsperrt', injected: unlocked?.injected ?? [] });
 	onProgress({ step: 'ready', detail: 'Paperless startet' });
 	const ready = await until('Paperless', async () => {
 		const status = await vmStatus(host);
