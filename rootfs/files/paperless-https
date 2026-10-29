@@ -15,7 +15,8 @@ printf '%s\n' "$host" > /etc/paperless-anywhere/hostname
 email="$(head -c 254 /tmp/secrets/acme_email 2>/dev/null | tr -d '\r\n')"
 case "$email" in *@*.*) ;; *) email="paperless-anywhere@le-space.de" ;; esac
 case "$email" in *[!A-Za-z0-9.@_+-]*) email="paperless-anywhere@le-space.de" ;; esac
-cat > /etc/caddy/Caddyfile <<CADDY
+new="$(mktemp)"
+cat > "$new" <<CADDY
 {
   auto_https disable_redirects
 }
@@ -47,7 +48,16 @@ https://${host} {
   reverse_proxy 127.0.0.1:8000
 }
 CADDY
-systemctl restart caddy.service
+# Restart Caddy only when its configuration changed. paperless-secrets calls
+# this on every start of the stack, and a stack that keeps failing (an image
+# it cannot pull) used to restart Caddy each time, which cancelled every
+# certificate order: after five failed authorizations Let's Encrypt refuses
+# the name for an hour, and the ZeroSSL order was cut off as well.
+if ! cmp -s "$new" /etc/caddy/Caddyfile || ! systemctl is-active --quiet caddy.service; then
+  install -m 644 "$new" /etc/caddy/Caddyfile
+  systemctl restart caddy.service
+fi
+rm -f "$new"
 [ -n "$early" ] && exit 0
 # PAPERLESS_URL follows the hostname (Django trusts that origin for CSRF).
 # A restart through the systemctl replacement does not reliably recreate the
