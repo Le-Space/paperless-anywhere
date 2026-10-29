@@ -82,6 +82,9 @@ sequenceDiagram
     loop every 10 s
         PWA->>2n6: https://name.2n6.me/anywhere/status.json (TLS ends in the guest)
     end
+    opt no answer 5 and 12 minutes after the unlock
+        PWA->>Relay: attest again and hand the secrets over again (the init sometimes never sees the first passphrase)
+    end
     Guest-->>PWA: phase ready
     PWA->>Aleph: AGGREGATE profile (sealed): running = instance, host, measurement
 ```
