@@ -82,4 +82,4 @@ MIT — by [Le Space](https://github.com/Le-Space).
 - `paperless-https <hostname>` writes the Caddyfile for `https://<hostname>`, restarts Caddy and recreates the Paperless container with `PAPERLESS_URL`. Without it, Django refuses logins from that origin (CSRF).
 - `paperless-manage <args>` runs a Paperless management command (`document_importer`, `document_thumbnails`, `shell`, …) in a one-off container. `docker exec` does not work in the confidential guest, because Docker runs inside the measured init's chroot. For the same reason the image's healthcheck is turned off.
 
-The workflow needs the `ALEPH_PRIVATE_KEY` and `PAPERLESS_LUKS_PASSPHRASE` secrets and the `PAPERLESS_SSH_PUBLIC_KEY` variable.
+The workflow needs the `ALEPH_PRIVATE_KEY` and `PAPERLESS_LUKS_PASSPHRASE` secrets. The image carries no SSH key: a test that needs SSH sends its own public key with the unlock, as the secret `authorized_keys`, which the confidential init adds for root. The app never sends one. `pwa/scripts/live-debug-start.mjs` starts a VM the way the app does, with such a key, for diagnosis.

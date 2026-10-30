@@ -101,6 +101,10 @@ export async function startPaperless(master, profile, onProgress) {
 		secrets.backup_config = JSON.stringify({ ...profile.backupConfig, payer: profile.payer, network: profile.network === 'mainnet' ? 'mainnet' : 'calibration' });
 		secrets.backup_session_key = filecoinSessionPrivateKey(master);
 	}
+	// Diagnosis only: a test may pass a public key, which the confidential init
+	// adds to root's authorized_keys (relay-button's confidential-init.sh). The
+	// app's UI never sets it, and the image carries no key of its own.
+	if (profile.debugAuthorizedKeys) secrets.authorized_keys = String(profile.debugAuthorizedKeys);
 	if (profile.restoreEntry && profile.ageIdentity) {
 		secrets.restore_ledger_entry = JSON.stringify(profile.restoreEntry);
 		secrets.age_identity = profile.ageIdentity;
@@ -121,7 +125,9 @@ export async function startPaperless(master, profile, onProgress) {
 			sign: (payload) => app.signMessage({ message: payload }),
 			onProgress: ({ detail }) => onProgress({ step: 'unlock', detail })
 		});
-	await unlock();
+	const unlocked = await unlock();
+	// Which secrets the guest's agent says it stored (names only).
+	onProgress({ step: 'unlock', detail: 'entsperrt', injected: unlocked?.injected ?? [] });
 
 	// Sometimes the guest's init never sees the passphrase the agent stored and
 	// waits for it forever (seen on 2026-10-26/27 while Aleph was slow): the
