@@ -18,7 +18,11 @@ import {
 import { recoverMessageAddress } from 'viem';
 import { ALEPH_API, broadcast as broadcastAndWait, CHANNEL } from './aleph.js';
 
-export const PAPERLESS_VM = Object.freeze({ vcpus: 2, memoryMiB: 4096, rootfsSizeMiB: 80 * 1024, dataDiskMiB: 40 * 1024 });
+// A confidential instance includes 40 GiB of rootfs; each GiB beyond costs
+// about 184 credits/h (Aleph's price estimate, 2026-10-29: 20, 30 and 40 GiB
+// all 57,000 credits/h, 80 GiB 64,359). A start with the flat images uses
+// about 16 GiB, which leaves room for the documents and a backup's export.
+export const PAPERLESS_VM = Object.freeze({ vcpus: 2, memoryMiB: 4096, rootfsSizeMiB: 40 * 1024, dataDiskMiB: 40 * 1024 });
 
 /**
  * An empty disk on the node next to the rootfs, for what the VM writes. The

@@ -125,7 +125,7 @@ jobs:
         run: |
           set -o pipefail
           start=$(date +%s)
-          aleph instance create "$NAME-a" --confidential --image "$ITEM" --vcpus 2 --memory 4GB --disk-size 80GB --crn "$CRN" \
+          aleph instance create "$NAME-a" --confidential --image "$ITEM" --vcpus 2 --memory 4GB --disk-size 40GB --crn "$CRN" \
             --ssh-pubkey-file "$RUNNER_TEMP/rt_ed25519.pub" --chain eth --wait 600 2>&1 | tee "$RUNNER_TEMP/create1.log"
           hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/create1.log" | grep -oE '[0-9a-f]{64}' | head -1)"
           [ -n "$hash" ] || { echo "::error::no INSTANCE item hash"; exit 1; }
@@ -198,7 +198,7 @@ jobs:
         id: vm2
         run: |
           set -o pipefail
-          aleph instance create "$NAME-b" --confidential --image "$ITEM" --vcpus 2 --memory 4GB --disk-size 80GB --crn "$CRN" \
+          aleph instance create "$NAME-b" --confidential --image "$ITEM" --vcpus 2 --memory 4GB --disk-size 40GB --crn "$CRN" \
             --ssh-pubkey-file "$RUNNER_TEMP/rt_ed25519.pub" --chain eth --wait 600 2>&1 | tee "$RUNNER_TEMP/create2.log"
           hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/create2.log" | grep -oE '[0-9a-f]{64}' | head -1)"
           [ -n "$hash" ] || { echo "::error::no INSTANCE item hash"; exit 1; }
