@@ -6,7 +6,10 @@ name: Paperless rootfs
 # The STORE hash in the summary is what an instance boots from.
 #
 # Secrets: ALEPH_PRIVATE_KEY (pays), PAPERLESS_LUKS_PASSPHRASE (the disk key).
-# Variable: PAPERLESS_SSH_PUBLIC_KEY (root's authorized_keys in the image).
+#
+# The image carries no SSH key: root's authorized_keys holds a comment only.
+# A test that needs SSH sends its own key with the unlock (the secret
+# authorized_keys, which the confidential init adds); the app never does.
 
 on:
   workflow_dispatch:
@@ -38,11 +41,9 @@ jobs:
         env:
           ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
           LUKS: ${{ secrets.PAPERLESS_LUKS_PASSPHRASE }}
-          SSH_KEY: ${{ vars.PAPERLESS_SSH_PUBLIC_KEY }}
         run: |
           [ -n "$ALEPH_PRIVATE_KEY" ] || { echo "::error::set the ALEPH_PRIVATE_KEY secret"; exit 1; }
           [ -n "$LUKS" ] || { echo "::error::set the PAPERLESS_LUKS_PASSPHRASE secret"; exit 1; }
-          [[ "$SSH_KEY" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp256)\  ]] || { echo "::error::set the PAPERLESS_SSH_PUBLIC_KEY variable to a .pub line"; exit 1; }
 
       - name: Build the plain image
         # Usually about a minute; a stuck download on a node hung for 45 min.
@@ -60,7 +61,8 @@ jobs:
         uses: NiKrause/relay-button/.github/actions/aleph-confidential-rootfs@v0.12.1
         with:
           image_path: ${{ runner.temp }}/paperless.ext4
-          ssh_public_key: ${{ vars.PAPERLESS_SSH_PUBLIC_KEY }}
+          # The action wants a non-empty file; sshd ignores a comment line.
+          ssh_public_key: '# no key in the image: a test sends its own with the unlock'
           luks_passphrase: ${{ secrets.PAPERLESS_LUKS_PASSPHRASE }}
           aleph_private_key: ${{ secrets.ALEPH_PRIVATE_KEY }}
 

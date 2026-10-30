@@ -4,7 +4,8 @@ name: Paperless on a confidential node
 # attests and unlocks it, waits for the stack, serves it on HTTPS through
 # the node's 2n6 hostname, imports made-up documents and measures. The VM
 # stays up for keep_minutes so it can be looked at by hand (ssh with the key
-# in PAPERLESS_SSH_PUBLIC_KEY), then it is forgotten. Made-up data only.
+# in the optional PAPERLESS_SSH_PUBLIC_KEY variable, which this run sends with
+# the unlock; the image has none), then it is forgotten. Made-up data only.
 
 on:
   workflow_dispatch:
@@ -70,10 +71,14 @@ jobs:
       - name: The passphrase and a key for this run
         env:
           LUKS: ${{ secrets.PAPERLESS_LUKS_PASSPHRASE }}
+          LOOK_KEY: ${{ vars.PAPERLESS_SSH_PUBLIC_KEY }}
         run: |
           umask 077
           printf '%s' "$LUKS" | tr -d '\r\n' > "$RUNNER_TEMP/luks.pass"
           ssh-keygen -q -t ed25519 -N '' -C paperless-try -f "$RUNNER_TEMP/try_ed25519"
+          # Sent with the unlock: this run's key, and a key to look by hand if set.
+          cp "$RUNNER_TEMP/try_ed25519.pub" "$RUNNER_TEMP/try_authorized_keys"
+          if [[ "$LOOK_KEY" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp256)\  ]]; then printf '%s\n' "$LOOK_KEY" >> "$RUNNER_TEMP/try_authorized_keys"; fi
 
       - name: Create the confidential instance
         id: create
@@ -127,7 +132,7 @@ jobs:
           ok=""
           for i in $(seq 1 12); do
             if aleph instance unlock "$HASH" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
-                --secret "authorized_keys=$(cat "$RUNNER_TEMP/try_ed25519.pub")" --secret "https_hostname=$HTTPS_HOST" \
+                --secret "authorized_keys=$(cat "$RUNNER_TEMP/try_authorized_keys")" --secret "https_hostname=$HTTPS_HOST" \
                 --chain eth > "$RUNNER_TEMP/unlock.log" 2>&1; then
               ok=1; break
             fi
@@ -165,7 +170,7 @@ jobs:
             if [ "$i" = 9 ]; then
               echo "no SSH after 90 s; unlocking again"
               aleph instance unlock "$HASH" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
-                --secret "authorized_keys=$(cat "$RUNNER_TEMP/try_ed25519.pub")" --secret "https_hostname=$HTTPS_HOST" \
+                --secret "authorized_keys=$(cat "$RUNNER_TEMP/try_authorized_keys")" --secret "https_hostname=$HTTPS_HOST" \
                 --chain eth > "$RUNNER_TEMP/unlock2.log" 2>&1 || tail -3 "$RUNNER_TEMP/unlock2.log"
             fi
             sleep 10
@@ -256,7 +261,7 @@ jobs:
       - name: Keep it running
         if: success()
         run: |
-          echo "ssh -p ${{ steps.up.outputs.port }} root@${{ steps.up.outputs.host }} (with the key in PAPERLESS_SSH_PUBLIC_KEY)"
+          echo "ssh -p ${{ steps.up.outputs.port }} root@${{ steps.up.outputs.host }} (with the key in PAPERLESS_SSH_PUBLIC_KEY, when set)"
           echo "https://${{ steps.https.outputs.hostname }}  (admin password: ssh in, cat /etc/paperless-anywhere/paperless_admin_password)"
           sleep $(( ${{ inputs.keep_minutes }} * 60 ))
 
