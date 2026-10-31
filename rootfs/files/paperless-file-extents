@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+# paperless-file-extents FILE DEVICE OFFSET: prints a dm-linear table that maps
+# FILE's blocks on DEVICE, the disk under the rootfs, where the rootfs's
+# filesystem starts OFFSET sectors in (its LUKS data offset). The guest kernel
+# has no loop driver, so paperless-data-disk puts dm-crypt on this mapping
+# instead of on the file. The file must be allocated (fallocate) and never
+# written through the filesystem: its extents then stay where they are and
+# read as zeros through the rootfs, whatever the mapping writes there.
+import fcntl, os, struct, sys
+
+path, dev, base = sys.argv[1], sys.argv[2], int(sys.argv[3])
+FS_IOC_FIEMAP = 0xC020660B
+FIEMAP_FLAG_SYNC = 0x1
+LAST = 0x1
+# Unknown, delayed, encoded, not aligned, inline, tail-packed or shared extents
+# do not have a fixed place of their own on the disk.
+BAD = 0x2 | 0x4 | 0x8 | 0x100 | 0x200 | 0x400 | 0x2000
+SECTOR = 512
+
+size = os.path.getsize(path)
+fd = os.open(path, os.O_RDONLY)
+extents, start, last = [], 0, False
+while start < size and not last:
+    count = 512
+    buf = bytearray(struct.pack("=QQLLLL", start, size - start, FIEMAP_FLAG_SYNC, 0, count, 0) + bytes(56 * count))
+    fcntl.ioctl(fd, FS_IOC_FIEMAP, buf)
+    mapped = struct.unpack_from("=QQLLLL", buf)[3]
+    if not mapped:
+        break
+    for i in range(mapped):
+        logical, physical, length, _, _, flags, _, _, _ = struct.unpack_from("=QQQQQLLLL", buf, 32 + 56 * i)
+        if flags & BAD:
+            sys.exit(f"paperless-file-extents: extent flags {flags:#x} have no fixed place")
+        extents.append((logical, physical, length))
+        last = bool(flags & LAST)
+    start = extents[-1][0] + extents[-1][2]
+os.close(fd)
+
+table, pos = [], 0
+for logical, physical, length in extents:
+    if logical != pos or logical % SECTOR or physical % SECTOR or length % SECTOR:
+        sys.exit("paperless-file-extents: the file has holes or unaligned extents")
+    first, sectors, target = logical // SECTOR, length // SECTOR, base + physical // SECTOR
+    if table and table[-1][2] + table[-1][1] == target:
+        table[-1][1] += sectors
+    else:
+        table.append([first, sectors, target])
+    pos += length
+if pos < size:
+    sys.exit(f"paperless-file-extents: extents cover {pos} of {size} bytes")
+for first, sectors, target in table:
+    print(f"{first} {sectors} linear {dev} {target}")

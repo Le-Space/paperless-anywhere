@@ -69,7 +69,7 @@ install -D -m 644 "$here/files/paperless-backup.timer" "$root/etc/systemd/system
 install -D -m 644 "$here/files/paperless-status.service" "$root/etc/systemd/system/paperless-status.service"
 install -D -m 644 "$here/files/paperless-stop.service" "$root/etc/systemd/system/paperless-stop.service"
 install -D -m 644 "$here/files/paperless-forget-passphrase.service" "$root/etc/systemd/system/paperless-forget-passphrase.service"
-for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-status paperless-stop paperless-stack-up paperless-data-disk paperless-forget-passphrase; do
+for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-status paperless-stop paperless-stack-up paperless-data-disk paperless-file-extents paperless-forget-passphrase; do
   install -D -m 755 "$here/files/$script" "$root/usr/local/sbin/$script"
 done
 install -d -m 700 "$root/etc/paperless-anywhere"

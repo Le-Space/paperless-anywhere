@@ -72,7 +72,7 @@ sequenceDiagram
     Relay->>Agent: TLS records only
     Agent->>Agent: opens LUKS, chroots into the rootfs
     Agent->>Guest: starts its init
-    Guest->>Guest: (when the app asks for a data disk, currently off) seals it with a random key made in memory, puts Docker and Paperless data there
+    Guest->>Guest: seals a data area (a file mapped with dm-linear) with a random key made in memory, puts Docker and Paperless data there
     Guest->>Guest: secrets from the unlock (Paperless passwords, hostname, backup config)
     Guest->>Guest: Caddy gets a certificate for name.2n6.me (Let's Encrypt, else ZeroSSL)
     opt a backup was chosen to restore
