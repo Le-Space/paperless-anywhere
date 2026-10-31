@@ -207,7 +207,8 @@ jobs:
           echo "documents in VM 1: $docs"
           [ "$docs" = 5 ] || { echo "::error::VM 1 has $docs documents, expected 5"; exit 1; }
           start=$(date +%s)
-          $SSH 'paperless-backup run; cat /run/paperless-anywhere/backup.json' || { $SSH 'tail -20 /var/log/paperless-anywhere/backup.log' | grep -vE 'AGE-SECRET|0x[0-9a-fA-F]{64}'; exit 1; }
+          $SSH 'paperless-backup run' || { $SSH 'cat /run/paperless-anywhere/backup.json; tail -40 /var/log/paperless-anywhere/backup.log' | grep -vE 'AGE-SECRET|0x[0-9a-fA-F]{64}'; echo "::error::the backup failed"; exit 1; }
+          $SSH 'cat /run/paperless-anywhere/backup.json'
           echo "BACKUP_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
           $SSH 'cat /opt/backup-filecoin/ledger.calibration.json' | jq '.[-1]' > "$RUNNER_TEMP/entry.json"
           if [ -n "$DNS_TOKEN" ]; then
