@@ -178,9 +178,11 @@ sequenceDiagram
 
 ### The VM's data area: a key nobody has
 
-> **Currently off (2026-10-25).** With Docker's `vfs` driver the container images alone take about 36 GiB of the 40 GiB disk, too little for a restore and an export. The app asks for no data disk until the images are flattened (one layer each), and the VM writes to the image's disk as before.
+The encrypted image is the same for every VM, so its disk key is too. What a VM writes (documents, database, exports, Docker's images, Caddy's certificate key, the generated passwords) therefore goes into a **data area** sealed with a key of its own. At boot, the VM makes a random 512-bit key in memory and seals the area with it (dm-crypt, AES-XTS, `paperless-data-disk` in the image). The key never leaves the VM: not to the app, not to the profile, not to the node. That is enough, because the data lives one session (restored from the backup at the start, erased at the stop). What lasts is the backup, sealed with the backup key from the vault.
 
-The encrypted image is the same for every VM, so its disk key is too. What a VM writes (documents, database, exports, Docker's images, Caddy's certificate key, the generated passwords) therefore goes elsewhere: onto an **empty disk** that the app asks for next to the image. At boot, the VM makes a random 512-bit key in memory and seals that disk with it (dm-crypt, AES-XTS, `paperless-data-disk` in the image). The key never leaves the VM: not to the app, not to the profile, not to the node. That is enough, because the data lives one session (restored from the backup at the start, erased at the stop). What lasts is the backup, sealed with the backup key from the vault. The app shows whether a running VM sealed its data area. An older image without this writes to the image's disk and says so.
+The area is a file on the image's disk, as large as the free space minus 2 GiB. The guest kernel has no loop driver to open a file as a disk, so the VM allocates the file without writing it, looks up where its blocks lie on the disk under the image's encryption, and maps exactly those blocks with dm-linear; dm-crypt goes on top of that. What lands there is encrypted with the VM's own key only. Read through the image's filesystem, the file stays empty. (A second, empty disk from Aleph would serve as well, and the image still takes one, but Aleph's measured boot picks its root disk by name, and with two disks a VM sometimes did not start; the app asks for none.)
+
+The app shows whether a running VM sealed its data area. An older image without this writes to the image's disk and says so.
 
 ### Why the boxes can be public on Aleph
 

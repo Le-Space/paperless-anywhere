@@ -26,10 +26,12 @@ export const PAPERLESS_VM = Object.freeze({ vcpus: 2, memoryMiB: 4096, rootfsSiz
 
 /**
  * An empty disk on the node next to the rootfs, for what the VM writes. The
- * VM seals it with a key it makes at boot and keeps in memory only
- * (paperless-data-disk in the image); the guest kernel has no loop driver, so
- * a file on the shared-key rootfs cannot serve. An ephemeral volume would be
- * limited to 1 GiB, so it is a persistent one, which lives as long as the VM.
+ * VM seals its data area with a key it makes at boot and keeps in memory only
+ * (paperless-data-disk in the image). Without such a disk, the area is a file
+ * on the rootfs mapped with dm-linear, which is what the app uses: with two
+ * disks, Aleph's measured init sometimes took the wrong one as its root. An
+ * ephemeral volume would be limited to 1 GiB, so it would be a persistent one,
+ * which lives as long as the VM.
  */
 export const DATA_DISK = false;
 

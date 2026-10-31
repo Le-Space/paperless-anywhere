@@ -8,13 +8,19 @@
 # (restored from the backup at start, erased at stop), so a key that never
 # leaves the VM is enough: nobody, not the node, not CI, not the app, has it.
 #
-# A file on the rootfs, opened with dm-crypt (plain, AES-XTS, 512-bit random
-# key read from a pipe), formatted ext4, mounted at /srv/sealed; the paths the
-# stack writes to are bind-mounted from there. Docker and the stack call it
+# The area is a spare disk when the app asks Aleph for one, else a file on the
+# rootfs. The guest kernel has no loop driver, so the file is allocated
+# (fallocate, never written through the filesystem) and its blocks on the disk
+# under the rootfs are mapped with dm-linear (paperless-file-extents). Either
+# is opened with dm-crypt (plain, AES-XTS, 512-bit random key read from a
+# pipe), formatted ext4 and mounted at /srv/sealed; the paths the stack writes
+# to are bind-mounted from there. Docker and the stack call it
 # before they start (the first one does the work); Caddy reads its data dir
 # after paperless-https restarts it, which comes later. If any step
 # fails, the VM runs as before and says so in data-disk.json (status page).
 set -u
+# No udev in the guest: device-mapper makes its own nodes.
+export DM_DISABLE_UDEV=1
 state=/run/paperless-anywhere
 mkdir -p "$state"
 exec 9>"$state/data-disk.lock"
@@ -99,15 +105,30 @@ if [ -n "$spare" ]; then
   img=""
 else
   [ "$size" -gt 0 ] || plain "no spare disk, and only $((avail / 1048576)) MiB free on the rootfs"
-  rm -f "$img"
-  truncate -s "$size" "$img" || plain "cannot create the area file"
-  head -c 64 /dev/urandom | cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 --key-file - "$img" sealed 2>"$errlog" \
-    || { rm -f "$img"; plain "no spare disk, and no loop device for a file"; }
+  size=$(( size / 1048576 * 1048576 ))
+  # The disk under the rootfs and where the rootfs starts on it: the rootfs is
+  # a dm-crypt mapping (the LUKS image) of one whole disk.
+  root="$(findmnt -no SOURCE / 2>/dev/null)"
+  set -- $(dmsetup table "${root#/dev/mapper/}" 2>/dev/null)
+  [ "${3:-}" = crypt ] && [ -n "${7:-}" ] && [ -n "${8:-}" ] || plain "the rootfs is not one dm-crypt mapping"
+  under="$7" start="$8"
+  drop_file() { chattr -i "$img" 2>/dev/null; rm -f "$img"; }
+  drop_file
+  fallocate -l "$size" "$img" 2>"$errlog" || { drop_file; plain "cannot allocate the area file"; }
+  chmod 000 "$img"
+  table="$(paperless-file-extents "$img" "$under" "$start" 2>"$errlog")" || { drop_file; plain "the area file's blocks cannot be mapped"; }
+  # Nothing may write the file through the filesystem, move or remove it.
+  chattr +i "$img" 2>/dev/null
+  printf '%s\n' "$table" | dmsetup create sealed-area 2>"$errlog" && dmsetup mknodes sealed-area \
+    || { drop_file; plain "dm-linear over the area file failed"; }
+  head -c 64 /dev/urandom | cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 --key-file - /dev/mapper/sealed-area sealed 2>"$errlog" \
+    || { dmsetup remove sealed-area; drop_file; plain "dm-crypt over the area file failed"; }
 fi
+dmsetup mknodes sealed 2>/dev/null
 mkfs.ext4 -q -F -E lazy_itable_init=1,lazy_journal_init=1 -m 0 /dev/mapper/sealed \
-  || { cryptsetup close sealed; [ -n "$img" ] && rm -f "$img"; plain "mkfs failed"; }
+  || { cryptsetup close sealed; [ -n "$img" ] && { dmsetup remove sealed-area; drop_file; }; plain "mkfs failed"; }
 mkdir -p "$mnt" && mount /dev/mapper/sealed "$mnt" \
-  || { cryptsetup close sealed; [ -n "$img" ] && rm -f "$img"; plain "mount failed"; }
+  || { cryptsetup close sealed; [ -n "$img" ] && { dmsetup remove sealed-area; drop_file; }; plain "mount failed"; }
 
 # Move what the image brings (if anything) and bind every path over.
 for path in /srv/paperless /var/lib/docker /var/lib/caddy /root/.local/share/caddy /etc/paperless-anywhere /var/lib/paperless-anywhere; do
