@@ -46,14 +46,26 @@ cleanup() {
   forget_secrets
   rm -rf "$work"
 }
-trap cleanup EXIT
+# paperless-restore fetch: only fetch, check, decrypt and unpack, and put the
+# fixed address's certificate in place (paperless-fixed-address asks for that
+# before it would order a new one). It needs neither Docker nor Paperless.
+# paperless-restore (run): the same if not done yet, then the import.
+cmd="${1:-run}"
+case "$cmd" in fetch|run) ;; *) echo "usage: paperless-restore [fetch|run]" >&2; exit 2 ;; esac
+exec 8>"$state_dir/restore.lock"
+flock 8
+entry_env="$state_dir/restore-entry.env"   # name, provider, times: no secrets
+[ "$cmd" = run ] && trap cleanup EXIT
 
+fetch() {
+[ -s "$work/import/manifest.json" ] && [ -s "$entry_env" ] && return 0
 if [ ! -s "$secrets/restore_ledger_entry" ]; then
+  # An earlier fetch that failed after the secrets were forgotten stays failed.
+  grep -q '"status":"failed"' "$state" 2>/dev/null && exit 1
   status skipped ',"reason":"no restore_ledger_entry came with the unlock"'
   exit 0
 fi
 [ -s "$secrets/age_identity" ] || fail "a restore_ledger_entry came without an age_identity"
-role="$(cat "$secrets/paperless_role" 2>/dev/null || echo test)"
 status running
 t0=$(date +%s)
 
@@ -80,14 +92,6 @@ print("urls=" + shlex.quote(" ".join(urls)))
 PY
 )" || fail "unusable restore_ledger_entry"
 
-# Paperless must be up and empty: an import over existing documents mixes two archives.
-i=0
-until case "$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:8000/api/ || true)" in 200|302|401|403) true ;; *) false ;; esac; do
-  i=$((i + 1)); [ "$i" -le 120 ] || fail "Paperless did not come up"; sleep 5
-done
-count="$(paperless-manage shell -c 'from documents.models import Document; print("count", Document.global_objects.count() if hasattr(Document, "global_objects") else Document.objects.count())' 2>>"$log" | sed -n 's/^count //p' | tail -1)"
-[ "$count" = 0 ] || fail "Paperless is not empty (${count:-unknown} documents); refusing to import over it"
-
 rm -rf "$work" && mkdir -p "$work" && chmod 700 "$work"
 t1=$(date +%s); got=""
 for u in $urls; do
@@ -108,16 +112,48 @@ forget_secrets
 rm -f "$work/sealed.age"
 t3=$(date +%s)
 
-python3 - "$work/export.zip" "$work/import" <<'PY' 2>>"$log" || fail "the export zip is broken or unsafe"
+# The export into import/; what paperless-anywhere put beside it
+# (.paperless-anywhere/: the fixed address's certificate) into extra/, never
+# into what document_importer reads.
+python3 - "$work/export.zip" "$work/import" "$work/extra" <<'PY' 2>>"$log" || fail "the export zip is broken or unsafe"
 import os, sys, zipfile
 z = zipfile.ZipFile(sys.argv[1])
 names = z.namelist()
 bad = [n for n in names if n.startswith("/") or ".." in n.split("/")]
 if bad or len(names) != len(set(names)) or "manifest.json" not in names or z.testzip() is not None:
     sys.exit("refused")
-z.extractall(sys.argv[2])
+extra = ".paperless-anywhere/"
+z.extractall(sys.argv[2], [n for n in names if not n.startswith(extra)])
+for n in names:
+    if n.startswith(extra) and not n.endswith("/"):
+        out = os.path.join(sys.argv[3], n[len(extra):])
+        os.makedirs(os.path.dirname(out), mode=0o700, exist_ok=True)
+        with z.open(n) as src, open(out, "wb") as dst:
+            os.chmod(out, 0o600)
+            dst.write(src.read())
 PY
 rm -f "$work/export.zip"
+# The certificate and the lego account, unless this VM already has its own.
+if [ -d "$work/extra" ] && ! [ -d /etc/paperless-anywhere/tls/certificates ]; then
+  install -d -m 700 /etc/paperless-anywhere/tls
+  cp -a "$work/extra/." /etc/paperless-anywhere/tls/
+fi
+rm -rf "$work/extra"
+printf 'name=%s\ngot=%s\nt0=%s\nt1=%s\nt2=%s\nt3=%s\n' "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._:-')" "$(printf '%s' "$got" | tr -cd 'A-Za-z0-9.:-')" "$t0" "$t1" "$t2" "$t3" > "$entry_env"
+}
+
+fetch
+[ "$cmd" = fetch ] && exit 0
+. "$entry_env"
+role="$(cat "$secrets/paperless_role" 2>/dev/null || echo test)"
+
+# Paperless must be up and empty: an import over existing documents mixes two archives.
+i=0
+until case "$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:8000/api/ || true)" in 200|302|401|403) true ;; *) false ;; esac; do
+  i=$((i + 1)); [ "$i" -le 120 ] || fail "Paperless did not come up"; sleep 5
+done
+count="$(paperless-manage shell -c 'from documents.models import Document; print("count", Document.global_objects.count() if hasattr(Document, "global_objects") else Document.objects.count())' 2>>"$log" | sed -n 's/^count //p' | tail -1)"
+[ "$count" = 0 ] || fail "Paperless is not empty (${count:-unknown} documents); refusing to import over it"
 
 paperless-manage document_importer ../export/restore/import --no-progress-bar >>"$log" 2>&1 || fail "document_importer failed (see $log)"
 t4=$(date +%s)

@@ -37,6 +37,13 @@ tr -d '\r\n' < "$s/dns_cloudflare_token" > "$state/cf-token"
 email="$(head -c 254 "$s/acme_email" 2>/dev/null | tr -d '\r\n')"
 case "$email" in *@*.*) ;; *) email="paperless-anywhere@le-space.de" ;; esac
 case "$email" in *[!A-Za-z0-9.@_+-]*) email="paperless-anywhere@le-space.de" ;; esac
+# A backup to restore may carry this name's certificate (paperless-backup puts
+# it beside the export): fetch it first, so the start reuses it instead of
+# ordering a new one (Let's Encrypt issues at most five per name and week).
+if ! [ -s "$dir/certificates/$host.crt" ] && [ -s "$s/restore_ledger_entry" ]; then
+  report restore
+  paperless-restore fetch || echo "paperless-fixed-address: no certificate from the backup" >&2
+fi
 report certificate
 crt="$dir/certificates/$host.crt"
 key="$dir/certificates/$host.key"
