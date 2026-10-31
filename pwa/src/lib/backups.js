@@ -53,8 +53,12 @@ export function restoreEntry(backup) {
 	return { name: `backup-${backup.pieceCid.slice(-12)}`, pieceCid: backup.pieceCid, copies: backup.copies.map((c) => ({ retrievalUrl: c.retrievalUrl })) };
 }
 
-/** Where backups go until the person chooses: the two endorsed Calibration providers. */
-export const DEFAULT_PLACES = Object.freeze({ copies: 2, providerIds: [9, 4], regions: [] });
+/**
+ * Where backups go until the person chooses: the two Calibration providers
+ * approved on 2026-10-31 (4 was approved before and no longer is; a backup
+ * that names it fails with "provider 4 is not (or no longer) approved").
+ */
+export const DEFAULT_PLACES = Object.freeze({ copies: 2, providerIds: [9, 2], regions: [] });
 
 /**
  * The backup configuration the VM gets with its unlock (paperless-backup's

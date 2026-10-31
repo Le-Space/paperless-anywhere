@@ -13,7 +13,7 @@ describe('backupConfigFor', () => {
 	const recipient = 'age1' + 'q'.repeat(58);
 	it('backs up to the test data sets on Calibration', () => {
 		expect(backupConfigFor('calibration', recipient)).toEqual({
-			copies: 2, providerIds: [9, 4], regions: [], datasetMetadata: { app: 'paperless-backup-test' }, keepWeeks: 1, ageRecipient: recipient
+			copies: 2, providerIds: [9, 2], regions: [], datasetMetadata: { app: 'paperless-backup-test' }, keepWeeks: 1, ageRecipient: recipient
 		});
 	});
 	it('refuses mainnet and a missing recipient', () => {
