@@ -115,6 +115,9 @@ t0=$(date +%s)
 cd /opt/backup-filecoin || fail "no backup tool in /opt/backup-filecoin"
 export BACKUP_CONFIG="$config" SESSION_KEY_FILE="$secrets/backup_session_key" \
   PAPERLESS_DIR=/srv/paperless PAPERLESS_MANAGE=/usr/local/sbin/paperless-manage
+# The fixed address's certificate and lego account go along (sealed with the
+# backup), so a restore brings them back instead of asking the CA again.
+[ -d /etc/paperless-anywhere/tls ] && export EXPORT_EXTRA_DIR=/etc/paperless-anywhere/tls
 # While it runs, its latest lines go to the status page (the app shows them).
 : > "$log_dir/backup.log.run"
 node backup.mjs run > "$log_dir/backup.log.run" 2>&1 &

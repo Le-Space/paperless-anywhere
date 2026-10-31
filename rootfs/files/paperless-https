@@ -33,12 +33,13 @@ if [ -n "$fixed" ] && ! [ -s /var/lib/caddy/fixed/cert.pem ]; then
   serve=""
   printf '{\n  auto_https off\n}\n' > "$new"
 elif [ -n "$fixed" ]; then
+  also=""; [ "$port" = 443 ] || also=", https://${host}:${port}"
   cat > "$new" <<CADDY
 {
   auto_https disable_redirects
 }
 
-https://${host}, https://${host}:${port} {
+https://${host}${also} {
   tls /var/lib/caddy/fixed/cert.pem /var/lib/caddy/fixed/key.pem
 CADDY
 else

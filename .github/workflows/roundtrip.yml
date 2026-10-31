@@ -11,6 +11,11 @@ name: Paperless backup and restore round trip
 #      identity with the unlock; paperless-restore fetches, checks, decrypts and
 #      imports it. The run compares the document counts.
 #   4. The session key is revoked; the cleanup job forgets every VM of the run.
+#
+# With the CLOUDFLARE_DNS_TOKEN secret, both VMs also get the same fixed
+# address (#26): VM 1 orders its certificate over DNS, the backup carries it,
+# and VM 2 must come up with the same certificate (same serial) instead of
+# ordering a new one. The run deletes the name's records at the end.
 
 on:
   workflow_dispatch:
@@ -52,6 +57,8 @@ env:
   CRN: ${{ inputs.crn }}
   NAME: paperless-roundtrip-${{ github.run_id }}
   BACKUP_TOOL_COMMIT: f2de20798cccd2fb8bd8dff3b55e303b679b845b
+  DNS_TOKEN: ${{ secrets.CLOUDFLARE_DNS_TOKEN }}
+  FIXED_NAME: rt-${{ github.run_id }}.vm.le-space.de
 
 jobs:
   roundtrip:
@@ -92,9 +99,9 @@ jobs:
           recipient="$(age-keygen -y "$RUNNER_TEMP/age.txt")"
           payer="$(cd "$RUNNER_TEMP/tool" && node -e 'const { privateKeyToAccount } = require("viem/accounts"); const k = require("fs").readFileSync(process.argv[1], "utf8").trim(); console.log(privateKeyToAccount(k.startsWith("0x") ? k : "0x" + k).address)' "$RUNNER_TEMP/wallet.key")"
           jq -n --arg r "$recipient" --arg p "$payer" \
-            '{network: "calibration", copies: 2, providerIds: [9, 4], regions: [], datasetMetadata: {app: "paperless-backup-test"}, keepWeeks: 1, ageRecipient: $r, payer: $p}' \
+            '{network: "calibration", copies: 2, providerIds: [9, 2], regions: [], datasetMetadata: {app: "paperless-backup-test"}, keepWeeks: 1, ageRecipient: $r, payer: $p}' \
             > "$RUNNER_TEMP/backup_config.json"
-          printf '{"network":"calibration","providerIds":[9,4],"regions":[],"copies":2,"datasetMetadata":{"app":"paperless-backup-test"},"keepWeeks":1,"ageRecipient":"%s"}\n' "$recipient" > "$RUNNER_TEMP/wallet-config.json"
+          printf '{"network":"calibration","providerIds":[9,2],"regions":[],"copies":2,"datasetMetadata":{"app":"paperless-backup-test"},"keepWeeks":1,"ageRecipient":"%s"}\n' "$recipient" > "$RUNNER_TEMP/wallet-config.json"
           (cd "$RUNNER_TEMP/tool" && BACKUP_CONFIG="$RUNNER_TEMP/wallet-config.json" WALLET_KEY_FILE="$RUNNER_TEMP/wallet.key" \
             node backup.mjs session-login 3 "$RUNNER_TEMP/session.key")
           session="$(cd "$RUNNER_TEMP/tool" && node -e 'const { privateKeyToAccount } = require("viem/accounts"); console.log(privateKeyToAccount(require("fs").readFileSync(process.argv[1], "utf8").trim()).address)' "$RUNNER_TEMP/session.key")"
@@ -120,6 +127,29 @@ jobs:
           EOS
           echo "payer=$payer" >> "$GITHUB_OUTPUT"
 
+      - name: The fixed address (only with the CLOUDFLARE_DNS_TOKEN secret)
+        run: |
+          crn_url="$(curl -fsS 'https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel' \
+            | jq -r --arg p "$CRN" '.data.corechannel.resource_nodes[] | select(.hash | startswith($p)) | .address' | head -1)"; crn_url="${crn_url%/}"
+          echo "CRN_URL=$crn_url" >> "$GITHUB_ENV"
+          # fixed_args <hash> <out>: the fixed address's secrets for that VM, or none.
+          cat > "$RUNNER_TEMP/fixed.sh" <<'EOS'
+          fixed_args() {
+            : > "$2"
+            [ -n "$DNS_TOKEN" ] || return 0
+            local entry ipv4 port i
+            for i in $(seq 1 30); do
+              entry="$(curl -fsS --max-time 15 "$CRN_URL/v2/about/executions/list" | jq -c --arg h "$1" '.[$h] // {}' || echo '{}')"
+              ipv4="$(jq -r '.networking.host_ipv4 // empty' <<<"$entry")"
+              [ -n "$ipv4" ] && break; sleep 10
+            done
+            # No 443 is forwarded here: the certificate check goes over DNS anyway.
+            port="$(jq -r '.networking.mapped_ports["443"].host // 443' <<<"$entry")"
+            printf '%s\0' --secret "dns_cloudflare_token=$DNS_TOKEN" --secret "https_hostname=$FIXED_NAME" \
+              --secret "https_ipv4=$ipv4" --secret "https_port=$port" > "$2"
+          }
+          EOS
+
       - name: VM 1 - start, unlock with the backup config and the session key
         id: vm1
         run: |
@@ -135,6 +165,7 @@ jobs:
           printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=test" \
             --secret "backup_config=$(cat "$RUNNER_TEMP/backup_config.json")" --secret "backup_session_key=$(cat "$RUNNER_TEMP/session.key")" \
             > "$RUNNER_TEMP/secrets1.args"
+          . "$RUNNER_TEMP/fixed.sh"; fixed_args "$hash" "$RUNNER_TEMP/fixed1.args"; cat "$RUNNER_TEMP/fixed1.args" >> "$RUNNER_TEMP/secrets1.args"
           ok=""
           for i in $(seq 1 12); do
             xargs -0 -a "$RUNNER_TEMP/secrets1.args" aleph instance unlock "$hash" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
@@ -176,9 +207,16 @@ jobs:
           echo "documents in VM 1: $docs"
           [ "$docs" = 5 ] || { echo "::error::VM 1 has $docs documents, expected 5"; exit 1; }
           start=$(date +%s)
-          $SSH 'paperless-backup run; cat /run/paperless-anywhere/backup.json' || { $SSH 'tail -20 /var/log/paperless-anywhere/backup.log' | grep -vE 'AGE-SECRET|0x[0-9a-fA-F]{64}'; exit 1; }
+          $SSH 'paperless-backup run' || { $SSH 'cat /run/paperless-anywhere/backup.json; tail -40 /var/log/paperless-anywhere/backup.log' | grep -vE 'AGE-SECRET|0x[0-9a-fA-F]{64}'; echo "::error::the backup failed"; exit 1; }
+          $SSH 'cat /run/paperless-anywhere/backup.json'
           echo "BACKUP_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
           $SSH 'cat /opt/backup-filecoin/ledger.calibration.json' | jq '.[-1]' > "$RUNNER_TEMP/entry.json"
+          if [ -n "$DNS_TOKEN" ]; then
+            $SSH 'cat /run/paperless-anywhere/fixed-address.json' | jq -c .
+            serial="$($SSH "openssl x509 -noout -serial -in /etc/paperless-anywhere/tls/certificates/$FIXED_NAME.crt" | sed 's/^serial=//')"
+            [ -n "$serial" ] || { echo "::error::VM 1 has no certificate for the fixed address"; exit 1; }
+            echo "VM1_SERIAL=$serial" >> "$GITHUB_ENV"
+          fi
           jq '{name, pieceCid, complete, copies: (.copies | length)}' "$RUNNER_TEMP/entry.json"
           [ "$(jq -r .complete "$RUNNER_TEMP/entry.json")" = true ] || { echo "::error::the backup is not complete"; exit 1; }
           # Then, as the PWA sends it: the piece CID and the copies, no SHA-256.
@@ -208,6 +246,7 @@ jobs:
           printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=test" \
             --secret "restore_ledger_entry=$(jq -c . "$RUNNER_TEMP/entry.json")" --secret "age_identity=$(cat "$RUNNER_TEMP/age.txt")" \
             > "$RUNNER_TEMP/secrets2.args"
+          . "$RUNNER_TEMP/fixed.sh"; fixed_args "$hash" "$RUNNER_TEMP/fixed2.args"; cat "$RUNNER_TEMP/fixed2.args" >> "$RUNNER_TEMP/secrets2.args"
           ok=""
           for i in $(seq 1 12); do
             xargs -0 -a "$RUNNER_TEMP/secrets2.args" aleph instance unlock "$hash" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
@@ -234,6 +273,17 @@ jobs:
           [ "$(jq -r .status <<<"$result")" = done ] || { $SSH 'tail -15 /var/log/paperless-anywhere/restore.log' | grep -vE 'AGE-SECRET' || true; echo "::error::restore did not complete"; exit 1; }
           [ "$(jq -r .documents <<<"$result")" = 5 ] || { echo "::error::VM 2 has $(jq -r .documents <<<"$result") documents, expected 5"; exit 1; }
           $SSH 'test -e /tmp/secrets/age_identity && echo "AGE IDENTITY STILL THERE" || echo "age identity removed"; ls /srv/paperless/export'
+          if [ -n "$DNS_TOKEN" ]; then
+            for i in $(seq 1 30); do
+              fixed="$($SSH 'cat /run/paperless-anywhere/fixed-address.json 2>/dev/null' || true)"
+              case "$(jq -r '.status // empty' <<<"$fixed" 2>/dev/null)" in ready|failed) break ;; esac; sleep 10
+            done
+            echo "$fixed" | jq -c .
+            serial="$($SSH "openssl x509 -noout -serial -in /etc/paperless-anywhere/tls/certificates/$FIXED_NAME.crt" | sed 's/^serial=//')"
+            echo "certificate serial: VM 1 $VM1_SERIAL, VM 2 $serial"
+            [ "$serial" = "$VM1_SERIAL" ] || { echo "::error::VM 2 did not reuse the certificate from the backup"; exit 1; }
+            echo "CERT_REUSED=yes" >> "$GITHUB_ENV"
+          fi
           echo "round trip: 5 made-up documents backed up from VM 1 and restored in VM 2"
 
       - name: Revoke the session key
@@ -254,6 +304,7 @@ jobs:
             echo "| VM 1 up (create + unlock) | ${VM1_UP:-?} s |"
             echo "| Backup with the session key | ${BACKUP_SECONDS:-?} s |"
             echo "| Restore in VM 2 | \`${RESTORE:-none}\` |"
+            [ -z "$DNS_TOKEN" ] || echo "| Fixed address: certificate reused from the backup | ${CERT_REUSED:-no} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Runs even when the round trip was cancelled or timed out.
@@ -275,6 +326,14 @@ jobs:
           addr="$(node -e 'const { Wallet } = require(process.argv[1]); const k = process.env.ALEPH_PRIVATE_KEY.trim(); console.log(new Wallet(k.startsWith("0x") ? k : "0x" + k).address)' "$RUNNER_TEMP/eth/node_modules/ethers")"
           hashes="$(curl -fsS "https://api2.aleph.im/api/v0/messages.json?addresses=$addr&msgTypes=INSTANCE&pagination=50" \
             | jq -r --arg n "$NAME" '.messages[] | select((.content.metadata.name // "") | startswith($n)) | .item_hash')"
+          # The fixed address's records of this run (only its own name).
+          if [ -n "$DNS_TOKEN" ]; then
+            api=https://api.cloudflare.com/client/v4; auth="Authorization: Bearer $DNS_TOKEN"
+            zone="$(curl -fsS -H "$auth" "$api/zones?name=le-space.de" | jq -r '.result[0].id // empty')"
+            for id in $(curl -fsS -H "$auth" "$api/zones/$zone/dns_records?name=$FIXED_NAME" | jq -r '.result[].id'); do
+              curl -fsS -X DELETE -H "$auth" "$api/zones/$zone/dns_records/$id" >/dev/null && echo "deleted a record of $FIXED_NAME"
+            done
+          fi
           [ -n "$hashes" ] || { echo "no VM of this run is left"; exit 0; }
           for h in $hashes; do
             echo "cleaning up $h"
