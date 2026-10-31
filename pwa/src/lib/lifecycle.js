@@ -9,10 +9,10 @@
 import { privateKeyToAccount } from 'viem/accounts';
 import { confidentialTrustedExecution, unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
 import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
-import { alephPrivateKey, filecoinSessionPrivateKey, paperlessSecrets } from './keys/derive.js';
+import { alephPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets } from './keys/derive.js';
 import { RESERVE_CREDITS } from './balances.js';
 import { relayList, relayTransports } from './attest-p2p.js';
-import { crnAddress, credits, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, sendInstance, vmStatus, eraseOnNode } from './vm.js';
+import { crnAddress, credits, FIXED_HOST_DOMAIN, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
 /** The last backup failed; the VM stays. Carries the VM's reason and its tool's last log lines. */
 export class BackupFailedError extends Error {
@@ -36,6 +36,7 @@ async function loadWasm() {
 // is there), and when to give up.
 const UNLOCK_AGAIN_AFTER_MS = [5 * 60_000, 12 * 60_000];
 const READY_TIMEOUT_MS = 20 * 60_000;
+const FIRST_LOOK_FIXED_MS = 90_000;
 
 async function until(what, fn, { tries = 60, delayMs = 5000 } = {}) {
 	for (let i = 0; i < tries; i++) {
@@ -87,11 +88,25 @@ export async function startPaperless(master, profile, onProgress) {
 	await until('port 443', () => mapped443(crnUrl, instanceHash), { tries: 60 });
 	// The node restarts the VM to apply a mapping; give it a moment before the unlock.
 	await sleep(15_000);
-	const host = await until('hostname', () => hostname(instanceHash), { tries: 30, delayMs: 10_000 });
+	// With a DNS token, the fixed address: the VM points the name at itself and
+	// gets its certificate over DNS, and Caddy answers on 443 (IPv6) and on the
+	// node's port (IPv4), so `name:port` reaches it from either. Without one,
+	// the instance's 2n6 name, new at every start.
+	let host, name;
+	const dns = {};
+	if (profile.dnsToken) {
+		const addr = await until('IPv4-Adresse', () => publicAddress(crnUrl, instanceHash), { tries: 30 });
+		name = `${fixedHostLabel(master)}.${FIXED_HOST_DOMAIN}`;
+		host = `${name}:${addr.port}`;
+		Object.assign(dns, { dns_cloudflare_token: String(profile.dnsToken), https_ipv4: addr.ipv4, https_port: String(addr.port) });
+	} else {
+		host = name = await until('hostname', () => hostname(instanceHash), { tries: 30, delayMs: 10_000 });
+	}
 
 	const p = paperlessSecrets(master);
 	const secrets = {
-		https_hostname: host,
+		...dns,
+		https_hostname: name,
 		paperless_role: profile.role === 'primary' ? 'primary' : 'test',
 		paperless_admin_password: p.adminPassword,
 		paperless_db_password: p.dbPassword,
@@ -137,6 +152,11 @@ export async function startPaperless(master, profile, onProgress) {
 	// is not affected by that.
 	onProgress({ step: 'ready', detail: 'Paperless startet' });
 	const unlockedAt = Date.now();
+	// The fixed name exists only once the VM has set its records; asked
+	// earlier, a wildcard in the zone answers with another address, and the
+	// browser keeps that for minutes (2026-10-31: the first answer after
+	// 529 s). The images take longer than this anyway.
+	if (profile.dnsToken) await sleep(FIRST_LOOK_FIXED_MS);
 	const again = [...UNLOCK_AGAIN_AFTER_MS];
 	let ready = null;
 	let answered = false;

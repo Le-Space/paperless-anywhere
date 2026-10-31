@@ -16,7 +16,33 @@ email="$(head -c 254 /tmp/secrets/acme_email 2>/dev/null | tr -d '\r\n')"
 case "$email" in *@*.*) ;; *) email="paperless-anywhere@le-space.de" ;; esac
 case "$email" in *[!A-Za-z0-9.@_+-]*) email="paperless-anywhere@le-space.de" ;; esac
 new="$(mktemp)"
-cat > "$new" <<CADDY
+# The fixed address (paperless-fixed-address): its certificate comes over DNS,
+# and Caddy also answers on the node's port, which IPv4 clients use. Until the
+# certificate is there, Caddy serves nothing for it: an ACME attempt of its
+# own for the name would fail (its A record is the node's) and count against
+# the name at Let's Encrypt.
+fixed="" port=""
+if [ -s /tmp/secrets/dns_cloudflare_token ]; then
+  fixed=1
+  port="$(head -c 5 /tmp/secrets/https_port 2>/dev/null | tr -d '\r\n')"
+  case "$port" in *[!0-9]*|"") echo "paperless-https: no port for the fixed address" >&2; exit 1 ;; esac
+  printf '%s\n' "$port" > /etc/paperless-anywhere/https_port
+fi
+serve=1
+if [ -n "$fixed" ] && ! [ -s /var/lib/caddy/fixed/cert.pem ]; then
+  serve=""
+  printf '{\n  auto_https off\n}\n' > "$new"
+elif [ -n "$fixed" ]; then
+  cat > "$new" <<CADDY
+{
+  auto_https disable_redirects
+}
+
+https://${host}, https://${host}:${port} {
+  tls /var/lib/caddy/fixed/cert.pem /var/lib/caddy/fixed/key.pem
+CADDY
+else
+  cat > "$new" <<CADDY
 {
   auto_https disable_redirects
 }
@@ -36,6 +62,9 @@ https://${host} {
       disable_http_challenge
     }
   }
+CADDY
+fi
+[ -z "$serve" ] || cat >> "$new" <<CADDY
   # The start status (no secrets: phase, backup names, counts), read by the
   # app that started this VM from its own origin.
   handle /anywhere/status.json {

@@ -16,6 +16,11 @@ BACKUP_TOOL_REPO=https://github.com/Le-Space/paperless-backup-filecoin.git
 BACKUP_TOOL_COMMIT=f2de20798cccd2fb8bd8dff3b55e303b679b845b
 ESBUILD_VERSION=0.25.10
 
+# lego, for the fixed address's certificate over DNS (Debian's Caddy has no
+# DNS providers). v4: the v5 command line changed.
+LEGO_VERSION=v4.35.2
+LEGO_SHA256=ee5be4bf457de8e3efa86a51651c75c87f0ee0e4e9f3ae14f6034d68365770f3
+
 COMPOSE_VERSION=v5.6.0
 COMPOSE_SHA256=40343e21ca777173e69cff5dbafeb37c6f81f3b0d57d9e597f036e95eb63e76a
 
@@ -36,6 +41,12 @@ curl -fsSL -o "$work/docker-compose" \
   "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-x86_64"
 echo "${COMPOSE_SHA256}  $work/docker-compose" | sha256sum -c - >/dev/null
 install -m 755 "$work/docker-compose" "$root/usr/libexec/docker/cli-plugins/docker-compose"
+
+curl -fsSL -o "$work/lego.tar.gz" \
+  "https://github.com/go-acme/lego/releases/download/${LEGO_VERSION}/lego_${LEGO_VERSION}_linux_amd64.tar.gz"
+echo "${LEGO_SHA256}  $work/lego.tar.gz" | sha256sum -c - >/dev/null
+tar -xzf "$work/lego.tar.gz" -C "$work" lego
+install -m 755 "$work/lego" "$root/usr/local/bin/lego"
 
 curl -fsSL -o "$work/node.tar.xz" "https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.xz"
 echo "${NODE_SHA256}  $work/node.tar.xz" | sha256sum -c - >/dev/null
@@ -69,7 +80,8 @@ install -D -m 644 "$here/files/paperless-backup.timer" "$root/etc/systemd/system
 install -D -m 644 "$here/files/paperless-status.service" "$root/etc/systemd/system/paperless-status.service"
 install -D -m 644 "$here/files/paperless-stop.service" "$root/etc/systemd/system/paperless-stop.service"
 install -D -m 644 "$here/files/paperless-forget-passphrase.service" "$root/etc/systemd/system/paperless-forget-passphrase.service"
-for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-status paperless-stop paperless-stack-up paperless-data-disk paperless-file-extents paperless-forget-passphrase; do
+install -D -m 644 "$here/files/paperless-fixed-address.service" "$root/etc/systemd/system/paperless-fixed-address.service"
+for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-status paperless-stop paperless-stack-up paperless-data-disk paperless-file-extents paperless-forget-passphrase paperless-fixed-address paperless-dns-records; do
   install -D -m 755 "$here/files/$script" "$root/usr/local/sbin/$script"
 done
 install -d -m 700 "$root/etc/paperless-anywhere"
@@ -80,7 +92,7 @@ echo paperless-anywhere > "$root/etc/hostname"
 : > "$root/etc/resolv.conf"
 # No socket activation in the confidential rootfs (see files/docker.service).
 chroot "$root" systemctl disable docker.socket >/dev/null 2>&1 || true
-chroot "$root" systemctl enable docker.service containerd.service caddy.service ssh.service paperless-stack.service paperless-restore.service paperless-backup.timer paperless-status.service paperless-stop.service paperless-forget-passphrase.service >/dev/null 2>&1
+chroot "$root" systemctl enable docker.service containerd.service caddy.service ssh.service paperless-stack.service paperless-restore.service paperless-backup.timer paperless-status.service paperless-stop.service paperless-forget-passphrase.service paperless-fixed-address.service >/dev/null 2>&1
 
 rm -rf "$root"/var/cache/apt/* "$root"/var/lib/apt/lists/* "$root"/usr/share/doc/* \
   "$root"/usr/share/man/* "$root"/usr/share/info/* "$root"/usr/share/locale/*

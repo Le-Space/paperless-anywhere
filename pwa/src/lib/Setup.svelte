@@ -1,6 +1,7 @@
 <script>
 	import { privateKeyToAccount } from 'viem/accounts';
-	import { alephPrivateKey } from '$lib/keys/derive.js';
+	import { alephPrivateKey, fixedHostLabel } from '$lib/keys/derive.js';
+	import { FIXED_HOST_DOMAIN } from '$lib/vm.js';
 	import { loadProfile, saveProfile } from '$lib/profile.js';
 	import { ageIdentityFromMaster, ageRecipient } from '$lib/keys/age.js';
 	import { backupConfigFor } from '$lib/backups.js';
@@ -33,6 +34,7 @@
 	let ownerInput = $state('');
 	let passInput = $state('');
 	let crnInput = $state('');
+	let dnsInput = $state('');
 	let error = $state('');
 	// Which action is running: only that one is blocked. Wallet actions share
 	// 'wallet', since MetaMask answers one request at a time.
@@ -140,6 +142,13 @@
 		await save({ rootfsItemHash: image, crnHash: crn, ...(pass ? { luksPassphrase: pass } : {}) });
 		passInput = '';
 	});
+	const saveDns = () => run('dns', async () => {
+		const token = dnsInput.trim();
+		// Cloudflare API tokens are 40 characters of [A-Za-z0-9_-].
+		if (token && !/^[A-Za-z0-9_-]{30,80}$/.test(token)) throw new Error('Ein Cloudflare-API-Token (etwa 40 Zeichen).');
+		await save({ dnsToken: token || null });
+		dnsInput = '';
+	});
 	const until = (s) => (s > 0n && Number(s) * 1000 > Date.now() ? new Date(Number(s) * 1000).toLocaleDateString('de-DE') : '');
 </script>
 
@@ -223,6 +232,11 @@
 		<label>SEV-SNP-Knoten (Hash, 64 Zeichen)<input bind:value={crnInput} placeholder="SEV-SNP-Knoten (Hash)" /></label>
 		<label>Passphrase des Images<input bind:value={passInput} type="password" autocomplete="off" placeholder={profile.luksPassphrase ? `Passphrase hinterlegt, ${profile.luksPassphrase.length} Zeichen (leer lassen = behalten)` : 'Passphrase des Images'} /></label>
 		<button onclick={saveImage} disabled={busy === 'image'}>Image und Knoten speichern</button>
+
+		<h3>7. Feste Adresse (optional)</h3>
+		<p class="hint">Mit einem Cloudflare-API-Token (Zone {FIXED_HOST_DOMAIN.split('.').slice(-2).join('.')}, Rechte: DNS bearbeiten, Zone lesen) bekommt Paperless bei jedem Start dieselbe Adresse, <code>{fixedHostLabel(master)}.{FIXED_HOST_DOMAIN}</code>: Die VM trägt sich selbst ein und holt das Zertifikat über DNS. Ohne Token gibt es bei jedem Start einen neuen <code>*.2n6.me</code>-Namen. Das Token kann alle DNS-Einträge der Zone ändern; es liegt verschlüsselt im Profil und geht nur an die VM.</p>
+		<label>Cloudflare-API-Token<input bind:value={dnsInput} type="password" autocomplete="off" data-testid="dns-token" placeholder={profile.dnsToken ? 'Token hinterlegt (leer speichern = entfernen)' : 'Cloudflare-API-Token'} /></label>
+		<button onclick={saveDns} disabled={busy === 'dns'}>{profile.dnsToken && !dnsInput.trim() ? 'Token entfernen' : 'Token speichern'}</button>
 	{/if}
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
 </section>

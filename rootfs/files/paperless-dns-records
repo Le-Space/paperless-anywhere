@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+# paperless-dns-records HOST IPV4: points HOST at this VM on Cloudflare, with
+# the token that came with the unlock (/tmp/secrets/dns_cloudflare_token):
+# AAAA to this VM's global IPv6 address, A to the node's IPv4 (which maps a
+# port to the VM's 443). TTL 60 s, not proxied (TLS ends in the VM). The
+# token never appears on a command line or in a log.
+import ipaddress, json, subprocess, sys, urllib.parse, urllib.request
+
+host, ipv4 = sys.argv[1], sys.argv[2]
+ipaddress.IPv4Address(ipv4)
+token = open("/tmp/secrets/dns_cloudflare_token").read().strip()
+API = "https://api.cloudflare.com/client/v4"
+
+def call(method, path, body=None):
+    req = urllib.request.Request(API + path, method=method, data=json.dumps(body).encode() if body is not None else None,
+                                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            out = json.load(r)
+    except urllib.error.HTTPError as e:
+        out = json.load(e)
+    if not out.get("success"):
+        codes = [f"{x.get('code')}: {x.get('message')}" for x in out.get("errors", [])]
+        sys.exit(f"paperless-dns-records: Cloudflare {method} {path.split('?')[0]} failed: {'; '.join(codes)[:300]}")
+    return out["result"]
+
+def own_ipv6():
+    out = subprocess.run(["ip", "-6", "-j", "addr", "show", "scope", "global"], capture_output=True, text=True).stdout
+    for link in json.loads(out or "[]"):
+        for a in link.get("addr_info", []):
+            if a.get("family") == "inet6" and not a.get("deprecated") and not a.get("tentative"):
+                return a["local"]
+    return None
+
+# The zone: the longest suffix of HOST that the token can see.
+labels = host.split(".")
+zone = None
+for i in range(1, len(labels) - 1):
+    found = call("GET", "/zones?" + urllib.parse.urlencode({"name": ".".join(labels[i:])}))
+    if found:
+        zone = found[0]["id"]
+        break
+if not zone:
+    sys.exit(f"paperless-dns-records: no zone for {host} visible to the token")
+
+def upsert(kind, content):
+    q = urllib.parse.urlencode({"type": kind, "name": host})
+    records = call("GET", f"/zones/{zone}/dns_records?{q}")
+    if content is None:
+        for r in records:
+            call("DELETE", f"/zones/{zone}/dns_records/{r['id']}")
+        return
+    body = {"type": kind, "name": host, "content": content, "ttl": 60, "proxied": False, "comment": "paperless-anywhere VM"}
+    if records:
+        call("PUT", f"/zones/{zone}/dns_records/{records[0]['id']}", body)
+        for r in records[1:]:
+            call("DELETE", f"/zones/{zone}/dns_records/{r['id']}")
+    else:
+        call("POST", f"/zones/{zone}/dns_records", body)
+
+v6 = own_ipv6()
+upsert("A", ipv4)
+upsert("AAAA", v6)
+print(f"paperless-dns-records: {host} A {ipv4}, AAAA {v6 or '(none)'}")

@@ -16,7 +16,10 @@ export const LABELS = Object.freeze({
 	profileKey: 'paperless-anywhere/profile-key/v1',
 	// The backups' age identity: derived, so the 24 words alone decrypt every
 	// backup, even when the sealed profile is gone.
-	ageIdentity: 'paperless-anywhere/age-identity/v1'
+	ageIdentity: 'paperless-anywhere/age-identity/v1',
+	// The fixed address's first label: the same on every device and every start,
+	// and it says nothing about who owns it.
+	fixedHost: 'paperless-anywhere/fixed-host/v1'
 });
 
 // The order of secp256k1: a private key must be in [1, n).
@@ -54,6 +57,20 @@ export function alephPrivateKey(master, label = LABELS.alephAccount) {
  * @param {Uint8Array} master
  */
 export const filecoinSessionPrivateKey = (master) => alephPrivateKey(master, LABELS.filecoinSession);
+
+/**
+ * The first label of this vault's fixed address: 16 base32 characters (80
+ * bits), lowercase, a valid DNS label.
+ * @param {Uint8Array} master
+ */
+export function fixedHostLabel(master) {
+	const alphabet = 'abcdefghijklmnopqrstuvwxyz234567';
+	let bits = 0n;
+	for (const b of deriveBytes(master, LABELS.fixedHost, 10)) bits = (bits << 8n) | BigInt(b);
+	let label = '';
+	for (let i = 0; i < 16; i++) label = alphabet[Number((bits >> BigInt(5 * i)) & 31n)] + label;
+	return label;
+}
 
 /** Paperless's secrets, as URL-safe text. @param {Uint8Array} master */
 export function paperlessSecrets(master) {

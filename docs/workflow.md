@@ -16,6 +16,7 @@ How a confidential Paperless is set up, started, attested, unlocked, backed up a
 | **Agent** | `aleph-attest-agent` in Aleph's measured initrd. It answers on 8443 before the disk is open. |
 | **Guest** | our encrypted rootfs after the unlock: Caddy, Paperless, the backup tool. |
 | **Filecoin** | the storage providers and the chain (Filecoin Pay, data sets). |
+| **Cloudflare** | only with a DNS token in the profile (fixed address): the VM sets its own A/AAAA records and the ACME TXT record there. |
 
 ## 1. Setup (once)
 
@@ -89,6 +90,8 @@ sequenceDiagram
     Guest-->>PWA: phase ready
     PWA->>Aleph: AGGREGATE profile (sealed): running = instance, host, measurement
 ```
+
+**With a fixed address** (a Cloudflare token in the profile, #26), steps 68–69 are replaced: the name is `<label>.vm.le-space.de`, derived from the master secret, the same at every start. The token, the node's IPv4 and its port for 443 go with the secrets. The guest points the name at itself (AAAA: its IPv6, A: the node's IPv4), gets the certificate with lego over DNS-01 (no 2n6, no inbound port for the challenge), and Caddy answers on 443 and on the node's port. The app uses `name:port`, which reaches the VM from IPv4 and IPv6, and looks at the status page only 90 s after the unlock: asked earlier, the zone's wildcard answers and the browser keeps that answer for minutes. The token can change every record of the zone; it lives in the sealed profile and goes only to the VM.
 
 ## 3. Attestation and unlock, in detail
 

@@ -2,10 +2,12 @@
 # What faces the network: every TCP/UDP listener not bound to loopback.
 # Exits 1 if anything other than sshd (22), Caddy (443) or Aleph's
 # attestation agent (8443, run by the measured init before this rootfs is
-# even unlocked; attestation and unlock go through it) does.
+# even unlocked; attestation and unlock go through it) does. With the fixed
+# address, Caddy also answers on the node's port for 443 (https_port).
+https_port="$(cat /etc/paperless-anywhere/https_port 2>/dev/null | tr -cd '0-9')"
 bad=$(ss -Hltnu 2>/dev/null | awk '{print $5}' \
   | grep -vE '^(127\.[0-9.]+|\[::1\]|::1|\[::ffff:127\.[0-9.]+\]):' \
-  | grep -vE ':(22|443|8443)$' || true)
+  | grep -vE ":(22|443|8443${https_port:+|$https_port})\$" || true)
 echo "listening (not loopback):"
 ss -Hltnup 2>/dev/null | grep -vE ' (127\.[0-9.]+|\[::1\]|\[::ffff:127\.[0-9.]+\]):' || true
 if [ -n "$bad" ]; then

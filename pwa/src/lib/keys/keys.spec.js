@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
-import { alephPrivateKey, deriveBytes, LABELS, newMasterSecret, paperlessSecrets } from './derive.js';
+import { alephPrivateKey, deriveBytes, fixedHostLabel, LABELS, newMasterSecret, paperlessSecrets } from './derive.js';
 import { newSeedPhrase, seal, sealingKeyFromPrf, sealingKeyFromSeedPhrase, unseal } from './seal.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -20,6 +20,12 @@ describe('derive', () => {
 		const s = paperlessSecrets(master);
 		for (const v of Object.values(s)) expect(v).toMatch(/^[A-Za-z0-9_-]{32,}$/);
 		expect(new Set(Object.values(s)).size).toBe(3);
+	});
+	it('gives a fixed host label: a DNS label, the same for the same secret', () => {
+		const l = fixedHostLabel(master);
+		expect(l).toMatch(/^[a-z2-7]{16}$/);
+		expect(fixedHostLabel(master)).toBe(l);
+		expect(fixedHostLabel(newMasterSecret())).not.toBe(l);
 	});
 	it('refuses a master secret of the wrong size', () => {
 		expect(() => deriveBytes(new Uint8Array(16), LABELS.vaultKey)).toThrow();

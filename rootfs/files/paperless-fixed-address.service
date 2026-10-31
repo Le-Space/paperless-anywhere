@@ -1,0 +1,10 @@
+[Unit]
+Description=paperless-fixed-address (see /usr/local/sbin/paperless-fixed-address)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/paperless-fixed-address
+
+[Install]
+WantedBy=multi-user.target

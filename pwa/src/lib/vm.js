@@ -131,6 +131,27 @@ export async function mapped443(crnUrl, itemHash) {
 	return (await res.json())?.[itemHash]?.networking?.mapped_ports?.['443']?.host ?? null;
 }
 
+/**
+ * Where the VM's 443 is reached from IPv4: the node's address and the port it
+ * maps to 443. Null until the node lists both.
+ * @returns {Promise<{ ipv4: string, port: number } | null>}
+ */
+export async function publicAddress(crnUrl, itemHash) {
+	const res = await fetch(`${crnUrl}/v2/about/executions/list`, { cache: 'no-store' });
+	if (!res.ok) return null;
+	const net = (await res.json())?.[itemHash]?.networking;
+	const ipv4 = net?.host_ipv4;
+	const port = Number(net?.mapped_ports?.['443']?.host);
+	return typeof ipv4 === 'string' && /^\d{1,3}(\.\d{1,3}){3}$/.test(ipv4) && port > 0 && port < 65536 ? { ipv4, port } : null;
+}
+
+/**
+ * The fixed address (#26): a name under this domain, the same at every start,
+ * which the VM points at itself (AAAA: its IPv6; A: the node's IPv4) with the
+ * DNS token from the profile, and for which it gets the certificate over DNS.
+ */
+export const FIXED_HOST_DOMAIN = 'vm.le-space.de';
+
 /** The instance's 2n6 hostname, once 2n6 knows it. */
 export async function hostname(itemHash) {
 	const access = await fetch2n6WebAccessUrl(itemHash, { fetch: (u, i) => fetch(u, i) }).catch(() => null);

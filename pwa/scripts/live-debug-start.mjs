@@ -62,7 +62,9 @@ const profile = {
 	rootfsItemHash: env('ROOTFS_ITEM_HASH'),
 	crnHash: env('CRN_HASH'),
 	luksPassphrase: env('LUKS_PASSPHRASE'),
-	debugAuthorizedKeys: sshKey
+	debugAuthorizedKeys: sshKey,
+	// DNS_TOKEN_FILE: a Cloudflare token for the fixed address (#26).
+	...(process.env.DNS_TOKEN_FILE ? { dnsToken: readFileSync(process.env.DNS_TOKEN_FILE, 'utf8').trim() } : {})
 };
 
 const started = Date.now();
