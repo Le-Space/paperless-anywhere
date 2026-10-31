@@ -1,0 +1,67 @@
+#!/bin/sh
+# paperless-fixed-address: the fixed address (#26), when the unlock brought a
+# DNS token. The name (https_hostname) is the same at every start; this points
+# it at the VM (paperless-dns-records), gets a certificate for it over DNS
+# with lego (no port and no 2n6 needed for the challenge), and has Caddy serve
+# it on 443 and on the node's port (https_port), so `name:port` reaches the VM
+# from IPv4 and from IPv6. An existing certificate (from the backup) is
+# renewed only when it has less than 30 days left. Without the token, nothing
+# happens here: paperless-https serves the 2n6 name with Caddy's own ACME.
+set -eu
+s=/tmp/secrets
+[ -s "$s/dns_cloudflare_token" ] || exit 0
+host="$(head -c 253 "$s/https_hostname" | tr -d '\r\n')"
+ipv4="$(head -c 15 "$s/https_ipv4" | tr -d '\r\n')"
+port="$(head -c 5 "$s/https_port" | tr -d '\r\n')"
+case "$host" in *[!a-z0-9.-]*|"") echo "paperless-fixed-address: not a hostname" >&2; exit 1 ;; esac
+case "$port" in *[!0-9]*|"") echo "paperless-fixed-address: not a port" >&2; exit 1 ;; esac
+state=/run/paperless-anywhere
+mkdir -p "$state"
+# The certificate goes into the sealed area: set it up first (it runs once).
+/usr/local/sbin/paperless-data-disk
+started=$(date +%s)
+report() {
+  printf '{"status":"%s","host":"%s","port":%s,"seconds":%s%s}\n' "$1" "$host" "$port" "$(( $(date +%s) - started ))" "${2:-}" > "$state/fixed-address.json.tmp" \
+    && mv "$state/fixed-address.json.tmp" "$state/fixed-address.json"
+}
+attempt() {
+report dns
+paperless-dns-records "$host" "$ipv4" || { report failed ',"step":"dns"'; return 1; }
+
+# The certificate, in the sealed area (/etc/paperless-anywhere is bind-mounted
+# from it). The token goes to lego as a file, not in its arguments.
+dir=/etc/paperless-anywhere/tls
+install -d -m 700 "$dir"
+umask 077
+tr -d '\r\n' < "$s/dns_cloudflare_token" > "$state/cf-token"
+email="$(head -c 254 "$s/acme_email" 2>/dev/null | tr -d '\r\n')"
+case "$email" in *@*.*) ;; *) email="paperless-anywhere@le-space.de" ;; esac
+case "$email" in *[!A-Za-z0-9.@_+-]*) email="paperless-anywhere@le-space.de" ;; esac
+report certificate
+crt="$dir/certificates/$host.crt"
+key="$dir/certificates/$host.key"
+if [ -s "$crt" ] && [ -s "$key" ]; then
+  action="renew --days 30 --no-random-sleep"
+else
+  action=run
+fi
+# shellcheck disable=SC2086
+CLOUDFLARE_DNS_API_TOKEN_FILE="$state/cf-token" lego --accept-tos --email "$email" --dns cloudflare \
+  --domains "$host" --path "$dir" --pem $action >"$state/lego.log" 2>&1 \
+  || { rm -f "$state/cf-token"; report failed ',"step":"certificate"'; tail -5 "$state/lego.log" >&2; return 1; }
+rm -f "$state/cf-token"
+
+# Caddy runs as its own user: it gets a copy it can read.
+install -d -m 700 -o caddy -g caddy /var/lib/caddy/fixed
+install -m 600 -o caddy -g caddy "$crt" /var/lib/caddy/fixed/cert.pem
+install -m 600 -o caddy -g caddy "$key" /var/lib/caddy/fixed/key.pem
+paperless-https --early "$host"
+report ready ",\"notAfter\":\"$(openssl x509 -noout -enddate -in "$crt" 2>/dev/null | sed 's/^notAfter=//')\""
+}
+# A few tries, a minute apart: Let's Encrypt refuses a name for an hour after
+# five failed validations, so it does not keep trying.
+for i in 1 2 3 4; do
+  attempt && exit 0
+  sleep 60
+done
+exit 1
