@@ -99,9 +99,9 @@ jobs:
           recipient="$(age-keygen -y "$RUNNER_TEMP/age.txt")"
           payer="$(cd "$RUNNER_TEMP/tool" && node -e 'const { privateKeyToAccount } = require("viem/accounts"); const k = require("fs").readFileSync(process.argv[1], "utf8").trim(); console.log(privateKeyToAccount(k.startsWith("0x") ? k : "0x" + k).address)' "$RUNNER_TEMP/wallet.key")"
           jq -n --arg r "$recipient" --arg p "$payer" \
-            '{network: "calibration", copies: 2, providerIds: [9, 4], regions: [], datasetMetadata: {app: "paperless-backup-test"}, keepWeeks: 1, ageRecipient: $r, payer: $p}' \
+            '{network: "calibration", copies: 2, providerIds: [9, 2], regions: [], datasetMetadata: {app: "paperless-backup-test"}, keepWeeks: 1, ageRecipient: $r, payer: $p}' \
             > "$RUNNER_TEMP/backup_config.json"
-          printf '{"network":"calibration","providerIds":[9,4],"regions":[],"copies":2,"datasetMetadata":{"app":"paperless-backup-test"},"keepWeeks":1,"ageRecipient":"%s"}\n' "$recipient" > "$RUNNER_TEMP/wallet-config.json"
+          printf '{"network":"calibration","providerIds":[9,2],"regions":[],"copies":2,"datasetMetadata":{"app":"paperless-backup-test"},"keepWeeks":1,"ageRecipient":"%s"}\n' "$recipient" > "$RUNNER_TEMP/wallet-config.json"
           (cd "$RUNNER_TEMP/tool" && BACKUP_CONFIG="$RUNNER_TEMP/wallet-config.json" WALLET_KEY_FILE="$RUNNER_TEMP/wallet.key" \
             node backup.mjs session-login 3 "$RUNNER_TEMP/session.key")
           session="$(cd "$RUNNER_TEMP/tool" && node -e 'const { privateKeyToAccount } = require("viem/accounts"); console.log(privateKeyToAccount(require("fs").readFileSync(process.argv[1], "utf8").trim()).address)' "$RUNNER_TEMP/session.key")"
