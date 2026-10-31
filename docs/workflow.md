@@ -84,6 +84,7 @@ sequenceDiagram
     end
     opt no answer 5 and 12 minutes after the unlock
         PWA->>Relay: attest again and hand the secrets over again (the init sometimes never sees the first passphrase)
+        Guest->>Guest: when the disk is open already, zeroes and removes the passphrase handed over again
     end
     Guest-->>PWA: phase ready
     PWA->>Aleph: AGGREGATE profile (sealed): running = instance, host, measurement

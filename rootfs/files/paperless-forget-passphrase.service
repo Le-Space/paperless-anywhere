@@ -1,0 +1,11 @@
+[Unit]
+Description=paperless-forget-passphrase (see /usr/local/sbin/paperless-forget-passphrase)
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/paperless-forget-passphrase
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
