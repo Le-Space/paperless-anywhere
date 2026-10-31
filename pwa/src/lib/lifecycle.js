@@ -36,6 +36,7 @@ async function loadWasm() {
 // is there), and when to give up.
 const UNLOCK_AGAIN_AFTER_MS = [5 * 60_000, 12 * 60_000];
 const READY_TIMEOUT_MS = 20 * 60_000;
+const FIRST_LOOK_FIXED_MS = 90_000;
 
 async function until(what, fn, { tries = 60, delayMs = 5000 } = {}) {
 	for (let i = 0; i < tries; i++) {
@@ -151,6 +152,11 @@ export async function startPaperless(master, profile, onProgress) {
 	// is not affected by that.
 	onProgress({ step: 'ready', detail: 'Paperless startet' });
 	const unlockedAt = Date.now();
+	// The fixed name exists only once the VM has set its records; asked
+	// earlier, a wildcard in the zone answers with another address, and the
+	// browser keeps that for minutes (2026-10-31: the first answer after
+	// 529 s). The images take longer than this anyway.
+	if (profile.dnsToken) await sleep(FIRST_LOOK_FIXED_MS);
 	const again = [...UNLOCK_AGAIN_AFTER_MS];
 	let ready = null;
 	let answered = false;
