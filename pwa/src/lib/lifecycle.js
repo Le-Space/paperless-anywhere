@@ -11,7 +11,8 @@ import { confidentialTrustedExecution, unlockInstance, pinsOf } from '@le-space/
 import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
 import { alephPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets } from './keys/derive.js';
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
-import { relayList, relayTransports } from './attest-p2p.js';
+import { relayTransports } from './attest-p2p.js';
+import { attestRelaysFor } from './relays.js';
 import { crnAddress, credits, estimateCreditsPerHour, FIXED_HOST_DOMAIN, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
 /** The last backup failed; the VM stays. Carries the VM's reason and its tool's last log lines. */
@@ -51,7 +52,6 @@ async function until(what, fn, { tries = 60, delayMs = 5000 } = {}) {
 export function startRequirements(profile) {
 	const missing = [];
 	if (!profile.payer) missing.push('zahlendes Konto');
-	if (!profile.attestRelay) missing.push('Attest-Relay');
 	if (!profile.rootfsItemHash) missing.push('Paperless-Image');
 	if (!profile.luksPassphrase) missing.push('Image-Passphrase');
 	if (!profile.crnHash) missing.push('Knoten');
@@ -134,7 +134,7 @@ export async function startPaperless(master, profile, onProgress) {
 	}
 
 	onProgress({ step: 'unlock', detail: 'VM prüfen (AMD) und entsperren' });
-	const relays = relayList(profile.attestRelay);
+	const relays = await attestRelaysFor(profile);
 	const unlock = () =>
 		unlockInstance({
 			wasm,
@@ -203,7 +203,7 @@ export async function stopPaperless(master, profile, onProgress) {
 	const wasm = await loadWasm();
 	const { expectedMeasurements, expectedPolicy } = pinsOf(run.trustedExecution);
 	// Each relay once, until one carries the attestation.
-	const relays = relayList(profile.attestRelay);
+	const relays = await attestRelaysFor(profile);
 	const transports = relayTransports(relays);
 	let attested = null;
 	for (let i = 0; !attested; i++) {
