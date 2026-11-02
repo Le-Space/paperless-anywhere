@@ -10,9 +10,9 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { confidentialTrustedExecution, unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
 import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
 import { alephPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets } from './keys/derive.js';
-import { RESERVE_CREDITS } from './balances.js';
+import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
 import { relayList, relayTransports } from './attest-p2p.js';
-import { crnAddress, credits, FIXED_HOST_DOMAIN, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, sendInstance, vmStatus, eraseOnNode } from './vm.js';
+import { crnAddress, credits, estimateCreditsPerHour, FIXED_HOST_DOMAIN, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
 /** The last backup failed; the VM stays. Carries the VM's reason and its tool's last log lines. */
 export class BackupFailedError extends Error {
@@ -68,17 +68,25 @@ export async function startPaperless(master, profile, onProgress) {
 	const missing = startRequirements(profile);
 	if (missing.length) throw new Error(`Für den Start fehlt: ${missing.join(', ')}`);
 	const app = privateKeyToAccount(alephPrivateKey(master));
-	const balance = await credits(profile.payer);
-	// About four hours of a 2-vCPU confidential instance plus margin; refuses an empty account early.
-	const reserve = profile.minCredits ?? RESERVE_CREDITS;
-	if (balance < reserve) throw new Error(`Zu wenig Credits auf dem zahlenden Konto: ${balance.toLocaleString('de-DE')}. Aleph nimmt eine VM erst mit einem Tag Reserve an (${reserve.toLocaleString('de-DE')}).`);
-
 	onProgress({ step: 'measure', detail: 'Messwerte für diesen Start berechnen' });
 	const wasm = await loadWasm();
 	const trustedExecution = await confidentialTrustedExecution({ wasm, owner: app.address, vcpus: PAPERLESS_VM.vcpus });
 
 	onProgress({ step: 'instance', detail: 'VM anfordern' });
 	const message = await instanceMessage({ app, payer: profile.payer, rootfsItemHash: profile.rootfsItemHash, crnHash: profile.crnHash, trustedExecution, name: `paperless-${new Date().toISOString().slice(0, 16)}` });
+	// Aleph takes the VM only when the account holds a day of the VM's price
+	// plus a day of what it already pays for; checked here so an account short
+	// of that hears it before Aleph refuses.
+	const [balance, vmPerHour, runningPerHour] = await Promise.all([
+		credits(profile.payer),
+		estimateCreditsPerHour(message).then((p) => p ?? confidentialCreditsPerHour(PAPERLESS_VM)),
+		runningCreditsPerHour(profile.payer).catch(() => 0)
+	]);
+	const reserve = profile.minCredits ?? RESERVE_HOURS * (vmPerHour + runningPerHour);
+	if (balance < reserve) {
+		const running = runningPerHour ? ` und ${runningPerHour.toLocaleString('de-DE')} Credits/h für das, was schon läuft` : '';
+		throw new Error(`Zu wenig Credits auf dem zahlenden Konto: ${balance.toLocaleString('de-DE')}. Aleph nimmt die VM erst mit einem Tag Reserve an: ${reserve.toLocaleString('de-DE')} (${vmPerHour.toLocaleString('de-DE')} Credits/h für Paperless${running}).`);
+	}
 	const instanceHash = await sendInstance(message);
 	const crnUrl = await crnAddress(profile.crnHash);
 	await notifyNode(crnUrl, instanceHash);

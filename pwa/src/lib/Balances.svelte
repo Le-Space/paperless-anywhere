@@ -1,6 +1,7 @@
 <script>
 	import { loadProfile } from '$lib/profile.js';
-	import { alephBalance, filecoinBalance, hoursOf, duration, amount, RESERVE_CREDITS, LOW_GAS, PAPERLESS_CREDITS_PER_HOUR } from '$lib/balances.js';
+	import { alephBalance, filecoinBalance, hoursOf, duration, amount, LOW_GAS, RESERVE_HOURS, confidentialCreditsPerHour, runningCreditsPerHour } from '$lib/balances.js';
+	import { PAPERLESS_VM } from '$lib/vm.js';
 
 	/** @type {{ master: Uint8Array, version?: number }} */
 	let { master, version = 0 } = $props();
@@ -14,6 +15,11 @@
 	let alephError = $state(false);
 	let filecoinError = $state(false);
 	let reading = $state(false);
+	// Aleph's current price for a Paperless and what the account already spends.
+	let vmPerHour = $state(0);
+	/** @type {number | null} */
+	let runningPerHour = $state(null);
+	const reserve = $derived(RESERVE_HOURS * (vmPerHour + (runningPerHour ?? 0)));
 
 	const test = $derived(network !== 'mainnet');
 	const gasName = $derived(test ? 'tFIL' : 'FIL');
@@ -23,6 +29,8 @@
 		alephError = filecoinError = false;
 		await Promise.all([
 			alephBalance(payer).then((b) => (aleph = b)).catch(() => ((aleph = null), (alephError = true))),
+			confidentialCreditsPerHour(PAPERLESS_VM).then((p) => (vmPerHour = p)),
+			runningCreditsPerHour(payer).then((p) => (runningPerHour = p)).catch(() => (runningPerHour = null)),
 			filecoinBalance(network, payer).then((b) => (filecoin = b)).catch(() => ((filecoin = null), (filecoinError = true)))
 		]);
 		reading = false;
@@ -48,8 +56,9 @@
 			<dt>Aleph-Credits</dt>
 			<dd data-testid="balance-credits">
 				{#if aleph}
-					{amount(aleph.credits, 0)} <small>· reicht für ca. {duration(hoursOf(aleph.credits))} Paperless ({amount(PAPERLESS_CREDITS_PER_HOUR, 0)}/h)</small>
-					{#if aleph.credits < RESERVE_CREDITS}<br /><span class="warn" data-testid="balance-reserve">Unter der Tagesreserve von {amount(RESERVE_CREDITS, 0)}: Aleph nimmt so keinen Start an.</span>{/if}
+					{amount(aleph.credits, 0)}
+					{#if vmPerHour}<small data-testid="balance-rate">· reicht für ca. {duration(hoursOf(aleph.credits, vmPerHour + (runningPerHour ?? 0)))} Paperless ({amount(vmPerHour, 0)}/h{runningPerHour ? ` + ${amount(runningPerHour, 0)}/h, was schon läuft` : ''})</small>{/if}
+					{#if vmPerHour && aleph.credits < reserve}<br /><span class="warn" data-testid="balance-reserve">Unter der Tagesreserve von {amount(reserve, 0)}: Aleph nimmt so keinen Start an.</span>{/if}
 				{:else if alephError}<span class="hint">nicht lesbar</span>{:else}…{/if}
 			</dd>
 			{#if aleph?.aleph}<dt>ALEPH</dt><dd>{amount(aleph.aleph)}</dd>{/if}
