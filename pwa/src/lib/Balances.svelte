@@ -3,6 +3,7 @@
 	import { alephBalance, filecoinBalance, hoursOf, duration, amount, LOW_GAS, RESERVE_HOURS, confidentialCreditsPerHour, runningCreditsPerHour } from '$lib/balances.js';
 	import { PAPERLESS_VM } from '$lib/vm.js';
 	import { CREDITS_URL, creditsBalance } from '$lib/credits.js';
+	import TopUp from '$lib/TopUp.svelte';
 
 	/** @type {{ master: Uint8Array, version?: number }} */
 	let { master, version = 0 } = $props();
@@ -65,6 +66,7 @@
 						{amount(lsCredits.credits / 100)} €
 						{#if lsCredits.reserved}<small>· davon {amount(lsCredits.reserved / 100)} € für die laufende VM vorgemerkt</small>{/if}
 					{:else if lsCreditsError}<span class="hint">{lsCreditsError}</span>{:else}…{/if}
+					{#if lsCredits}<TopUp {master} credits={lsCredits.credits} onbooked={read} />{/if}
 				</dd>
 			{/if}
 			<dt>Aleph-Credits</dt>

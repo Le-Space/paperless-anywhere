@@ -48,3 +48,71 @@ export async function creditsBalance(master, { baseUrl = CREDITS_URL, fetch: fet
 	if (!res.ok) throw new Error(body?.error ? `Le Space Credits: ${body.error}` : `Le Space Credits antwortet ${res.status}`);
 	return { credits: Number(body?.credits ?? 0), reserved: Number(body?.reserved ?? 0), lines: body?.lines_this_month ?? {} };
 }
+
+/**
+ * What a customer can buy for paperless-anywhere, as le-space-credits'
+ * src/lib/products.js lists it (proposals until Le-Space/belege#571). The
+ * service checks the package; this list only draws the buttons.
+ */
+export const PACKAGES = Object.freeze([
+	{ id: 'topup-20', name: '20 €', credits: 2000 },
+	{ id: 'topup-50', name: '50 €', credits: 5000 }
+]);
+
+/**
+ * Open a Stripe Checkout for a package: the service returns the session's
+ * client secret, which only its /pay page uses.
+ * @param {Uint8Array} master
+ * @param {string} packageId
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<string>} the client secret
+ */
+export async function startCheckout(master, packageId, { baseUrl = CREDITS_URL, fetch: fetchImpl = fetch } = {}) {
+	const path = '/v1/checkout';
+	const headers = await signedHeaders(creditsAccount(master), { method: 'POST', path });
+	const res = await fetchImpl(`${baseUrl}${path}`, {
+		method: 'POST',
+		headers: { ...headers, 'content-type': 'application/json' },
+		body: JSON.stringify({ product: CREDITS_PRODUCT, package: packageId, locale: 'de' })
+	});
+	const body = await res.json().catch(() => null);
+	if (res.status === 503) throw new Error('Bezahlen ist beim Credits-Dienst noch nicht eingerichtet.');
+	if (!res.ok || typeof body?.client_secret !== 'string') throw new Error(body?.error ? `Le Space Credits: ${body.error}` : `Le Space Credits antwortet ${res.status}`);
+	return body.client_secret;
+}
+
+/**
+ * The service's /pay page for a checkout: Stripe.js runs there, on the
+ * service's origin, never in this app's, which holds the unlocked vault.
+ * The secret goes in the fragment and reaches no server.
+ * @param {string} baseUrl @param {{ clientSecret: string, origin: string }} p
+ */
+export const payUrl = (baseUrl, { clientSecret, origin }) => `${baseUrl}/pay#${new URLSearchParams({ cs: clientSecret, origin })}`;
+
+/**
+ * What a message from the /pay page says: 'ready', 'paid' or 'failed', or
+ * null for anything not from the service. A hint only; the signed balance is
+ * the truth.
+ * @param {MessageEvent} event @param {string} baseUrl
+ */
+export function payMessage(event, baseUrl) {
+	if (!baseUrl || event.origin !== new URL(baseUrl).origin) return null;
+	const type = event.data?.type;
+	return type === 'ls-credits:ready' ? 'ready' : type === 'ls-credits:paid' ? 'paid' : type === 'ls-credits:failed' ? 'failed' : null;
+}
+
+/**
+ * Read the balance until it is above `before` (the webhook books the purchase
+ * a moment after Stripe reports it), or give up and return the last one.
+ * @param {Uint8Array} master @param {number} before
+ * @param {{ tries?: number, delayMs?: number, read?: typeof creditsBalance }} [options]
+ */
+export async function waitForTopUp(master, before, { tries = 20, delayMs = 1500, read = creditsBalance } = {}) {
+	let last = null;
+	for (let i = 0; i < tries; i++) {
+		last = await read(master).catch(() => last);
+		if (last && last.credits > before) return { booked: true, balance: last };
+		await new Promise((r) => setTimeout(r, delayMs));
+	}
+	return { booked: false, balance: last };
+}
