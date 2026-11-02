@@ -2,6 +2,7 @@
 	import { loadProfile } from '$lib/profile.js';
 	import { alephBalance, filecoinBalance, hoursOf, duration, amount, LOW_GAS, RESERVE_HOURS, confidentialCreditsPerHour, runningCreditsPerHour } from '$lib/balances.js';
 	import { PAPERLESS_VM } from '$lib/vm.js';
+	import { CREDITS_URL, creditsBalance } from '$lib/credits.js';
 
 	/** @type {{ master: Uint8Array, version?: number }} */
 	let { master, version = 0 } = $props();
@@ -15,6 +16,9 @@
 	let alephError = $state(false);
 	let filecoinError = $state(false);
 	let reading = $state(false);
+	/** @type {Awaited<ReturnType<typeof creditsBalance>>} */
+	let lsCredits = $state(null);
+	let lsCreditsError = $state('');
 	// Aleph's current price for a Paperless and what the account already spends.
 	let vmPerHour = $state(0);
 	/** @type {number | null} */
@@ -29,6 +33,7 @@
 		alephError = filecoinError = false;
 		await Promise.all([
 			alephBalance(payer).then((b) => (aleph = b)).catch(() => ((aleph = null), (alephError = true))),
+			creditsBalance(master).then((b) => ((lsCredits = b), (lsCreditsError = ''))).catch((e) => ((lsCredits = null), (lsCreditsError = e.message))),
 			confidentialCreditsPerHour(PAPERLESS_VM).then((p) => (vmPerHour = p)),
 			runningCreditsPerHour(payer).then((p) => (runningPerHour = p)).catch(() => (runningPerHour = null)),
 			filecoinBalance(network, payer).then((b) => (filecoin = b)).catch(() => ((filecoin = null), (filecoinError = true)))
@@ -53,6 +58,15 @@
 	<section class="balances" data-testid="balances">
 		<h2>Guthaben des zahlenden Kontos</h2>
 		<dl>
+			{#if CREDITS_URL}
+				<dt>Le Space Credits <small>(Paperless)</small></dt>
+				<dd data-testid="balance-ls-credits">
+					{#if lsCredits}
+						{amount(lsCredits.credits / 100)} €
+						{#if lsCredits.reserved}<small>· davon {amount(lsCredits.reserved / 100)} € für die laufende VM vorgemerkt</small>{/if}
+					{:else if lsCreditsError}<span class="hint">{lsCreditsError}</span>{:else}…{/if}
+				</dd>
+			{/if}
 			<dt>Aleph-Credits</dt>
 			<dd data-testid="balance-credits">
 				{#if aleph}
