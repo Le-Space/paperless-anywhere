@@ -104,6 +104,18 @@ export async function instanceMessage(a) {
 	return signAsDelegate(unsigned, a.app);
 }
 
+/**
+ * Credits per hour Aleph will charge for this INSTANCE, from its own price
+ * estimate (no signature needed). Null when Aleph cannot be asked.
+ */
+export async function estimateCreditsPerHour(message) {
+	const { signature: _, ...unsigned } = message;
+	const res = await fetch(`${ALEPH_API}/api/v0/price/estimate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: unsigned }) }).catch(() => null);
+	if (!res?.ok) return null;
+	const perSecond = Number((await res.json().catch(() => null))?.cost);
+	return perSecond > 0 ? Math.round(perSecond * 3600) : null;
+}
+
 /** Send the INSTANCE; returns its item hash. */
 export async function sendInstance(message) {
 	await broadcast(message);

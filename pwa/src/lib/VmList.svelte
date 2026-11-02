@@ -1,10 +1,10 @@
 <script>
-	import { PAPERLESS_CREDITS_PER_HOUR } from '$lib/balances.js';
+	import { confidentialCreditsPerHour } from '$lib/balances.js';
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey } from '$lib/keys/derive.js';
 	import { loadProfile, saveProfile } from '$lib/profile.js';
 	import { startingInstance } from '$lib/starting.js';
-	import { crnAddress, eraseOnNode, forgetInstance, hostname, listVms, nodeState, ownInstance, vmStatus } from '$lib/vm.js';
+	import { crnAddress, eraseOnNode, forgetInstance, hostname, listVms, nodeState, ownInstance, PAPERLESS_VM, vmStatus } from '$lib/vm.js';
 	import { pinsOf } from '@le-space/attest-wasm/instance';
 
 	/** @type {{ master: Uint8Array, version?: number, onchange?: () => void }} */
@@ -17,6 +17,9 @@
 	let profile = $state({});
 	let error = $state('');
 	let busy = $state('');
+	// Aleph's current price for one Paperless.
+	let perHour = $state(0);
+	confidentialCreditsPerHour(PAPERLESS_VM).then((p) => (perHour = p));
 
 	async function load() {
 		error = '';
@@ -118,7 +121,7 @@
 				<li data-testid="vm-row">
 					<strong>{vm.name}</strong>
 					{#if profile.running?.instanceHash === vm.itemHash}<small>(gestartet)</small>{:else if $startingInstance === vm.itemHash}<small data-testid="vm-starting">(startet gerade)</small>{/if}
-					<br /><small>seit {when(vm.createdAt)} · kostet ca. {PAPERLESS_CREDITS_PER_HOUR.toLocaleString('de-DE')} Credits/h · {vm.phase ?? 'prüfe …'}
+					<br /><small>seit {when(vm.createdAt)} · {#if perHour}kostet ca. {perHour.toLocaleString('de-DE')} Credits/h ·{/if} {vm.phase ?? 'prüfe …'}
 						{#if vm.host && vm.up} · <a href={`https://${vm.host}/`} target="_blank" rel="noopener">{vm.host}</a>{/if}
 						· <code>{vm.itemHash.slice(0, 12)}</code></small>
 					{#if !profile.running && $startingInstance !== vm.itemHash}
