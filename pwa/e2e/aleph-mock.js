@@ -11,6 +11,8 @@ export function alephMock() {
 			aggregates.set(message.sender, forAddress);
 			await route.fulfill({ json: { publication_status: { status: 'success', failed: [] }, message_status: 'processed' } });
 		});
+		// No relay registrations: step 4 shows none found.
+		await context.route(/https:\/\/api2\.aleph\.im\/api\/v0\/posts\.json.*/, (route) => route.fulfill({ json: { posts: [] } }));
 		await context.route(/https:\/\/api2\.aleph\.im\/api\/v0\/aggregates\/.*/, async (route) => {
 			const url = new URL(route.request().url());
 			const address = url.pathname.split('/').pop().replace('.json', '');

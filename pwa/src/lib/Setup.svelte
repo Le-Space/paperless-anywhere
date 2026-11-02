@@ -6,6 +6,7 @@
 	import { ageIdentityFromMaster, ageRecipient } from '$lib/keys/age.js';
 	import { backupConfigFor } from '$lib/backups.js';
 	import { relayList } from '$lib/attest-p2p.js';
+	import { findAttestRelays } from '$lib/relays.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
 	import {
 		connectPayer,
@@ -29,6 +30,9 @@
 	let alephOk = $state(false);
 	let sessionUntil = $state(0n);
 	let relayInput = $state('');
+	/** @type {string[] | null} Le Space's attest relays as Aleph knows them now. */
+	let foundRelays = $state(null);
+	findAttestRelays().then((list) => (foundRelays = list));
 	let ageInput = $state('');
 	let imageInput = $state('');
 	let ownerInput = $state('');
@@ -93,9 +97,9 @@
 	const saveRelay = () => run('relay', async () => {
 		// wss://<host>/attest, ws:// only to this machine (a relay beside a test),
 		// or an orbitdb-relay's multiaddr; several are tried in turn.
+		// Empty: only Le Space's relays, found on Aleph at every start.
 		const relays = relayList(relayInput);
-		if (!relays.length) throw new Error('Mindestens ein Relay.');
-		await save({ attestRelay: relays.join('\n') });
+		await save({ attestRelay: relays.length ? relays.join('\n') : null });
 		relayInput = relays.join('\n');
 	});
 	const saveAge = () => run('age', async () => {
@@ -200,9 +204,11 @@
 		{/if}
 
 		<h3>4. Attest-Relay</h3>
-		<label>Relays, eins pro Zeile, der Reihe nach versucht: <code>wss://…/attest</code> oder die Multiaddr eines orbitdb-relay (<code>/dns4/…/p2p/…</code>)
-			<textarea bind:value={relayInput} rows="3" autocomplete="off" spellcheck="false" placeholder="wss://dein-relay.example/attest" data-testid="relays"></textarea></label>
-		<button onclick={saveRelay} disabled={busy === 'relay'}>Relay speichern</button>
+		<p class="hint">Die App findet die Relays von Le Space bei jedem Start selbst über Aleph: nur solche, die Aleph als laufende VM eines Le-Space-Kontos führt. Ein Relay sieht die Prüfung der VM nur verschlüsselt.</p>
+		<p data-testid="relays-found">Gefunden: {#if foundRelays === null}…{:else if foundRelays.length}{#each foundRelays as relay, i (relay)}{i ? ', ' : ''}<code>{relay}</code>{/each}{:else}keins (Aleph gerade nicht erreichbar oder kein Relay angemeldet){/if}</p>
+		<label>Eigene Relays (optional), eins pro Zeile, werden vor denen von Le Space versucht: <code>wss://…/attest</code> oder die Multiaddr eines orbitdb-relay (<code>/dns4/…/p2p/…</code>)
+			<textarea bind:value={relayInput} rows="3" autocomplete="off" spellcheck="false" placeholder="leer = nur die Relays von Le Space" data-testid="relays"></textarea></label>
+		<button onclick={saveRelay} disabled={busy === 'relay'}>{relayInput.trim() || !profile.attestRelay ? 'Relays speichern' : 'Eigene Relays entfernen'}</button>
 
 		<h3>5. Sicherungen</h3>
 		<label>Wallet, dem die Sicherungen gehören (0x…, leer = zahlendes Konto)<input bind:value={ownerInput} placeholder={profile.payer ? `Wallet der Sicherungen (leer = ${profile.payer.slice(0, 10)}…)` : 'Wallet der Sicherungen'} /></label>

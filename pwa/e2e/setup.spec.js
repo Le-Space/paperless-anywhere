@@ -65,8 +65,8 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await expect(page.getByTestId('aleph-status')).toHaveText('freigegeben (INSTANCE, FORGET, Port-Freigaben)');
 	expect(aggregates.get(payer.address).security.authorizations).toEqual([OTHER, { address: appAddress, types: ['INSTANCE', 'FORGET', 'AGGREGATE'], aggregate_keys: ['port-forwarding'] }]);
 
-	await page.getByPlaceholder('wss://dein-relay.example/attest').fill('wss://relay.example.com/attest');
-	await page.getByRole('button', { name: 'Relay speichern' }).click();
+	await page.getByTestId('relays').fill('wss://relay.example.com/attest');
+	await page.getByRole('button', { name: 'Relays speichern' }).click();
 	await page.getByText('Einen vorhandenen Schlüssel einfügen').click();
 	await page.getByPlaceholder('AGE-SECRET-KEY-1…').fill(AGE);
 	await page.getByRole('button', { name: 'Versiegelt hinterlegen' }).click();
@@ -111,7 +111,7 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await expect(phone.getByTestId('aleph-status')).toHaveText('freigegeben (INSTANCE, FORGET, Port-Freigaben)');
 	// The other device derives the same key from the same master: the vault's own key.
 	await expect(phone.getByTestId('age-status')).toHaveText('der Schlüssel des Tresors (die 24 Wörter genügen zur Wiederherstellung)');
-	await expect(phone.getByPlaceholder('wss://dein-relay.example/attest')).toHaveValue('wss://relay.example.com/attest');
+	await expect(phone.getByTestId('relays')).toHaveValue('wss://relay.example.com/attest');
 
 	// Revoking removes this app's entry and keeps the others.
 	await phone.getByRole('button', { name: 'Freigabe zurücknehmen' }).click();
