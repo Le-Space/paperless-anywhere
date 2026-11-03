@@ -44,7 +44,11 @@ describe('ownVms', () => {
 			msg(app, 'paperless-other-payer', 5, '0x' + '44'.repeat(20))
 		], app, payer);
 		expect(list.map((v) => v.name)).toEqual(['paperless-b', 'paperless-a']);
-		expect(list[0]).toMatchObject({ createdAt: 3000, crnHash: 'n' });
+		expect(list[0]).toMatchObject({ createdAt: 3000, crnHash: 'n', payer });
+	});
+	it('without a payer, keeps every payer and says who pays each', () => {
+		const list = ownVms([msg(app, 'paperless-wallet', 1), msg(app, 'paperless-self', 2, app)], app);
+		expect(list.map((v) => [v.name, v.payer])).toEqual([['paperless-self', app], ['paperless-wallet', payer]]);
 	});
 });
 
