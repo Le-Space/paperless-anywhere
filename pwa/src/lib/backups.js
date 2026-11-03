@@ -61,6 +61,15 @@ export function restoreEntry(backup) {
 export const DEFAULT_PLACES = Object.freeze({ copies: 2, providerIds: [9, 2], regions: [] });
 
 /**
+ * On mainnet the providers of the Mac's backups (36, 37, 1), so a production
+ * VM adds to the same data sets and one history continues.
+ */
+export const DEFAULT_PLACES_MAINNET = Object.freeze({ copies: 3, providerIds: [36, 37, 1], regions: [] });
+
+/** @param {string} network */
+export const defaultPlaces = (network) => (network === 'mainnet' ? DEFAULT_PLACES_MAINNET : DEFAULT_PLACES);
+
+/**
  * The backup configuration the VM gets with its unlock (paperless-backup's
  * config.json without the payer, which the start adds). On mainnet it writes
  * to the data sets of the Mac's backups (label `paperless-backup`), so both
@@ -68,10 +77,10 @@ export const DEFAULT_PLACES = Object.freeze({ copies: 2, providerIds: [9, 2], re
  * @param {string} network @param {string} recipient age1… of the profile's identity
  * @param {{ copies?: number, providerIds?: number[], regions?: string[] } | null} [places] copies and where, e.g. the current backupConfig
  */
-export function backupConfigFor(network, recipient, places = DEFAULT_PLACES) {
+export function backupConfigFor(network, recipient, places = defaultPlaces(network)) {
 	if (network !== 'calibration' && network !== 'mainnet') throw new Error(`Unbekanntes Netz: ${network}`);
 	if (!/^age1[0-9a-z]{58}$/.test(recipient)) throw new Error('Ohne age-Schlüssel keine Sicherung.');
-	const { copies, providerIds, regions } = { ...DEFAULT_PLACES, ...(places ?? {}) };
+	const { copies, providerIds, regions } = { ...defaultPlaces(network), ...(places ?? {}) };
 	const ids = [...(providerIds ?? [])].map(Number);
 	if (!ids.length && !(copies >= 1 && copies <= 3)) throw new Error('1 bis 3 Kopien.');
 	if (ids.length > 3) throw new Error('Höchstens 3 Anbieter.');

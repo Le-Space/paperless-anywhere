@@ -18,6 +18,8 @@ describe('backupConfigFor', () => {
 	});
 	it('writes mainnet backups to the data sets of the Mac', () => {
 		expect(backupConfigFor('mainnet', recipient, { copies: 3, providerIds: [36, 37, 1], regions: [] })).toMatchObject({ copies: 3, providerIds: [36, 37, 1], datasetMetadata: { app: 'paperless-backup' }, keepWeeks: 12 });
+		expect(backupConfigFor('mainnet', recipient)).toMatchObject({ copies: 3, providerIds: [36, 37, 1] });
+		expect(backupConfigFor('calibration', recipient)).toMatchObject({ providerIds: [9, 2] });
 		expect(() => backupConfigFor('other', recipient)).toThrow(/Unbekanntes Netz/);
 	});
 	it('checks places and a missing recipient', () => {

@@ -280,7 +280,7 @@
 		</details>
 		{@render feedback('age')}
 		<label class="check">
-			<input type="checkbox" data-testid="backups-on" checked={!!profile.backupConfig} disabled={busy === 'backups' || (profile.network === 'mainnet' && profile.role !== 'primary')}
+			<input type="checkbox" data-testid="backups-on" checked={!!profile.backupConfig} disabled={busy === 'backups' || (!profile.backupConfig && profile.network === 'mainnet' && profile.role !== 'primary')}
 				onchange={(e) => toggleBackups(e.currentTarget.checked)} />
 			Sichern, alle zwei Stunden bei Änderungen und beim Stoppen ({profile.network === 'mainnet' ? 'Mainnet' : 'Testnetz'}, Datensatz <code>{BACKUP_LABEL[profile.network === 'mainnet' ? 'mainnet' : 'calibration']}</code>)
 		</label>
