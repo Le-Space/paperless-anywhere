@@ -17,7 +17,8 @@
 # to are bind-mounted from there. Docker and the stack call it
 # before they start (the first one does the work); Caddy reads its data dir
 # after paperless-https restarts it, which comes later. If any step
-# fails, the VM runs as before and says so in data-disk.json (status page).
+# fails, data-disk.json says so (status page) and the stack does not start
+# (paperless-stack-up): Paperless never writes to the shared-key rootfs.
 set -u
 # No udev in the guest: device-mapper makes its own nodes.
 export DM_DISABLE_UDEV=1
@@ -72,7 +73,7 @@ report() {
   printf '{"status":"%s","reason":"%s","bytes":%s,"seconds":%s,"probe":%s}\n' "$1" "$2" "${3:-0}" "$(( $(date +%s) - started ))" "$(probe 2>/dev/null || echo null)" > "$state/data-disk.json"
 }
 plain() {
-  echo "paperless-data-disk: $1; data stays on the shared-key rootfs" >&2
+  echo "paperless-data-disk: $1; the stack will not start on the shared-key rootfs" >&2
   report plain "$1"
   exit 0
 }
@@ -131,7 +132,7 @@ mkdir -p "$mnt" && mount /dev/mapper/sealed "$mnt" \
   || { cryptsetup close sealed; [ -n "$img" ] && { dmsetup remove sealed-area; drop_file; }; plain "mount failed"; }
 
 # Move what the image brings (if anything) and bind every path over.
-for path in /srv/paperless /var/lib/docker /var/lib/caddy /root/.local/share/caddy /etc/paperless-anywhere /var/lib/paperless-anywhere; do
+for path in /srv/paperless /var/lib/docker /var/lib/caddy /root/.local/share/caddy /etc/paperless-anywhere /var/lib/paperless-anywhere /var/log/paperless-anywhere /opt/backup-filecoin; do
   target="$mnt$path"
   mkdir -p "$target" "$path"
   if [ -n "$(ls -A "$path" 2>/dev/null)" ]; then cp -a "$path/." "$target/" || plain "copying $path failed"; fi

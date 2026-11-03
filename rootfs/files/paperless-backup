@@ -46,7 +46,7 @@ keep = [l for l in lines if re.match(r"^\d{4}-\d{2}-\d{2}T[\d:.]+Z ", l)]
 def clean(l):
     l = re.sub(r"'[^']*'|\"[^\"]*\"", "'…'", l)
     l = re.sub(r"(?<![\w:])/[^\s]+", "/…", l)
-    l = re.sub(r"\b[0-9a-fA-F]{64}\b", "…", l)
+    l = re.sub(r"(?:0x)?[0-9a-fA-F]{64}", "…", l)
     return l[:220]
 print(json.dumps([clean(l) for l in keep[-int(sys.argv[2]):]]))
 LOG
@@ -130,7 +130,6 @@ done
 wait "$pid"; rc=$?
 cat "$log_dir/backup.log.run" >> "$log_dir/backup.log"; rm -f "$log_dir/backup.log.run"
 [ "$rc" -eq 0 ] || fail "the backup did not complete"
-printf '%s\n' "$now" > "$lib/backed-up.fingerprint"
 entry="$(python3 -c '
 import json, sys
 e = json.load(open(sys.argv[1]))[-1]
@@ -140,5 +139,17 @@ print(json.dumps({"name": e.get("name"), "date": e.get("date"), "pieceCid": e.ge
   "copies": [{k: c.get(k) for k in keep} for c in e.get("copies", [])],
   "failedAttempts": len(e.get("failedAttempts", []))}))' \
   "$( [ "$role" = primary ] && echo ledger.json || echo ledger.calibration.json )")"
+# Every requested copy, or it counts as failed: a stop must not erase the VM
+# with fewer copies than asked for, and the next check tries again.
+short="$(printf '%s' "$entry" | python3 -c 'import json, sys
+e = json.load(sys.stdin)
+have, want = len(e.get("copies") or []), e.get("requestedCopies") or 0
+print("" if e.get("complete") is True and have >= want else f"{have} of {want}")')"
+if [ -n "$short" ]; then
+  echo "paperless-backup: only $short copies" >&2
+  status failed ",\"reason\":\"only $short copies reached the providers\",\"backup\":$entry,\"log\":$(loglines 12)"
+  exit 1
+fi
+printf '%s\n' "$now" > "$lib/backed-up.fingerprint"
 status done ",\"role\":\"$role\",\"backup\":$entry,\"seconds\":$(( $(date +%s) - t0 ))"
 echo "paperless-backup: done, $entry"

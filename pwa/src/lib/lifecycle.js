@@ -233,6 +233,8 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 			onProgress({ step: 'ready', detail: `Paperless startet (${status.phase})`, status });
 			// A failed restore is final too: Paperless runs (empty), and says why.
 			if (status.phase === 'ready' || (status.phase === 'restore-failed' && status.paperless)) ready = status;
+			// The image refuses to run Paperless without its sealed data area.
+			if (status.phase === 'data-disk-failed') throw new Error(`Die VM konnte ihre verschlüsselte Datenplatte nicht anlegen (${status.dataDisk?.reason ?? 'ohne Angabe'}); Paperless startet darauf nicht. Die VM unter „Meine VMs“ löschen und neu starten.`);
 		}
 		if (!ready && !answered && again.length && Date.now() - unlockedAt > again[0]) {
 			again.shift();

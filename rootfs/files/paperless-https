@@ -28,14 +28,18 @@ if [ -s /tmp/secrets/dns_cloudflare_token ]; then
   case "$port" in *[!0-9]*|"") echo "paperless-https: no port for the fixed address" >&2; exit 1 ;; esac
   printf '%s\n' "$port" > /etc/paperless-anywhere/https_port
 fi
+# Caddy's admin API stays off (admin off): every container shares the host
+# network, so one that parses an untrusted document could otherwise reload
+# Caddy with a config of its own. Changes restart Caddy instead.
 serve=1
 if [ -n "$fixed" ] && ! [ -s /var/lib/caddy/fixed/cert.pem ]; then
   serve=""
-  printf '{\n  auto_https off\n}\n' > "$new"
+  printf '{\n  admin off\n  auto_https off\n}\n' > "$new"
 elif [ -n "$fixed" ]; then
   also=""; [ "$port" = 443 ] || also=", https://${host}:${port}"
   cat > "$new" <<CADDY
 {
+  admin off
   auto_https disable_redirects
 }
 
@@ -45,6 +49,7 @@ CADDY
 else
   cat > "$new" <<CADDY
 {
+  admin off
   auto_https disable_redirects
 }
 

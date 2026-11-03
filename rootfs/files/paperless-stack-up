@@ -8,6 +8,14 @@
 # once they answer. Then stay in the foreground on the whole stack, as the
 # unit expects.
 set -u
+# Only on the sealed data area: if paperless-data-disk could not make it,
+# documents and secrets would land on the shared-key rootfs. Refuse instead;
+# the status page says why (phase data-disk-failed).
+/usr/local/sbin/paperless-data-disk
+if ! grep -q '"status":"encrypted"' /run/paperless-anywhere/data-disk.json 2>/dev/null; then
+  echo "paperless-stack-up: no sealed data area; Paperless does not start" >&2
+  exit 1
+fi
 compose="docker compose --project-directory /opt/paperless"
 $compose up -d --remove-orphans postgres valkey paperless || exit 1
 $compose up -d gotenberg tika || echo "paperless-stack-up: Gotenberg/Tika did not start yet; Paperless runs without them" >&2

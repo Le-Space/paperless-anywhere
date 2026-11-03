@@ -6,14 +6,28 @@
 # stores the passphrase once more, but nothing reads it any longer: it would
 # stay there, in the agent's tmpfs, for as long as the VM runs. This zeroes
 # and removes it the same way, whenever it appears.
+#
+# The same for what only the restore reads (the age identity, which opens
+# every backup, and the ledger entry), once restore.json is final: a re-unlock
+# hands them over again, and paperless-restore runs only once.
 set -u
 f=/tmp/secrets/luks_passphrase
+wipe() {
+  size="$(stat -c %s "$1" 2>/dev/null || echo 0)"
+  [ "$size" -gt 0 ] && dd if=/dev/zero of="$1" bs=1 count="$size" conv=notrunc 2>/dev/null
+  rm -f "$1"
+}
 while :; do
   if [ -e "$f" ]; then
     size="$(stat -c %s "$f" 2>/dev/null || echo 0)"
     [ "$size" -gt 0 ] && dd if=/dev/zero of="$f" bs=1 count="$size" conv=notrunc 2>/dev/null
     rm -f "$f"
     echo "paperless-forget-passphrase: removed a passphrase handed over again"
+  fi
+  if grep -qE '"status":"(done|failed|skipped)"' /run/paperless-anywhere/restore.json 2>/dev/null; then
+    for r in /tmp/secrets/age_identity /tmp/secrets/restore_ledger_entry; do
+      [ -e "$r" ] && { wipe "$r"; echo "paperless-forget-passphrase: removed $(basename "$r") after the restore"; }
+    done
   fi
   sleep 2
 done
