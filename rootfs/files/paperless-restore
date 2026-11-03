@@ -164,11 +164,32 @@ if [ "$role" != primary ]; then
     || fail "could not switch off the imported mail rules"
   mail="off"
 fi
+# The login the app shows: an imported "admin" brings the other instance's
+# password (the Mac's, after a move), which the app does not know. Set it to
+# the one this vault derives; the stack has it as PAPERLESS_ADMIN_PASSWORD, so
+# it never appears on a command line. Other users keep theirs.
+admin="$(paperless-manage shell -c 'import os
+from django.contrib.auth.models import User
+name = os.environ.get("PAPERLESS_ADMIN_USER") or "admin"
+password = os.environ.get("PAPERLESS_ADMIN_PASSWORD")
+if not password:
+    print("admin skipped")
+else:
+    user = User.objects.filter(username=name).first()
+    if user is None:
+        User.objects.create_superuser(name, "", password)
+        print("admin created")
+    else:
+        user.set_password(password)
+        user.is_active = True
+        user.save()
+        print("admin set")' 2>>"$log" | sed -n 's/^admin //p' | tail -1)"
+
 counts="$(paperless-manage shell -c 'from documents.models import Document; a = Document.objects.count(); g = Document.global_objects.count() if hasattr(Document, "global_objects") else a; print("counts", a, g - a)' 2>>"$log" | sed -n 's/^counts //p' | tail -1)"
 documents="${counts%% *}"; trash="${counts##* }"
 
 # What was restored needs no new backup: the first check compares against it.
 paperless-backup fingerprint > /var/lib/paperless-anywhere/backed-up.fingerprint 2>>"$log" || true
 
-status done ",\"backup\":\"$name\",\"provider\":\"$got\",\"documents\":${documents:-0},\"trash\":${trash:-0},\"mail_rules\":\"$mail\",\"role\":\"$role\",\"seconds\":{\"download\":$((t2 - t1)),\"decrypt\":$((t3 - t2)),\"import\":$((t4 - t3)),\"total\":$((t4 - t0))}"
-echo "paperless-restore: $name restored, ${documents:-?} documents, mail rules $mail"
+status done ",\"backup\":\"$name\",\"provider\":\"$got\",\"documents\":${documents:-0},\"trash\":${trash:-0},\"mail_rules\":\"$mail\",\"admin\":\"${admin:-unknown}\",\"role\":\"$role\",\"seconds\":{\"download\":$((t2 - t1)),\"decrypt\":$((t3 - t2)),\"import\":$((t4 - t3)),\"total\":$((t4 - t0))}"
+echo "paperless-restore: $name restored, ${documents:-?} documents, mail rules $mail, admin ${admin:-unknown}"
