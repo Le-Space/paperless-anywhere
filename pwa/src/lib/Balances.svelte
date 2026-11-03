@@ -8,8 +8,8 @@
 	import TopUp from '$lib/TopUp.svelte';
 	import { marketPrices, money, UNITS } from '$lib/prices.js';
 
-	/** @type {{ master: Uint8Array, version?: number }} */
-	let { master, version = 0 } = $props();
+	/** @type {{ master: Uint8Array, version?: number, onsummary?: (s: { money: string, lasts: string, warnings: string[] } | null) => void }} */
+	let { master, version = 0, onsummary = () => {} } = $props();
 
 	const appAddress = privateKeyToAccount(alephPrivateKey(master)).address;
 	// Who pays the VM on Aleph, and the wallet that pays the backups on Filecoin.
@@ -74,6 +74,21 @@
 		]);
 		reading = false;
 	}
+
+	// One line for the simple view: the balance in euros, how long it lasts, and
+	// a warning only when money runs short (the same thresholds as below).
+	$effect(() => {
+		if (!alephPayer || (!aleph && !lsCredits)) return onsummary(null);
+		const warnings = [];
+		if (aleph && !vmUp && vmPerHour && aleph.credits < reserve) warnings.push('Das Guthaben reicht nicht für einen Start.');
+		if (filecoin && filecoin.runwayDays !== null && filecoin.runwayDays < 30) warnings.push('Das Guthaben für die Sicherungen reicht weniger als einen Monat.');
+		if (filecoin && filecoin.gas < LOW_GAS) warnings.push(`Wenig ${gasName} für die Sicherungen.`);
+		onsummary({
+			money: CREDITS_URL && lsCredits ? `${amount(lsCredits.credits / 100)} €` : aleph ? money(aleph.credits, 'eur', prices) : '',
+			lasts: aleph && perHour ? duration(hoursOf(aleph.credits, perHour)) : '',
+			warnings
+		});
+	});
 
 	// Again whenever the profile changed (setup, start, stop).
 	$effect(() => {
@@ -148,15 +163,16 @@
 {/if}
 
 <style>
-	.balances { margin: 1.5rem 0; padding: 0.5rem 0.75rem; background: #f6f8f6; border-radius: 4px; }
+	.balances { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.25rem; }
 	h2 { font-size: 1rem; margin: 0.25rem 0 0.5rem; }
 	dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.75rem; margin: 0; }
-	dt { color: #444; }
+	dt { color: var(--text-2); }
 	dd { margin: 0; }
-	.warn { color: #b26a00; font-size: 0.9rem; }
-	.hint { color: #666; }
-	.money { color: #444; margin-left: 0.3rem; }
+	@media (max-width: 480px) { dl { grid-template-columns: 1fr; } dd { margin-bottom: 0.4rem; } }
+	.warn { color: var(--warn); font-size: 0.9rem; }
+	.hint { color: var(--text-2); }
+	.money { color: var(--text-2); margin-left: 0.3rem; }
 	.units { margin: 0.5rem 0 0; font-size: 0.9rem; }
 	.units select { margin-left: 0.3rem; }
-	.quiet { background: none; border: none; color: #666; text-decoration: underline; padding: 0; margin: 0.5rem 0 0; font-size: 0.9rem; }
+	.quiet { background: none; border: none; color: var(--text-2); text-decoration: underline; padding: 0; margin: 0.5rem 0 0; font-size: 0.9rem; }
 </style>

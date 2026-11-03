@@ -57,6 +57,8 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	}
 	await page.getByRole('button', { name: 'Stimmt' }).click();
 
+	// The settings live under "Erweitert".
+	await page.getByTestId('tab-advanced').click();
 	await page.getByRole('button', { name: 'Wallet verbinden' }).click();
 	await expect(page.getByTestId('payer')).toHaveText(payer.address);
 	await expect(page.getByTestId('aleph-status')).toHaveText('nicht freigegeben');
@@ -107,6 +109,7 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await phone.getByText('Auf diesem Gerät mit Wiederherstellungsphrase öffnen').click();
 	await phone.locator('textarea').first().fill(words.join(' '));
 	await phone.getByRole('button', { name: 'Öffnen', exact: true }).click();
+	await phone.getByTestId('tab-advanced').click();
 	await expect(phone.getByTestId('payer')).toHaveText(payer.address);
 	await expect(phone.getByTestId('aleph-status')).toHaveText('freigegeben (INSTANCE, FORGET, Port-Freigaben)');
 	// The other device derives the same key from the same master: the vault's own key.
@@ -147,6 +150,12 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 		await asked.nth(i).fill(words[position - 1]);
 	}
 	await page.getByRole('button', { name: 'Stimmt' }).click();
+
+	// The simple view: Paperless is off and not set up yet; the way leads to "Erweitert".
+	await expect(page.getByTestId('simple-status')).toContainText('Paperless ist aus');
+	await expect(page.getByRole('button', { name: 'Paperless starten' })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Einrichtung öffnen' }).click();
+	await expect(page.getByTestId('tab-advanced')).toHaveAttribute('aria-selected', 'true');
 
 	// The role: test by default; production asks first and warns.
 	await expect(page.getByTestId('role-test')).toBeChecked();
