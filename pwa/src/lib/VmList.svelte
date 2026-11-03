@@ -59,9 +59,9 @@
 			const crnUrl = vm.crnHash ? await crnAddress(vm.crnHash).catch(() => null) : null;
 			if (crnUrl) await eraseOnNode(app, vm.itemHash, crnUrl);
 			await forgetInstance(app, vm.payer, vm.itemHash, 'paperless-anywhere: removed from the VM list');
-			if (isRunning) {
-				const { running, ...rest } = profile;
-				await saveProfile(master, rest);
+			if (isRunning || profile.starting?.instanceHash === vm.itemHash) {
+				const { running, starting, ...rest } = profile;
+				await saveProfile(master, { ...rest, ...(running && !isRunning ? { running } : {}), ...(starting && starting.instanceHash !== vm.itemHash ? { starting } : {}) });
 			}
 			vms = (vms ?? []).filter((v) => v.itemHash !== vm.itemHash);
 			onchange();
@@ -72,7 +72,7 @@
 		}
 	}
 	// Started by this vault and known: the running one, and one a start in this tab is bringing up.
-	const known = (vm) => vm.itemHash === profile.running?.instanceHash || vm.itemHash === $startingInstance;
+	const known = (vm) => vm.itemHash === profile.running?.instanceHash || vm.itemHash === profile.starting?.instanceHash || vm.itemHash === $startingInstance;
 	const strays = $derived((vms ?? []).filter((vm) => !known(vm)).length);
 	// A start whose tab was reloaded or closed leaves a running VM the app no
 	// longer knows. Adopting it makes it the running one again, so "Sichern und
@@ -95,7 +95,9 @@
 			if (!status?.phase) throw new Error('Die VM antwortet nicht als Paperless (noch kein Zertifikat oder nicht entsperrt).');
 			const fresh = await loadProfile(master);
 			if (fresh.running) throw new Error('Es ist schon ein Paperless als laufend bekannt.');
-			profile = { ...fresh, running: { instanceHash: vm.itemHash, crnHash, host, trustedExecution } };
+			// Adopting the VM of an interrupted start ends that start.
+			const { starting, ...rest } = fresh;
+			profile = { ...rest, ...(starting && starting.instanceHash !== vm.itemHash ? { starting } : {}), running: { instanceHash: vm.itemHash, crnHash, host, trustedExecution, payer: vm.payer } };
 			await saveProfile(master, $state.snapshot(profile));
 			onchange();
 		} catch (e) {
@@ -121,7 +123,7 @@
 			{#each vms as vm (vm.itemHash)}
 				<li data-testid="vm-row">
 					<strong>{vm.name}</strong>
-					{#if profile.running?.instanceHash === vm.itemHash}<small>(gestartet)</small>{:else if $startingInstance === vm.itemHash}<small data-testid="vm-starting">(startet gerade)</small>{/if}
+					{#if profile.running?.instanceHash === vm.itemHash}<small>(gestartet)</small>{:else if $startingInstance === vm.itemHash}<small data-testid="vm-starting">(startet gerade)</small>{:else if profile.starting?.instanceHash === vm.itemHash}<small data-testid="vm-interrupted">(Start unterbrochen)</small>{/if}
 					<br /><small>seit {when(vm.createdAt)} · {#if perHour}kostet ca. {perHour.toLocaleString('de-DE')} Credits/h ·{/if} {vm.phase ?? 'prüfe …'}
 						{#if vm.host && vm.up} · <a href={`https://${vm.host}/`} target="_blank" rel="noopener">{vm.host}</a>{/if}
 						· <code>{vm.itemHash.slice(0, 12)}</code></small>
