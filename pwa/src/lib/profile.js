@@ -30,3 +30,13 @@ export async function saveProfile(master, profile) {
 	const box = await seal(new TextEncoder().encode(JSON.stringify(profile)), boxKey(master), 'profile');
 	await writeAggregate(account(master), PROFILE_KEY, { v: 1, box });
 }
+
+/**
+ * Who pays the VM on Aleph: the app's own address when the profile says so
+ * (`appPays`, its credits come from Le Space Credits or a transfer), else the
+ * connected wallet. The wallet stays the Filecoin payer of the backups.
+ * @param {Record<string, any>} profile @param {string} appAddress
+ */
+export function vmPayer(profile, appAddress) {
+	return profile.appPays ? appAddress : profile.payer;
+}
