@@ -213,6 +213,7 @@
 				<button class="quiet" onclick={discard} disabled={busy}>Verwerfen (die VM dann unten unter „Meine VMs“ löschen)</button>
 			</div>
 		{:else}
+			<p class="role-line" data-testid="role-line">{profile.role === 'primary' ? 'Startet produktiv: Mail-Regeln an, Sicherungen auf Mainnet.' : 'Startet als Test: Mail-Regeln aus, Sicherungen ins Testnetz.'}</p>
 			<button onclick={start} disabled={busy || missing.length > 0}>Paperless starten</button>
 			{#if missing.length}<p class="hint">Es fehlt noch: {missing.join(', ')}</p>{/if}
 		{/if}
@@ -299,6 +300,7 @@
 	.restore { border: none; padding: 0; margin: 0 0 0.75rem; }
 	.restore label { display: block; }
 	.error { color: #b00020; }
+	.role-line { font-size: 0.9rem; color: #444; margin: 0.25rem 0; }
 	.interrupted { padding: 0.5rem 0.75rem; background: #fff6e5; border-radius: 4px; }
 	.quiet { background: none; border: none; color: #666; text-decoration: underline; padding: 0; }
 </style>
