@@ -274,6 +274,8 @@
 	.hint { color: #666; font-size: 0.9rem; }
 	label { display: block; margin-top: 0.5rem; font-size: 0.9rem; color: #444; }
 	.payer-choice { border: none; padding: 0; margin: 0 0 0.5rem; display: grid; gap: 0.25rem; }
+	/* The page sizes inputs to full width; a radio keeps its own size beside its label. */
+	.payer-choice input { width: auto; margin-right: 0.4rem; }
 	.where { margin: 0.5rem 0 1rem; font-size: 0.9rem; color: #444; }
 	.where summary { cursor: pointer; }
 	.waiting { background: #fff4d6; padding: 0.5rem 0.75rem; border-radius: 4px; }
