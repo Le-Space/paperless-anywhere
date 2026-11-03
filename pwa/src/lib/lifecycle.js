@@ -14,6 +14,7 @@ import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from
 import { relayTransports } from './attest-p2p.js';
 import { attestRelaysFor } from './relays.js';
 import { vmPayer } from './profile.js';
+import { ALEPH_API } from './aleph.js';
 import { crnAddress, credits, estimateCreditsPerHour, FIXED_HOST_DOMAIN, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
 /** The last backup failed; the VM stays. Carries the VM's reason and its tool's last log lines. */
@@ -62,12 +63,19 @@ export function startRequirements(profile) {
 }
 
 /**
+ * @typedef {{ instanceHash: string, crnHash: string, payer: string, trustedExecution: any, restoreEntry: any, at: number }} Starting
+ * A VM that was requested and is still being brought up: kept in the profile
+ * as soon as Aleph has it, so a reload of the app can carry on with it.
+ */
+
+/**
  * @param {Uint8Array} master
  * @param {Record<string, any>} profile
  * @param {(p: { step: string, detail?: string, instanceHash?: string }) => void} onProgress
+ * @param {{ onRequested?: (starting: Starting) => Promise<void> | void }} [options] told once Aleph has the VM
  * @returns {Promise<{ instanceHash: string, crnHash: string, host: string, trustedExecution: any }>}
  */
-export async function startPaperless(master, profile, onProgress) {
+export async function startPaperless(master, profile, onProgress, { onRequested } = {}) {
 	const missing = startRequirements(profile);
 	if (missing.length) throw new Error(`Für den Start fehlt: ${missing.join(', ')}`);
 	const app = privateKeyToAccount(alephPrivateKey(master));
@@ -92,14 +100,49 @@ export async function startPaperless(master, profile, onProgress) {
 		throw new Error(`Zu wenig Credits auf ${profile.appPays ? 'dem Konto der App' : 'dem zahlenden Konto'}: ${balance.toLocaleString('de-DE')}. Aleph nimmt die VM erst mit einem Tag Reserve an: ${reserve.toLocaleString('de-DE')} (${vmPerHour.toLocaleString('de-DE')} Credits/h für Paperless${running}).`);
 	}
 	const instanceHash = await sendInstance(message);
-	const crnUrl = await crnAddress(profile.crnHash);
-	await notifyNode(crnUrl, instanceHash);
+	/** @type {Starting} */
+	const starting = { instanceHash, crnHash: profile.crnHash, payer, trustedExecution, restoreEntry: profile.restoreEntry ?? null, at: Date.now() };
+	await onRequested?.(starting);
+	await notifyNode(await crnAddress(profile.crnHash), instanceHash);
+	return bringUp(master, profile, starting, wasm, onProgress);
+}
+
+/**
+ * Carry on with a start that was interrupted (the app was reloaded or closed
+ * after Aleph took the VM): the steps after the request, each skipped when
+ * the VM is already past it.
+ * @param {Uint8Array} master
+ * @param {Record<string, any>} profile with `starting`
+ * @param {(p: { step: string, detail?: string, instanceHash?: string }) => void} onProgress
+ */
+export async function resumeStart(master, profile, onProgress) {
+	/** @type {Starting} */
+	const starting = profile.starting;
+	if (!starting?.instanceHash) throw new Error('Es gibt keinen unterbrochenen Start.');
+	onProgress({ step: 'instance', detail: 'VM bei Aleph nachsehen', instanceHash: starting.instanceHash });
+	const res = await fetch(`${ALEPH_API}/api/v0/messages/${starting.instanceHash}`, { cache: 'no-store' });
+	const status = res.ok ? (await res.json())?.status : null;
+	if (status !== 'processed') throw new Error(`Die VM ${starting.instanceHash.slice(0, 12)} gibt es bei Aleph nicht mehr (${status ?? res.status}).`);
+	return bringUp(master, { ...profile, restoreEntry: starting.restoreEntry }, starting, await loadWasm(), onProgress);
+}
+
+/**
+ * From a requested VM to a ready Paperless: port 443, address, unlock, ready.
+ * @param {Uint8Array} master @param {Record<string, any>} profile @param {Starting} starting @param {any} wasm
+ * @param {(p: { step: string, detail?: string, instanceHash?: string }) => void} onProgress
+ */
+async function bringUp(master, profile, starting, wasm, onProgress) {
+	const app = privateKeyToAccount(alephPrivateKey(master));
+	const { instanceHash, payer, trustedExecution } = starting;
+	const crnUrl = await crnAddress(starting.crnHash);
 
 	onProgress({ step: 'network', detail: 'Port 443 und Adresse', instanceHash });
-	await forward443(app, payer, instanceHash);
-	await until('port 443', () => mapped443(crnUrl, instanceHash), { tries: 60 });
-	// The node restarts the VM to apply a mapping; give it a moment before the unlock.
-	await sleep(15_000);
+	if (!(await mapped443(crnUrl, instanceHash).catch(() => null))) {
+		await forward443(app, payer, instanceHash);
+		await until('port 443', () => mapped443(crnUrl, instanceHash), { tries: 60 });
+		// The node restarts the VM to apply a mapping; give it a moment before the unlock.
+		await sleep(15_000);
+	}
 	// With a DNS token, the fixed address: the VM points the name at itself and
 	// gets its certificate over DNS, and Caddy answers on 443 (IPv6) and on the
 	// node's port (IPv4), so `name:port` reaches it from either. Without one,
@@ -144,7 +187,7 @@ export async function startPaperless(master, profile, onProgress) {
 			wasm,
 			relayUrl: relays[0],
 			transport: relayTransports(relays),
-			crnHash: profile.crnHash,
+			crnHash: starting.crnHash,
 			instanceItemHash: instanceHash,
 			trustedExecution,
 			passphrase: profile.luksPassphrase,
@@ -152,9 +195,15 @@ export async function startPaperless(master, profile, onProgress) {
 			sign: (payload) => app.signMessage({ message: payload }),
 			onProgress: ({ detail }) => onProgress({ step: 'unlock', detail })
 		});
-	const unlocked = await unlock();
-	// Which secrets the guest's agent says it stored (names only).
-	onProgress({ step: 'unlock', detail: 'entsperrt', injected: unlocked?.injected ?? [] });
+	// A resumed start may find the VM unlocked already: its status page answers.
+	const already = await vmStatus(host).catch(() => null);
+	if (already?.phase) {
+		onProgress({ step: 'unlock', detail: 'schon entsperrt' });
+	} else {
+		const unlocked = await unlock();
+		// Which secrets the guest's agent says it stored (names only).
+		onProgress({ step: 'unlock', detail: 'entsperrt', injected: unlocked?.injected ?? [] });
+	}
 
 	// Sometimes the guest's init never sees the passphrase the agent stored and
 	// waits for it forever (seen on 2026-10-26/27 while Aleph was slow): the
@@ -190,7 +239,7 @@ export async function startPaperless(master, profile, onProgress) {
 	}
 	// Whether the VM sealed its data area with a key of its own (image paperless-data-disk).
 	const dataDisk = ready.dataDisk?.status === 'encrypted' ? 'encrypted' : ready.dataDisk ? 'plain' : 'unknown';
-	return { instanceHash, crnHash: profile.crnHash, payer, host, trustedExecution, dataDisk, ...(ready.phase === 'restore-failed' ? { restore: ready.restore } : {}) };
+	return { instanceHash, crnHash: starting.crnHash, payer, host, trustedExecution, dataDisk, ...(ready.phase === 'restore-failed' ? { restore: ready.restore } : {}) };
 }
 
 /**

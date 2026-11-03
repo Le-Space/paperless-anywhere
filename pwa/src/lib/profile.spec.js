@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { vmPayer } from './profile.js';
-import { startRequirements } from './lifecycle.js';
+import { resumeStart, startRequirements } from './lifecycle.js';
 
 const app = '0x00000000000000000000000000000000000000A1';
 const wallet = '0x00000000000000000000000000000000000000B2';
@@ -22,5 +22,20 @@ describe('startRequirements', () => {
 		expect(startRequirements({ ...ready, appPays: true })).toEqual([]);
 		expect(startRequirements({ ...ready, appPays: true, backupConfig: { copies: 2 } })).toEqual(['Wallet für die Sicherungen']);
 		expect(startRequirements({ ...ready, appPays: true, payer: wallet, backupConfig: { copies: 2 } })).toEqual([]);
+	});
+});
+
+describe('resumeStart', () => {
+	afterEach(() => vi.unstubAllGlobals());
+	const master = new Uint8Array(32).fill(7);
+	it('needs an interrupted start', async () => {
+		await expect(resumeStart(master, {}, () => {})).rejects.toThrow('keinen unterbrochenen Start');
+	});
+	it('stops when Aleph no longer has the VM', async () => {
+		vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ status: 'forgotten' })));
+		const steps = [];
+		const starting = { instanceHash: 'c'.repeat(64), crnHash: 'd'.repeat(64), payer: app, trustedExecution: {}, restoreEntry: null, at: 0 };
+		await expect(resumeStart(master, { starting }, (p) => steps.push(p.step))).rejects.toThrow('gibt es bei Aleph nicht mehr (forgotten)');
+		expect(steps).toEqual(['instance']);
 	});
 });

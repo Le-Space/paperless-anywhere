@@ -1,6 +1,6 @@
 <script>
 	import { loadProfile, saveProfile } from '$lib/profile.js';
-	import { startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
+	import { resumeStart, startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
 	import { listBackups, pieceCidOfStop, place, restoreEntry, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
@@ -125,13 +125,35 @@
 		await reload();
 		const chosen = choice === 'own' ? pick(split.own) : choice === 'any' ? pick(split.other) : null;
 		const forStart = { ...$state.snapshot(profile), restoreEntry: chosen ? restoreEntry(chosen) : null };
+		// Once Aleph has the VM, the profile knows it: a reload carries on from there.
+		const onRequested = async (starting) => {
+			profile = { ...profile, starting };
+			await saveProfile(master, $state.snapshot(profile));
+			onchange();
+		};
+		await finishStart(() => startPaperless(master, forStart, track('start'), { onRequested }));
+	});
+	const resume = () => run(async () => {
+		await reload();
+		await finishStart(() => resumeStart(master, $state.snapshot(profile), track('start')));
+	});
+	/** @param {() => Promise<any>} bringUp */
+	async function finishStart(bringUp) {
 		try {
-			const running = await startPaperless(master, forStart, track('start'));
-			profile = { ...profile, running };
+			const running = await bringUp();
+			const { starting, ...rest } = profile;
+			profile = { ...rest, running };
 			await saveProfile(master, $state.snapshot(profile));
 		} finally {
 			startingInstance.set('');
 		}
+		onchange();
+	}
+	// Give up on an interrupted start; the VM stays in the list below to remove.
+	const discard = () => run(async () => {
+		const { starting, ...rest } = profile;
+		profile = rest;
+		await saveProfile(master, $state.snapshot(profile));
 		onchange();
 	});
 	const stop = () => run(async () => {
@@ -184,8 +206,16 @@
 				{#if backupsError}<small class="hint">{backupsError}</small>{/if}
 			</fieldset>
 		{/if}
-		<button onclick={start} disabled={busy || missing.length > 0}>Paperless starten</button>
-		{#if missing.length}<p class="hint">Es fehlt noch: {missing.join(', ')}</p>{/if}
+		{#if profile.starting && !busy}
+			<div class="interrupted" data-testid="start-interrupted">
+				<p>Ein Start wurde unterbrochen: VM <code>{profile.starting.instanceHash.slice(0, 12)}</code>, angefordert {new Date(profile.starting.at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}. Sie läuft auf Aleph und kostet, bis sie fertig gestartet oder gelöscht ist.</p>
+				<button onclick={resume} disabled={busy}>Start fortsetzen</button>
+				<button class="quiet" onclick={discard} disabled={busy}>Verwerfen (die VM dann unten unter „Meine VMs“ löschen)</button>
+			</div>
+		{:else}
+			<button onclick={start} disabled={busy || missing.length > 0}>Paperless starten</button>
+			{#if missing.length}<p class="hint">Es fehlt noch: {missing.join(', ')}</p>{/if}
+		{/if}
 	{/if}
 	{#if action && (busy || Object.keys(times).length)}
 		<ol class="steps" data-testid="progress-steps">
@@ -269,4 +299,6 @@
 	.restore { border: none; padding: 0; margin: 0 0 0.75rem; }
 	.restore label { display: block; }
 	.error { color: #b00020; }
+	.interrupted { padding: 0.5rem 0.75rem; background: #fff6e5; border-radius: 4px; }
+	.quiet { background: none; border: none; color: #666; text-decoration: underline; padding: 0; }
 </style>
