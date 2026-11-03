@@ -41,6 +41,8 @@ test('start and stop a confidential Paperless from the PWA', async ({ page }) =>
 		await asked.nth(i).fill(words[position - 1]);
 	}
 	await page.getByRole('button', { name: 'Stimmt' }).click();
+	// The settings, the step list and "Sichern und stoppen" live under "Erweitert".
+	await page.getByTestId('tab-advanced').click();
 
 	await page.getByRole('button', { name: 'Wallet verbinden' }).click();
 	await expect(page.getByTestId('payer')).toHaveText(payer.address, { timeout: 60_000 });

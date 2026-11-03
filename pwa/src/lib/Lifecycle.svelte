@@ -5,8 +5,8 @@
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
 
-	/** @type {{ master: Uint8Array, version?: number, onchange?: () => void }} */
-	let { master, version = 0, onchange = () => {} } = $props();
+	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void }} */
+	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {} } = $props();
 
 	/** @type {Record<string, any>} */
 	let profile = $state({});
@@ -88,8 +88,10 @@
 	const adminPassword = $derived(paperlessSecrets(master).adminPassword);
 	const copyPassword = () => navigator.clipboard?.writeText(adminPassword);
 
+	let loaded = $state(false);
 	const reload = async () => {
 		profile = await loadProfile(master);
+		loaded = true;
 		const owner = profile.backupOwner || profile.payer;
 		if (owner && profile.ageIdentity && !profile.running) {
 			backupsError = '';
@@ -173,134 +175,232 @@
 		onchange();
 	});
 	const missing = $derived(startRequirements(profile));
+
+	// The simple view: one status, one calm progress line, one button. It starts
+	// with the restore choice computed above (the newest own backup, if any), and
+	// only once the backups are read, so it never starts empty by accident.
+	const phase = $derived(
+		busy && action === 'start' ? 'starting'
+		: busy && action === 'stop' ? 'stopping'
+		: profile.running ? 'running'
+		: profile.starting ? 'interrupted'
+		: loaded ? 'off' : 'loading'
+	);
+	const TITLES = {
+		loading: 'Einen Moment …',
+		off: 'Paperless ist aus',
+		starting: 'Paperless startet',
+		stopping: 'Paperless wird gesichert und beendet',
+		running: 'Paperless läuft',
+		interrupted: 'Start unterbrochen'
+	};
+	const backupsPending = $derived(Boolean(profile.ageIdentity && (profile.backupOwner || profile.payer) && backups === null));
+	const typicalTotal = $derived(action ? STEPS[action].reduce((a, s) => a + typicalOf(s), 0) : 0);
+	const elapsed = $derived(Math.max(0, (now - startedAt) / 1000));
+	const share = $derived(typicalTotal ? Math.min(0.95, elapsed / typicalTotal) : 0);
+	const leftMinutes = $derived(Math.max(1, Math.ceil((typicalTotal - elapsed) / 60)));
+	const stepLabel = $derived(action ? (STEPS[action].find((s) => s.step === current)?.label ?? 'Vorbereiten') : '');
 </script>
 
-<section class="lifecycle" data-testid="lifecycle">
-	{#if profile.running}
-		<p>Paperless läuft: <a href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="paperless-link">{profile.running.host}</a></p>
-		{#if profile.running.restore?.status === 'failed'}<p class="error" data-testid="restore-failed">Wiederherstellung fehlgeschlagen ({profile.running.restore.reason ?? 'ohne Grund'}). Paperless läuft leer.</p>{/if}
-		{#if profile.running.dataDisk === 'encrypted'}<p class="hint" data-testid="data-disk">Was diese VM schreibt, liegt auf einer eigenen Platte, verschlüsselt mit einem Schlüssel, den nur die VM kennt.</p>
-		{:else if profile.running.dataDisk === 'plain'}<p class="warn" data-testid="data-disk">Diese VM schreibt auf die gemeinsame Image-Platte, ohne eigenen Schlüssel. Die eigene Datenplatte ist vorerst ausgeschaltet (zu wenig Platz, bis die Container-Images flach sind).</p>{/if}
-		<p data-testid="paperless-login">Anmeldung: <code>admin</code>,
-			{#if showPassword}<code data-testid="admin-password">{adminPassword}</code>{:else}<span>••••••••</span>{/if}
-			<button type="button" onclick={() => (showPassword = !showPassword)}>{showPassword ? 'Verbergen' : 'Passwort anzeigen'}</button>
-			<button type="button" onclick={copyPassword}>Kopieren</button>
-		</p>
-		<button onclick={stop} disabled={busy}>Sichern und stoppen</button>
-	{:else}
-		{#if profile.ageIdentity}
-			<fieldset class="restore">
-				<legend>Beim Start</legend>
-				<label><input type="radio" bind:group={choice} value="own" disabled={!split.own.length} />
-					Neueste eigene Sicherung wiederherstellen
-					{#if split.own.length}<small data-testid="newest-backup">({pick(split.own).pieceCid.slice(-12)}, {pick(split.own).copies.length} Kopien: {wherePlaces(pick(split.own))})</small>
-					{:else if backups}<small>(dieser Tresor hat noch keine gemacht)</small>{:else}<small>(lese …)</small>{/if}
-				</label>
-				{#if split.other.length}
-					<label><input type="radio" bind:group={choice} value="any" />
-						Neueste andere Sicherung des Kontos ({pick(split.other).pieceCid.slice(-12)}, {wherePlaces(pick(split.other))})
-						<small>– nicht von diesem Tresor ({split.other.length}); nur wenn sie mit deinem Schlüssel verschlüsselt ist, z. B. vom Mac mit eingefügtem Schlüssel</small>
-					</label>
-				{/if}
-				<label><input type="radio" bind:group={choice} value="empty" /> Leeres Paperless</label>
-				{#if backupsError}<small class="hint">{backupsError}</small>{/if}
-			</fieldset>
-		{/if}
-		{#if profile.starting && !busy}
-			<div class="interrupted" data-testid="start-interrupted">
-				<p>Ein Start wurde unterbrochen: VM <code>{profile.starting.instanceHash.slice(0, 12)}</code>, angefordert {new Date(profile.starting.at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}. Sie läuft auf Aleph und kostet, bis sie fertig gestartet oder gelöscht ist.</p>
-				<button onclick={resume} disabled={busy}>Start fortsetzen</button>
-				<button class="quiet" onclick={discard} disabled={busy}>Verwerfen (die VM dann unten unter „Meine VMs“ löschen)</button>
+<section class="lifecycle" class:simple data-testid="lifecycle">
+	{#if simple}
+		<div class="status is-{phase}" data-testid="simple-status">
+			<span class="dot" aria-hidden="true"></span>
+			<div>
+				<h1>{TITLES[phase]}</h1>
+				{#if phase === 'off'}<p class="sub">Der Start dauert etwa {minutes(STEPS.start.reduce((a, s) => a + typicalOf(s), 0))}.</p>
+				{:else if phase === 'starting'}<p class="sub">Lass dieses Fenster offen, bis Paperless bereit ist.</p>
+				{:else if phase === 'stopping'}<p class="sub">Erst die Sicherung, dann geht die Maschine aus. Lass dieses Fenster offen.</p>
+				{:else if phase === 'running'}<p class="sub data">{profile.running.host}</p>
+				{:else if phase === 'interrupted'}<p class="sub">Die Maschine läuft schon und kostet, bis sie fertig gestartet ist.</p>{/if}
 			</div>
-		{:else}
-			<p class="role-line" data-testid="role-line">{profile.role === 'primary' ? 'Startet produktiv: Mail-Regeln an, Sicherungen auf Mainnet.' : 'Startet als Test: Mail-Regeln aus, Sicherungen ins Testnetz.'}</p>
-			<button onclick={start} disabled={busy || missing.length > 0}>Paperless starten</button>
-			{#if missing.length}<p class="hint">Es fehlt noch: {missing.join(', ')}</p>{/if}
+		</div>
+
+		{#if phase === 'starting' || phase === 'stopping'}
+			<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(share * 100)} aria-label={TITLES[phase]}><span style="width: {Math.round(share * 100)}%"></span></div>
+			<p class="calm" data-testid="simple-progress">{stepLabel} · noch etwa {leftMinutes} min</p>
+		{:else if phase === 'running'}
+			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="simple-open">Paperless öffnen</a>
+			{#if profile.running.restore?.status === 'failed'}<p class="error">Die Sicherung ließ sich nicht wiederherstellen; Paperless läuft leer. Details unter „Erweitert“.</p>{/if}
+			<div class="login" data-testid="simple-login">
+				<p class="label">Anmeldung in Paperless</p>
+				<p>Benutzer <code>admin</code></p>
+				<p>Passwort {#if showPassword}<code data-testid="simple-password">{adminPassword}</code>{:else}<code>••••••••</code>{/if}</p>
+				<div class="row">
+					<button type="button" class="small" onclick={() => (showPassword = !showPassword)}>{showPassword ? 'Verbergen' : 'Passwort anzeigen'}</button>
+					<button type="button" class="small" onclick={copyPassword}>Kopieren</button>
+				</div>
+			</div>
+			<button class="secondary" onclick={stop} disabled={busy}>Sichern und beenden</button>
+		{:else if phase === 'interrupted'}
+			<button class="cta" onclick={resume} disabled={busy}>Start fortsetzen</button>
+		{:else if phase === 'off'}
+			{#if missing.length}
+				<p class="hint">Paperless ist hier noch nicht fertig eingerichtet.</p>
+				<button class="secondary" onclick={onadvanced}>Einrichtung öffnen</button>
+			{:else}
+				<button class="cta" onclick={start} disabled={busy || backupsPending || Boolean(backupsError)}>Paperless starten</button>
+				{#if backupsPending}<p class="hint">Sicherungen werden gelesen …</p>
+				{:else if backupsError}<p class="warn">{backupsError} Bitte gleich noch einmal versuchen.</p>
+				{:else if profile.ageIdentity}<p class="hint" data-testid="simple-restore">{choice === 'own' ? 'Startet mit deiner neuesten Sicherung.' : 'Startet ohne Daten: es gibt noch keine eigene Sicherung.'}</p>{/if}
+			{/if}
 		{/if}
-	{/if}
-	{#if action && (busy || Object.keys(times).length)}
-		<ol class="steps" data-testid="progress-steps">
-			{#each STEPS[action] as s (s.step)}
-				{@const t = times[s.step]}
-				<li class:done={t?.to} class:active={t && !t.to}>
-					<span class="mark">{t?.to ? '✓' : t ? '▶' : '·'}</span>
-					{s.label}
-					<small>
-						{#if t}{seconds((t.to ?? now) - t.from)}{/if}
-						(üblich ca. {minutes(typicalOf(s))})
-					</small>
-					{#if s.step === 'ready' && t}
-						{#if vmStart?.timeline}
-							<ul class="substeps" data-testid="vm-substeps">
-								{#each SUBSTEPS as sub (sub.key)}
-									{@const at = vmStart.timeline[sub.key]}
-									<li class:done={at}>
-										<span class="mark">{at ? '✓' : '·'}</span>{sub.label}
-										{#if sub.key === 'images' && vmStart.imagesTotal}<small>{vmStart.images}/{vmStart.imagesTotal}</small>{/if}
-										{#if at}<small>nach {at - vmStart.timeline.unlocked} s</small>{/if}
-									</li>
-								{/each}
-							</ul>
-						{:else if !t.to}
-							<p class="hint">Die Status-Seite der VM antwortet erst, wenn ihr Zertifikat da ist. Bis dahin lädt sie die Container-Images (der längste Teil); die Einzelschritte erscheinen dann hier.</p>
-						{/if}
+		{#if error}<p class="error" role="alert">{error}</p>{/if}
+	{:else}
+		{#if profile.running}
+			<p>Paperless läuft: <a href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="paperless-link">{profile.running.host}</a></p>
+			{#if profile.running.restore?.status === 'failed'}<p class="error" data-testid="restore-failed">Wiederherstellung fehlgeschlagen ({profile.running.restore.reason ?? 'ohne Grund'}). Paperless läuft leer.</p>{/if}
+			{#if profile.running.dataDisk === 'encrypted'}<p class="hint" data-testid="data-disk">Was diese VM schreibt, liegt auf einer eigenen Platte, verschlüsselt mit einem Schlüssel, den nur die VM kennt.</p>
+			{:else if profile.running.dataDisk === 'plain'}<p class="warn" data-testid="data-disk">Diese VM schreibt auf die gemeinsame Image-Platte, ohne eigenen Schlüssel. Die eigene Datenplatte ist vorerst ausgeschaltet (zu wenig Platz, bis die Container-Images flach sind).</p>{/if}
+			<p data-testid="paperless-login">Anmeldung: <code>admin</code>,
+				{#if showPassword}<code data-testid="admin-password">{adminPassword}</code>{:else}<span>••••••••</span>{/if}
+				<button type="button" onclick={() => (showPassword = !showPassword)}>{showPassword ? 'Verbergen' : 'Passwort anzeigen'}</button>
+				<button type="button" onclick={copyPassword}>Kopieren</button>
+			</p>
+			<button onclick={stop} disabled={busy}>Sichern und stoppen</button>
+		{:else}
+			{#if profile.ageIdentity}
+				<fieldset class="restore">
+					<legend>Beim Start</legend>
+					<label><input type="radio" bind:group={choice} value="own" disabled={!split.own.length} />
+						Neueste eigene Sicherung wiederherstellen
+						{#if split.own.length}<small data-testid="newest-backup">({pick(split.own).pieceCid.slice(-12)}, {pick(split.own).copies.length} Kopien: {wherePlaces(pick(split.own))})</small>
+						{:else if backups}<small>(dieser Tresor hat noch keine gemacht)</small>{:else}<small>(lese …)</small>{/if}
+					</label>
+					{#if split.other.length}
+						<label><input type="radio" bind:group={choice} value="any" />
+							Neueste andere Sicherung des Kontos ({pick(split.other).pieceCid.slice(-12)}, {wherePlaces(pick(split.other))})
+							<small>– nicht von diesem Tresor ({split.other.length}); nur wenn sie mit deinem Schlüssel verschlüsselt ist, z. B. vom Mac mit eingefügtem Schlüssel</small>
+						</label>
 					{/if}
-				</li>
-			{/each}
-		</ol>
-		<p class="hint">Gesamt: {seconds((busy ? now : Object.values(times).reduce((m, t) => Math.max(m, t.to ?? 0), startedAt)) - startedAt)}
-			· üblich ca. {minutes(STEPS[action].reduce((a, s) => a + typicalOf(s), 0))}</p>
-	{/if}
-	{#if progress}<p data-testid="progress">{progress} …</p>{/if}
-	{#if error}<p class="error" role="alert">{error}</p>{/if}
-	{#if errorLog.length}
-		<details open class="log"><summary>Letzte Zeilen der Sicherung (aus der VM)</summary><pre data-testid="backup-log">{errorLog.join('\n')}</pre></details>
-	{/if}
-	{#if !profile.running && profile.lastBackup}
-		{@const b = profile.lastBackup}
-		<details class="backup-card" data-testid="last-backup">
-			<summary>Letzte Sicherung: {b.date ? new Date(b.date).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : b.name} · {b.copies?.length ?? 0}/{b.requestedCopies ?? b.copies?.length} Kopien{b.complete ? '' : ' (unvollständig)'}</summary>
-			<dl>
-				<dt>Netz</dt><dd>Filecoin {b.network === 'mainnet' ? 'Mainnet' : 'Calibration (Testnetz)'}</dd>
-				<dt>Bezahlt von</dt><dd><code>{b.payer}</code></dd>
-				<dt>Piece CID</dt><dd><code>{b.pieceCid}</code></dd>
-				{#if b.size}<dt>Größe</dt><dd>{(b.size / 1048576).toFixed(1)} MiB (verschlüsselt)</dd>{/if}
-				{#if b.seconds}<dt>Dauer</dt><dd>{b.seconds} s</dd>{/if}
-			</dl>
-			<ul>
-				{#each b.copies ?? [] as c (c.providerId + c.dataSetId)}
-					<li>Anbieter {c.providerId}{c.location ? ` (${place(c.location)})` : ''} · Datensatz {c.dataSetId}, Piece {c.pieceId}{c.isNewDataSet ? ' (neuer Datensatz)' : ''}
-						{#if c.retrievalUrl}<br /><a href={c.retrievalUrl} target="_blank" rel="noopener">abrufen</a> <small>(verschlüsselt; nur dein Schlüssel öffnet sie)</small>{/if}</li>
+					<label><input type="radio" bind:group={choice} value="empty" /> Leeres Paperless</label>
+					{#if backupsError}<small class="hint">{backupsError}</small>{/if}
+				</fieldset>
+			{/if}
+			{#if profile.starting && !busy}
+				<div class="interrupted" data-testid="start-interrupted">
+					<p>Ein Start wurde unterbrochen: VM <code>{profile.starting.instanceHash.slice(0, 12)}</code>, angefordert {new Date(profile.starting.at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}. Sie läuft auf Aleph und kostet, bis sie fertig gestartet oder gelöscht ist.</p>
+					<button onclick={resume} disabled={busy}>Start fortsetzen</button>
+					<button class="quiet" onclick={discard} disabled={busy}>Verwerfen (die VM dann unten unter „Meine VMs“ löschen)</button>
+				</div>
+			{:else}
+				<p class="role-line" data-testid="role-line">{profile.role === 'primary' ? 'Startet produktiv: Mail-Regeln an, Sicherungen auf Mainnet.' : 'Startet als Test: Mail-Regeln aus, Sicherungen ins Testnetz.'}</p>
+				<button onclick={start} disabled={busy || missing.length > 0}>Paperless starten</button>
+				{#if missing.length}<p class="hint">Es fehlt noch: {missing.join(', ')}</p>{/if}
+			{/if}
+		{/if}
+		{#if action && (busy || Object.keys(times).length)}
+			<ol class="steps" data-testid="progress-steps">
+				{#each STEPS[action] as s (s.step)}
+					{@const t = times[s.step]}
+					<li class:done={t?.to} class:active={t && !t.to}>
+						<span class="mark">{t?.to ? '✓' : t ? '▶' : '·'}</span>
+						{s.label}
+						<small>
+							{#if t}{seconds((t.to ?? now) - t.from)}{/if}
+							(üblich ca. {minutes(typicalOf(s))})
+						</small>
+						{#if s.step === 'ready' && t}
+							{#if vmStart?.timeline}
+								<ul class="substeps" data-testid="vm-substeps">
+									{#each SUBSTEPS as sub (sub.key)}
+										{@const at = vmStart.timeline[sub.key]}
+										<li class:done={at}>
+											<span class="mark">{at ? '✓' : '·'}</span>{sub.label}
+											{#if sub.key === 'images' && vmStart.imagesTotal}<small>{vmStart.images}/{vmStart.imagesTotal}</small>{/if}
+											{#if at}<small>nach {at - vmStart.timeline.unlocked} s</small>{/if}
+										</li>
+									{/each}
+								</ul>
+							{:else if !t.to}
+								<p class="hint">Die Status-Seite der VM antwortet erst, wenn ihr Zertifikat da ist. Bis dahin lädt sie die Container-Images (der längste Teil); die Einzelschritte erscheinen dann hier.</p>
+							{/if}
+						{/if}
+					</li>
 				{/each}
-			</ul>
-			{#if b.failedAttempts}<p class="hint">{b.failedAttempts} Fehlversuch(e) bei Anbietern, ersetzt.</p>{/if}
-		</details>
+			</ol>
+			<p class="hint">Gesamt: {seconds((busy ? now : Object.values(times).reduce((m, t) => Math.max(m, t.to ?? 0), startedAt)) - startedAt)}
+				· üblich ca. {minutes(STEPS[action].reduce((a, s) => a + typicalOf(s), 0))}</p>
+		{/if}
+		{#if progress}<p data-testid="progress">{progress} …</p>{/if}
+		{#if error}<p class="error" role="alert">{error}</p>{/if}
+		{#if errorLog.length}
+			<details open class="log"><summary>Letzte Zeilen der Sicherung (aus der VM)</summary><pre data-testid="backup-log">{errorLog.join('\n')}</pre></details>
+		{/if}
+		{#if !profile.running && profile.lastBackup}
+			{@const b = profile.lastBackup}
+			<details class="backup-card" data-testid="last-backup">
+				<summary>Letzte Sicherung: {b.date ? new Date(b.date).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : b.name} · {b.copies?.length ?? 0}/{b.requestedCopies ?? b.copies?.length} Kopien{b.complete ? '' : ' (unvollständig)'}</summary>
+				<dl>
+					<dt>Netz</dt><dd>Filecoin {b.network === 'mainnet' ? 'Mainnet' : 'Calibration (Testnetz)'}</dd>
+					<dt>Bezahlt von</dt><dd><code>{b.payer}</code></dd>
+					<dt>Piece CID</dt><dd><code>{b.pieceCid}</code></dd>
+					{#if b.size}<dt>Größe</dt><dd>{(b.size / 1048576).toFixed(1)} MiB (verschlüsselt)</dd>{/if}
+					{#if b.seconds}<dt>Dauer</dt><dd>{b.seconds} s</dd>{/if}
+				</dl>
+				<ul>
+					{#each b.copies ?? [] as c (c.providerId + c.dataSetId)}
+						<li>Anbieter {c.providerId}{c.location ? ` (${place(c.location)})` : ''} · Datensatz {c.dataSetId}, Piece {c.pieceId}{c.isNewDataSet ? ' (neuer Datensatz)' : ''}
+							{#if c.retrievalUrl}<br /><a href={c.retrievalUrl} target="_blank" rel="noopener">abrufen</a> <small>(verschlüsselt; nur dein Schlüssel öffnet sie)</small>{/if}</li>
+					{/each}
+				</ul>
+				{#if b.failedAttempts}<p class="hint">{b.failedAttempts} Fehlversuch(e) bei Anbietern, ersetzt.</p>{/if}
+			</details>
+		{/if}
 	{/if}
 </section>
 
 <style>
-	.warn { color: #b26a00; }
-	.log pre { white-space: pre-wrap; font-size: 0.8rem; background: #f6f6f6; padding: 0.5rem; }
+	.simple { padding: 1.5rem 1.25rem; }
+	.status { display: flex; gap: 1rem; align-items: flex-start; }
+	.status h1 { font-size: 1.6rem; margin: 0; line-height: 1.2; }
+	.status .sub { margin: 0.3rem 0 0; color: var(--text-2); }
+	.status .sub.data { font-family: var(--mono); font-size: 0.875rem; word-break: break-all; }
+	.dot { flex: none; width: 0.9rem; height: 0.9rem; margin-top: 0.5rem; border-radius: 50%; background: var(--line); }
+	.is-running .dot { background: var(--ok); box-shadow: 0 0 0 5px var(--ok-bg); }
+	.is-starting .dot, .is-stopping .dot, .is-interrupted .dot { background: var(--accent); box-shadow: 0 0 0 5px var(--warn-bg); }
+	@media (prefers-reduced-motion: no-preference) {
+		.is-starting .dot, .is-stopping .dot { animation: pulse 1.6s ease-in-out infinite; }
+		@keyframes pulse { 50% { opacity: 0.35; } }
+	}
+	.meter { height: 6px; margin: 1.25rem 0 0.5rem; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+	.meter span { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width 1s linear; }
+	.calm { color: var(--text-2); font-size: 0.9rem; margin: 0; }
+	.cta { display: block; width: 100%; margin: 1.25rem 0 0.75rem; padding: 0.85rem 1.25rem; text-align: center; font-weight: 600; font-size: 1.05rem; color: var(--cta-text); background: var(--cta-bg); border: 1px solid var(--cta-bg); border-radius: 999px; text-decoration: none; }
+	.secondary { display: block; width: 100%; margin: 0.75rem 0 0; background: transparent; color: var(--text); border-color: var(--line); }
+	.login { margin: 1rem 0 0; padding: 0.9rem 1rem; background: var(--surface-2); border-radius: var(--radius-sm); }
+	.login p { margin: 0.15rem 0; }
+	.login .label { color: var(--text-2); font-size: 0.85rem; margin-bottom: 0.35rem; }
+	.login code { word-break: break-all; }
+	.row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+	.small { padding: 0.35rem 0.85rem; font-size: 0.875rem; background: var(--surface); color: var(--text); border-color: var(--line); }
+	.simple .hint { margin: 0.5rem 0 0; font-size: 0.9rem; }
+	.simple .warn, .simple .error { margin: 0.75rem 0 0; padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.9rem; }
+	.simple .warn { background: var(--warn-bg); }
+	.simple .error { background: var(--danger-bg); }
+	.warn { color: var(--warn); }
+	.log pre { white-space: pre-wrap; font-size: 0.8rem; background: var(--surface-2); padding: 0.5rem; }
 	.backup-card { margin-top: 1rem; }
 	.backup-card dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 0.8rem; }
-	.backup-card dt { color: #666; }
+	.backup-card dt { color: var(--text-2); }
 	.backup-card ul { padding-left: 1.2rem; }
+	@media (max-width: 480px) { .backup-card dl { grid-template-columns: 1fr; } }
 	.steps { list-style: none; padding: 0; margin: 0.75rem 0; }
-	.steps li { padding: 0.15rem 0; color: #888; }
-	.steps li.active { color: #000; font-weight: 600; }
-	.steps li.done { color: #2e7d32; }
+	.steps li { padding: 0.15rem 0; color: var(--text-2); }
+	.steps li.active { color: var(--text); font-weight: 600; }
+	.steps li.done { color: var(--ok); }
 	.steps .mark { display: inline-block; width: 1.2rem; }
 	.substeps { list-style: none; padding-left: 1.6rem; margin: 0.2rem 0; font-weight: normal; }
-	.substeps li { color: #888; }
-	.substeps li.done { color: #2e7d32; }
-	.steps small { color: #666; font-weight: normal; margin-left: 0.4rem; }
-	.lifecycle { margin: 1.5rem 0; padding: 1rem; border: 1px solid #ddd; border-radius: 0.5rem; }
-	button { padding: 0.6rem 1rem; font-size: 1rem; }
-	.hint { color: #666; }
+	.substeps li { color: var(--text-2); }
+	.substeps li.done { color: var(--ok); }
+	.steps small { color: var(--text-2); font-weight: normal; margin-left: 0.4rem; }
+	.lifecycle { margin: 0 0 1rem; padding: 1.25rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+	button { padding: 0.6rem 1.1rem; font-size: 1rem; margin: 0.25rem 0.25rem 0.25rem 0; }
+	.hint { color: var(--text-2); }
 	.restore { border: none; padding: 0; margin: 0 0 0.75rem; }
 	.restore label { display: block; }
-	.error { color: #b00020; }
-	.role-line { font-size: 0.9rem; color: #444; margin: 0.25rem 0; }
-	.interrupted { padding: 0.5rem 0.75rem; background: #fff6e5; border-radius: 4px; }
-	.quiet { background: none; border: none; color: #666; text-decoration: underline; padding: 0; }
+	.error { color: var(--danger); }
+	.role-line { font-size: 0.9rem; color: var(--text-2); margin: 0.25rem 0; }
+	.interrupted { padding: 0.5rem 0.75rem; background: var(--warn-bg); border-radius: 4px; }
+	.quiet { background: none; border: none; color: var(--text-2); text-decoration: underline; padding: 0; }
 </style>

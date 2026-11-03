@@ -1,0 +1,171 @@
+/*
+ * The look of Le Space Belege (Brand & Style Guide v1), as on belege.le-space.de:
+ * warm paper with amber by day, deep night with lime at night. The mode follows
+ * the system. Fonts are self-hosted (@fontsource), nothing is loaded from elsewhere.
+ *
+ * Amber and lime are fills with ink/night text on them, never text on the page
+ * background; --accent-text is the readable variant for small labels.
+ */
+:root {
+	--bg: #faf6ee; /* paper */
+	--surface: #ffffff; /* cards, inputs */
+	--surface-2: #f3eee2; /* quiet panels inside a card */
+	--text: #0f1b2d; /* ink */
+	--text-2: #51606f; /* slate */
+	--line: #e3dccb;
+	--accent: #ffb020; /* amber */
+	--accent-ink: #0f1b2d;
+	--accent-text: #8a5a00;
+	--accent-2-text: #5b3fd6; /* violet, links */
+	--mark-coin: var(--accent);
+	--mark-receipt: var(--text);
+	--cta-bg: var(--text);
+	--cta-text: var(--bg);
+	--ok: #1f7a3d;
+	--ok-bg: #e6f3e9;
+	--warn: #8a5a00;
+	--warn-bg: #fff3d6;
+	--danger: #b3261e;
+	--danger-bg: #fdecea;
+	--focus: #0f1b2d;
+	--shadow: 0 1px 2px rgba(15, 27, 45, 0.06), 0 8px 24px rgba(15, 27, 45, 0.06);
+
+	--font: 'Sora Variable', 'Sora', system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+	--radius: 16px;
+	--radius-sm: 10px;
+	--gutter: 20px;
+	color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #0b0e15; /* night */
+		--surface: #161b26; /* panel */
+		--surface-2: #1d2331;
+		--text: #f4f6fb; /* snow */
+		--text-2: #8a94a6; /* muted */
+		--line: #2a3140;
+		--accent: #c6f24e; /* lime */
+		--accent-ink: #0b0e15;
+		--accent-text: #c6f24e;
+		--accent-2-text: #a893ff;
+		--cta-bg: var(--accent);
+		--cta-text: var(--accent-ink);
+		--ok: #7fd99a;
+		--ok-bg: #16281d;
+		--warn: #ffc65c;
+		--warn-bg: #2b2414;
+		--danger: #ff8a80;
+		--danger-bg: #2e1715;
+		--focus: #c6f24e;
+		--shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.35);
+		color-scheme: dark;
+	}
+}
+
+@media (max-width: 720px) {
+	:root {
+		--gutter: 16px;
+	}
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	-webkit-text-size-adjust: 100%;
+}
+
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--text);
+	font-family: var(--font);
+	font-size: 16px;
+	line-height: 1.6;
+	-webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+	letter-spacing: -0.01em;
+	line-height: 1.25;
+}
+
+h2 {
+	font-size: 1.25rem;
+	font-weight: 600;
+}
+
+h3 {
+	font-size: 1rem;
+	font-weight: 600;
+}
+
+a {
+	color: var(--accent-2-text);
+	text-underline-offset: 3px;
+}
+
+code,
+pre,
+.data {
+	font-family: var(--mono);
+	font-size: 0.875rem;
+}
+
+:focus-visible {
+	outline: 2px solid var(--focus);
+	outline-offset: 2px;
+	border-radius: 4px;
+}
+
+/* Buttons: ink pills by day, lime by night; the components size them. */
+button {
+	font: inherit;
+	color: var(--cta-text);
+	background: var(--cta-bg);
+	border: 1px solid var(--cta-bg);
+	border-radius: 999px;
+	cursor: pointer;
+}
+
+button:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+
+input,
+textarea,
+select {
+	font: inherit;
+	color: var(--text);
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: var(--radius-sm);
+	padding: 0.5rem 0.65rem;
+}
+
+input[type='radio'],
+input[type='checkbox'] {
+	accent-color: var(--text);
+	padding: 0;
+}
+
+details > summary {
+	cursor: pointer;
+}
+
+fieldset {
+	border-color: var(--line);
+}
+
+dialog {
+	background: var(--surface);
+	color: var(--text);
+}

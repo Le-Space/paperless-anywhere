@@ -75,6 +75,7 @@ test('a passkey and a seed phrase open the same vault, also on another device; n
 
 	// There, a passkey of its own: a third box in Aleph, and the vault opens with it.
 	await authenticator(phone);
+	await phone.getByTestId('tab-advanced').click();
 	await phone.getByText('Weiteren Passkey hinzufügen').click();
 	await phone.getByRole('button', { name: /^Passkey für / }).click();
 	await expect(phone.getByTestId('passkey-added')).toBeVisible();

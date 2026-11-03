@@ -107,15 +107,15 @@
 </fieldset>
 
 <style>
-	.places { margin: 0.75rem 0; border: 1px solid #ddd; padding: 0.5rem 0.75rem; }
+	.places { margin: 0.75rem 0; border: 1px solid var(--line); padding: 0.5rem 0.75rem; }
 	.providers { list-style: none; padding: 0; margin: 0.25rem 0; }
-	label { display: block; margin-top: 0.4rem; font-size: 0.9rem; color: #444; }
-	label.check { display: flex; gap: 0.5rem; align-items: baseline; color: #000; font-size: 1rem; }
+	label { display: block; margin-top: 0.4rem; font-size: 0.9rem; color: var(--text-2); }
+	label.check { display: flex; gap: 0.5rem; align-items: baseline; color: var(--text); font-size: 1rem; }
 	label.check input { width: auto; }
 	select, input:not([type]) { width: 100%; font-size: 1rem; }
 	.preview ul { margin: 0.25rem 0; }
-	.hint { color: #666; font-size: 0.9rem; }
-	.warn { color: #b26a00; }
-	.error { color: #b00020; }
+	.hint { color: var(--text-2); font-size: 0.9rem; }
+	.warn { color: var(--warn); }
+	.error { color: var(--danger); }
 	button { display: block; margin: 0.5rem 0; padding: 0.5rem 1rem; font-size: 1rem; }
 </style>

@@ -139,13 +139,13 @@
 </section>
 
 <style>
-	.vms { margin-top: 2rem; border-top: 1px solid #ddd; }
+	.vms { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.25rem; }
 	ul { list-style: none; padding: 0; }
-	li { padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+	li { padding: 0.5rem 0; border-bottom: 1px solid var(--line); }
 	button { margin-top: 0.3rem; padding: 0.3rem 0.8rem; }
 	button.small { font-size: 0.8rem; margin-left: 0.5rem; }
-	.warn { background: #fff4d6; padding: 0.5rem 0.75rem; border-radius: 4px; }
-	.hint { color: #666; }
-	.error { color: #b00020; }
+	.warn { background: var(--warn-bg); padding: 0.5rem 0.75rem; border-radius: 4px; }
+	.hint { color: var(--text-2); }
+	.error { color: var(--danger); }
 	code { font-size: 0.8rem; }
 </style>

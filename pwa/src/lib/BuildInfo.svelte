@@ -21,6 +21,6 @@
 </footer>
 
 <style>
-	footer { margin: 3rem 0 1rem; color: #888; font-size: 0.8rem; }
+	footer { margin: 3rem 0 1rem; color: var(--text-2); font-size: 0.8rem; }
 	code { word-break: break-all; }
 </style>

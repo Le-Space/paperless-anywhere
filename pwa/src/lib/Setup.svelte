@@ -313,26 +313,26 @@
 {/snippet}
 
 <style>
-	.setup { margin-top: 2rem; border-top: 1px solid #ddd; }
+	.setup { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.25rem; }
 	h3 { margin-top: 1.5rem; font-size: 1rem; }
 	select, input, textarea { width: 100%; font-size: 1rem; }
 	button { display: block; margin: 0.5rem 0; padding: 0.5rem 1rem; font-size: 1rem; }
 	code { word-break: break-all; }
-	label.check { display: flex; gap: 0.5rem; align-items: baseline; color: #000; font-size: 1rem; }
+	label.check { display: flex; gap: 0.5rem; align-items: baseline; color: var(--text); font-size: 1rem; }
 	label.check input { width: auto; }
-	.money { color: #2e7d32; }
-	.nomoney { color: #b26a00; }
-	.hint { color: #666; font-size: 0.9rem; }
-	label { display: block; margin-top: 0.5rem; font-size: 0.9rem; color: #444; }
-	.role { border: 1px solid #ddd; border-radius: 4px; padding: 0.4rem 0.75rem; margin: 0.5rem 0 1rem; display: grid; gap: 0.25rem; }
+	.money { color: var(--ok); }
+	.nomoney { color: var(--warn); }
+	.hint { color: var(--text-2); font-size: 0.9rem; }
+	label { display: block; margin-top: 0.5rem; font-size: 0.9rem; color: var(--text-2); }
+	.role { border: 1px solid var(--line); border-radius: 4px; padding: 0.4rem 0.75rem; margin: 0.5rem 0 1rem; display: grid; gap: 0.25rem; }
 	.role input { width: auto; margin-right: 0.4rem; }
-	.role .warn { color: #b26a00; margin: 0.25rem 0 0; font-size: 0.9rem; }
-	.saved { color: #2e7d32; font-size: 0.9rem; margin: 0.25rem 0; }
+	.role .warn { color: var(--warn); margin: 0.25rem 0 0; font-size: 0.9rem; }
+	.saved { color: var(--ok); font-size: 0.9rem; margin: 0.25rem 0; }
 	.payer-choice { border: none; padding: 0; margin: 0 0 0.5rem; display: grid; gap: 0.25rem; }
 	/* The page sizes inputs to full width; a radio keeps its own size beside its label. */
 	.payer-choice input { width: auto; margin-right: 0.4rem; }
-	.where { margin: 0.5rem 0 1rem; font-size: 0.9rem; color: #444; }
+	.where { margin: 0.5rem 0 1rem; font-size: 0.9rem; color: var(--text-2); }
 	.where summary { cursor: pointer; }
-	.waiting { background: #fff4d6; padding: 0.5rem 0.75rem; border-radius: 4px; }
-	.error { color: #b00020; }
+	.waiting { background: var(--warn-bg); padding: 0.5rem 0.75rem; border-radius: 4px; }
+	.error { color: var(--danger); }
 </style>

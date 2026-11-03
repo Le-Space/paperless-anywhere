@@ -7,6 +7,7 @@
 	import Balances from '$lib/Balances.svelte';
 	import VmList from '$lib/VmList.svelte';
 	import BuildInfo from '$lib/BuildInfo.svelte';
+	import Logo from '$lib/Logo.svelte';
 	import { HOME, sharedOrigin } from '$lib/shared-origin.js';
 
 	// On a path-style gateway the origin is shared: no vault, no passkey there.
@@ -102,66 +103,123 @@
 		forgetVault();
 		vault = null;
 	}
+
+	// Two views of the same app: the everyday one (start, open, stop) and
+	// "Erweitert" with every setting. The choice is remembered in this browser
+	// only once someone picks a tab, and holds nothing secret.
+	const TAB_KEY = 'paperless-anywhere.tab';
+	/** @type {'simple' | 'advanced'} */
+	let tab = $state('simple');
+	try {
+		if (localStorage.getItem(TAB_KEY) === 'advanced') tab = 'advanced';
+	} catch {
+		// Storage blocked: the simple view.
+	}
+	const showTab = (/** @type {'simple' | 'advanced'} */ t) => {
+		tab = t;
+		try {
+			localStorage.setItem(TAB_KEY, t);
+		} catch {
+			// Storage blocked: only for this visit.
+		}
+	};
+	const simple = $derived(tab === 'simple');
+	/** @type {{ money: string, lasts: string, warnings: string[] } | null} */
+	let summary = $state(null);
 </script>
 
+<header class="top">
+	<div class="bar">
+		<Logo />
+		{#if state === 'unlocked'}<button class="ghost" onclick={lock}>Sperren</button>{/if}
+	</div>
+</header>
+
 <main>
-	<h1>Paperless anywhere</h1>
-	<p class="state" data-testid="state">{shared ? 'shared origin' : state}</p>
+	<p class="sr-only" data-testid="state">{shared ? 'shared origin' : state}</p>
 
 	{#if shared}
-		<p data-testid="shared-origin">Diese Adresse teilen sich alle Seiten dieses IPFS-Gateways, auch ihr Speicher und ihre Passkeys. Den Tresor öffnet die App hier nicht.
-			Bitte unter <a href={HOME}>{HOME}</a> öffnen.</p>
+		<section class="card">
+			<p data-testid="shared-origin">Diese Adresse teilen sich alle Seiten dieses IPFS-Gateways, auch ihr Speicher und ihre Passkeys. Den Tresor öffnet die App hier nicht.
+				Bitte unter <a href={HOME}>{HOME}</a> öffnen.</p>
+		</section>
 	{:else if state === 'new'}
-		<p>Ein Passkey schützt den Zugang. Dazu bekommst du eine Wiederherstellungsphrase aus 24 Wörtern.</p>
-		<label>Name des Passkeys <input bind:value={name} /></label>
-		<button onclick={create} disabled={busy}>Passkey anlegen</button>
-		<h2>Schon eingerichtet?</h2>
-		<button onclick={unlockPasskey} disabled={busy || passkeyWaiting}>Auf diesem Gerät mit Passkey öffnen</button>
-		{#if passkeyWaiting}<p class="state" data-testid="passkey-waiting">Warte auf den Passkey … Gibt es für {location.host} noch keinen, mit den 24 Wörtern öffnen.</p>{/if}
-		<details>
-			<summary>Auf diesem Gerät mit Wiederherstellungsphrase öffnen</summary>
-			<textarea bind:value={phrase} rows="3" autocomplete="off" spellcheck="false"></textarea>
-			<button onclick={unlockPhrase} disabled={busy || !phrase.trim()}>Öffnen</button>
-		</details>
+		<section class="card hero">
+			<h1>Paperless öffnen</h1>
+			<p class="lede">Deine Belege in Paperless, auf einer eigenen, verschlüsselten Maschine. Zum Öffnen brauchst du deinen Passkey.</p>
+			<button class="primary" onclick={unlockPasskey} disabled={busy || passkeyWaiting}>Auf diesem Gerät mit Passkey öffnen</button>
+			{#if passkeyWaiting}<p class="hint" data-testid="passkey-waiting">Warte auf den Passkey … Gibt es für {location.host} noch keinen, mit den 24 Wörtern öffnen.</p>{/if}
+			<details class="fold">
+				<summary>Auf diesem Gerät mit Wiederherstellungsphrase öffnen</summary>
+				<textarea bind:value={phrase} rows="3" autocomplete="off" spellcheck="false"></textarea>
+				<button class="secondary" onclick={unlockPhrase} disabled={busy || !phrase.trim()}>Öffnen</button>
+			</details>
+		</section>
+		<section class="card">
+			<h2>Neu einrichten</h2>
+			<p class="hint">Ein Passkey schützt den Zugang. Dazu bekommst du eine Wiederherstellungsphrase aus 24 Wörtern.</p>
+			<label>Name des Passkeys <input bind:value={name} /></label>
+			<button class="secondary" onclick={create} disabled={busy}>Passkey anlegen</button>
+		</section>
 	{:else if state === 'locked'}
-		<button onclick={unlockPasskey} disabled={busy || passkeyWaiting}>Mit Passkey entsperren</button>
-		{#if passkeyWaiting}<p class="state" data-testid="passkey-waiting">Warte auf den Passkey …</p>{/if}
-		<details>
-			<summary>Mit Wiederherstellungsphrase entsperren</summary>
-			<textarea bind:value={phrase} rows="3" autocomplete="off" spellcheck="false"></textarea>
-			<button onclick={unlockPhrase} disabled={busy || !phrase.trim()}>Entsperren</button>
-		</details>
-		<button class="quiet" onclick={reset}>Diesen Browser vergessen</button>
+		<section class="card hero">
+			<h1>Willkommen zurück</h1>
+			<p class="lede">Entsperre mit deinem Passkey, dann siehst du, ob Paperless läuft.</p>
+			<button class="primary" onclick={unlockPasskey} disabled={busy || passkeyWaiting}>Mit Passkey entsperren</button>
+			{#if passkeyWaiting}<p class="hint" data-testid="passkey-waiting">Warte auf den Passkey …</p>{/if}
+			<details class="fold">
+				<summary>Mit Wiederherstellungsphrase entsperren</summary>
+				<textarea bind:value={phrase} rows="3" autocomplete="off" spellcheck="false"></textarea>
+				<button class="secondary" onclick={unlockPhrase} disabled={busy || !phrase.trim()}>Entsperren</button>
+			</details>
+			<button class="quiet" onclick={reset}>Diesen Browser vergessen</button>
+		</section>
 	{:else}
 		{#if shownPhrase}
-			<section class="phrase">
+			<section class="card phrase">
 				<h2>Wiederherstellungsphrase</h2>
 				<p>Schreib sie auf Papier und bewahre sie sicher auf. Sie wird nur jetzt angezeigt.</p>
 				{#if !confirming}
 					<ol data-testid="phrase">{#each shownPhrase.split(' ') as word}<li>{word}</li>{/each}</ol>
-					<button onclick={startConfirm}>Aufgeschrieben</button>
+					<button class="primary" onclick={startConfirm}>Aufgeschrieben</button>
 				{:else}
 					<p>Zur Probe, von deinem Zettel:</p>
 					{#each askPositions as position, i (position)}
 						<label>Wort {position + 1} <input bind:value={answers[i]} autocomplete="off" spellcheck="false" data-testid={`confirm-${position + 1}`} /></label>
 					{/each}
-					<button onclick={doneConfirm} disabled={!answered}>Stimmt</button>
+					<button class="primary" onclick={doneConfirm} disabled={!answered}>Stimmt</button>
 					<button class="quiet" onclick={() => (confirming = false)}>Wörter noch einmal zeigen</button>
 				{/if}
 			</section>
+		{:else}
+			<div class="tabs" role="tablist" aria-label="Ansicht">
+				<button role="tab" aria-selected={simple} class:on={simple} onclick={() => showTab('simple')} data-testid="tab-simple">Übersicht</button>
+				<button role="tab" aria-selected={!simple} class:on={!simple} onclick={() => showTab('advanced')} data-testid="tab-advanced">Erweitert</button>
+			</div>
 		{/if}
-		<p>Entsperrt. Schlüssel dieser App für Aleph: <code data-testid="address">{address}</code>
-			<br /><small>Geld liegt hier nur, wenn die App ihre VMs selbst bezahlt (Einrichtung, Schritt 1); sonst beim zahlenden Konto.</small></p>
-		<button onclick={lock}>Sperren</button>
+		<div class="advanced" hidden={simple || !!shownPhrase}>
+			<section class="card">
+				<p>Entsperrt. Schlüssel dieser App für Aleph: <code data-testid="address">{address}</code>
+					<br /><small class="hint">Geld liegt hier nur, wenn die App ihre VMs selbst bezahlt (Einrichtung, Schritt 1); sonst beim zahlenden Konto.</small></p>
+				<details class="fold">
+					<summary>Weiteren Passkey hinzufügen</summary>
+					<p class="hint">Ein Passkey gehört zu einer Adresse ({location.host}). Für die gehostete App oder ein zweites Gerät: dort mit den 24 Wörtern öffnen und hier einen Passkey anlegen. Jeder Passkey öffnet denselben Tresor.</p>
+					<button class="secondary" onclick={newPasskey} disabled={busy}>Passkey für {location.host} anlegen</button>
+					{#if added}<p data-testid="passkey-added">Neuer Passkey für {added} angelegt; dieser Browser nutzt ihn ab jetzt.</p>{/if}
+				</details>
+			</section>
+		</div>
 		{#if !shownPhrase}
-			<details class="passkeys">
-				<summary>Weiteren Passkey hinzufügen</summary>
-				<p>Ein Passkey gehört zu einer Adresse ({location.host}). Für die gehostete App oder ein zweites Gerät: dort mit den 24 Wörtern öffnen und hier einen Passkey anlegen. Jeder Passkey öffnet denselben Tresor.</p>
-				<button onclick={newPasskey} disabled={busy}>Passkey für {location.host} anlegen</button>
-				{#if added}<p data-testid="passkey-added">Neuer Passkey für {added} angelegt; dieser Browser nutzt ihn ab jetzt.</p>{/if}
-			</details>
+			<div class="advanced" hidden={simple}><Balances {master} version={profileVersion} onsummary={(s) => (summary = s)} /></div>
+			<Lifecycle {master} {simple} version={profileVersion} onchange={() => profileVersion++} onadvanced={() => showTab('advanced')} />
+			{#if simple && summary?.money}
+				<section class="card money" data-testid="simple-balance">
+					<p class="line"><span class="label">Guthaben</span> <span class="data">{summary.money}</span>{#if summary.lasts}<span class="hint">reicht ca. {summary.lasts}</span>{/if}</p>
+					{#each summary.warnings as w (w)}<p class="warn" role="status">{w} Aufladen geht unter „Erweitert“.</p>{/each}
+				</section>
+			{/if}
+			<div class="advanced" hidden={simple}><VmList {master} version={profileVersion} onchange={() => profileVersion++} /><Setup {master} onsaved={() => profileVersion++} /></div>
 		{/if}
-		{#if !shownPhrase}<Balances {master} version={profileVersion} /><Lifecycle {master} version={profileVersion} onchange={() => profileVersion++} /><VmList {master} version={profileVersion} onchange={() => profileVersion++} /><Setup {master} onsaved={() => profileVersion++} />{/if}
 	{/if}
 
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -169,14 +227,34 @@
 </main>
 
 <style>
-	main { max-width: 36rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; line-height: 1.5; }
-	button { display: block; margin: 0.75rem 0; padding: 0.6rem 1rem; font-size: 1rem; }
-	.quiet { background: none; border: none; color: #666; text-decoration: underline; padding: 0; }
-	textarea, input { width: 100%; font-size: 1rem; }
-	.phrase ol { columns: 2; font-family: ui-monospace, monospace; }
-	.passkeys { margin: 1rem 0; }
-	label { display: block; margin: 0.4rem 0; }
-	.state { color: #666; font-size: 0.9rem; }
-	.error { color: #b00020; }
+	.top { border-bottom: 1px solid var(--line); background: var(--surface); }
+	.bar { max-width: 40rem; margin: 0 auto; padding: 0.75rem var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+	main { max-width: 40rem; margin: 0 auto; padding: 1.5rem var(--gutter) 2rem; }
+	.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; margin: 0 0 1rem; box-shadow: var(--shadow); }
+	.hero h1 { font-size: 1.75rem; margin: 0 0 0.5rem; }
+	.lede { color: var(--text-2); margin: 0 0 1.25rem; }
+	.card h2 { margin: 0 0 0.5rem; }
+	button { display: block; margin: 0.75rem 0; padding: 0.6rem 1.1rem; font-size: 1rem; }
+	.primary { width: 100%; padding: 0.85rem 1.25rem; font-weight: 600; font-size: 1.05rem; }
+	.secondary { background: transparent; color: var(--text); border-color: var(--line); }
+	.ghost { margin: 0; background: transparent; color: var(--text); border-color: var(--line); padding: 0.4rem 0.9rem; font-size: 0.9rem; }
+	.quiet { background: none; border: none; color: var(--text-2); text-decoration: underline; padding: 0; border-radius: 0; font-size: 0.9rem; }
+	textarea, input { width: 100%; }
+	label { display: block; margin: 0.5rem 0; font-size: 0.9rem; color: var(--text-2); }
+	.fold { margin: 0.75rem 0 0; color: var(--text-2); font-size: 0.95rem; }
+	.fold[open] summary { margin-bottom: 0.5rem; }
+	.phrase ol { columns: 2; font-family: var(--mono); padding-left: 2rem; }
+	.hint { color: var(--text-2); font-size: 0.9rem; }
+	.error { color: var(--danger); background: var(--danger-bg); padding: 0.6rem 0.8rem; border-radius: var(--radius-sm); }
+	.warn { color: var(--warn); background: var(--warn-bg); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); margin: 0.5rem 0 0; font-size: 0.9rem; }
 	code { word-break: break-all; }
+	.tabs { display: flex; gap: 0.25rem; padding: 0.25rem; margin: 0 0 1rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; }
+	.tabs button { flex: 1; margin: 0; padding: 0.45rem 0.75rem; background: transparent; color: var(--text-2); border-color: transparent; font-size: 0.95rem; }
+	.tabs button.on { background: var(--surface); color: var(--text); border-color: var(--line); font-weight: 600; box-shadow: var(--shadow); }
+	.money p { margin: 0; }
+	.money .line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; }
+	.money .data { font-size: 1.05rem; font-weight: 500; color: var(--text); }
+	.money .label { color: var(--text-2); }
+	.money .warn { margin-top: 0.6rem; }
+	.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 </style>
