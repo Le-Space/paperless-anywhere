@@ -50,6 +50,9 @@ jobs:
 
       - name: Unit tests, build, browser tests (mocked Aleph)
         working-directory: pwa
+        env:
+          # Shown in the app's footer; a dispatch builds show "dev".
+          PAPERLESS_VERSION: ${{ github.event.release.tag_name }}
         run: |
           pnpm install --frozen-lockfile
           pnpm test

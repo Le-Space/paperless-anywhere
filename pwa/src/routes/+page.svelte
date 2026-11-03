@@ -6,6 +6,7 @@
 	import Lifecycle from '$lib/Lifecycle.svelte';
 	import Balances from '$lib/Balances.svelte';
 	import VmList from '$lib/VmList.svelte';
+	import BuildInfo from '$lib/BuildInfo.svelte';
 	import { HOME, sharedOrigin } from '$lib/shared-origin.js';
 
 	// On a path-style gateway the origin is shared: no vault, no passkey there.
@@ -150,7 +151,7 @@
 			</section>
 		{/if}
 		<p>Entsperrt. Schlüssel dieser App für Aleph: <code data-testid="address">{address}</code>
-			<br /><small>Er hält kein Geld: nichts dorthin überweisen. Das Geld liegt beim zahlenden Konto (Einrichtung, Schritt 1).</small></p>
+			<br /><small>Geld liegt hier nur, wenn die App ihre VMs selbst bezahlt (Einrichtung, Schritt 1); sonst beim zahlenden Konto.</small></p>
 		<button onclick={lock}>Sperren</button>
 		{#if !shownPhrase}
 			<details class="passkeys">
@@ -164,6 +165,7 @@
 	{/if}
 
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
+	<BuildInfo />
 </main>
 
 <style>
