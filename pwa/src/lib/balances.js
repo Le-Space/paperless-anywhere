@@ -4,7 +4,7 @@
 import { createPublicClient, formatUnits, http } from 'viem';
 import { getAccountSummary } from '@filoz/synapse-core/pay';
 import { balance as erc20Balance } from '@filoz/synapse-core/erc20';
-import { ALEPH_API } from './aleph.js';
+import { ALEPH_API, readFetch } from './aleph.js';
 import { filecoinChain } from './permissions.js';
 
 // A running Paperless (confidential, 2 vCPU, 4 GB, 40 GiB rootfs) as of
@@ -21,7 +21,7 @@ const EPOCH_SECONDS = 30;
 
 /** @param {string} payer @returns {Promise<{ credits: number, aleph: number }>} */
 export async function alephBalance(payer) {
-	const res = await fetch(`${ALEPH_API}/api/v0/addresses/${payer}/balance`, { cache: 'no-store' });
+	const res = await readFetch(`${ALEPH_API}/api/v0/addresses/${payer}/balance`, 'Guthaben abfragen');
 	if (res.status === 404) return { credits: 0, aleph: 0 };
 	if (!res.ok) throw new Error(`Aleph answered ${res.status}`);
 	const body = await res.json();
@@ -82,7 +82,7 @@ export function priceFromList(entry, vm) {
  * @param {string} payer
  */
 export async function runningCreditsPerHour(payer) {
-	const res = await fetch(`${ALEPH_API}/api/v0/costs?address=${payer}&payment_type=credit`, { cache: 'no-store' });
+	const res = await readFetch(`${ALEPH_API}/api/v0/costs?address=${payer}&payment_type=credit`, 'laufende Kosten abfragen');
 	if (!res.ok) throw new Error(`Aleph answered ${res.status}`);
 	return Math.round(Number((await res.json())?.summary?.total_cost_credit ?? 0) * 3600);
 }
