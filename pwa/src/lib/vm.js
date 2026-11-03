@@ -185,10 +185,11 @@ export async function forgetInstance(app, payer, itemHash, reason = 'paperless-a
 }
 
 /**
- * This app's Paperless VMs: INSTANCE messages its key sent on behalf of the
- * payer and named paperless-*, newest first. A start that was interrupted
- * leaves one that no profile knows about; this finds it too.
- * @param {string} appAddress @param {string} payer
+ * This app's Paperless VMs: INSTANCE messages its key sent, named paperless-*,
+ * newest first, each with who pays it; only those of `payer` when given. A
+ * start that was interrupted leaves one that no profile knows about; this
+ * finds it too.
+ * @param {string} appAddress @param {string} [payer]
  */
 export async function listVms(appAddress, payer) {
 	const url = new URL('/api/v0/messages.json', ALEPH_API);
@@ -233,7 +234,8 @@ export function ownVms(messages, appAddress, payer) {
 			itemHash: String(m.item_hash),
 			name: String(m.content.metadata.name),
 			createdAt: Math.round(Number(m.time) * 1000),
-			crnHash: m.content?.requirements?.node?.node_hash ?? null
+			crnHash: m.content?.requirements?.node?.node_hash ?? null,
+			payer: String(m.content?.address ?? '')
 		}))
 		.sort((a, b) => b.createdAt - a.createdAt);
 }

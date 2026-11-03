@@ -11,7 +11,7 @@
 	let { master, version = 0, onchange = () => {} } = $props();
 
 	const app = privateKeyToAccount(alephPrivateKey(master));
-	/** @type {{ itemHash: string, name: string, createdAt: number, crnHash: string | null, host?: string | null, phase?: string }[] | null} */
+	/** @type {{ itemHash: string, name: string, createdAt: number, crnHash: string | null, payer: string, host?: string | null, phase?: string }[] | null} */
 	let vms = $state(null);
 	/** @type {Record<string, any>} */
 	let profile = $state({});
@@ -24,8 +24,9 @@
 	async function load() {
 		error = '';
 		profile = await loadProfile(master);
-		if (!profile.payer) return (vms = []);
-		const list = await listVms(app.address, profile.payer);
+		// Every Paperless this app key started, whoever paid it: the wallet, the
+		// app itself (appPays), or a wallet used before.
+		const list = await listVms(app.address);
 		vms = list;
 		// The state of each, without holding up the list.
 		for (const vm of list) {
@@ -57,7 +58,7 @@
 		try {
 			const crnUrl = vm.crnHash ? await crnAddress(vm.crnHash).catch(() => null) : null;
 			if (crnUrl) await eraseOnNode(app, vm.itemHash, crnUrl);
-			await forgetInstance(app, profile.payer, vm.itemHash, 'paperless-anywhere: removed from the VM list');
+			await forgetInstance(app, vm.payer, vm.itemHash, 'paperless-anywhere: removed from the VM list');
 			if (isRunning) {
 				const { running, ...rest } = profile;
 				await saveProfile(master, rest);
