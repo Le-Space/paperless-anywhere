@@ -13,6 +13,29 @@ async function sha256Hex(text) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * A read from Aleph (or a node) that survives a short network hiccup: up to
+ * `tries` attempts on a network error, a timeout or a 5xx, with a pause in
+ * between. When all fail, the error names what could not be read, instead of
+ * the browser's bare "Failed to fetch".
+ * @param {string} url @param {string} what e.g. "Guthaben abfragen"
+ * @param {RequestInit & { tries?: number, pauseMs?: number, timeoutMs?: number, fetch?: typeof fetch }} [init]
+ */
+export async function readFetch(url, what, { tries = 3, pauseMs = 1500, timeoutMs = 20_000, fetch: fetchImpl = fetch, ...init } = {}) {
+	let last = '';
+	for (let i = 0; i < tries; i++) {
+		if (i) await sleep(pauseMs * i);
+		try {
+			const res = await fetchImpl(url, { cache: 'no-store', ...init, signal: AbortSignal.timeout(timeoutMs) });
+			if (res.status < 500) return res;
+			last = `HTTP ${res.status}`;
+		} catch (e) {
+			last = e instanceof Error ? e.message : String(e);
+		}
+	}
+	throw new Error(`${new URL(url).host} nicht erreichbar (${what}, ${tries} Versuche: ${last}). Verbindung prüfen und erneut versuchen.`);
+}
+
+/**
  * Broadcast `message` and wait until Aleph has processed it. The synchronous
  * broadcast may never answer when Aleph is slow, although the message was
  * processed (live, 2026-10-23); after a minute we ask for its status instead.
@@ -56,7 +79,7 @@ export async function writeAggregate(account, key, content) {
 
 /** The content under `key` in the aggregate of `address`, or null. */
 export async function readAggregate(address, key) {
-	const res = await fetch(`${ALEPH_API}/api/v0/aggregates/${address}.json?keys=${encodeURIComponent(key)}`, { cache: 'no-store' });
+	const res = await readFetch(`${ALEPH_API}/api/v0/aggregates/${address}.json?keys=${encodeURIComponent(key)}`, 'Einstellungen lesen');
 	if (res.status === 404) return null;
 	if (!res.ok) throw new Error(`Aleph answered ${res.status}`);
 	return (await res.json())?.data?.[key] ?? null;

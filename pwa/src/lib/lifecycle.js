@@ -14,7 +14,7 @@ import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from
 import { relayTransports } from './attest-p2p.js';
 import { attestRelaysFor } from './relays.js';
 import { vmPayer } from './profile.js';
-import { ALEPH_API } from './aleph.js';
+import { ALEPH_API, readFetch } from './aleph.js';
 import { crnAddress, credits, estimateCreditsPerHour, FIXED_HOST_DOMAIN, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
 /** The last backup failed; the VM stays. Carries the VM's reason and its tool's last log lines. */
@@ -120,7 +120,7 @@ export async function resumeStart(master, profile, onProgress) {
 	const starting = profile.starting;
 	if (!starting?.instanceHash) throw new Error('Es gibt keinen unterbrochenen Start.');
 	onProgress({ step: 'instance', detail: 'VM bei Aleph nachsehen', instanceHash: starting.instanceHash });
-	const res = await fetch(`${ALEPH_API}/api/v0/messages/${starting.instanceHash}`, { cache: 'no-store' });
+	const res = await readFetch(`${ALEPH_API}/api/v0/messages/${starting.instanceHash}`, 'VM nachsehen');
 	const status = res.ok ? (await res.json())?.status : null;
 	if (status !== 'processed') throw new Error(`Die VM ${starting.instanceHash.slice(0, 12)} gibt es bei Aleph nicht mehr (${status ?? res.status}).`);
 	return bringUp(master, { ...profile, restoreEntry: starting.restoreEntry }, starting, await loadWasm(), onProgress);

@@ -16,7 +16,7 @@ import {
 	eraseInstanceOnCrn
 } from '@le-space/core';
 import { recoverMessageAddress } from 'viem';
-import { ALEPH_API, broadcast as broadcastAndWait, CHANNEL } from './aleph.js';
+import { ALEPH_API, broadcast as broadcastAndWait, CHANNEL, readFetch } from './aleph.js';
 
 // A confidential instance includes 40 GiB of rootfs; each GiB beyond costs
 // about 184 credits/h (Aleph's price estimate, 2026-10-29: 20, 30 and 40 GiB
@@ -67,7 +67,7 @@ async function broadcast(message) {
 
 /** A node's https address from the corechannel aggregate. */
 export async function crnAddress(crnHash) {
-	const res = await fetch(`${ALEPH_API}/api/v0/aggregates/${CORECHANNEL}.json?keys=corechannel`);
+	const res = await readFetch(`${ALEPH_API}/api/v0/aggregates/${CORECHANNEL}.json?keys=corechannel`, 'Knotenliste lesen');
 	const node = (await res.json())?.data?.corechannel?.resource_nodes?.find((n) => n.hash === crnHash);
 	if (!node?.address?.startsWith('https://')) throw new Error(`node ${crnHash.slice(0, 12)} has no https address`);
 	return node.address.replace(/\/+$/, '');
@@ -75,7 +75,7 @@ export async function crnAddress(crnHash) {
 
 /** The payer's Aleph credits. */
 export async function credits(payer) {
-	const res = await fetch(`${ALEPH_API}/api/v0/addresses/${payer}/balance`, { cache: 'no-store' });
+	const res = await readFetch(`${ALEPH_API}/api/v0/addresses/${payer}/balance`, 'Guthaben abfragen');
 	return Number((await res.json())?.credit_balance ?? 0);
 }
 
@@ -199,7 +199,7 @@ export async function listVms(appAddress, payer) {
 	url.searchParams.set('addresses', appAddress);
 	url.searchParams.set('message_statuses', 'processed,pending');
 	url.searchParams.set('pagination', '50');
-	const res = await fetch(url, { cache: 'no-store' });
+	const res = await readFetch(String(url), 'VM-Liste lesen');
 	if (!res.ok) throw new Error(`Aleph: VM-Liste nicht lesbar (${res.status})`);
 	return ownVms((await res.json()).messages ?? [], appAddress, payer);
 }
@@ -212,7 +212,7 @@ export async function listVms(appAddress, payer) {
  * @param {string} appAddress @param {string} itemHash
  */
 export async function ownInstance(appAddress, itemHash) {
-	const res = await fetch(`${ALEPH_API}/api/v0/messages/${itemHash}`, { cache: 'no-store' });
+	const res = await readFetch(`${ALEPH_API}/api/v0/messages/${itemHash}`, 'VM nachsehen');
 	if (!res.ok) throw new Error(`Aleph: VM ${itemHash.slice(0, 12)} nicht lesbar (${res.status})`);
 	return checkOwnInstance(appAddress, itemHash, (await res.json())?.message);
 }
