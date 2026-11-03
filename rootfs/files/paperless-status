@@ -58,6 +58,8 @@ def usage(path):
 disks = {"system": usage("/"), "data": usage("/srv/sealed") if os.path.ismount("/srv/sealed") else None}
 if stop and stop.get("status") in ("running", "ready", "failed"):
     phase = "stopping" if stop["status"] == "running" else "stopped" if stop["status"] == "ready" else "stop-failed"
+elif data_disk and data_disk.get("status") != "encrypted":
+    phase = "data-disk-failed"
 elif restore and restore.get("status") == "running":
     phase = "restoring"
 elif restore and restore.get("status") == "failed":
