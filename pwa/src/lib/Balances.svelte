@@ -1,5 +1,7 @@
 <script>
-	import { loadProfile } from '$lib/profile.js';
+	import { privateKeyToAccount } from 'viem/accounts';
+	import { alephPrivateKey } from '$lib/keys/derive.js';
+	import { loadProfile, vmPayer } from '$lib/profile.js';
 	import { alephBalance, filecoinBalance, hoursOf, duration, amount, LOW_GAS, RESERVE_HOURS, confidentialCreditsPerHour, runningCreditsPerHour } from '$lib/balances.js';
 	import { PAPERLESS_VM } from '$lib/vm.js';
 	import { CREDITS_URL, creditsBalance } from '$lib/credits.js';
@@ -8,7 +10,11 @@
 	/** @type {{ master: Uint8Array, version?: number }} */
 	let { master, version = 0 } = $props();
 
+	const appAddress = privateKeyToAccount(alephPrivateKey(master)).address;
+	// Who pays the VM on Aleph, and the wallet that pays the backups on Filecoin.
+	let alephPayer = $state('');
 	let payer = $state('');
+	let appPays = $state(false);
 	let network = $state('calibration');
 	/** @type {{ credits: number, aleph: number } | null} */
 	let aleph = $state(null);
@@ -33,11 +39,11 @@
 		reading = true;
 		alephError = filecoinError = false;
 		await Promise.all([
-			alephBalance(payer).then((b) => (aleph = b)).catch(() => ((aleph = null), (alephError = true))),
+			alephBalance(alephPayer).then((b) => (aleph = b)).catch(() => ((aleph = null), (alephError = true))),
 			creditsBalance(master).then((b) => ((lsCredits = b), (lsCreditsError = ''))).catch((e) => ((lsCredits = null), (lsCreditsError = e.message))),
 			confidentialCreditsPerHour(PAPERLESS_VM).then((p) => (vmPerHour = p)),
-			runningCreditsPerHour(payer).then((p) => (runningPerHour = p)).catch(() => (runningPerHour = null)),
-			filecoinBalance(network, payer).then((b) => (filecoin = b)).catch(() => ((filecoin = null), (filecoinError = true)))
+			runningCreditsPerHour(alephPayer).then((p) => (runningPerHour = p)).catch(() => (runningPerHour = null)),
+			payer && filecoinBalance(network, payer).then((b) => (filecoin = b)).catch(() => ((filecoin = null), (filecoinError = true)))
 		]);
 		reading = false;
 	}
@@ -48,16 +54,18 @@
 		loadProfile(master)
 			.then((p) => {
 				payer = p.payer ?? '';
+				appPays = Boolean(p.appPays);
+				alephPayer = vmPayer(p, appAddress) ?? '';
 				network = p.network ?? 'calibration';
-				if (payer) return read();
+				if (alephPayer) return read();
 			})
 			.catch(() => {});
 	});
 </script>
 
-{#if payer}
+{#if alephPayer}
 	<section class="balances" data-testid="balances">
-		<h2>Guthaben des zahlenden Kontos</h2>
+		<h2>{appPays ? 'Guthaben' : 'Guthaben des zahlenden Kontos'}</h2>
 		<dl>
 			{#if CREDITS_URL}
 				<dt>Le Space Credits <small>(Paperless)</small></dt>
@@ -69,7 +77,7 @@
 					{#if lsCredits}<TopUp {master} credits={lsCredits.credits} onbooked={read} />{/if}
 				</dd>
 			{/if}
-			<dt>Aleph-Credits</dt>
+			<dt>Aleph-Credits{#if appPays} <small>(Konto der App)</small>{/if}</dt>
 			<dd data-testid="balance-credits">
 				{#if aleph}
 					{amount(aleph.credits, 0)}
@@ -79,6 +87,7 @@
 			</dd>
 			{#if aleph?.aleph}<dt>ALEPH</dt><dd>{amount(aleph.aleph)}</dd>{/if}
 
+			{#if payer}
 			<dt>{gasName} <small>(Gas)</small></dt>
 			<dd data-testid="balance-gas">
 				{#if filecoin}
@@ -95,6 +104,7 @@
 					{#if filecoin.perMonth > 0}<br /><small>Verbrauch ca. {amount(filecoin.perMonth)} USDFC im Monat{filecoin.runwayDays !== null ? `, reicht ca. ${filecoin.runwayDays} Tage` : ''}</small>{/if}
 					{#if filecoin.runwayDays !== null && filecoin.runwayDays < 30}<br /><span class="warn">Reicht weniger als einen Monat: einzahlen, sonst schlagen Sicherungen fehl.</span>{/if}
 				</dd>
+			{/if}
 			{/if}
 		</dl>
 		<button class="quiet" onclick={read} disabled={reading}>{reading ? 'Lese …' : 'Aktualisieren'}</button>

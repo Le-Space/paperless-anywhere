@@ -13,6 +13,7 @@ import { alephPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSe
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
 import { relayTransports } from './attest-p2p.js';
 import { attestRelaysFor } from './relays.js';
+import { vmPayer } from './profile.js';
 import { crnAddress, credits, estimateCreditsPerHour, FIXED_HOST_DOMAIN, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
 /** The last backup failed; the VM stays. Carries the VM's reason and its tool's last log lines. */
@@ -51,7 +52,9 @@ async function until(what, fn, { tries = 60, delayMs = 5000 } = {}) {
 /** What a start needs from the profile; throws with a reason a person can act on. */
 export function startRequirements(profile) {
 	const missing = [];
-	if (!profile.payer) missing.push('zahlendes Konto');
+	// The wallet pays the VM, or only the backups when the app pays (appPays).
+	if (!profile.payer && !profile.appPays) missing.push('zahlendes Konto');
+	if (!profile.payer && profile.backupConfig) missing.push('Wallet für die Sicherungen');
 	if (!profile.rootfsItemHash) missing.push('Paperless-Image');
 	if (!profile.luksPassphrase) missing.push('Image-Passphrase');
 	if (!profile.crnHash) missing.push('Knoten');
@@ -73,26 +76,27 @@ export async function startPaperless(master, profile, onProgress) {
 	const trustedExecution = await confidentialTrustedExecution({ wasm, owner: app.address, vcpus: PAPERLESS_VM.vcpus });
 
 	onProgress({ step: 'instance', detail: 'VM anfordern' });
-	const message = await instanceMessage({ app, payer: profile.payer, rootfsItemHash: profile.rootfsItemHash, crnHash: profile.crnHash, trustedExecution, name: `paperless-${new Date().toISOString().slice(0, 16)}` });
+	const payer = vmPayer(profile, app.address);
+	const message = await instanceMessage({ app, payer, rootfsItemHash: profile.rootfsItemHash, crnHash: profile.crnHash, trustedExecution, name: `paperless-${new Date().toISOString().slice(0, 16)}` });
 	// Aleph takes the VM only when the account holds a day of the VM's price
 	// plus a day of what it already pays for; checked here so an account short
 	// of that hears it before Aleph refuses.
 	const [balance, vmPerHour, runningPerHour] = await Promise.all([
-		credits(profile.payer),
+		credits(payer),
 		estimateCreditsPerHour(message).then((p) => p ?? confidentialCreditsPerHour(PAPERLESS_VM)),
-		runningCreditsPerHour(profile.payer).catch(() => 0)
+		runningCreditsPerHour(payer).catch(() => 0)
 	]);
 	const reserve = profile.minCredits ?? RESERVE_HOURS * (vmPerHour + runningPerHour);
 	if (balance < reserve) {
 		const running = runningPerHour ? ` und ${runningPerHour.toLocaleString('de-DE')} Credits/h für das, was schon läuft` : '';
-		throw new Error(`Zu wenig Credits auf dem zahlenden Konto: ${balance.toLocaleString('de-DE')}. Aleph nimmt die VM erst mit einem Tag Reserve an: ${reserve.toLocaleString('de-DE')} (${vmPerHour.toLocaleString('de-DE')} Credits/h für Paperless${running}).`);
+		throw new Error(`Zu wenig Credits auf ${profile.appPays ? 'dem Konto der App' : 'dem zahlenden Konto'}: ${balance.toLocaleString('de-DE')}. Aleph nimmt die VM erst mit einem Tag Reserve an: ${reserve.toLocaleString('de-DE')} (${vmPerHour.toLocaleString('de-DE')} Credits/h für Paperless${running}).`);
 	}
 	const instanceHash = await sendInstance(message);
 	const crnUrl = await crnAddress(profile.crnHash);
 	await notifyNode(crnUrl, instanceHash);
 
 	onProgress({ step: 'network', detail: 'Port 443 und Adresse', instanceHash });
-	await forward443(app, profile.payer, instanceHash);
+	await forward443(app, payer, instanceHash);
 	await until('port 443', () => mapped443(crnUrl, instanceHash), { tries: 60 });
 	// The node restarts the VM to apply a mapping; give it a moment before the unlock.
 	await sleep(15_000);
@@ -186,7 +190,7 @@ export async function startPaperless(master, profile, onProgress) {
 	}
 	// Whether the VM sealed its data area with a key of its own (image paperless-data-disk).
 	const dataDisk = ready.dataDisk?.status === 'encrypted' ? 'encrypted' : ready.dataDisk ? 'plain' : 'unknown';
-	return { instanceHash, crnHash: profile.crnHash, host, trustedExecution, dataDisk, ...(ready.phase === 'restore-failed' ? { restore: ready.restore } : {}) };
+	return { instanceHash, crnHash: profile.crnHash, payer, host, trustedExecution, dataDisk, ...(ready.phase === 'restore-failed' ? { restore: ready.restore } : {}) };
 }
 
 /**
@@ -233,6 +237,7 @@ export async function stopPaperless(master, profile, onProgress) {
 	onProgress({ step: 'forget', detail: 'VM löschen' });
 	const crnUrl = await crnAddress(run.crnHash).catch(() => null);
 	if (crnUrl) await eraseOnNode(app, run.instanceHash, crnUrl);
-	await forgetInstance(app, profile.payer, run.instanceHash);
+	// Who paid at the start, also when the profile changed since.
+	await forgetInstance(app, run.payer ?? vmPayer(profile, app.address), run.instanceHash);
 	return status;
 }

@@ -7,6 +7,7 @@
 	import { backupConfigFor } from '$lib/backups.js';
 	import { relayList } from '$lib/attest-p2p.js';
 	import { findAttestRelays } from '$lib/relays.js';
+	import { CREDITS_URL } from '$lib/credits.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
 	import {
 		connectPayer,
@@ -86,6 +87,7 @@
 		await save({ payer: await connectPayer() });
 		await refresh();
 	});
+	const setAppPays = (on) => run('pays', () => save({ appPays: on }));
 	const authorize = (revoke = false) => run('wallet', async () => {
 		await setAlephAuthorization(profile.payer, pwaAddress, { revoke });
 		alephOk = !revoke;
@@ -177,14 +179,23 @@
 			</select>
 		</label>
 
-		<h3>1. Zahlendes Konto</h3>
-		{#if profile.payer}
-			<p>Verbunden: <code data-testid="payer">{profile.payer}</code>
-				<br /><small class="money">Hier liegt das Geld: Aleph-Credits für die VMs, im Testnetz tFIL und USDFC für die Sicherungen. Der Schlüssel dazu bleibt in deinem Wallet; diese App sieht ihn nie.</small></p>
+		<h3>1. Wer zahlt die VM?</h3>
+		<fieldset class="payer-choice" disabled={busy === 'pays'}>
+			<label><input type="radio" name="pays" checked={!profile.appPays} onchange={() => setAppPays(false)} data-testid="pays-wallet" /> Mein Wallet (MetaMask), mit einer Freigabe für diese App</label>
+			<label><input type="radio" name="pays" checked={Boolean(profile.appPays)} onchange={() => setAppPays(true)} data-testid="pays-app" /> Diese App selbst: Aleph-Credits liegen auf ihrer Adresse</label>
+		</fieldset>
+		{#if profile.appPays}
+			<p>Adresse der App: <code data-testid="app-payer">{pwaAddress}</code>
+				<br /><small class="money">Hier liegen die Aleph-Credits für die VMs. Der Schlüssel dazu kommt aus deinem Tresor: wer den Tresor öffnet, kann sie ausgeben. Aufladen per Aleph-Überweisung an diese Adresse{CREDITS_URL ? ' oder aus Le Space Credits' : ''}.</small></p>
+			<p class="hint">Ein Wallet brauchst du so nur für Sicherungen (Filecoin).</p>
 		{/if}
-		<button onclick={connect} disabled={busy === 'wallet'}>{profile.payer ? 'Anderes Konto verbinden' : 'Wallet verbinden'}</button>
-
 		{#if profile.payer}
+			<p>{profile.appPays ? 'Wallet für die Sicherungen' : 'Verbunden'}: <code data-testid="payer">{profile.payer}</code>
+				<br /><small class="money">{profile.appPays ? 'Hier liegt das Geld für die Sicherungen: im Testnetz tFIL und USDFC.' : 'Hier liegt das Geld: Aleph-Credits für die VMs, im Testnetz tFIL und USDFC für die Sicherungen.'} Der Schlüssel dazu bleibt in deinem Wallet; diese App sieht ihn nie.</small></p>
+		{/if}
+		<button onclick={connect} disabled={busy === 'wallet'}>{profile.payer ? 'Anderes Wallet verbinden' : profile.appPays ? 'Wallet für Sicherungen verbinden' : 'Wallet verbinden'}</button>
+
+		{#if profile.payer && !profile.appPays}
 			<h3>2. Aleph: diese App darf VMs starten und löschen</h3>
 			<p>App-Schlüssel: <code>{pwaAddress}</code>
 				<br /><small class="nomoney">Hält kein Geld – nichts dorthin überweisen. Er darf nur im Auftrag des zahlenden Kontos VMs starten und löschen.</small></p>
@@ -194,6 +205,9 @@
 			{:else}
 				<button onclick={() => authorize()} disabled={busy === 'wallet'}>Im Wallet freigeben</button>
 			{/if}
+		{/if}
+
+		{#if profile.payer}
 
 			<h3>3. Filecoin: Sicherungen hinzufügen</h3>
 			<p>Sitzungsschlüssel: <code>{sessionAddress}</code>
@@ -259,6 +273,7 @@
 	.nomoney { color: #b26a00; }
 	.hint { color: #666; font-size: 0.9rem; }
 	label { display: block; margin-top: 0.5rem; font-size: 0.9rem; color: #444; }
+	.payer-choice { border: none; padding: 0; margin: 0 0 0.5rem; display: grid; gap: 0.25rem; }
 	.where { margin: 0.5rem 0 1rem; font-size: 0.9rem; color: #444; }
 	.where summary { cursor: pointer; }
 	.waiting { background: #fff4d6; padding: 0.5rem 0.75rem; border-radius: 4px; }

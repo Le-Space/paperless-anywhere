@@ -119,3 +119,36 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	expect(aggregates.get(payer.address).security.authorizations).toEqual([OTHER]);
 	await other.close();
 });
+
+test('the app can pay its VMs itself: no wallet, no authorization, its own balance', async ({ page }) => {
+	test.setTimeout(120_000);
+	const install = alephMock();
+	await install(page.context());
+	await offline(page.context());
+	await page.context().route(/https:\/\/api2\.aleph\.im\/api\/v0\/addresses\/0x[0-9a-fA-F]{40}\/balance/, (route) =>
+		route.fulfill({ json: { balance: 0, credit_balance: 1_500_000 } })
+	);
+	await page.context().route(/https:\/\/api2\.aleph\.im\/api\/v0\/costs.*/, (route) => route.fulfill({ json: { summary: { total_cost_credit: '0' } } }));
+	await authenticator(page);
+
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Passkey anlegen' }).click();
+	await expect(page.getByTestId('phrase').locator('li')).toHaveCount(24);
+	const words = await page.getByTestId('phrase').locator('li').allTextContents();
+	const appAddress = await page.getByTestId('address').textContent();
+	await page.getByRole('button', { name: 'Aufgeschrieben' }).click();
+	const asked = page.locator('[data-testid^="confirm-"]');
+	await expect(asked).toHaveCount(3);
+	for (const [i, position] of (await asked.evaluateAll((inputs) => inputs.map((x) => Number(x.dataset.testid.split('-')[1])))).entries()) {
+		await asked.nth(i).fill(words[position - 1]);
+	}
+	await page.getByRole('button', { name: 'Stimmt' }).click();
+
+	await page.getByTestId('pays-app').check();
+	await expect(page.getByTestId('app-payer')).toHaveText(appAddress);
+	await expect(page.getByTestId('aleph-status')).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Wallet für Sicherungen verbinden' })).toBeVisible();
+	await expect(page.getByTestId('balances')).toContainText('Konto der App');
+	await expect(page.getByTestId('balance-credits')).toContainText('1.500.000');
+	await expect(page.getByTestId('balance-gas')).toHaveCount(0);
+});
