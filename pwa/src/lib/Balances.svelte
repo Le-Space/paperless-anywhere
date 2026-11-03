@@ -6,6 +6,7 @@
 	import { PAPERLESS_VM } from '$lib/vm.js';
 	import { CREDITS_URL, creditsBalance } from '$lib/credits.js';
 	import TopUp from '$lib/TopUp.svelte';
+	import { marketPrices, money, UNITS } from '$lib/prices.js';
 
 	/** @type {{ master: Uint8Array, version?: number }} */
 	let { master, version = 0 } = $props();
@@ -30,7 +31,32 @@
 	let vmPerHour = $state(0);
 	/** @type {number | null} */
 	let runningPerHour = $state(null);
+	// While a Paperless runs (or is starting), what runs already includes it: the
+	// rate is what the account spends, and the start reserve does not apply.
+	let vmUp = $state(false);
+	const perHour = $derived(vmUp ? (runningPerHour ?? vmPerHour) : vmPerHour + (runningPerHour ?? 0));
 	const reserve = $derived(RESERVE_HOURS * (vmPerHour + (runningPerHour ?? 0)));
+	// Credits also as euros, dollars or ALEPH, as the viewer chose (kept in this browser only).
+	const UNIT_KEY = 'paperless-credit-unit';
+	const UNIT_LABELS = { credits: 'nur Credits', eur: 'Euro', usd: 'Dollar', aleph: 'ALEPH' };
+	let unit = $state(/** @type {typeof UNITS[number]} */ ('eur'));
+	try {
+		const saved = localStorage.getItem(UNIT_KEY);
+		if (saved && /** @type {readonly string[]} */ (UNITS).includes(saved)) unit = /** @type {any} */ (saved);
+	} catch {
+		// Storage blocked: the default stays.
+	}
+	const setUnit = (/** @type {any} */ u) => {
+		unit = u;
+		try {
+			localStorage.setItem(UNIT_KEY, u);
+		} catch {
+			// Storage blocked: only for this visit.
+		}
+	};
+	/** @type {import('$lib/prices.js').Prices | null} */
+	let prices = $state(null);
+	const inMoney = (/** @type {number} */ credits) => money(credits, unit, prices);
 
 	const test = $derived(network !== 'mainnet');
 	const gasName = $derived(test ? 'tFIL' : 'FIL');
@@ -42,6 +68,7 @@
 			alephBalance(alephPayer).then((b) => (aleph = b)).catch(() => ((aleph = null), (alephError = true))),
 			creditsBalance(master).then((b) => ((lsCredits = b), (lsCreditsError = ''))).catch((e) => ((lsCredits = null), (lsCreditsError = e.message))),
 			confidentialCreditsPerHour(PAPERLESS_VM).then((p) => (vmPerHour = p)),
+			marketPrices().then((p) => (prices = p)),
 			runningCreditsPerHour(alephPayer).then((p) => (runningPerHour = p)).catch(() => (runningPerHour = null)),
 			payer && filecoinBalance(network, payer).then((b) => (filecoin = b)).catch(() => ((filecoin = null), (filecoinError = true)))
 		]);
@@ -55,6 +82,7 @@
 			.then((p) => {
 				payer = p.payer ?? '';
 				appPays = Boolean(p.appPays);
+				vmUp = Boolean(p.running || p.starting);
 				alephPayer = vmPayer(p, appAddress) ?? '';
 				network = p.network ?? 'calibration';
 				if (alephPayer) return read();
@@ -80,9 +108,10 @@
 			<dt>Aleph-Credits{#if appPays} <small>(Konto der App)</small>{/if}</dt>
 			<dd data-testid="balance-credits">
 				{#if aleph}
-					{amount(aleph.credits, 0)}
-					{#if vmPerHour}<small data-testid="balance-rate">· reicht für ca. {duration(hoursOf(aleph.credits, vmPerHour + (runningPerHour ?? 0)))} Paperless ({amount(vmPerHour, 0)}/h{runningPerHour ? ` + ${amount(runningPerHour, 0)}/h, was schon läuft` : ''})</small>{/if}
-					{#if vmPerHour && aleph.credits < reserve}<br /><span class="warn" data-testid="balance-reserve">Unter der Tagesreserve von {amount(reserve, 0)}: Aleph nimmt so keinen Start an.</span>{/if}
+					{amount(aleph.credits, 0)} {#if inMoney(aleph.credits)}<span class="money" data-testid="balance-money">{inMoney(aleph.credits)}</span>{/if}
+					{#if vmUp && perHour}<small data-testid="balance-rate">· reicht noch ca. {duration(hoursOf(aleph.credits, perHour))} ({amount(perHour, 0)}/h{inMoney(perHour) ? `, ${inMoney(perHour)}/h` : ''}, was gerade läuft)</small>
+					{:else if vmPerHour}<small data-testid="balance-rate">· reicht für ca. {duration(hoursOf(aleph.credits, perHour))} Paperless ({amount(vmPerHour, 0)}/h{inMoney(vmPerHour) ? `, ${inMoney(vmPerHour)}/h` : ''}{runningPerHour ? ` + ${amount(runningPerHour, 0)}/h, was schon läuft` : ''})</small>{/if}
+					{#if !vmUp && vmPerHour && aleph.credits < reserve}<br /><span class="warn" data-testid="balance-reserve">Unter der Tagesreserve von {amount(reserve, 0)}{inMoney(reserve) ? ` (${inMoney(reserve)})` : ''}: Aleph nimmt so keinen Start an.</span>{/if}
 				{:else if alephError}<span class="hint">nicht lesbar</span>{:else}…{/if}
 			</dd>
 			{#if aleph?.aleph}<dt>ALEPH</dt><dd>{amount(aleph.aleph)}</dd>{/if}
@@ -107,6 +136,13 @@
 			{/if}
 			{/if}
 		</dl>
+		<p class="units">
+			<label>Credits auch in
+				<select value={unit} onchange={(e) => setUnit(e.currentTarget.value)} data-testid="credit-unit">
+					{#each UNITS as u (u)}<option value={u}>{UNIT_LABELS[u]}</option>{/each}
+				</select></label>
+			<small class="hint">1 $ = 1.000.000 Credits (Aleph){#if prices} · ALEPH {amount(prices.alephEur, 4)} €, 1 $ = {amount(prices.usdEur, 3)} € (CoinGecko, {new Date(prices.at).toLocaleTimeString('de-DE', { timeStyle: 'short' })}){:else if unit === 'eur' || unit === 'aleph'} · Kurse gerade nicht abrufbar{/if}</small>
+		</p>
 		<button class="quiet" onclick={read} disabled={reading}>{reading ? 'Lese …' : 'Aktualisieren'}</button>
 	</section>
 {/if}
@@ -119,5 +155,8 @@
 	dd { margin: 0; }
 	.warn { color: #b26a00; font-size: 0.9rem; }
 	.hint { color: #666; }
+	.money { color: #444; margin-left: 0.3rem; }
+	.units { margin: 0.5rem 0 0; font-size: 0.9rem; }
+	.units select { margin-left: 0.3rem; }
 	.quiet { background: none; border: none; color: #666; text-decoration: underline; padding: 0; margin: 0.5rem 0 0; font-size: 0.9rem; }
 </style>
