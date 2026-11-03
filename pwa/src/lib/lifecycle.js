@@ -59,6 +59,8 @@ export function startRequirements(profile) {
 	if (!profile.rootfsItemHash) missing.push('Paperless-Image');
 	if (!profile.luksPassphrase) missing.push('Image-Passphrase');
 	if (!profile.crnHash) missing.push('Knoten');
+	// The guest backs up a primary to mainnet only and refuses any other network.
+	if (profile.role === 'primary' && profile.network !== 'mainnet') missing.push('Netz Mainnet für die Rolle „Produktiv“');
 	return missing;
 }
 

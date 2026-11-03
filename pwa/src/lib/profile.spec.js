@@ -23,6 +23,10 @@ describe('startRequirements', () => {
 		expect(startRequirements({ ...ready, appPays: true, backupConfig: { copies: 2 } })).toEqual(['Wallet für die Sicherungen']);
 		expect(startRequirements({ ...ready, appPays: true, payer: wallet, backupConfig: { copies: 2 } })).toEqual([]);
 	});
+	it('runs a primary on mainnet only', () => {
+		expect(startRequirements({ ...ready, payer: wallet, role: 'primary', network: 'calibration' })).toEqual(['Netz Mainnet für die Rolle „Produktiv“']);
+		expect(startRequirements({ ...ready, payer: wallet, role: 'primary', network: 'mainnet' })).toEqual([]);
+	});
 });
 
 describe('resumeStart', () => {

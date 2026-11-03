@@ -148,6 +148,19 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	}
 	await page.getByRole('button', { name: 'Stimmt' }).click();
 
+	// The role: test by default; production asks first and warns.
+	await expect(page.getByTestId('role-test')).toBeChecked();
+	await expect(page.getByTestId('role-line')).toContainText('als Test');
+	page.once('dialog', (d) => d.dismiss());
+	await page.getByTestId('role-primary').click();
+	await expect(page.getByTestId('role-test')).toBeChecked();
+	page.once('dialog', (d) => d.accept());
+	await page.getByTestId('role-primary').check();
+	await expect(page.getByTestId('role-warning')).toContainText('Nur eine Instanz darf produktiv sein');
+	await expect(page.getByTestId('role-warning')).toContainText('Mainnet');
+	await expect(page.getByTestId('role-line')).toContainText('produktiv');
+	await page.getByTestId('role-test').check();
+
 	await page.getByTestId('pays-app').check();
 	await expect(page.getByTestId('app-payer')).toHaveText(appAddress);
 	await expect(page.getByTestId('aleph-status')).toHaveCount(0);

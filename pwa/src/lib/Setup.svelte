@@ -88,6 +88,18 @@
 		await refresh();
 	});
 	const setAppPays = (on) => run('pays', () => save({ appPays: on }));
+	// One instance reads the mailbox and writes the mainnet backups; switching
+	// another one to that role while the first still runs would duplicate both.
+	/** @param {'test' | 'primary'} role @param {HTMLInputElement} [radio] */
+	const setRole = (role, radio) => run('role', async () => {
+		if (role === 'primary' && !confirm('Diese Paperless produktiv machen? Sie ruft dann die Mails ab und schreibt die Mainnet-Sicherungen. Nur eine Instanz darf das: eine andere (z. B. auf dem Mac) vorher anhalten.')) {
+			// The browser already moved the selection; put it back.
+			const test = radio?.closest('fieldset')?.querySelector('input[value="test"]');
+			if (test instanceof HTMLInputElement) test.checked = true;
+			return;
+		}
+		await save({ role: role === 'primary' ? 'primary' : 'test' });
+	});
 	const authorize = (revoke = false) => run('wallet', async () => {
 		await setAlephAuthorization(profile.payer, pwaAddress, { revoke });
 		alephOk = !revoke;
@@ -178,6 +190,15 @@
 				<option value="mainnet">Produktiv (Mainnet)</option>
 			</select>
 		</label>
+
+		<fieldset class="role" disabled={busy === 'role'} data-testid="role">
+			<legend>Rolle dieser Paperless</legend>
+			<label><input type="radio" name="role" value="test" checked={profile.role !== 'primary'} onchange={() => setRole('test')} data-testid="role-test" /> Test: Mail-Regeln aus, Sicherungen ins Testnetz</label>
+			<label><input type="radio" name="role" value="primary" checked={profile.role === 'primary'} onchange={(e) => setRole('primary', e.currentTarget)} data-testid="role-primary" /> Produktiv: ruft die Mails ab und sichert auf Mainnet</label>
+			{#if profile.role === 'primary'}
+				<p class="warn" data-testid="role-warning">Nur eine Instanz darf produktiv sein. Läuft Paperless noch anderswo produktiv (z. B. auf dem Mac), dort zuerst die Mail-Regeln und die tägliche Sicherung ausschalten.{#if profile.network !== 'mainnet'} Produktiv braucht das Netz „Produktiv (Mainnet)“.{/if}</p>
+			{/if}
+		</fieldset>
 
 		<h3>1. Wer zahlt die VM?</h3>
 		<fieldset class="payer-choice" disabled={busy === 'pays'}>
@@ -273,6 +294,9 @@
 	.nomoney { color: #b26a00; }
 	.hint { color: #666; font-size: 0.9rem; }
 	label { display: block; margin-top: 0.5rem; font-size: 0.9rem; color: #444; }
+	.role { border: 1px solid #ddd; border-radius: 4px; padding: 0.4rem 0.75rem; margin: 0.5rem 0 1rem; display: grid; gap: 0.25rem; }
+	.role input { width: auto; margin-right: 0.4rem; }
+	.role .warn { color: #b26a00; margin: 0.25rem 0 0; font-size: 0.9rem; }
 	.payer-choice { border: none; padding: 0; margin: 0 0 0.5rem; display: grid; gap: 0.25rem; }
 	/* The page sizes inputs to full width; a radio keeps its own size beside its label. */
 	.payer-choice input { width: auto; margin-right: 0.4rem; }
