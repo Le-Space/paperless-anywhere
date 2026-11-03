@@ -129,6 +129,10 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 		route.fulfill({ json: { balance: 0, credit_balance: 1_500_000 } })
 	);
 	await page.context().route(/https:\/\/api2\.aleph\.im\/api\/v0\/costs.*/, (route) => route.fulfill({ json: { summary: { total_cost_credit: '0' } } }));
+	// Made-up market prices: ALEPH at 0.02 $, the dollar at 0.9 €.
+	await page.context().route(/https:\/\/api\.coingecko\.com\/.*/, (route) =>
+		route.fulfill({ json: { aleph: { usd: 0.02, eur: 0.018 }, 'usd-coin': { usd: 1, eur: 0.9 } }, headers: { 'access-control-allow-origin': '*' } })
+	);
 	await authenticator(page);
 
 	await page.goto('/');
@@ -151,4 +155,8 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await expect(page.getByTestId('balances')).toContainText('Konto der App');
 	await expect(page.getByTestId('balance-credits')).toContainText('1.500.000');
 	await expect(page.getByTestId('balance-gas')).toHaveCount(0);
+	// Credits also in money: euros by default, ALEPH on request.
+	await expect(page.getByTestId('balance-money')).toHaveText('≈ 1,35 €');
+	await page.getByTestId('credit-unit').selectOption('aleph');
+	await expect(page.getByTestId('balance-money')).toHaveText('≈ 75 ALEPH');
 });
