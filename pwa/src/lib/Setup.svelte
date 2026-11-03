@@ -4,7 +4,7 @@
 	import { FIXED_HOST_DOMAIN } from '$lib/vm.js';
 	import { loadProfile, saveProfile } from '$lib/profile.js';
 	import { ageIdentityFromMaster, ageRecipient } from '$lib/keys/age.js';
-	import { backupConfigFor } from '$lib/backups.js';
+	import { BACKUP_LABEL, backupConfigFor } from '$lib/backups.js';
 	import { relayList } from '$lib/attest-p2p.js';
 	import { findAttestRelays } from '$lib/relays.js';
 	import { CREDITS_URL } from '$lib/credits.js';
@@ -66,11 +66,21 @@
 			.catch((e) => (error = e.message));
 	});
 
+	// Which action the message belongs to: it shows beside that action, and a
+	// short "gespeichert" confirms one that went through.
+	let errorKey = $state('');
+	let savedKey = $state('');
+	let savedTimer = 0;
 	async function run(key, fn) {
 		error = '';
+		errorKey = key;
+		savedKey = '';
 		busy = key;
 		try {
 			await fn();
+			savedKey = key;
+			clearTimeout(savedTimer);
+			savedTimer = setTimeout(() => (savedKey = ''), 4000);
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
 		} finally {
@@ -85,6 +95,12 @@
 
 	const connect = () => run('wallet', async () => {
 		await save({ payer: await connectPayer() });
+		await refresh();
+	});
+	// Providers and data sets differ per network: switching drops the backup
+	// places, which are then chosen again for the new network.
+	const changeNetwork = (network) => run('network', async () => {
+		await save({ network, ...(profile.backupConfig ? { backupConfig: null } : {}) });
 		await refresh();
 	});
 	const setAppPays = (on) => run('pays', () => save({ appPays: on }));
@@ -185,7 +201,7 @@
 	{:else}
 		<label>
 			Netz
-			<select value={profile.network} onchange={(e) => run('network', async () => { await save({ network: e.currentTarget.value }); await refresh(); })} disabled={busy === 'wallet'}>
+			<select value={profile.network} onchange={(e) => changeNetwork(e.currentTarget.value)} disabled={busy === 'wallet'}>
 				<option value="calibration">Test (Calibration)</option>
 				<option value="mainnet">Produktiv (Mainnet)</option>
 			</select>
@@ -199,6 +215,7 @@
 				<p class="warn" data-testid="role-warning">Nur eine Instanz darf produktiv sein. Läuft Paperless noch anderswo produktiv (z. B. auf dem Mac), dort zuerst die Mail-Regeln und die tägliche Sicherung ausschalten.{#if profile.network !== 'mainnet'} Produktiv braucht das Netz „Produktiv (Mainnet)“.{/if}</p>
 			{/if}
 		</fieldset>
+		{@render feedback('network')}{@render feedback('role')}
 
 		<h3>1. Wer zahlt die VM?</h3>
 		<fieldset class="payer-choice" disabled={busy === 'pays'}>
@@ -214,6 +231,7 @@
 			<p>{profile.appPays ? 'Wallet für die Sicherungen' : 'Verbunden'}: <code data-testid="payer">{profile.payer}</code>
 				<br /><small class="money">{profile.appPays ? 'Hier liegt das Geld für die Sicherungen: im Testnetz tFIL und USDFC.' : 'Hier liegt das Geld: Aleph-Credits für die VMs, im Testnetz tFIL und USDFC für die Sicherungen.'} Der Schlüssel dazu bleibt in deinem Wallet; diese App sieht ihn nie.</small></p>
 		{/if}
+		{@render feedback('pays')}
 		<button onclick={connect} disabled={busy === 'wallet'}>{profile.payer ? 'Anderes Wallet verbinden' : profile.appPays ? 'Wallet für Sicherungen verbinden' : 'Wallet verbinden'}</button>
 
 		{#if profile.payer && !profile.appPays}
@@ -234,6 +252,7 @@
 			<p>Sitzungsschlüssel: <code>{sessionAddress}</code>
 				<br /><small class="nomoney">Hält kein Geld – nichts dorthin überweisen. Er darf 30 Tage lang Sicherungen hinzufügen, bezahlt vom zahlenden Konto.</small></p>
 			<p data-testid="session-status">{until(sessionUntil) ? `gültig bis ${until(sessionUntil)}` : 'nicht freigegeben'}</p>
+			{@render feedback('wallet')}
 			<button onclick={() => session()} disabled={busy === 'wallet'}>{until(sessionUntil) ? 'Um 30 Tage verlängern' : 'Für 30 Tage freigeben'}</button>
 			{#if until(sessionUntil)}<button onclick={() => session(true)} disabled={busy === 'wallet'}>Zurücknehmen</button>{/if}
 		{/if}
@@ -244,10 +263,12 @@
 		<label>Eigene Relays (optional), eins pro Zeile, werden vor denen von Le Space versucht: <code>wss://…/attest</code> oder die Multiaddr eines orbitdb-relay (<code>/dns4/…/p2p/…</code>)
 			<textarea bind:value={relayInput} rows="3" autocomplete="off" spellcheck="false" placeholder="leer = nur die Relays von Le Space" data-testid="relays"></textarea></label>
 		<button onclick={saveRelay} disabled={busy === 'relay'}>{relayInput.trim() || !profile.attestRelay ? 'Relays speichern' : 'Eigene Relays entfernen'}</button>
+		{@render feedback('relay')}
 
 		<h3>5. Sicherungen</h3>
 		<label>Wallet, dem die Sicherungen gehören (0x…, leer = zahlendes Konto)<input bind:value={ownerInput} placeholder={profile.payer ? `Wallet der Sicherungen (leer = ${profile.payer.slice(0, 10)}…)` : 'Wallet der Sicherungen'} /></label>
 		<button onclick={saveOwner} disabled={busy === 'owner'}>Wallet der Sicherungen speichern</button>
+		{@render feedback('owner')}
 		<p>Schlüssel der Sicherungen (age): die VM verschlüsselt jede Sicherung für ihn, eine Wiederherstellung braucht ihn.</p>
 		<p data-testid="age-status">{!profile.ageIdentity ? 'nicht hinterlegt' : profile.ageIdentity === vaultAge ? 'der Schlüssel des Tresors (die 24 Wörter genügen zur Wiederherstellung)' : 'eingefügt (nicht aus dem Tresor: getrennt aufbewahren!)'}</p>
 		{#if recipient}<p><small>Empfänger: <code data-testid="age-recipient">{recipient}</code></small></p>{/if}
@@ -257,15 +278,17 @@
 			<textarea bind:value={ageInput} rows="2" autocomplete="off" spellcheck="false" placeholder="AGE-SECRET-KEY-1…"></textarea>
 			<button onclick={saveAge} disabled={busy === 'age' || !ageInput.trim()}>Versiegelt hinterlegen</button>
 		</details>
+		{@render feedback('age')}
 		<label class="check">
-			<input type="checkbox" data-testid="backups-on" checked={!!profile.backupConfig} disabled={busy === 'backups' || profile.network !== 'calibration'}
+			<input type="checkbox" data-testid="backups-on" checked={!!profile.backupConfig} disabled={busy === 'backups' || (profile.network === 'mainnet' && profile.role !== 'primary')}
 				onchange={(e) => toggleBackups(e.currentTarget.checked)} />
-			Beim Stoppen sichern (Testnetz, Datensatz <code>paperless-backup-test</code>)
+			Sichern, alle zwei Stunden bei Änderungen und beim Stoppen ({profile.network === 'mainnet' ? 'Mainnet' : 'Testnetz'}, Datensatz <code>{BACKUP_LABEL[profile.network === 'mainnet' ? 'mainnet' : 'calibration']}</code>)
 		</label>
 		{#if profile.backupConfig}
 			<BackupPlaces network={profile.network} payer={profile.backupOwner || profile.payer} config={profile.backupConfig} busy={busy === 'places'} onsave={savePlaces} />
 		{/if}
-		{#if profile.network !== 'calibration'}<p class="hint">Im Hauptnetz sichert vorerst nur der Mac; aus der App erst nach dem Test.</p>
+		{@render feedback('backups')}{@render feedback('places')}
+		{#if profile.network === 'mainnet' && profile.role !== 'primary'}<p class="hint" data-testid="mainnet-backup-hint">Auf Mainnet sichert nur eine produktive Paperless (Rolle oben). Als Test bleibt sie ohne Sicherung.</p>
 		{:else if profile.backupConfig && !until(sessionUntil)}<p class="hint">Dafür braucht die VM den Sitzungsschlüssel aus Schritt 3.</p>{/if}
 
 		<h3>6. Paperless-Image und Knoten</h3>
@@ -273,14 +296,21 @@
 		<label>SEV-SNP-Knoten (Hash, 64 Zeichen)<input bind:value={crnInput} placeholder="SEV-SNP-Knoten (Hash)" /></label>
 		<label>Passphrase des Images<input bind:value={passInput} type="password" autocomplete="off" placeholder={profile.luksPassphrase ? `Passphrase hinterlegt, ${profile.luksPassphrase.length} Zeichen (leer lassen = behalten)` : 'Passphrase des Images'} /></label>
 		<button onclick={saveImage} disabled={busy === 'image'}>Image und Knoten speichern</button>
+		{@render feedback('image')}
 
 		<h3>7. Feste Adresse (optional)</h3>
 		<p class="hint">Mit einem Cloudflare-API-Token (Zone {FIXED_HOST_DOMAIN.split('.').slice(-2).join('.')}, Rechte: DNS bearbeiten, Zone lesen) bekommt Paperless bei jedem Start dieselbe Adresse, <code>{fixedHostLabel(master)}.{FIXED_HOST_DOMAIN}</code>: Die VM trägt sich selbst ein und holt das Zertifikat über DNS. Ohne Token gibt es bei jedem Start einen neuen <code>*.2n6.me</code>-Namen. Das Token kann alle DNS-Einträge der Zone ändern; es liegt verschlüsselt im Profil und geht nur an die VM.</p>
 		<label>Cloudflare-API-Token<input bind:value={dnsInput} type="password" autocomplete="off" data-testid="dns-token" placeholder={profile.dnsToken ? 'Token hinterlegt (leer speichern = entfernen)' : 'Cloudflare-API-Token'} /></label>
 		<button onclick={saveDns} disabled={busy === 'dns'}>{profile.dnsToken && !dnsInput.trim() ? 'Token entfernen' : 'Token speichern'}</button>
+		{@render feedback('dns')}
 	{/if}
-	{#if error}<p class="error" role="alert">{error}</p>{/if}
+	{#if error && !errorKey}<p class="error" role="alert">{error}</p>{/if}
 </section>
+
+{#snippet feedback(/** @type {string} */ key)}
+	{#if error && errorKey === key}<p class="error" role="alert" data-testid={`error-${key}`}>{error}</p>
+	{:else if savedKey === key}<p class="saved" data-testid={`saved-${key}`}>Gespeichert ✓</p>{/if}
+{/snippet}
 
 <style>
 	.setup { margin-top: 2rem; border-top: 1px solid #ddd; }
@@ -297,6 +327,7 @@
 	.role { border: 1px solid #ddd; border-radius: 4px; padding: 0.4rem 0.75rem; margin: 0.5rem 0 1rem; display: grid; gap: 0.25rem; }
 	.role input { width: auto; margin-right: 0.4rem; }
 	.role .warn { color: #b26a00; margin: 0.25rem 0 0; font-size: 0.9rem; }
+	.saved { color: #2e7d32; font-size: 0.9rem; margin: 0.25rem 0; }
 	.payer-choice { border: none; padding: 0; margin: 0 0 0.5rem; display: grid; gap: 0.25rem; }
 	/* The page sizes inputs to full width; a radio keeps its own size beside its label. */
 	.payer-choice input { width: auto; margin-right: 0.4rem; }

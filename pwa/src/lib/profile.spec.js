@@ -26,6 +26,8 @@ describe('startRequirements', () => {
 	it('runs a primary on mainnet only', () => {
 		expect(startRequirements({ ...ready, payer: wallet, role: 'primary', network: 'calibration' })).toEqual(['Netz Mainnet für die Rolle „Produktiv“']);
 		expect(startRequirements({ ...ready, payer: wallet, role: 'primary', network: 'mainnet' })).toEqual([]);
+		expect(startRequirements({ ...ready, payer: wallet, network: 'mainnet', backupConfig: { copies: 2 } })).toEqual(['Rolle „Produktiv“ für Sicherungen auf Mainnet (oder Sicherungen aus)']);
+		expect(startRequirements({ ...ready, payer: wallet, role: 'primary', network: 'mainnet', backupConfig: { copies: 2 } })).toEqual([]);
 	});
 });
 

@@ -159,6 +159,7 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await expect(page.getByTestId('role-warning')).toContainText('Nur eine Instanz darf produktiv sein');
 	await expect(page.getByTestId('role-warning')).toContainText('Mainnet');
 	await expect(page.getByTestId('role-line')).toContainText('produktiv');
+	await expect(page.getByTestId('saved-role')).toBeVisible();
 	await page.getByTestId('role-test').check();
 
 	await page.getByTestId('pays-app').check();
