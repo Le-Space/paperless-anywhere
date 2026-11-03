@@ -16,8 +16,11 @@ describe('backupConfigFor', () => {
 			copies: 2, providerIds: [9, 2], regions: [], datasetMetadata: { app: 'paperless-backup-test' }, keepWeeks: 1, ageRecipient: recipient
 		});
 	});
-	it('refuses mainnet and a missing recipient', () => {
-		expect(() => backupConfigFor('mainnet', recipient)).toThrow(/Testnetz/);
+	it('writes mainnet backups to the data sets of the Mac', () => {
+		expect(backupConfigFor('mainnet', recipient, { copies: 3, providerIds: [36, 37, 1], regions: [] })).toMatchObject({ copies: 3, providerIds: [36, 37, 1], datasetMetadata: { app: 'paperless-backup' }, keepWeeks: 12 });
+		expect(() => backupConfigFor('other', recipient)).toThrow(/Unbekanntes Netz/);
+	});
+	it('checks places and a missing recipient', () => {
 		expect(backupConfigFor('calibration', recipient, { copies: 3, providerIds: [], regions: ['EUROPE'] })).toMatchObject({ copies: 3, providerIds: [], regions: ['EUROPE'] });
 		expect(backupConfigFor('calibration', recipient, { copies: 1, providerIds: [7, 2], regions: [] })).toMatchObject({ copies: 2, providerIds: [7, 2] });
 		expect(() => backupConfigFor('calibration', recipient, { copies: 4, providerIds: [], regions: [] })).toThrow(/1 bis 3/);

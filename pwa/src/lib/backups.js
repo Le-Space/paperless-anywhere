@@ -62,20 +62,20 @@ export const DEFAULT_PLACES = Object.freeze({ copies: 2, providerIds: [9, 2], re
 
 /**
  * The backup configuration the VM gets with its unlock (paperless-backup's
- * config.json without the payer, which the start adds). Calibration only: the
- * Mac stays the only writer of the mainnet backups until the PWA has been
- * tested with real ones.
+ * config.json without the payer, which the start adds). On mainnet it writes
+ * to the data sets of the Mac's backups (label `paperless-backup`), so both
+ * show up in one list; the guest backs up to mainnet only as a primary.
  * @param {string} network @param {string} recipient age1… of the profile's identity
  * @param {{ copies?: number, providerIds?: number[], regions?: string[] } | null} [places] copies and where, e.g. the current backupConfig
  */
 export function backupConfigFor(network, recipient, places = DEFAULT_PLACES) {
-	if (network !== 'calibration') throw new Error('Sicherungen aus der App vorerst nur im Testnetz (Calibration).');
+	if (network !== 'calibration' && network !== 'mainnet') throw new Error(`Unbekanntes Netz: ${network}`);
 	if (!/^age1[0-9a-z]{58}$/.test(recipient)) throw new Error('Ohne age-Schlüssel keine Sicherung.');
 	const { copies, providerIds, regions } = { ...DEFAULT_PLACES, ...(places ?? {}) };
 	const ids = [...(providerIds ?? [])].map(Number);
 	if (!ids.length && !(copies >= 1 && copies <= 3)) throw new Error('1 bis 3 Kopien.');
 	if (ids.length > 3) throw new Error('Höchstens 3 Anbieter.');
-	return { copies: ids.length || copies, providerIds: ids, regions: [...(regions ?? [])], datasetMetadata: { app: 'paperless-backup-test' }, keepWeeks: 1, ageRecipient: recipient };
+	return { copies: ids.length || copies, providerIds: ids, regions: [...(regions ?? [])], datasetMetadata: { app: BACKUP_LABEL[network] }, keepWeeks: network === 'mainnet' ? 12 : 1, ageRecipient: recipient };
 }
 
 /**

@@ -61,6 +61,8 @@ export function startRequirements(profile) {
 	if (!profile.crnHash) missing.push('Knoten');
 	// The guest backs up a primary to mainnet only and refuses any other network.
 	if (profile.role === 'primary' && profile.network !== 'mainnet') missing.push('Netz Mainnet für die Rolle „Produktiv“');
+	// …and backs up to mainnet only as a primary: a test there runs without backups.
+	if (profile.backupConfig && profile.network === 'mainnet' && profile.role !== 'primary') missing.push('Rolle „Produktiv“ für Sicherungen auf Mainnet (oder Sicherungen aus)');
 	return missing;
 }
 
