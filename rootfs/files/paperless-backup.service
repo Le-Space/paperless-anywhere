@@ -1,6 +1,11 @@
 [Unit]
-Description=Back up Paperless if it changed (paperless-backup check)
+Description=Back up Paperless every two hours if it changed (paperless-backup-loop)
 
 [Service]
-Type=oneshot
-ExecStart=/usr/local/sbin/paperless-backup check
+Type=simple
+ExecStart=/usr/local/sbin/paperless-backup-loop
+Restart=always
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

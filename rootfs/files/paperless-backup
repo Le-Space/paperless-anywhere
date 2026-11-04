@@ -3,7 +3,7 @@
 # paperless-backup-filecoin, signed by a session key, never by the wallet.
 #
 #   check        back up if Paperless changed since the last backup or the restore
-#                (the timer runs this every two hours; stop runs it last)
+#                (paperless-backup-loop runs this every two hours; stop runs it last)
 #   run          back up now
 #   fingerprint  print what "changed" compares (documents, trash, last change, labels)
 #
@@ -28,6 +28,11 @@ log_dir=/var/log/paperless-anywhere
 mkdir -p "$state_dir" "$lib" "$log_dir"
 chmod 700 "$lib" "$log_dir"
 cmd="${1:-check}"
+# One backup at a time: the two-hourly check and the stop's last backup.
+if [ "$cmd" != fingerprint ]; then
+  exec 8>"$state_dir/backup.lock"
+  flock 8
+fi
 
 status() {
   printf '{"status":"%s","at":"%s"%s}\n' "$1" "$(date -u +%FT%TZ)" "${2:-}" > "$state.tmp" && mv "$state.tmp" "$state"
