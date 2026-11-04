@@ -1,5 +1,5 @@
 <script>
-	import { loadProfile, saveProfile } from '$lib/profile.js';
+	import { loadProfile, updateProfile } from '$lib/profile.js';
 	import { resumeStart, startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
 	import { listBackups, pieceCidOfStop, place, restoreEntry, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
@@ -129,8 +129,7 @@
 		const forStart = { ...$state.snapshot(profile), restoreEntry: chosen ? restoreEntry(chosen) : null };
 		// Once Aleph has the VM, the profile knows it: a reload carries on from there.
 		const onRequested = async (starting) => {
-			profile = { ...profile, starting };
-			await saveProfile(master, $state.snapshot(profile));
+			profile = await updateProfile(master, (now) => ({ ...now, starting }));
 			onchange();
 		};
 		await finishStart(() => startPaperless(master, forStart, track('start'), { onRequested }));
@@ -143,9 +142,7 @@
 	async function finishStart(bringUp) {
 		try {
 			const running = await bringUp();
-			const { starting, ...rest } = profile;
-			profile = { ...rest, running };
-			await saveProfile(master, $state.snapshot(profile));
+			profile = await updateProfile(master, ({ starting, ...rest }) => ({ ...rest, running }));
 		} finally {
 			startingInstance.set('');
 		}
@@ -153,25 +150,23 @@
 	}
 	// Give up on an interrupted start; the VM stays in the list below to remove.
 	const discard = () => run(async () => {
-		const { starting, ...rest } = profile;
-		profile = rest;
-		await saveProfile(master, $state.snapshot(profile));
+		profile = await updateProfile(master, ({ starting, ...rest }) => rest);
 		onchange();
 	});
 	const stop = () => run(async () => {
 		await reload();
 		const status = await stopPaperless(master, $state.snapshot(profile), track('stop'));
-		const { running, ...rest } = profile;
 		const made = pieceCidOfStop(status);
 		const result = status?.stop?.backup?.backup ?? null;
-		profile = made
-			? {
-					...rest,
-					ownBackups: [made, ...(rest.ownBackups ?? []).filter((c) => c !== made)].slice(0, 50),
-					lastBackup: result && { ...result, network: rest.network ?? 'calibration', payer: rest.payer, seconds: status.stop.backup.seconds ?? null }
-				}
-			: rest;
-		await saveProfile(master, $state.snapshot(profile));
+		profile = await updateProfile(master, ({ running, ...rest }) =>
+			made
+				? {
+						...rest,
+						ownBackups: [made, ...(rest.ownBackups ?? []).filter((c) => c !== made)].slice(0, 50),
+						lastBackup: result && { ...result, network: rest.network ?? 'calibration', payer: rest.payer, seconds: status.stop.backup.seconds ?? null }
+					}
+				: rest
+		);
 		onchange();
 	});
 	const missing = $derived(startRequirements(profile));

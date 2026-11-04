@@ -1,10 +1,10 @@
 <script>
 	import { confidentialCreditsPerHour } from '$lib/balances.js';
 	import { privateKeyToAccount } from 'viem/accounts';
-	import { alephPrivateKey } from '$lib/keys/derive.js';
-	import { loadProfile, saveProfile } from '$lib/profile.js';
+	import { alephPrivateKey, fixedHostLabel } from '$lib/keys/derive.js';
+	import { loadProfile, updateProfile } from '$lib/profile.js';
 	import { startingInstance } from '$lib/starting.js';
-	import { crnAddress, eraseOnNode, forgetInstance, hostname, listVms, nodeState, ownInstance, PAPERLESS_VM, vmStatus } from '$lib/vm.js';
+	import { crnAddress, eraseOnNode, FIXED_HOST_DOMAIN, forgetInstance, hostname, listVms, nodeState, ownInstance, PAPERLESS_VM, publicAddress, vmStatus } from '$lib/vm.js';
 	import { pinsOf } from '@le-space/attest-wasm/instance';
 
 	/** @type {{ master: Uint8Array, version?: number, onchange?: () => void }} */
@@ -60,8 +60,11 @@
 			if (crnUrl) await eraseOnNode(app, vm.itemHash, crnUrl);
 			await forgetInstance(app, vm.payer, vm.itemHash, 'paperless-anywhere: removed from the VM list');
 			if (isRunning || profile.starting?.instanceHash === vm.itemHash) {
-				const { running, starting, ...rest } = profile;
-				await saveProfile(master, { ...rest, ...(running && !isRunning ? { running } : {}), ...(starting && starting.instanceHash !== vm.itemHash ? { starting } : {}) });
+				profile = await updateProfile(master, ({ running, starting, ...rest }) => ({
+					...rest,
+					...(running && running.instanceHash !== vm.itemHash ? { running } : {}),
+					...(starting && starting.instanceHash !== vm.itemHash ? { starting } : {})
+				}));
 			}
 			vms = (vms ?? []).filter((v) => v.itemHash !== vm.itemHash);
 			onchange();
@@ -89,16 +92,18 @@
 			pinsOf(trustedExecution);
 			const crnHash = content.requirements?.node?.node_hash;
 			if (!crnHash) throw new Error('Die VM nennt keinen Knoten.');
-			const host = await hostname(vm.itemHash);
+			// With a fixed address the VM answers there (name:port), not on its 2n6 name.
+			const fixed = profile.dnsToken ? await publicAddress(await crnAddress(crnHash), vm.itemHash).catch(() => null) : null;
+			const host = fixed ? `${fixedHostLabel(master)}.${FIXED_HOST_DOMAIN}:${fixed.port}` : await hostname(vm.itemHash);
 			if (!host) throw new Error('Die VM hat noch keine Adresse (2n6).');
 			const status = await vmStatus(host);
 			if (!status?.phase) throw new Error('Die VM antwortet nicht als Paperless (noch kein Zertifikat oder nicht entsperrt).');
-			const fresh = await loadProfile(master);
-			if (fresh.running) throw new Error('Es ist schon ein Paperless als laufend bekannt.');
-			// Adopting the VM of an interrupted start ends that start.
-			const { starting, ...rest } = fresh;
-			profile = { ...rest, ...(starting && starting.instanceHash !== vm.itemHash ? { starting } : {}), running: { instanceHash: vm.itemHash, crnHash, host, trustedExecution, payer: vm.payer } };
-			await saveProfile(master, $state.snapshot(profile));
+			profile = await updateProfile(master, (fresh) => {
+				if (fresh.running) throw new Error('Es ist schon ein Paperless als laufend bekannt.');
+				// Adopting the VM of an interrupted start ends that start.
+				const { starting, ...rest } = fresh;
+				return { ...rest, ...(starting && starting.instanceHash !== vm.itemHash ? { starting } : {}), running: { instanceHash: vm.itemHash, crnHash, host, trustedExecution, payer: vm.payer } };
+			});
 			onchange();
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);

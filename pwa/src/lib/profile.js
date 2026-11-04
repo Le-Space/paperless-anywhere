@@ -40,3 +40,16 @@ export async function saveProfile(master, profile) {
 export function vmPayer(profile, appAddress) {
 	return profile.appPays ? appAddress : profile.payer;
 }
+
+/**
+ * Change the profile as it is on Aleph now, not as a component loaded it:
+ * the setup, the start and stop and the VM list each write it, and a copy
+ * loaded earlier would undo what another wrote meanwhile (2026-11-04: saving
+ * the image in the setup dropped the running VM a start had recorded).
+ * @param {Uint8Array} master @param {(profile: Record<string, any>) => Record<string, any>} change
+ */
+export async function updateProfile(master, change) {
+	const next = change(await loadProfile(master));
+	await saveProfile(master, next);
+	return next;
+}
