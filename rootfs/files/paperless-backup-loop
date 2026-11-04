@@ -1,0 +1,13 @@
+#!/bin/sh
+# paperless-backup-loop: every two hours, back up Paperless if it changed.
+# A plain loop instead of a .timer: the confidential guest has no systemd, and
+# its systemctl replacement ran the timer's oneshot service once and never
+# again (production, 2026-11-04: one check at 09:00, none at 11:00 or later).
+# First check 20 minutes after boot, as the timer did. paperless-backup takes a
+# lock, so a check and the stop's last backup never run at the same time.
+set -u
+sleep 1200
+while :; do
+  /usr/local/sbin/paperless-backup check || echo "paperless-backup-loop: the check failed; next try in two hours" >&2
+  sleep 7200
+done
