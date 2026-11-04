@@ -2,7 +2,7 @@
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey, fixedHostLabel } from '$lib/keys/derive.js';
 	import { FIXED_HOST_DOMAIN } from '$lib/vm.js';
-	import { loadProfile, saveProfile } from '$lib/profile.js';
+	import { loadProfile, updateProfile } from '$lib/profile.js';
 	import { ageIdentityFromMaster, ageRecipient } from '$lib/keys/age.js';
 	import { BACKUP_LABEL, backupConfigFor } from '$lib/backups.js';
 	import { relayList } from '$lib/attest-p2p.js';
@@ -88,8 +88,7 @@
 		}
 	}
 	const save = async (patch) => {
-		profile = { ...profile, ...patch };
-		await saveProfile(master, $state.snapshot(profile));
+		profile = { network: 'calibration', ...(await updateProfile(master, (now) => ({ ...now, ...$state.snapshot(patch) }))) };
 		onsaved();
 	};
 
