@@ -85,7 +85,11 @@ services:
       PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://127.0.0.1:3000
       PAPERLESS_BIND_ADDR: 127.0.0.1
       PAPERLESS_PORT: "8000"
-      PAPERLESS_OCR_LANGUAGE: deu+eng
+      # As on the Mac: the books hold German, English, Russian, Spanish and
+      # Turkish documents. The image brings deu, eng and spa; rus and tur are
+      # installed when the container starts (PAPERLESS_OCR_LANGUAGES).
+      PAPERLESS_OCR_LANGUAGE: deu+eng+rus+spa+tur
+      PAPERLESS_OCR_LANGUAGES: rus tur
       PAPERLESS_TIME_ZONE: Europe/Berlin
     volumes:
       - /srv/paperless/data:/usr/src/paperless/data
