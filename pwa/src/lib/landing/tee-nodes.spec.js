@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { teeNodes } from './tee-nodes.js';
+import { flag, teeNodes } from './tee-nodes.js';
 
 const GiB = 1024 ** 2; // in kB
 const node = (over = {}) => ({
@@ -31,5 +31,18 @@ describe('teeNodes', () => {
 	it('copes with an empty or odd answer', () => {
 		expect(teeNodes(null)).toEqual([]);
 		expect(teeNodes({ crns: [{ confidential_support: true }] })[0]).toMatchObject({ freeVcpus: 0, fits: false });
+	});
+
+	it('adds where a node stands, when known', () => {
+		const list = teeNodes({ crns: [node(), node({ hash: 'c'.repeat(64) })] }, { ['a'.repeat(64)]: { country: 'FR', city: 'Exampleville' } });
+		expect(list.map((n) => n.place)).toEqual([{ country: 'FR', city: 'Exampleville' }, null]);
+	});
+});
+
+describe('flag', () => {
+	it('turns a country code into its flag, anything else into nothing', () => {
+		expect(flag('FR')).toBe('🇫🇷');
+		expect(flag('de')).toBe('');
+		expect(flag(null)).toBe('');
 	});
 });

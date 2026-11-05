@@ -58,6 +58,8 @@ jobs:
           VITE_CREDITS_URL: ${{ vars.VITE_CREDITS_URL }}
         run: |
           pnpm install --frozen-lockfile
+          # Where the confidential nodes stand (landing page); keeps the last places if the lookup fails.
+          node scripts/crn-places.mjs
           pnpm test
           pnpm build
           pnpm exec playwright install --with-deps chromium > /dev/null
