@@ -55,6 +55,8 @@ From the master secret, by HKDF with distinct labels: the **app key** (Aleph), t
 
 What lives where, what holds money, and what to do when a passkey, a device or the words are lost: [docs/keys-and-recovery.md](docs/keys-and-recovery.md).
 
+What a VM gets and from whom, what the image contains, and why one vault's VM, balance and backups stay separate from another's: [docs/security-model.md](docs/security-model.md).
+
 ## What this does not protect against
 
 - A bug in the CPU's SEV-SNP or in the hypervisor that breaks confidentiality.
