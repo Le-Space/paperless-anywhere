@@ -16,7 +16,7 @@ test('a passkey and a seed phrase open the same vault, also on another device; n
 	const aggregates = await install(page.context());
 	await authenticator(page);
 
-	await page.goto('/');
+	await page.goto('/app/');
 	await expect(page.getByTestId('state')).toHaveText('new');
 	// Which build: the version ("dev" outside a release) and the commit.
 	await expect(page.getByTestId('build-version')).toHaveText(process.env.PAPERLESS_VERSION || 'dev');
@@ -67,7 +67,7 @@ test('a passkey and a seed phrase open the same vault, also on another device; n
 	const other = await browser.newContext();
 	await install(other);
 	const phone = await other.newPage();
-	await phone.goto('/');
+	await phone.goto('/app/');
 	await phone.getByText('Auf diesem Gerät mit Wiederherstellungsphrase öffnen').click();
 	await phone.locator('textarea').fill(words.join(' '));
 	await phone.getByRole('button', { name: 'Öffnen', exact: true }).click();

@@ -44,7 +44,7 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await wallet(page.context());
 	await authenticator(page);
 
-	await page.goto('/');
+	await page.goto('/app/');
 	await page.getByRole('button', { name: 'Passkey anlegen' }).click();
 	await expect(page.getByTestId('phrase').locator('li')).toHaveCount(24);
 	const words = await page.getByTestId('phrase').locator('li').allTextContents();
@@ -104,7 +104,7 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await offline(other);
 	await wallet(other);
 	const phone = await other.newPage();
-	await phone.goto('/');
+	await phone.goto('/app/');
 	await expect(phone.getByTestId('state')).toHaveText('new');
 	await phone.getByText('Auf diesem Gerät mit Wiederherstellungsphrase öffnen').click();
 	await phone.locator('textarea').first().fill(words.join(' '));
@@ -138,7 +138,7 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	);
 	await authenticator(page);
 
-	await page.goto('/');
+	await page.goto('/app/');
 	await page.getByRole('button', { name: 'Passkey anlegen' }).click();
 	await expect(page.getByTestId('phrase').locator('li')).toHaveCount(24);
 	const words = await page.getByTestId('phrase').locator('li').allTextContents();
