@@ -72,6 +72,9 @@ importers:
       '@sveltejs/vite-plugin-svelte':
         specifier: 6.1.0
         version: 6.1.0(svelte@5.37.2)(vite@7.0.6(@types/node@26.6.5)(terser@5.51.2))
+      mmdb-lib:
+        specifier: 3.0.3
+        version: 3.0.3
       svelte:
         specifier: 5.37.2
         version: 5.37.2
@@ -1662,6 +1665,10 @@ packages:
 
   mkdirp-classic@0.5.3:
     resolution: {integrity: sha512-gKLcREMhtuZRwRAfqP3RFW+TK4JqApVBtOIftVgjuABpAtpxhPGaDcfvbhNvD0B8iD1oUr/txX35NjcaY6Ns/A==}
+
+  mmdb-lib@3.0.3:
+    resolution: {integrity: sha512-xQPoBXcNjjHiOvOraFBKtA++uNWF6aCVHL9dRKFXEov8eI3QJwtgiw3qApsonFT5SpoqsEVISUTg3HIDs2DiXw==}
+    engines: {node: '>=10', npm: '>=6'}
 
   mortice@3.3.1:
     resolution: {integrity: sha512-t3oESfijIPGsmsdLEKjF+grHfrbnKSXflJtgb1wY14cjxZpS6GnhHRXTxxzCAoCCnq1YYfpEPwY3gjiCPhOufQ==}
@@ -4324,6 +4331,8 @@ snapshots:
   minimist@1.2.8: {}
 
   mkdirp-classic@0.5.3: {}
+
+  mmdb-lib@3.0.3: {}
 
   mortice@3.3.1:
     dependencies:

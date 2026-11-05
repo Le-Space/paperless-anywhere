@@ -43,7 +43,7 @@ test('link previews find title, description and image in the HTML itself, withou
 	const html = await (await request.get('/')).text();
 	expect(html).toContain('<title>Paperless anywhere – Paperless-ngx auf Abruf, vertraulich</title>');
 	for (const tag of ['og:title', 'og:description', 'og:url', 'og:image', 'og:image:alt', 'twitter:card', 'twitter:image']) expect(html).toMatch(new RegExp(`(property|name)="${tag}"`));
-	expect(html).toContain('content="https://paperless.le-space.de/og.png"');
+	expect(html).toContain('content="https://paperless.le-space.de/og.png?v=2"');
 	expect(html).toContain('Deine Dokumente. Nur wach, wenn du sie brauchst.');
 	const image = await request.get('/og.png');
 	expect(image.ok()).toBe(true);

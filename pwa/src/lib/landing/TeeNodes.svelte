@@ -4,18 +4,38 @@
 	// a tooltip on hover. Here the ring is the confidential-capable nodes and
 	// the centre is "your VM". No libp2p, nothing is dialled: one GET.
 	import { onMount } from 'svelte';
-	import { loadTeeNodes } from './tee-nodes.js';
+	import { flag, loadTeeNodes } from './tee-nodes.js';
+	// Where the nodes stand, roughly (scripts/crn-places.mjs, refreshed per release).
+	import crnPlaces from './crn-places.json';
 
-	let { t } = $props();
+	let { t, lang = 'de' } = $props();
+
+	const countryName = $derived.by(() => {
+		try {
+			const names = new Intl.DisplayNames([lang], { type: 'region' });
+			return (/** @type {string} */ code) => names.of(code) ?? code;
+		} catch {
+			return (/** @type {string} */ code) => code;
+		}
+	});
+	/** "🇫🇷 Marseille, Frankreich" @param {import('./tee-nodes.js').Place | null} place */
+	const placeText = (place) => (place?.country ? `${flag(place.country)} ${[place.city, countryName(place.country)].filter(Boolean).join(', ')}` : '');
 
 	/** @type {import('./tee-nodes.js').TeeNode[]} */
 	let nodes = $state([]);
 	let status = $state('loading');
 	let canvas = $state();
 	const fitting = $derived(nodes.filter((n) => n.fits).length);
+	// The countries, most nodes first: [code, count].
+	const countries = $derived.by(() => {
+		/** @type {Map<string, number>} */
+		const counts = new Map();
+		for (const n of nodes) if (n.place?.country) counts.set(n.place.country, (counts.get(n.place.country) ?? 0) + 1);
+		return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+	});
 
 	onMount(() => {
-		loadTeeNodes()
+		loadTeeNodes({ places: crnPlaces.places })
 			.then((list) => {
 				nodes = list;
 				status = 'ok';
@@ -131,6 +151,15 @@
 				ctx.shadowBlur = (p.node.fits ? 12 : 3) * colors.glow;
 				ctx.fill();
 				ctx.shadowBlur = 0;
+				// Its country's flag, just outside the ring.
+				if (p.node.place?.country) {
+					const a = Math.atan2(p.y - cy, p.x - cx);
+					ctx.font = '15px system-ui, sans-serif';
+					ctx.textAlign = 'center';
+					ctx.textBaseline = 'middle';
+					ctx.fillText(flag(p.node.place.country), p.x + Math.cos(a) * (p.r + 14), p.y + Math.sin(a) * (p.r + 14));
+					ctx.textBaseline = 'alphabetic';
+				}
 				if (Math.hypot(mouse.x - p.x, mouse.y - p.y) < p.r + 6) hover = p;
 			}
 
@@ -155,7 +184,7 @@
 			ctx.fillText(t.you, cx, cy + 30);
 
 			if (hover) {
-				const lines = [hover.node.name, `${t.free(hover.node)}`, hover.node.fits ? t.fits : t.full];
+				const lines = [hover.node.name, placeText(hover.node.place), `${t.free(hover.node)}`, hover.node.fits ? t.fits : t.full].filter(Boolean);
 				ctx.font = '500 12px "IBM Plex Mono", monospace';
 				const bw = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 20;
 				const bh = lines.length * 17 + 12;
@@ -203,16 +232,22 @@
 		{:else}<strong>{t.count(nodes.length, fitting)}</strong>{/if}
 		<span class="legend"><i class="dot fit"></i>{t.fits} <i class="dot full"></i>{t.full}</span>
 	</p>
+	{#if countries.length}
+		<ul class="countries" aria-label={t.countries}>
+			{#each countries as [code, count] (code)}<li title={countryName(code)}><span class="flag">{flag(code)}</span>{countryName(code)} <span class="data">{count}</span></li>{/each}
+		</ul>
+	{/if}
 	{#if nodes.length}
 		<details>
 			<summary>{t.list}</summary>
 			<ul class="list">
 				{#each nodes as n (n.hash)}
-					<li><i class="dot" class:fit={n.fits} class:full={!n.fits}></i><span class="name">{n.name}</span><span class="data">{t.free(n)}</span></li>
+					<li><i class="dot" class:fit={n.fits} class:full={!n.fits}></i><span class="name">{n.name}</span>{#if n.place}<span class="place">{placeText(n.place)}</span>{/if}<span class="data">{t.free(n)}</span></li>
 				{/each}
 			</ul>
 		</details>
 	{/if}
+	{#if countries.length}<p class="note">{t.placesNote} <a href="https://db-ip.com">IP Geolocation by DB-IP</a></p>{/if}
 </div>
 
 <style>
@@ -230,5 +265,11 @@
 	.list .dot { margin-left: 0; }
 	.name { font-weight: 600; overflow-wrap: anywhere; }
 	.list .data { color: var(--text-2); }
+	.place { font-size: 0.85rem; }
+	.countries { list-style: none; padding: 0; margin: 0.75rem 0 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+	.countries li { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; padding: 0.15rem 0.6rem; border-radius: 999px; background: var(--surface-2); }
+	.countries .data { color: var(--text-2); font-size: 0.8rem; }
+	.flag { font-size: 1rem; line-height: 1; }
+	.note { color: var(--text-2); font-size: 0.8rem; margin: 0.75rem 0 0; }
 	@media (max-width: 720px) { canvas { height: 300px; } }
 </style>

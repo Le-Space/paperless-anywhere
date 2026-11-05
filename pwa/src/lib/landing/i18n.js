@@ -17,7 +17,7 @@ export function initialLang() {
 export const texts = {
 	de: {
 		title: 'Paperless anywhere – Paperless-ngx auf Abruf, vertraulich',
-		description: 'Paperless-ngx startet, wenn du es brauchst, in einer vertraulichen VM. Kostet nur, solange es läuft; danach verschlüsselt gesichert und aus.',
+		description: 'Paperless-ngx auf Abruf in einer vertraulichen VM. Kostet nur, solange es läuft; danach verschlüsselt gesichert und aus.',
 		ogImageAlt: 'Paperless anywhere: Paperless-ngx auf Abruf, in einer vertraulichen VM',
 		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Knoten', storage: 'Backups', prices: 'Preise' },
 		open: 'Paperless starten',
@@ -61,6 +61,8 @@ export const texts = {
 			free: (n) => `${n.freeVcpus} vCPU · ${n.freeMemoryGiB} GiB RAM frei`,
 			you: 'deine VM',
 			list: 'Alle Knoten anzeigen',
+			countries: 'Länder der Knoten',
+			placesNote: 'Standorte ungefähr, aus der IP-Adresse der Knoten ermittelt.',
 		},
 		storage: {
 			title: 'Backups, wo du willst',
@@ -83,7 +85,7 @@ export const texts = {
 	},
 	en: {
 		title: 'Paperless anywhere – Paperless-ngx on demand, confidential',
-		description: 'Paperless-ngx starts when you need it, in a confidential VM. It costs only while it runs; afterwards it is backed up, encrypted, and shut down.',
+		description: 'Paperless-ngx on demand in a confidential VM. Costs only while it runs; then backed up, encrypted, and shut down.',
 		ogImageAlt: 'Paperless anywhere: Paperless-ngx on demand, in a confidential VM',
 		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Nodes', storage: 'Backups', prices: 'Prices' },
 		open: 'Open the app',
@@ -127,6 +129,8 @@ export const texts = {
 			free: (n) => `${n.freeVcpus} vCPU · ${n.freeMemoryGiB} GiB RAM free`,
 			you: 'your VM',
 			list: 'Show all nodes',
+			countries: 'Countries of the nodes',
+			placesNote: 'Locations are approximate, derived from the nodes’ IP addresses.',
 		},
 		storage: {
 			title: 'Backups where you want them',

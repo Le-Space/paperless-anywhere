@@ -1,0 +1,57 @@
+{
+	"source": "DB-IP IP to City Lite 2026-11 (CC BY 4.0)",
+	"places": {
+		"6f3d9f424fa8d9362a0584097a02b864638451c7acad7badccf657850477039b": {
+			"country": "FR",
+			"city": "Marseille"
+		},
+		"48a612d7cf8327894d9d3846dd230fca563758962ba704068d597a17d7619e69": {
+			"country": "US",
+			"city": "Ashburn"
+		},
+		"bb0aa1a9fc7566286c0db32cd5c660066017430390ca779da4d3a241fa07c337": {
+			"country": "US",
+			"city": "Ashburn"
+		},
+		"01a3143b384ca43a3af338031b03ae86c0a4e139a24b848475d3ddb9bfbce8fa": {
+			"country": "US",
+			"city": "Ashburn"
+		},
+		"60a22d08f831d1baa8b52ef474e16de8ff1f90b06b898a978482faefdadd02c4": {
+			"country": "US",
+			"city": "Ashburn"
+		},
+		"71348b82acc2e621ec36ce9e3f623ef0688ed42e6360f29d657d5b84c26dacb4": {
+			"country": "US",
+			"city": "Ashburn"
+		},
+		"dc3d1d194a990b5c54380c3c0439562fefa42f5a46807cba1c500ec3affecf04": {
+			"country": "FR",
+			"city": "Marseille"
+		},
+		"42c53b2d5adb42dc8bc848bdccdec951308fc9dfc6c250c7d2533dbaf75d058e": {
+			"country": "FI",
+			"city": "Helsinki"
+		},
+		"50fd1ed26416a945e561bf8e598412156a493e8d7bb3d6496829805a943ea419": {
+			"country": "FR",
+			"city": "Paris"
+		},
+		"685ad7a7c34488cd361f46716371f57d9e4d1eedf95f50dda066fe958fc1b93b": {
+			"country": "GB",
+			"city": "London (Paddington)"
+		},
+		"d6a6bf101b79eb79eb9de73f29a650988d889aad26bdf6333388cda7fb00a32a": {
+			"country": "FR",
+			"city": "Marseille"
+		},
+		"65285db6018b90de6a1e7c0bc6aa02ec30d7a569e6b1e9acd907ed82d6e34ac5": {
+			"country": "FR",
+			"city": "Marseille"
+		},
+		"678f12c3a699103572663b85bbcd0142bd1920f833314c222d7beb6fbc3de378": {
+			"country": "FI",
+			"city": "Helsinki"
+		}
+	}
+}
