@@ -8,7 +8,12 @@
 	import { CREDITS_URL, PLANS, creditsCatalog } from '$lib/credits.js';
 
 	const APP = '/app/';
-	let lang = $state(initialLang());
+	// Link previews need absolute addresses.
+	const SITE = 'https://paperless.le-space.de/';
+	const OG_IMAGE = `${SITE}og.png`;
+	// German in the prerendered HTML (what link previews read); the visitor's
+	// language is picked once the page runs.
+	let lang = $state(/** @type {'de' | 'en'} */ ('de'));
 	const t = $derived(texts[lang]);
 	let plans = $state(PLANS);
 
@@ -22,13 +27,13 @@
 	}
 	$effect(() => {
 		document.documentElement.lang = lang;
-		document.title = t.title;
 	});
 
 	// Le Space Credits: 100 credits are 1 €.
 	const euro = (credits) => new Intl.NumberFormat(lang, { style: 'currency', currency: 'EUR', maximumFractionDigits: credits % 100 ? 2 : 0 }).format(credits / 100);
 
 	onMount(() => {
+		lang = initialLang();
 		creditsCatalog()
 			.then((c) => {
 				if (c?.plans?.length) plans = c.plans;
@@ -38,11 +43,26 @@
 </script>
 
 <svelte:head>
+	<title>{t.title}</title>
 	<meta name="description" content={t.description} />
+	<link rel="canonical" href={SITE} />
+	<meta property="og:type" content="website" />
+	<meta property="og:site_name" content="Paperless anywhere" />
+	<meta property="og:url" content={SITE} />
 	<meta property="og:title" content={t.title} />
 	<meta property="og:description" content={t.description} />
-	<meta property="og:url" content="https://paperless.le-space.de/" />
-	<meta property="og:type" content="website" />
+	<meta property="og:locale" content={lang === 'de' ? 'de_DE' : 'en_US'} />
+	<meta property="og:locale:alternate" content={lang === 'de' ? 'en_US' : 'de_DE'} />
+	<meta property="og:image" content={OG_IMAGE} />
+	<meta property="og:image:type" content="image/png" />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta property="og:image:alt" content={t.ogImageAlt} />
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content={t.title} />
+	<meta name="twitter:description" content={t.description} />
+	<meta name="twitter:image" content={OG_IMAGE} />
+	<meta name="twitter:image:alt" content={t.ogImageAlt} />
 </svelte:head>
 
 <header class="top">

@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- The link-preview image (static/og.png, 1200×630): `node scripts/og-image.mjs`. -->
+<html lang="de">
+	<head>
+		<meta charset="utf-8" />
+		<style>
+			@font-face { font-family: 'Sora'; src: url('../node_modules/@fontsource-variable/sora/files/sora-latin-wght-normal.woff2') format('woff2'); font-weight: 100 800; }
+			@font-face { font-family: 'Plex Mono'; src: url('../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2') format('woff2'); font-weight: 500; }
+			html, body { margin: 0; }
+			body { width: 1200px; height: 630px; box-sizing: border-box; padding: 72px 80px; background: #faf6ee; color: #0f1b2d; font-family: 'Sora', sans-serif; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+			.logo { display: flex; align-items: center; gap: 22px; }
+			.logo svg { width: 92px; height: 92px; }
+			.prefix { font-family: 'Plex Mono', monospace; font-size: 20px; letter-spacing: 0.32em; color: #51606f; }
+			.name { font-weight: 700; font-size: 54px; letter-spacing: -0.03em; line-height: 1; margin-top: 4px; }
+			h1 { font-size: 76px; line-height: 1.05; letter-spacing: -0.035em; margin: 64px 0 0; max-width: 900px; }
+			.sub { font-family: 'Plex Mono', monospace; font-size: 24px; letter-spacing: 0.08em; text-transform: uppercase; color: #8a5a00; margin-top: auto; }
+			.bar { position: absolute; left: 0; right: 0; bottom: 0; height: 14px; background: #ffb020; }
+			.ring { position: absolute; right: -150px; top: 70px; width: 520px; height: 520px; }
+		</style>
+	</head>
+	<body>
+		<svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
+			<g stroke="#e3dccb" stroke-width="0.8">
+				<line x1="100" y1="100" x2="100" y2="30" /><line x1="100" y1="100" x2="161" y2="65" /><line x1="100" y1="100" x2="161" y2="135" />
+				<line x1="100" y1="100" x2="100" y2="170" /><line x1="100" y1="100" x2="39" y2="135" /><line x1="100" y1="100" x2="39" y2="65" />
+			</g>
+			<g fill="#ffb020"><circle cx="100" cy="30" r="6" /><circle cx="161" cy="65" r="5" /><circle cx="161" cy="135" r="7" /><circle cx="100" cy="170" r="5" /><circle cx="39" cy="135" r="6" /><circle cx="39" cy="65" r="5" /></g>
+			<circle cx="100" cy="100" r="10" fill="#5b3fd6" /><circle cx="100" cy="100" r="17" fill="none" stroke="#5b3fd6" stroke-opacity="0.4" />
+		</svg>
+		<div class="logo">
+			<svg viewBox="0 0 100 100" aria-hidden="true">
+				<circle cx="36" cy="38" r="27" fill="none" stroke="#ffb020" stroke-width="17" />
+				<path fill="#0f1b2d" fill-rule="evenodd" d="M43 47 h50 a9 9 0 0 1 9 9 v37 a9 9 0 0 1 -9 9 h-50 a9 9 0 0 1 -9 -9 v-37 a9 9 0 0 1 9 -9 z M58 60 h20 a6 6 0 0 1 6 6 v17 a6 6 0 0 1 -6 6 h-20 a6 6 0 0 1 -6 -6 v-17 a6 6 0 0 1 6 -6 z" />
+			</svg>
+			<div><div class="prefix">LE SPACE</div><div class="name">paperless anywhere</div></div>
+		</div>
+		<h1>Paperless-ngx auf Abruf, vertraulich.</h1>
+		<div class="sub">On demand · confidential · no account</div>
+		<div class="bar"></div>
+	</body>
+</html>

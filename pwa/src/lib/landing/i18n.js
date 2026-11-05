@@ -18,6 +18,7 @@ export const texts = {
 	de: {
 		title: 'Paperless anywhere – Paperless-ngx auf Abruf, vertraulich',
 		description: 'Paperless-ngx startet, wenn du es brauchst, in einer vertraulichen VM. Kostet nur, solange es läuft; danach verschlüsselt gesichert und aus.',
+		ogImageAlt: 'Paperless anywhere: Paperless-ngx auf Abruf, in einer vertraulichen VM',
 		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Knoten', storage: 'Backups', prices: 'Preise' },
 		open: 'Paperless starten',
 		openHint: 'Mit Passkey, ohne Konto.',
@@ -83,6 +84,7 @@ export const texts = {
 	en: {
 		title: 'Paperless anywhere – Paperless-ngx on demand, confidential',
 		description: 'Paperless-ngx starts when you need it, in a confidential VM. It costs only while it runs; afterwards it is backed up, encrypted, and shut down.',
+		ogImageAlt: 'Paperless anywhere: Paperless-ngx on demand, in a confidential VM',
 		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Nodes', storage: 'Backups', prices: 'Prices' },
 		open: 'Open the app',
 		openHint: 'With a passkey, no account.',
