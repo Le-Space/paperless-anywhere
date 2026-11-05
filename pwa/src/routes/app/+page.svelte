@@ -128,6 +128,11 @@
 	let summary = $state(null);
 </script>
 
+<!-- Its own title: coming from the landing page, the tab would keep that one. -->
+<svelte:head>
+	<title>Paperless anywhere</title>
+</svelte:head>
+
 <header class="top">
 	<div class="bar">
 		<Logo />
