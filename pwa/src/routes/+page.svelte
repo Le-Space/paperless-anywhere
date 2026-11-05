@@ -215,6 +215,7 @@
 			{#if simple && summary?.money}
 				<section class="card money" data-testid="simple-balance">
 					<p class="line"><span class="label">Guthaben</span> <span class="data">{summary.money}</span>{#if summary.lasts}<span class="hint">reicht ca. {summary.lasts}</span>{/if}</p>
+					{#if summary.plan}<p class="line" data-testid="simple-plan"><span class="label">{summary.plan}</span></p>{/if}
 					{#each summary.warnings as w (w)}<p class="warn" role="status">{w} Aufladen geht unter „Erweitert“.</p>{/each}
 				</section>
 			{/if}

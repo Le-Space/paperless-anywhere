@@ -1,6 +1,10 @@
 <script>
 	import { loadProfile, updateProfile } from '$lib/profile.js';
-	import { resumeStart, startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
+	import { AlephShortError, resumeStart, startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
+	import { CREDITS_URL, fundVm } from '$lib/credits.js';
+	import { alephBalance } from '$lib/balances.js';
+	import { privateKeyToAccount } from 'viem/accounts';
+	import { alephPrivateKey } from '$lib/keys/derive.js';
 	import { listBackups, pieceCidOfStop, place, restoreEntry, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
@@ -106,15 +110,22 @@
 		reload().catch((e) => (error = e.message));
 	});
 
+	// Aleph would refuse a start for lack of reserve: how much, so the app can
+	// offer to buy hours from Le Space Credits (when the app pays itself).
+	/** @type {AlephShortError | null} */
+	let short = $state(null);
+	let fundHours = $state(10);
 	async function run(fn) {
 		error = '';
 		errorLog = [];
+		short = null;
 		busy = true;
 		try {
 			await fn();
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
 			errorLog = /** @type {any} */ (e)?.log ?? [];
+			if (e instanceof AlephShortError) short = e;
 		} finally {
 			busy = false;
 			progress = '';
@@ -123,7 +134,8 @@
 		}
 	}
 
-	const start = () => run(async () => {
+	const start = () => run(startNow);
+	async function startNow() {
 		await reload();
 		const chosen = choice === 'own' ? pick(split.own) : choice === 'any' ? pick(split.other) : null;
 		const forStart = { ...$state.snapshot(profile), restoreEntry: chosen ? restoreEntry(chosen) : null };
@@ -133,6 +145,23 @@
 			onchange();
 		};
 		await finishStart(() => startPaperless(master, forStart, track('start'), { onRequested }));
+	}
+	// Buy hours from Le Space Credits: the service grants them (with Aleph's
+	// start reserve) to the app's address; once Aleph shows them, start.
+	const fundAndStart = () => run(async () => {
+		const need = short?.reserve ?? 0;
+		progress = 'Le Space Credits: Stunden für Aleph holen';
+		await fundVm(master, fundHours);
+		progress = 'Warte, bis Aleph die Gutschrift zeigt';
+		const app = privateKeyToAccount(alephPrivateKey(master)).address;
+		for (let i = 0; i < 36; i++) {
+			const b = await alephBalance(app).catch(() => null);
+			if (b && b.credits >= need) break;
+			if (i === 35) throw new Error('Die Gutschrift ist bei Aleph noch nicht zu sehen. In ein paar Minuten noch einmal starten.');
+			await new Promise((res) => setTimeout(res, 5000));
+		}
+		onchange();
+		await startNow();
 	});
 	const resume = () => run(async () => {
 		await reload();
@@ -241,6 +270,13 @@
 			{/if}
 		{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
+		{#if short && CREDITS_URL && profile.appPays}
+			<div class="fund" data-testid="fund-offer">
+				<label>Stunden aus Le Space Credits holen
+					<select bind:value={fundHours} data-testid="fund-hours">{#each [5, 10, 30] as h (h)}<option value={h}>{h} h</option>{/each}</select></label>
+				<button onclick={fundAndStart} disabled={busy} data-testid="fund-start">Holen und starten</button>
+			</div>
+		{/if}
 	{:else}
 		{#if profile.running}
 			<p>Paperless läuft: <a href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="paperless-link">{profile.running.host}</a></p>
@@ -319,6 +355,13 @@
 		{/if}
 		{#if progress}<p data-testid="progress">{progress} …</p>{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
+		{#if short && CREDITS_URL && profile.appPays}
+			<div class="fund" data-testid="fund-offer">
+				<label>Stunden aus Le Space Credits holen
+					<select bind:value={fundHours} data-testid="fund-hours">{#each [5, 10, 30] as h (h)}<option value={h}>{h} h</option>{/each}</select></label>
+				<button onclick={fundAndStart} disabled={busy} data-testid="fund-start">Holen und starten</button>
+			</div>
+		{/if}
 		{#if errorLog.length}
 			<details open class="log"><summary>Letzte Zeilen der Sicherung (aus der VM)</summary><pre data-testid="backup-log">{errorLog.join('\n')}</pre></details>
 		{/if}
@@ -396,6 +439,8 @@
 	.restore label { display: block; }
 	.error { color: var(--danger); }
 	.role-line { font-size: 0.9rem; color: var(--text-2); margin: 0.25rem 0; }
+	.fund { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: end; margin: 0.5rem 0; }
+	.fund select { margin-left: 0.4rem; }
 	.interrupted { padding: 0.5rem 0.75rem; background: var(--warn-bg); border-radius: 4px; }
 	.quiet { background: none; border: none; color: var(--text-2); text-decoration: underline; padding: 0; }
 </style>

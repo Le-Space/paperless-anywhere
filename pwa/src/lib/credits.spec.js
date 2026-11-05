@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { recoverMessageAddress } from 'viem';
-import { canonical, creditsAccount, creditsBalance, CREDITS_PRODUCT, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
+import { canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, fundVm, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
 
 // A made-up vault: the ledger knows it by the address its Aleph key has.
 const master = new Uint8Array(32).fill(7);
@@ -44,7 +44,7 @@ describe('signed requests', () => {
 describe('creditsBalance', () => {
 	it('shows a top-up as this vault’s paperless-anywhere balance, and a Belege top-up not at all', async () => {
 		const fetch = fakeService({ 'paperless-anywhere': { credits: 2000, reserved: 150 }, belege: { credits: 5000, reserved: 0 } });
-		expect(await creditsBalance(master, { baseUrl: 'https://credits.example.com', fetch })).toEqual({ credits: 2000, reserved: 150, lines: { ki: 0, vm: 0, transfer: 0 } });
+		expect(await creditsBalance(master, { baseUrl: 'https://credits.example.com', fetch })).toEqual({ credits: 2000, reserved: 150, lines: { ki: 0, vm: 0, transfer: 0 }, plan: null });
 		const onlyBelege = fakeService({ belege: { credits: 5000, reserved: 0 } });
 		expect((await creditsBalance(master, { baseUrl: 'https://credits.example.com', fetch: onlyBelege }))?.credits).toBe(0);
 	});
@@ -109,5 +109,64 @@ describe('waitForTopUp', () => {
 	it('gives up after its tries with the last balance', async () => {
 		const read = async () => ({ credits: 100, reserved: 0, lines: {} });
 		expect(await waitForTopUp(master, 100, { tries: 3, delayMs: 0, read })).toEqual({ booked: false, balance: { credits: 100, reserved: 0, lines: {} } });
+	});
+});
+
+/** A service that checks the signature of a JSON request and answers with `reply(body)`. */
+const jsonService = (reply) => {
+	/** @type {{ line: string, signature: string | null, body: any, method: string } | null} */
+	const seen = { last: null };
+	const fetch = async (/** @type {string} */ url, /** @type {RequestInit} */ init) => {
+		const h = new Headers(init.headers);
+		const body = JSON.parse(String(init.body));
+		const line = canonical({ method: init.method ?? 'GET', path: new URL(url).pathname, product: body.product, address: h.get('X-LS-Address'), timestamp: Number(h.get('X-LS-Timestamp')) });
+		seen.last = { line, signature: h.get('X-LS-Signature'), body, method: init.method ?? 'GET' };
+		const [status, answer] = reply(body);
+		return new Response(JSON.stringify(answer), { status });
+	};
+	return { fetch, seen };
+};
+
+describe('packages and hours (belege#591 draft 2)', () => {
+	const baseUrl = 'https://credits.example.com';
+
+	it('reads the package from the balance', async () => {
+		const fetch = async () => new Response(JSON.stringify({ credits: 600, reserved: 0, package: { id: 'paperless-30', period_start: '2026-11-01T00:00:00Z', period_end: '2026-12-01T00:00:00Z', hours_left: 12.5 } }));
+		expect((await creditsBalance(master, { baseUrl, fetch }))?.plan).toEqual({ id: 'paperless-30', periodStart: '2026-11-01T00:00:00Z', periodEnd: '2026-12-01T00:00:00Z', hoursLeft: 12.5 });
+	});
+
+	it('chooses and ends a package with a signed PUT', async () => {
+		const svc = jsonService((b) => [200, { package: b.package, period_start: '2026-11-05T00:00:00Z', period_end: '2026-12-05T00:00:00Z' }]);
+		expect(await choosePlan(master, 'paperless-10', { baseUrl, fetch: svc.fetch })).toEqual({ package: 'paperless-10', periodStart: '2026-11-05T00:00:00Z', periodEnd: '2026-12-05T00:00:00Z' });
+		expect(svc.seen.last?.method).toBe('PUT');
+		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, package: 'paperless-10' });
+		expect(svc.seen.last?.line.startsWith('ls-credits/v1\nPUT\n/v1/package\npaperless-anywhere\n')).toBe(true);
+		expect(await recoverMessageAddress({ message: svc.seen.last?.line ?? '', signature: svc.seen.last?.signature })).toBe(account.address);
+		await choosePlan(master, null, { baseUrl, fetch: svc.fetch });
+		expect(svc.seen.last?.body.package).toBeNull();
+	});
+
+	it('buys hours, keeping the Aleph amount and the charged credits apart', async () => {
+		const svc = jsonService((b) => [200, { transfer_id: 't1', aleph_credits: 570000, charged_credits: 77, expiration: '2026-12-08T00:00:00Z', hours: b.hours }]);
+		expect(await fundVm(master, 10, { baseUrl, fetch: svc.fetch })).toEqual({ transferId: 't1', alephCredits: 570000, chargedCredits: 77, expiration: '2026-12-08T00:00:00Z' });
+		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, hours: 10 });
+	});
+
+	it('says when the balance does not cover it (402)', async () => {
+		const svc = jsonService(() => [402, { error: 'insufficient credits: 250 free, 400 needed', code: 'INSUFFICIENT' }]);
+		const err = await fundVm(master, 30, { baseUrl, fetch: svc.fetch }).catch((e) => e);
+		expect(err).toBeInstanceOf(CreditsShortError);
+		expect(err.neededCredits).toBe(150);
+		expect(err.message).toMatch(/1,50/);
+	});
+
+	it('explains the service codes, e.g. hours without a package', async () => {
+		const svc = jsonService(() => [409, { error: 'no plan', code: 'NO_PLAN' }]);
+		await expect(fundVm(master, 5, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/erst ein Paket wählen/);
+	});
+
+	it('reads the catalog the service lists', async () => {
+		const fetch = async (url) => (String(url).endsWith('/v1/packages?product=paperless-anywhere') ? new Response(JSON.stringify({ product: 'paperless-anywhere', topups: [{ id: 'topup-20', amount_cents: 2000, credits: 2000 }], packages: [{ id: 'paperless-10', hours: 10, price_credits: 400 }] })) : new Response('{}', { status: 404 }));
+		expect(await creditsCatalog({ baseUrl, fetch })).toEqual({ plans: [{ id: 'paperless-10', hours: 10, priceCredits: 400 }], topups: [{ id: 'topup-20', amountCents: 2000, credits: 2000 }] });
 	});
 });

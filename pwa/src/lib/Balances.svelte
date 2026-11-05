@@ -4,11 +4,11 @@
 	import { loadProfile, vmPayer } from '$lib/profile.js';
 	import { alephBalance, filecoinBalance, hoursOf, duration, amount, LOW_GAS, RESERVE_HOURS, confidentialCreditsPerHour, runningCreditsPerHour } from '$lib/balances.js';
 	import { PAPERLESS_VM } from '$lib/vm.js';
-	import { CREDITS_URL, creditsBalance } from '$lib/credits.js';
+	import { CREDITS_URL, creditsBalance, creditsCatalog, choosePlan, fundVm, planOf, PLANS } from '$lib/credits.js';
 	import TopUp from '$lib/TopUp.svelte';
 	import { marketPrices, money, UNITS } from '$lib/prices.js';
 
-	/** @type {{ master: Uint8Array, version?: number, onsummary?: (s: { money: string, lasts: string, warnings: string[] } | null) => void }} */
+	/** @type {{ master: Uint8Array, version?: number, onsummary?: (s: { money: string, lasts: string, plan: string, warnings: string[] } | null) => void }} */
 	let { master, version = 0, onsummary = () => {} } = $props();
 
 	const appAddress = privateKeyToAccount(alephPrivateKey(master)).address;
@@ -58,6 +58,47 @@
 	let prices = $state(null);
 	const inMoney = (/** @type {number} */ credits) => money(credits, unit, prices);
 
+	// The monthly package and buying hours (Le Space Credits, belege#591).
+	let planBusy = $state(false);
+	let planError = $state('');
+	let planNote = $state('');
+	// The service's own list once it answered; until then the known one.
+	let plans = $state(/** @type {{ id: string, hours: number, priceCredits: number }[]} */ ([...PLANS]));
+	if (CREDITS_URL) creditsCatalog().then((c) => c?.plans.length && (plans = c.plans)).catch(() => {});
+	const day = (iso) => (iso ? new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : '');
+	const planLine = (p) => {
+		const plan = p && planOf(p.id, plans);
+		if (!p) return '';
+		return `Paket ${plan ? `${plan.hours} h` : p.id}${p.hoursLeft != null ? ` · noch ${Math.max(0, Math.floor(p.hoursLeft))} h` : ''}${p.periodEnd ? ` bis ${day(p.periodEnd)}` : ''}`;
+	};
+	async function plan(/** @type {string | null} */ id) {
+		if (id === null && !confirm('Paket zum Ende des Zeitraums beenden? Es wird nichts zurückerstattet; danach zahlst du nur noch, was du aufläufst.')) return;
+		planBusy = true;
+		planError = planNote = '';
+		try {
+			const r = await choosePlan(master, id);
+			planNote = id ? `Paket gewählt${r.periodEnd ? `, Zeitraum bis ${day(r.periodEnd)}` : ''}.` : 'Paket endet mit dem Zeitraum.';
+			await read();
+		} catch (e) {
+			planError = e instanceof Error ? e.message : String(e);
+		} finally {
+			planBusy = false;
+		}
+	}
+	async function buyHours(/** @type {number} */ hours) {
+		planBusy = true;
+		planError = planNote = '';
+		try {
+			const r = await fundVm(master, hours);
+			planNote = `${hours} h geholt: ${amount(r.alephCredits, 0)} Aleph-Credits für ${amount(r.chargedCredits / 100)} €${r.expiration ? `, gültig bis ${day(r.expiration)}` : ''}. Aleph zeigt sie in ein, zwei Minuten.`;
+			await read();
+		} catch (e) {
+			planError = e instanceof Error ? e.message : String(e);
+		} finally {
+			planBusy = false;
+		}
+	}
+
 	const test = $derived(network !== 'mainnet');
 	const gasName = $derived(test ? 'tFIL' : 'FIL');
 
@@ -80,12 +121,13 @@
 	$effect(() => {
 		if (!alephPayer || (!aleph && !lsCredits)) return onsummary(null);
 		const warnings = [];
-		if (aleph && !vmUp && vmPerHour && aleph.credits < reserve) warnings.push('Das Guthaben reicht nicht für einen Start.');
+		if (aleph && !vmUp && vmPerHour && aleph.credits < reserve) warnings.push(`Für einen Start fehlen noch ${amount(reserve - aleph.credits, 0)} Aleph-Credits${money(reserve - aleph.credits, 'eur', prices) ? ` (${money(reserve - aleph.credits, 'eur', prices)})` : ''}.`);
 		if (filecoin && filecoin.runwayDays !== null && filecoin.runwayDays < 30) warnings.push('Das Guthaben für die Sicherungen reicht weniger als einen Monat.');
 		if (filecoin && filecoin.gas < LOW_GAS) warnings.push(`Wenig ${gasName} für die Sicherungen.`);
 		onsummary({
 			money: CREDITS_URL && lsCredits ? `${amount(lsCredits.credits / 100)} €` : aleph ? money(aleph.credits, 'eur', prices) : '',
 			lasts: aleph && perHour ? duration(hoursOf(aleph.credits, perHour)) : '',
+			plan: planLine(lsCredits?.plan),
 			warnings
 		});
 	});
@@ -119,6 +161,30 @@
 					{:else if lsCreditsError}<span class="hint">{lsCreditsError}</span>{:else}…{/if}
 					{#if lsCredits}<TopUp {master} credits={lsCredits.credits} onbooked={read} />{/if}
 				</dd>
+				{#if lsCredits}
+					<dt>Paket</dt>
+					<dd data-testid="plan">
+						{#if lsCredits.plan}
+							<span data-testid="plan-current">{planLine(lsCredits.plan)}</span>
+							<button class="quiet" onclick={() => plan(null)} disabled={planBusy} data-testid="plan-end">Paket beenden</button>
+						{:else}
+							<span class="hint">Kein Paket: du zahlst nur, was du aufläufst.</span>
+						{/if}
+						<div class="plans">
+							{#each plans as p (p.id)}
+								<button class="plan" class:current={lsCredits.plan?.id === p.id} onclick={() => plan(p.id)} disabled={planBusy || lsCredits.plan?.id === p.id} data-testid={`plan-${p.id}`}>{p.hours} h im Monat · {amount(p.priceCredits / 100)} €</button>
+							{/each}
+						</div>
+						{#if appPays}
+							<div class="plans">
+								<span class="hint">Stunden nachkaufen:</span>
+								{#each [5, 10, 30] as h (h)}<button class="quiet" onclick={() => buyHours(h)} disabled={planBusy} data-testid={`buy-${h}`}>+{h} h</button>{/each}
+							</div>
+						{/if}
+						{#if planNote}<p class="hint" data-testid="plan-note">{planNote}</p>{/if}
+						{#if planError}<p class="warn" data-testid="plan-error">{planError}</p>{/if}
+					</dd>
+				{/if}
 			{/if}
 			<dt>Aleph-Credits{#if appPays} <small>(Konto der App)</small>{/if}</dt>
 			<dd data-testid="balance-credits">
@@ -174,5 +240,7 @@
 	.money { color: var(--text-2); margin-left: 0.3rem; }
 	.units { margin: 0.5rem 0 0; font-size: 0.9rem; }
 	.units select { margin-left: 0.3rem; }
+	.plans { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0; align-items: baseline; }
+	.plan.current { font-weight: 600; }
 	.quiet { background: none; border: none; color: var(--text-2); text-decoration: underline; padding: 0; margin: 0.5rem 0 0; font-size: 0.9rem; }
 </style>

@@ -17,6 +17,18 @@ import { vmPayer } from './profile.js';
 import { ALEPH_API, readFetch } from './aleph.js';
 import { crnAddress, credits, estimateCreditsPerHour, FIXED_HOST_DOMAIN, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
+/** Aleph would refuse the start: the payer holds less than a day of reserve. */
+export class AlephShortError extends Error {
+	/** @param {string} message @param {{ balance: number, reserve: number, vmPerHour: number }} amounts */
+	constructor(message, { balance, reserve, vmPerHour }) {
+		super(message);
+		this.name = 'AlephShortError';
+		this.balance = balance;
+		this.reserve = reserve;
+		this.vmPerHour = vmPerHour;
+	}
+}
+
 /** The last backup failed; the VM stays. Carries the VM's reason and its tool's last log lines. */
 export class BackupFailedError extends Error {
 	constructor(reason, log) {
@@ -101,7 +113,10 @@ export async function startPaperless(master, profile, onProgress, { onRequested 
 	const reserve = profile.minCredits ?? RESERVE_HOURS * (vmPerHour + runningPerHour);
 	if (balance < reserve) {
 		const running = runningPerHour ? ` und ${runningPerHour.toLocaleString('de-DE')} Credits/h für das, was schon läuft` : '';
-		throw new Error(`Zu wenig Credits auf ${profile.appPays ? 'dem Konto der App' : 'dem zahlenden Konto'}: ${balance.toLocaleString('de-DE')}. Aleph nimmt die VM erst mit einem Tag Reserve an: ${reserve.toLocaleString('de-DE')} (${vmPerHour.toLocaleString('de-DE')} Credits/h für Paperless${running}).`);
+		throw new AlephShortError(
+			`Für einen Start fehlen noch ${(reserve - balance).toLocaleString('de-DE')} Aleph-Credits auf ${profile.appPays ? 'dem Konto der App' : 'dem zahlenden Konto'}. Aleph nimmt die VM erst mit einem Tag Reserve an: ${reserve.toLocaleString('de-DE')} (${vmPerHour.toLocaleString('de-DE')} Credits/h für Paperless${running}), da sind ${balance.toLocaleString('de-DE')}.`,
+			{ balance, reserve, vmPerHour }
+		);
 	}
 	const instanceHash = await sendInstance(message);
 	/** @type {Starting} */

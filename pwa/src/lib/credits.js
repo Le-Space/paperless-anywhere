@@ -46,7 +46,112 @@ export async function creditsBalance(master, { baseUrl = CREDITS_URL, fetch: fet
 	const res = await fetchImpl(`${baseUrl}${path}?product=${CREDITS_PRODUCT}`, { headers, cache: 'no-store' });
 	const body = await res.json().catch(() => null);
 	if (!res.ok) throw new Error(body?.error ? `Le Space Credits: ${body.error}` : `Le Space Credits antwortet ${res.status}`);
-	return { credits: Number(body?.credits ?? 0), reserved: Number(body?.reserved ?? 0), lines: body?.lines_this_month ?? {} };
+	const p = body?.package;
+	return {
+		credits: Number(body?.credits ?? 0),
+		reserved: Number(body?.reserved ?? 0),
+		lines: body?.lines_this_month ?? {},
+		plan: p?.id ? { id: String(p.id), periodStart: p.period_start ?? null, periodEnd: p.period_end ?? null, hoursLeft: p.hours_left == null ? null : Number(p.hours_left) } : null
+	};
+}
+
+/**
+ * The monthly packages for paperless-anywhere (Le-Space/belege#591 draft 2,
+ * prices decided 2026-11-04): a package debits its price from the balance at
+ * the start of each period and grants that period's Aleph credits to this
+ * vault's address. The service lists them (GET /v1/packages, public); this is
+ * what the app shows until it has asked.
+ */
+export const PLANS = Object.freeze([
+	{ id: 'paperless-10', hours: 10, priceCredits: 400 },
+	{ id: 'paperless-30', hours: 30, priceCredits: 600 },
+	{ id: 'paperless-80', hours: 80, priceCredits: 1000 }
+]);
+export const planOf = (id, plans = PLANS) => plans.find((p) => p.id === id) ?? null;
+
+/**
+ * The service's packages and top-ups for this product (public, unsigned).
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<{ plans: { id: string, hours: number, priceCredits: number }[], topups: { id: string, amountCents: number, credits: number }[] } | null>}
+ */
+export async function creditsCatalog({ baseUrl = CREDITS_URL, fetch: fetchImpl = fetch } = {}) {
+	if (!baseUrl) return null;
+	const res = await fetchImpl(`${baseUrl}/v1/packages?product=${CREDITS_PRODUCT}`, { cache: 'no-store' });
+	if (!res.ok) throw new Error(`Le Space Credits antwortet ${res.status}`);
+	const body = await res.json();
+	return {
+		plans: (body?.packages ?? []).map((p) => ({ id: String(p.id), hours: Number(p.hours), priceCredits: Number(p.price_credits) })),
+		topups: (body?.topups ?? []).map((t) => ({ id: String(t.id), amountCents: Number(t.amount_cents), credits: Number(t.credits) }))
+	};
+}
+
+/** The balance does not cover it (402); `neededCredits` when the service says. */
+export class CreditsShortError extends Error {
+	/** @param {string} message @param {number | null} neededCredits */
+	constructor(message, neededCredits) {
+		super(message);
+		this.name = 'CreditsShortError';
+		this.neededCredits = neededCredits;
+	}
+}
+
+/** What the service's error codes mean for a person (le-space-credits, /v1/vm/fund). */
+const MESSAGES = {
+	NO_PLAN: 'Stunden nachkaufen geht mit einem Paket: erst ein Paket wählen.',
+	TREASURY_OFF: 'Le Space Credits können gerade keine Aleph-Credits ausgeben. Später noch einmal versuchen.',
+	REFUSED: 'Aleph hat die Gutschrift abgelehnt. Später noch einmal versuchen.',
+	CAP: 'Le Space hat gerade nicht genug Aleph-Credits vorrätig. Später noch einmal versuchen.',
+	HOURS: 'Diese Stundenzahl nimmt der Dienst nicht an.'
+};
+
+/**
+ * A signed JSON request to the service; throws with its message, and a
+ * CreditsShortError on 402.
+ * @param {Uint8Array} master @param {string} method @param {string} path @param {any} body
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ */
+async function send(master, method, path, body, { baseUrl = CREDITS_URL, fetch: fetchImpl = fetch } = {}) {
+	if (!baseUrl) throw new Error('Le Space Credits sind hier nicht eingerichtet.');
+	const headers = await signedHeaders(creditsAccount(master), { method, path });
+	const res = await fetchImpl(`${baseUrl}${path}`, {
+		method,
+		headers: { ...headers, 'content-type': 'application/json' },
+		body: JSON.stringify({ product: CREDITS_PRODUCT, address: creditsAccount(master).address, ...body })
+	});
+	const answer = await res.json().catch(() => null);
+	if (res.status === 402) {
+		// "insufficient credits: N free, M needed"
+		const [, free, needed] = /(\d+)\s*free,\s*(\d+)\s*needed/.exec(String(answer?.error ?? '')) ?? [];
+		const missing = free != null ? Math.max(0, Number(needed) - Number(free)) : null;
+		throw new CreditsShortError(`Die Le Space Credits reichen dafür nicht${missing != null ? ` (es fehlen ${(missing / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })})` : ''}. Erst aufladen.`, missing);
+	}
+	if (!res.ok) throw new Error(MESSAGES[answer?.code] ?? (answer?.error ? `Le Space Credits: ${answer.error}` : `Le Space Credits antwortet ${res.status}`));
+	return answer;
+}
+
+/**
+ * Choose a monthly package, or end it with null (at the period's end;
+ * nothing is refunded mid-period).
+ * @param {Uint8Array} master @param {string | null} planId
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<{ package: string | null, periodStart: string | null, periodEnd: string | null }>}
+ */
+export async function choosePlan(master, planId, options) {
+	const r = await send(master, 'PUT', '/v1/package', { package: planId }, options);
+	return { package: r?.package ?? null, periodStart: r?.period_start ?? null, periodEnd: r?.period_end ?? null };
+}
+
+/**
+ * Buy usable VM hours from the balance: the service grants the Aleph credits
+ * (plus Aleph's start reserve when the address lacks it) to this vault's
+ * address, expiring with the current period.
+ * @param {Uint8Array} master @param {number} hours
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<{ transferId: string, alephCredits: number, chargedCredits: number, expiration: string | null }>}
+ */
+export async function fundVm(master, hours, options) {
+	const r = await send(master, 'POST', '/v1/vm/fund', { hours }, options);
+	return { transferId: String(r?.transfer_id ?? ''), alephCredits: Number(r?.aleph_credits ?? 0), chargedCredits: Number(r?.charged_credits ?? 0), expiration: r?.expiration ?? null };
 }
 
 /**
