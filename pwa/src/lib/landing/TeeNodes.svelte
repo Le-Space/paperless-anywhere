@@ -213,7 +213,6 @@
 			</ul>
 		</details>
 	{/if}
-	<p class="source">{t.source}</p>
 </div>
 
 <style>
@@ -231,6 +230,5 @@
 	.list .dot { margin-left: 0; }
 	.name { font-weight: 600; overflow-wrap: anywhere; }
 	.list .data { color: var(--text-2); }
-	.source { color: var(--text-2); font-size: 0.8rem; margin: 0.5rem 0 0; }
 	@media (max-width: 720px) { canvas { height: 300px; } }
 </style>

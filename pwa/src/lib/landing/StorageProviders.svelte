@@ -57,12 +57,10 @@
 			{/each}
 		</ul>
 	{/if}
-	<p class="source">{t.source}</p>
 </div>
 
 <style>
-	.muted, .source { color: var(--text-2); }
-	.source { font-size: 0.8rem; margin: 0.5rem 0 0; }
+	.muted { color: var(--text-2); }
 	.countries { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.5rem; }
 	.countries li { display: grid; grid-template-columns: 2.5rem 9rem 1fr; gap: 0.75rem; align-items: baseline; padding: 0.6rem 0.8rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); }
 	.code { font-weight: 500; color: var(--accent-text); }

@@ -11,7 +11,6 @@
 	let lang = $state(initialLang());
 	const t = $derived(texts[lang]);
 	let plans = $state(PLANS);
-	let plansLive = $state(false);
 
 	function setLang(/** @type {'de' | 'en'} */ l) {
 		lang = l;
@@ -32,10 +31,7 @@
 	onMount(() => {
 		creditsCatalog()
 			.then((c) => {
-				if (c?.plans?.length) {
-					plans = c.plans;
-					plansLive = true;
-				}
+				if (c?.plans?.length) plans = c.plans;
 			})
 			.catch(() => {});
 	});
@@ -43,6 +39,10 @@
 
 <svelte:head>
 	<meta name="description" content={t.description} />
+	<meta property="og:title" content={t.title} />
+	<meta property="og:description" content={t.description} />
+	<meta property="og:url" content="https://paperless.le-space.de/" />
+	<meta property="og:type" content="website" />
 </svelte:head>
 
 <header class="top">
@@ -113,8 +113,6 @@
 			{/each}
 		</ul>
 		<p>{t.prices.example}</p>
-		<p class="note">{t.prices.reserve}</p>
-		{#if plansLive}<p class="source">{t.prices.source}</p>{/if}
 	</section>
 
 	<section class="closing">
@@ -125,6 +123,7 @@
 </main>
 
 <footer>
+	<p class="built">{t.footer.built}</p>
 	<span>{t.footer.by}</span>
 	<a href="https://www.belege.le-space.de">{t.footer.belege}</a>
 	<a href="https://www.le-space.de">le-space.de</a>
@@ -164,8 +163,8 @@
 	.plans li.first { border: 2px solid var(--accent); }
 	.hours { font-weight: 600; }
 	.price { font-size: 2.4rem; font-weight: 700; letter-spacing: -0.03em; }
-	.per, .note, .source { color: var(--text-2); font-size: 0.9rem; }
-	.source { font-size: 0.8rem; }
+	.per { color: var(--text-2); font-size: 0.9rem; }
+	.built { flex-basis: 100%; margin: 0 0 0.5rem; }
 
 	.closing { text-align: center; padding-bottom: 3rem; }
 	.closing .actions { justify-content: center; }
