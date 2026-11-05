@@ -3,7 +3,7 @@
 // storage and its passkeys. The vault opens only on an origin of its own: the
 // domain, or a subdomain gateway (<cid>.ipfs.<host>), where the CID is the origin.
 
-export const HOME = 'https://paperless.le-space.de/';
+export const HOME = 'https://paperless.le-space.de/app/';
 
 /** @param {string} [pathname] defaults to the page's */
 export function sharedOrigin(pathname = globalThis.location?.pathname ?? '/') {

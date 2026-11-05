@@ -30,7 +30,7 @@ test('start and stop a confidential Paperless from the PWA', async ({ page }) =>
 	});
 	page.on('console', (m) => /error|warn/i.test(m.type()) && console.log(`[browser ${m.type()}] ${m.text().slice(0, 300)}`));
 
-	await page.goto('/');
+	await page.goto('/app/');
 	await page.getByRole('button', { name: 'Passkey anlegen' }).click();
 	await expect(page.getByTestId('phrase').locator('li')).toHaveCount(24, { timeout: 60_000 });
 	const words = await page.getByTestId('phrase').locator('li').allTextContents();
