@@ -56,6 +56,36 @@ export async function creditsBalance(master, { baseUrl = CREDITS_URL, fetch: fet
 }
 
 /**
+ * This vault's purchases for paperless-anywhere, newest first, each with the
+ * Stripe invoice once Stripe has made it. Only an https link on stripe.com is
+ * kept: the app shows it as a link and opens nothing else.
+ * @param {Uint8Array} master
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<{ id: string, at: string, cents: number, credits: number, invoiceUrl: string | null }[] | null>}
+ */
+export async function creditsPurchases(master, { baseUrl = CREDITS_URL, fetch: fetchImpl = fetch } = {}) {
+	if (!baseUrl) return null;
+	const path = '/v1/purchases';
+	const headers = await signedHeaders(creditsAccount(master), { method: 'GET', path });
+	const res = await fetchImpl(`${baseUrl}${path}?product=${CREDITS_PRODUCT}`, { headers, cache: 'no-store' });
+	const body = await res.json().catch(() => null);
+	if (!res.ok) throw new Error(body?.error ? `Le Space Credits: ${body.error}` : `Le Space Credits antwortet ${res.status}`);
+	return (body?.purchases ?? [])
+		.map((p) => ({ id: String(p.id), at: String(p.created_at ?? ''), cents: Number(p.amount_cents ?? 0), credits: Number(p.credits ?? 0), invoiceUrl: stripeLink(p.stripe_invoice_url) }))
+		.sort((a, b) => (a.at < b.at ? 1 : -1));
+}
+
+/** An invoice link only if it is https on stripe.com. @param {unknown} url */
+export function stripeLink(url) {
+	try {
+		const u = new URL(String(url ?? ''));
+		return u.protocol === 'https:' && (u.hostname === 'stripe.com' || u.hostname.endsWith('.stripe.com')) ? u.href : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
  * The monthly packages for paperless-anywhere (Le-Space/belege#591 draft 2,
  * prices decided 2026-11-04): a package debits its price from the balance at
  * the start of each period and grants that period's Aleph credits to this
