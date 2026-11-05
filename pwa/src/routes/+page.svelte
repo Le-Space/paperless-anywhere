@@ -126,7 +126,9 @@
 	<p class="built">{t.footer.built}</p>
 	<span>{t.footer.by}</span>
 	<a href="https://www.belege.le-space.de">{t.footer.belege}</a>
-	<a href="https://www.le-space.de">le-space.de</a>
+	<a href="https://le-space.de/">le-space.de</a>
+	<a href={t.footer.imprintUrl}>{t.footer.imprint}</a>
+	<a href={t.footer.privacyUrl}>{t.footer.privacy}</a>
 </footer>
 
 <style>

@@ -22,9 +22,13 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.locator('#nodes')).toContainText('2 TEE-Knoten, 1 davon mit Platz');
 	await expect(page.locator('#prices')).toContainText('4 €');
 
+	await expect(page.getByRole('link', { name: 'Impressum' })).toHaveAttribute('href', 'https://le-space.de/#impressum');
+	await expect(page.getByRole('link', { name: 'Datenschutz' })).toHaveAttribute('href', 'https://le-space.de/#datenschutz');
+
 	await page.getByRole('button', { name: 'EN' }).click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Your documents. Awake only when you need them.');
 	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+	await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', 'https://le-space.de/#privacy');
 	await page.reload();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Your documents. Awake only when you need them.');
 
