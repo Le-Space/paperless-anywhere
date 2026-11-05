@@ -4,7 +4,7 @@
 	import { loadProfile, vmPayer } from '$lib/profile.js';
 	import { alephBalance, filecoinBalance, hoursOf, duration, amount, LOW_GAS, RESERVE_HOURS, confidentialCreditsPerHour, runningCreditsPerHour } from '$lib/balances.js';
 	import { PAPERLESS_VM } from '$lib/vm.js';
-	import { CREDITS_URL, creditsBalance, creditsCatalog, choosePlan, fundVm, planOf, PLANS } from '$lib/credits.js';
+	import { CREDITS_URL, creditsBalance, creditsCatalog, creditsPurchases, choosePlan, fundVm, planOf, PLANS } from '$lib/credits.js';
 	import TopUp from '$lib/TopUp.svelte';
 	import { marketPrices, money, UNITS } from '$lib/prices.js';
 
@@ -62,6 +62,8 @@
 	let planBusy = $state(false);
 	let planError = $state('');
 	let planNote = $state('');
+	/** @type {Awaited<ReturnType<typeof creditsPurchases>>} */
+	let purchases = $state(null);
 	// The service's own list once it answered; until then the known one.
 	let plans = $state(/** @type {{ id: string, hours: number, priceCredits: number }[]} */ ([...PLANS]));
 	if (CREDITS_URL) creditsCatalog().then((c) => c?.plans.length && (plans = c.plans)).catch(() => {});
@@ -108,6 +110,7 @@
 		await Promise.all([
 			alephBalance(alephPayer).then((b) => (aleph = b)).catch(() => ((aleph = null), (alephError = true))),
 			creditsBalance(master).then((b) => ((lsCredits = b), (lsCreditsError = ''))).catch((e) => ((lsCredits = null), (lsCreditsError = e.message))),
+			creditsPurchases(master).then((p) => (purchases = p)).catch(() => (purchases = null)),
 			confidentialCreditsPerHour(PAPERLESS_VM).then((p) => (vmPerHour = p)),
 			marketPrices().then((p) => (prices = p)),
 			runningCreditsPerHour(alephPayer).then((p) => (runningPerHour = p)).catch(() => (runningPerHour = null)),
@@ -161,6 +164,20 @@
 					{:else if lsCreditsError}<span class="hint">{lsCreditsError}</span>{:else}…{/if}
 					{#if lsCredits}<TopUp {master} credits={lsCredits.credits} onbooked={read} />{/if}
 				</dd>
+				{#if purchases?.length}
+					<dt>Aufladungen</dt>
+					<dd data-testid="purchases">
+						<details>
+							<summary>{purchases.length} Aufladung{purchases.length === 1 ? '' : 'en'}, mit Rechnung</summary>
+							<ul class="purchases">
+								{#each purchases as p (p.id)}
+									<li data-testid="purchase">{p.at ? new Date(p.at).toLocaleDateString('de-DE') : '–'} · {amount(p.cents / 100)} €
+										{#if p.invoiceUrl}· <a href={p.invoiceUrl} target="_blank" rel="noopener noreferrer">Rechnung</a>{:else}<small class="hint">· Rechnung folgt</small>{/if}</li>
+								{/each}
+							</ul>
+						</details>
+					</dd>
+				{/if}
 				{#if lsCredits}
 					<dt>Paket</dt>
 					<dd data-testid="plan">
@@ -240,6 +257,8 @@
 	.money { color: var(--text-2); margin-left: 0.3rem; }
 	.units { margin: 0.5rem 0 0; font-size: 0.9rem; }
 	.units select { margin-left: 0.3rem; }
+	.purchases { list-style: none; padding: 0; margin: 0.3rem 0; }
+	.purchases li { padding: 0.1rem 0; }
 	.plans { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0; align-items: baseline; }
 	.plan.current { font-weight: 600; }
 	.quiet { background: none; border: none; color: var(--text-2); text-decoration: underline; padding: 0; margin: 0.5rem 0 0; font-size: 0.9rem; }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { recoverMessageAddress } from 'viem';
-import { canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, fundVm, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
+import { canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, fundVm, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
 
 // A made-up vault: the ledger knows it by the address its Aleph key has.
 const master = new Uint8Array(32).fill(7);
@@ -168,5 +168,27 @@ describe('packages and hours (belege#591 draft 2)', () => {
 	it('reads the catalog the service lists', async () => {
 		const fetch = async (url) => (String(url).endsWith('/v1/packages?product=paperless-anywhere') ? new Response(JSON.stringify({ product: 'paperless-anywhere', topups: [{ id: 'topup-20', amount_cents: 2000, credits: 2000 }], packages: [{ id: 'paperless-10', hours: 10, price_credits: 400 }] })) : new Response('{}', { status: 404 }));
 		expect(await creditsCatalog({ baseUrl, fetch })).toEqual({ plans: [{ id: 'paperless-10', hours: 10, priceCredits: 400 }], topups: [{ id: 'topup-20', amountCents: 2000, credits: 2000 }] });
+	});
+});
+
+describe('purchases', () => {
+	it('lists them newest first, keeping only Stripe invoice links', async () => {
+		const fetch = async () => new Response(JSON.stringify({ purchases: [
+			{ id: 'p1', package: 'topup-20', amount_cents: 2000, credits: 2000, stripe_invoice_url: 'https://invoice.stripe.com/i/acct_1/test_1', created_at: '2026-11-05T03:40:00Z' },
+			{ id: 'p2', package: 'topup-50', amount_cents: 5000, credits: 5000, stripe_invoice_url: 'https://evil.example.com/stripe.com', created_at: '2026-11-06T10:00:00Z' },
+			{ id: 'p3', package: 'topup-20', amount_cents: 2000, credits: 2000, stripe_invoice_url: null, created_at: '2026-11-04T09:00:00Z' }
+		] }));
+		const list = await creditsPurchases(master, { baseUrl: 'https://credits.example.com', fetch });
+		expect(list?.map((p) => [p.id, p.cents, p.invoiceUrl])).toEqual([
+			['p2', 5000, null],
+			['p1', 2000, 'https://invoice.stripe.com/i/acct_1/test_1'],
+			['p3', 2000, null]
+		]);
+	});
+	it('accepts only https on stripe.com', () => {
+		expect(stripeLink('https://pay.stripe.com/invoice/x')).toBe('https://pay.stripe.com/invoice/x');
+		expect(stripeLink('http://invoice.stripe.com/x')).toBeNull();
+		expect(stripeLink('https://stripe.com.evil.example/x')).toBeNull();
+		expect(stripeLink('javascript:alert(1)')).toBeNull();
 	});
 });
