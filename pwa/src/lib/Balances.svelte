@@ -168,14 +168,14 @@
 							<span data-testid="plan-current">{planLine(lsCredits.plan)}</span>
 							<button class="quiet" onclick={() => plan(null)} disabled={planBusy} data-testid="plan-end">Paket beenden</button>
 						{:else}
-							<span class="hint">Kein Paket: du zahlst nur, was du aufläufst.</span>
+							<span class="hint" data-testid="plan-none">Kein Paket gewählt. Mit einem Paket holt die App die Aleph-Credits für deine VM aus diesem Guthaben.</span>
 						{/if}
 						<div class="plans">
 							{#each plans as p (p.id)}
 								<button class="plan" class:current={lsCredits.plan?.id === p.id} onclick={() => plan(p.id)} disabled={planBusy || lsCredits.plan?.id === p.id} data-testid={`plan-${p.id}`}>{p.hours} h im Monat · {amount(p.priceCredits / 100)} €</button>
 							{/each}
 						</div>
-						{#if appPays}
+						{#if appPays && lsCredits.plan}
 							<div class="plans">
 								<span class="hint">Stunden nachkaufen:</span>
 								{#each [5, 10, 30] as h (h)}<button class="quiet" onclick={() => buyHours(h)} disabled={planBusy} data-testid={`buy-${h}`}>+{h} h</button>{/each}
