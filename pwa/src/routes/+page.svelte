@@ -124,6 +124,7 @@
 
 <footer>
 	<p class="built">{t.footer.built}</p>
+	<p class="built">{t.footer.ngx} <a href="https://github.com/paperless-ngx/paperless-ngx">{t.footer.ngxLink}</a></p>
 	<span>{t.footer.by}</span>
 	<a href="https://www.belege.le-space.de">{t.footer.belege}</a>
 	<a href="https://le-space.de/">le-space.de</a>
@@ -166,7 +167,8 @@
 	.hours { font-weight: 600; }
 	.price { font-size: 2.4rem; font-weight: 700; letter-spacing: -0.03em; }
 	.per { color: var(--text-2); font-size: 0.9rem; }
-	.built { flex-basis: 100%; margin: 0 0 0.5rem; }
+	.built { flex-basis: 100%; margin: 0; }
+	.built + span { margin-top: 0.5rem; }
 
 	.closing { text-align: center; padding-bottom: 3rem; }
 	.closing .actions { justify-content: center; }

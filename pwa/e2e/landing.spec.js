@@ -24,6 +24,7 @@ test('the landing page at / speaks German and English and leads to the app at /a
 
 	await expect(page.getByRole('link', { name: 'Impressum' })).toHaveAttribute('href', 'https://le-space.de/#impressum');
 	await expect(page.getByRole('link', { name: 'Datenschutz' })).toHaveAttribute('href', 'https://le-space.de/#datenschutz');
+	await expect(page.locator('footer')).toContainText('nicht mit ihm verbunden');
 
 	await page.getByRole('button', { name: 'EN' }).click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Your documents. Awake only when you need them.');
