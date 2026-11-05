@@ -53,6 +53,9 @@ jobs:
         env:
           # Shown in the app's footer; a dispatch builds show "dev".
           PAPERLESS_VERSION: ${{ github.event.release.tag_name }}
+          # Le Space Credits (credits.le-space.de). A repository variable, so it
+          # is switched on once the service runs; empty keeps the credits hidden.
+          VITE_CREDITS_URL: ${{ vars.VITE_CREDITS_URL }}
         run: |
           pnpm install --frozen-lockfile
           pnpm test
