@@ -85,7 +85,17 @@
 	// cannot decrypt (live: "age could not decrypt the piece").
 	let choice = $state('empty');
 	const split = $derived(splitOwn(backups ?? [], profile.ownBackups ?? []));
-	const pick = (list) => list.find((b) => b.complete) ?? list[0];
+	// The newest one: a backup counts once it reached at least one provider
+	// (the restore checks the piece itself); "complete" only compared the copies
+	// with every data set the wallet ever used, and a backup that went to a
+	// replacement provider never looked complete (2026-11-06).
+	const pick = (list) => list[0];
+	// A production Paperless (role primary, mainnet) owns every backup in its
+	// wallet's data sets: the ones its stops made, and the two-hourly ones the
+	// app never hears of. It starts from the newest, whoever made it. A test
+	// keeps to this vault's own (the test data sets hold other keys' backups).
+	const production = $derived(profile.role === 'primary' && profile.network === 'mainnet');
+	const defaultChoice = (list) => (production && list.length ? 'latest' : splitOwn(list, profile.ownBackups ?? []).own.length ? 'own' : 'empty');
 	const wherePlaces = (b) => b.copies.map((c) => c.place || `Anbieter ${c.providerId}`).join(' und ');
 	// The admin password is derived from the master secret; it is shown only on request.
 	let showPassword = $state(false);
@@ -100,7 +110,7 @@
 		if (owner && profile.ageIdentity && !profile.running) {
 			backupsError = '';
 			listBackups({ network: profile.network ?? 'calibration', owner })
-				.then((list) => ((backups = list), (choice = splitOwn(list, profile.ownBackups ?? []).own.length ? 'own' : 'empty')))
+				.then((list) => ((backups = list), (choice = defaultChoice(list))))
 				.catch(() => ((backups = []), (backupsError = 'Die Sicherungen ließen sich gerade nicht lesen.')));
 		}
 	};
@@ -137,7 +147,7 @@
 	const start = () => run(startNow);
 	async function startNow() {
 		await reload();
-		const chosen = choice === 'own' ? pick(split.own) : choice === 'any' ? pick(split.other) : null;
+		const chosen = choice === 'latest' ? pick(backups ?? []) : choice === 'own' ? pick(split.own) : choice === 'any' ? pick(split.other) : null;
 		const forStart = { ...$state.snapshot(profile), restoreEntry: chosen ? restoreEntry(chosen) : null };
 		// Once Aleph has the VM, the profile knows it: a reload carries on from there.
 		const onRequested = async (starting) => {
@@ -266,7 +276,7 @@
 				<button class="cta" onclick={start} disabled={busy || backupsPending || Boolean(backupsError)}>Paperless starten</button>
 				{#if backupsPending}<p class="hint">Sicherungen werden gelesen …</p>
 				{:else if backupsError}<p class="warn">{backupsError} Bitte gleich noch einmal versuchen.</p>
-				{:else if profile.ageIdentity}<p class="hint" data-testid="simple-restore">{choice === 'own' ? 'Startet mit deiner neuesten Sicherung.' : 'Startet ohne Daten: es gibt noch keine eigene Sicherung.'}</p>{/if}
+				{:else if profile.ageIdentity}<p class="hint" data-testid="simple-restore">{choice === 'latest' || choice === 'own' ? `Startet mit der neuesten Sicherung (${pick(choice === 'latest' ? backups ?? [] : split.own)?.pieceCid.slice(-12)}).` : 'Startet ohne Daten: es gibt noch keine eigene Sicherung.'}</p>{/if}
 			{/if}
 		{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -294,6 +304,12 @@
 			{#if profile.ageIdentity}
 				<fieldset class="restore">
 					<legend>Beim Start</legend>
+					{#if production && backups?.length}
+						<label><input type="radio" bind:group={choice} value="latest" data-testid="restore-latest" />
+							Neueste Sicherung wiederherstellen
+							<small data-testid="latest-backup">({pick(backups).pieceCid.slice(-12)}, {pick(backups).copies.length} Kopien: {wherePlaces(pick(backups))})</small>
+						</label>
+					{/if}
 					<label><input type="radio" bind:group={choice} value="own" disabled={!split.own.length} />
 						Neueste eigene Sicherung wiederherstellen
 						{#if split.own.length}<small data-testid="newest-backup">({pick(split.own).pieceCid.slice(-12)}, {pick(split.own).copies.length} Kopien: {wherePlaces(pick(split.own))})</small>
