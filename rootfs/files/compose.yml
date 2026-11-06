@@ -91,6 +91,10 @@ services:
       PAPERLESS_OCR_LANGUAGE: deu+eng+rus+spa+tur
       PAPERLESS_OCR_LANGUAGES: rus tur
       PAPERLESS_TIME_ZONE: Europe/Berlin
+      # As on the Mac: a file whose hash is already in Paperless is not taken
+      # again. Since 3.0 Paperless takes duplicates unless this is set, and
+      # several mail rules matching one mail imported it 2-3 times (2026-11-04).
+      PAPERLESS_CONSUMER_DELETE_DUPLICATES: "true"
     volumes:
       - /srv/paperless/data:/usr/src/paperless/data
       - /srv/paperless/media:/usr/src/paperless/media
