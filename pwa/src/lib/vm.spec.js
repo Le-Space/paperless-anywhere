@@ -67,3 +67,31 @@ describe('checkOwnInstance', () => {
 		await expect(checkOwnInstance(other.address, m.item_hash, m)).rejects.toThrow(/nicht der Schlüssel/);
 	});
 });
+
+describe('vmStatus', () => {
+	const json = (b, status = 200) => new Response(JSON.stringify(b), { status });
+	it('reads the detailed page at the vault secret path, the public one without', async () => {
+		const { vmStatus } = await import('./vm.js');
+		const seen = [];
+		const orig = globalThis.fetch;
+		globalThis.fetch = async (url) => (seen.push(String(url)), String(url).includes('/anywhere/s/') ? json({ phase: 'ready', restore: { status: 'done' } }) : json({ phase: 'ready' }));
+		try {
+			expect(await vmStatus('h.example', 'a'.repeat(32))).toEqual({ phase: 'ready', restore: { status: 'done' } });
+			expect(seen.at(-1)).toBe(`https://h.example/anywhere/s/${'a'.repeat(32)}.json`);
+			expect(await vmStatus('h.example')).toEqual({ phase: 'ready' });
+			expect(seen.at(-1)).toBe('https://h.example/anywhere/status.json');
+		} finally {
+			globalThis.fetch = orig;
+		}
+	});
+	it('falls back to the public page on an image without the secret one', async () => {
+		const { vmStatus } = await import('./vm.js');
+		const orig = globalThis.fetch;
+		globalThis.fetch = async (url) => (String(url).includes('/anywhere/s/') ? json({}, 404) : json({ phase: 'ready', restore: { status: 'done' } }));
+		try {
+			expect(await vmStatus('h.example', 'b'.repeat(32))).toEqual({ phase: 'ready', restore: { status: 'done' } });
+		} finally {
+			globalThis.fetch = orig;
+		}
+	});
+});

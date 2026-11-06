@@ -19,7 +19,10 @@ export const LABELS = Object.freeze({
 	ageIdentity: 'paperless-anywhere/age-identity/v1',
 	// The fixed address's first label: the same on every device and every start,
 	// and it says nothing about who owns it.
-	fixedHost: 'paperless-anywhere/fixed-host/v1'
+	fixedHost: 'paperless-anywhere/fixed-host/v1',
+	// The path of the VM's detailed status page: only the app that started it
+	// knows it; the public page says no more than the phase.
+	statusToken: 'paperless-anywhere/status-token/v1'
 });
 
 // The order of secp256k1: a private key must be in [1, n).
@@ -85,3 +88,6 @@ export function paperlessSecrets(master) {
 export function newMasterSecret() {
 	return crypto.getRandomValues(new Uint8Array(32));
 }
+
+/** The secret path segment of the VM's detailed status page (32 hex). @param {Uint8Array} master */
+export const statusToken = (master) => hex(deriveBytes(master, LABELS.statusToken)).slice(0, 32);

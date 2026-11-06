@@ -172,8 +172,17 @@ export async function hostname(itemHash) {
 	return host ? (host.includes('.') ? host : `${host}.2n6.me`) : null;
 }
 
-/** The VM's status page, or null while it does not answer. */
-export async function vmStatus(host) {
+/**
+ * The VM's status, or null while it does not answer. With the vault's status
+ * token, the detailed page at its secret path (restore, backups, stop, disks);
+ * images before it publish everything at the public page, which is then used.
+ * @param {string} host @param {string} [token] statusToken(master)
+ */
+export async function vmStatus(host, token) {
+	if (token) {
+		const res = await fetch(`https://${host}/anywhere/s/${token}.json`, { cache: 'no-store' }).catch(() => null);
+		if (res?.ok) return res.json();
+	}
 	const res = await fetch(`https://${host}/anywhere/status.json`, { cache: 'no-store' }).catch(() => null);
 	return res?.ok ? res.json() : null;
 }
