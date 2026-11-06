@@ -28,7 +28,7 @@ while :; do
   cert=false
   [ -n "$(find /var/lib/caddy /root/.local/share/caddy -name '*.crt' 2>/dev/null | head -1)" ] && cert=true
   python3 - "$dir" "$up" "$docker" "$images" "$total" "$running" "$cert" > "$pub/status.json.tmp" <<'PY' && mv "$pub/status.json.tmp" "$pub/status.json"
-import json, os, sys, time
+import json, os, re, sys, time
 d, up = sys.argv[1], sys.argv[2] == "true"
 docker, images, total, running, cert = sys.argv[3] == "true", int(sys.argv[4]), int(sys.argv[5]), int(sys.argv[6]), sys.argv[7] == "true"
 now = int(time.time())
@@ -78,7 +78,29 @@ elif up:
     phase = "ready"
 else:
     phase = "starting"
-print(json.dumps({"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "netHardening": net, "disks": disks, "memory": memory(), "at": now}))
+full = {"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "netHardening": net, "disks": disks, "memory": memory(), "at": now}
+# The details only at a path the app that started this VM derives from its
+# vault (the status_token secret); the public page says no more than the phase.
+token = ""
+try:
+    token = open("/tmp/secrets/status_token").read().strip()
+except OSError:
+    pass
+if re.fullmatch(r"[0-9a-f]{32}", token):
+    sdir = os.path.join(d, "public", "s")
+    os.makedirs(sdir, exist_ok=True)
+    os.chmod(sdir, 0o755)
+    for old in os.listdir(sdir):
+        if old != token + ".json":
+            os.remove(os.path.join(sdir, old))
+    tmp = os.path.join(sdir, token + ".json.tmp")
+    with open(tmp, "w") as f:
+        json.dump(full, f)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, os.path.join(sdir, token + ".json"))
+    print(json.dumps({"v": 2, "phase": phase, "paperless": up, "at": now}))
+else:
+    print(json.dumps(full))
 PY
   chmod 644 "$pub/status.json" 2>/dev/null
   sleep 5

@@ -1,7 +1,7 @@
 <script>
 	import { confidentialCreditsPerHour } from '$lib/balances.js';
 	import { privateKeyToAccount } from 'viem/accounts';
-	import { alephPrivateKey, fixedHostLabel } from '$lib/keys/derive.js';
+	import { alephPrivateKey, fixedHostLabel, statusToken } from '$lib/keys/derive.js';
 	import { loadProfile, updateProfile } from '$lib/profile.js';
 	import { startingInstance } from '$lib/starting.js';
 	import { crnAddress, eraseOnNode, FIXED_HOST_DOMAIN, forgetInstance, hostname, listVms, nodeState, ownInstance, PAPERLESS_VM, publicAddress, vmStatus } from '$lib/vm.js';
@@ -32,7 +32,7 @@
 		for (const vm of list) {
 			hostname(vm.itemHash)
 				.then(async (host) => {
-					const status = host ? await vmStatus(host) : null;
+					const status = host ? await vmStatus(host, statusToken(master)) : null;
 					const crnUrl = vm.crnHash ? await crnAddress(vm.crnHash).catch(() => null) : null;
 					const onNode = crnUrl ? await nodeState(crnUrl, vm.itemHash) : null;
 					// The VM's own page when it answers, otherwise what its node says.
@@ -96,7 +96,7 @@
 			const fixed = profile.dnsToken ? await publicAddress(await crnAddress(crnHash), vm.itemHash).catch(() => null) : null;
 			const host = fixed ? `${fixedHostLabel(master)}.${FIXED_HOST_DOMAIN}:${fixed.port}` : await hostname(vm.itemHash);
 			if (!host) throw new Error('Die VM hat noch keine Adresse (2n6).');
-			const status = await vmStatus(host);
+			const status = await vmStatus(host, statusToken(master));
 			if (!status?.phase) throw new Error('Die VM antwortet nicht als Paperless (noch kein Zertifikat oder nicht entsperrt).');
 			profile = await updateProfile(master, (fresh) => {
 				if (fresh.running) throw new Error('Es ist schon ein Paperless als laufend bekannt.');

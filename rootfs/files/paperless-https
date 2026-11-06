@@ -71,13 +71,22 @@ https://${host} {
 CADDY
 fi
 [ -z "$serve" ] || cat >> "$new" <<CADDY
-  # The start status (no secrets: phase, backup names, counts), read by the
-  # app that started this VM from its own origin.
+  # The start status, read by the app that started this VM from its own
+  # origin: in public only the phase; the details (restore, backups, stop,
+  # disks) at /anywhere/s/<token>.json, a path the app derives from its vault.
   handle /anywhere/status.json {
     header Access-Control-Allow-Origin "*"
     header Cache-Control "no-store"
     root * /run/paperless-anywhere/public
     rewrite * /status.json
+    file_server
+  }
+  @detail path_regexp detail ^/anywhere/s/([0-9a-f]{32})\.json$
+  handle @detail {
+    header Access-Control-Allow-Origin "*"
+    header Cache-Control "no-store"
+    root * /run/paperless-anywhere/public
+    rewrite * /s/{re.detail.1}.json
     file_server
   }
   reverse_proxy 127.0.0.1:8000

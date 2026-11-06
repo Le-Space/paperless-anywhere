@@ -9,7 +9,7 @@
 import { privateKeyToAccount } from 'viem/accounts';
 import { confidentialTrustedExecution, unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
 import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
-import { alephPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets } from './keys/derive.js';
+import { alephPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
 import { relayTransports } from './attest-p2p.js';
 import { backupFacts } from './backups.js';
@@ -187,7 +187,8 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 		paperless_role: profile.role === 'primary' ? 'primary' : 'test',
 		paperless_admin_password: p.adminPassword,
 		paperless_db_password: p.dbPassword,
-		paperless_secret_key: p.secretKey
+		paperless_secret_key: p.secretKey,
+		status_token: statusToken(master)
 	};
 	if (profile.backupConfig) {
 		secrets.backup_config = JSON.stringify({ ...profile.backupConfig, payer: profile.payer, network: profile.network === 'mainnet' ? 'mainnet' : 'calibration' });
@@ -218,7 +219,7 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 			onProgress: ({ detail }) => onProgress({ step: 'unlock', detail })
 		});
 	// A resumed start may find the VM unlocked already: its status page answers.
-	const already = await vmStatus(host).catch(() => null);
+	const already = await vmStatus(host, statusToken(master)).catch(() => null);
 	if (already?.phase) {
 		onProgress({ step: 'unlock', detail: 'schon entsperrt' });
 	} else {
@@ -245,7 +246,7 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	let answered = false;
 	while (!ready) {
 		if (Date.now() - unlockedAt > READY_TIMEOUT_MS) throw new Error('Paperless: no answer in time');
-		const status = await vmStatus(host).catch(() => null);
+		const status = await vmStatus(host, statusToken(master)).catch(() => null);
 		if (status?.phase) {
 			answered = true;
 			onProgress({ step: 'ready', detail: `Paperless startet (${status.phase})`, status });
@@ -296,7 +297,7 @@ export async function stopPaperless(master, profile, onProgress) {
 		attested.channel.close();
 	}
 	const status = await until('stop', async () => {
-		const s = await vmStatus(run.host);
+		const s = await vmStatus(run.host, statusToken(master));
 		// The backup's latest log line, while it runs (status page: backup.log).
 		const line = s?.backup?.status === 'running' ? s.backup.log?.at(-1) : null;
 		if (line) onProgress({ step: 'stop', detail: line.replace(/^\S+Z /, ''), status: s });

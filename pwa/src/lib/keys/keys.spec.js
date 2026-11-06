@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
-import { alephPrivateKey, deriveBytes, fixedHostLabel, LABELS, newMasterSecret, paperlessSecrets } from './derive.js';
+import { alephPrivateKey, deriveBytes, fixedHostLabel, LABELS, newMasterSecret, paperlessSecrets, statusToken } from './derive.js';
 import { newSeedPhrase, seal, sealingKeyFromPrf, sealingKeyFromSeedPhrase, unseal } from './seal.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -55,5 +55,15 @@ describe('seal', () => {
 	});
 	it('refuses a seed phrase with a bad checksum', () => {
 		expect(() => sealingKeyFromSeedPhrase('abandon '.repeat(24).trim())).toThrow();
+	});
+});
+
+describe('statusToken', () => {
+	it('is 32 hex, the same for one vault, different for another', () => {
+		const a = newMasterSecret();
+		const b = newMasterSecret();
+		expect(statusToken(a)).toMatch(/^[0-9a-f]{32}$/);
+		expect(statusToken(a)).toBe(statusToken(a));
+		expect(statusToken(a)).not.toBe(statusToken(b));
 	});
 });
