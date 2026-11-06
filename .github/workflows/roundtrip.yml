@@ -70,7 +70,7 @@ jobs:
           [[ "$ITEM" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::rootfs_item_hash is not an item hash"; exit 1; }
           [[ "$CRN" =~ ^[0-9a-f]{6,64}$ ]] || { echo "::error::crn is not a hash or prefix"; exit 1; }
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22.x
 

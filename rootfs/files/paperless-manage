@@ -1,10 +1,16 @@
 #!/bin/sh
 # paperless-manage <manage.py arguments>: a Paperless management command
-# (document_importer, document_thumbnails, shell, ...) in a one-off container.
+# (document_importer, document_exporter, shell, ...) in a one-off container.
 # `docker exec` does not work in the confidential guest (Docker runs inside
-# the measured init's chroot), so commands run in a container of their own,
-# with the stack's environment (s6 drops it unless with-contenv is used).
+# the measured init's chroot), so commands run in a container of their own.
+#
+# Without the image's entrypoint: through it, the one-off container started a
+# whole second Paperless (s6 with web server, consumer, task worker,
+# scheduler, the OCR language install) beside the running one, on the same
+# database and in the same memory. A long export then failed after about an
+# hour without a word (production, 2026-11-04 to 06). manage.py runs directly
+# now, as the paperless user, with the stack's environment from compose.
 set -eu
 cd /opt/paperless
-exec docker compose run --rm --no-deps -T paperless /command/with-contenv \
-  sh -c 'cd /usr/src/paperless/src && exec python3 manage.py "$@"' paperless-manage "$@"
+exec docker compose run --rm --no-deps -T --entrypoint /bin/sh -u paperless paperless \
+  -c 'cd /usr/src/paperless/src && exec python3 manage.py "$@"' paperless-manage "$@"
