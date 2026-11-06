@@ -31,9 +31,21 @@ work="$(mktemp -d)"
 root="$work/root"
 trap 'rm -rf "$work"' EXIT
 
-debootstrap --variant=minbase \
-  --include=systemd,systemd-sysv,dbus,python3,openssh-server,docker.io,caddy,age,ca-certificates,curl,iproute2,procps,e2fsprogs,util-linux,kmod,jq,less,cryptsetup-bin,dmsetup \
-  bookworm "$root" http://deb.debian.org/debian >/dev/null
+# Signed packages only: with --keyring debootstrap refuses an unverified
+# Release file instead of warning (and the warning went to /dev/null).
+keyring=/usr/share/keyrings/debian-archive-keyring.gpg
+[ -s "$keyring" ] || { echo "missing $keyring (apt install debian-archive-keyring)" >&2; exit 1; }
+debootstrap --variant=minbase --keyring="$keyring" \
+  --include=systemd,systemd-sysv,dbus,python3,openssh-server,docker.io,caddy,age,ca-certificates,curl,iproute2,procps,e2fsprogs,util-linux,kmod,jq,less,cryptsetup-bin,dmsetup,nftables \
+  bookworm "$root" https://deb.debian.org/debian >/dev/null
+
+# Debian's security fixes on top: sshd, Caddy and Docker face the network.
+cat > "$root/etc/apt/sources.list" <<'APT'
+deb https://deb.debian.org/debian bookworm main
+deb https://deb.debian.org/debian bookworm-updates main
+deb https://security.debian.org/debian-security bookworm-security main
+APT
+chroot "$root" sh -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get -y -qq -o Dpkg::Options::=--force-confold upgrade' >/dev/null
 
 # The compose plugin (Debian 12 ships only the old Python docker-compose).
 install -d "$root/usr/libexec/docker/cli-plugins"
@@ -80,7 +92,7 @@ install -D -m 644 "$here/files/paperless-status.service" "$root/etc/systemd/syst
 install -D -m 644 "$here/files/paperless-stop.service" "$root/etc/systemd/system/paperless-stop.service"
 install -D -m 644 "$here/files/paperless-forget-passphrase.service" "$root/etc/systemd/system/paperless-forget-passphrase.service"
 install -D -m 644 "$here/files/paperless-fixed-address.service" "$root/etc/systemd/system/paperless-fixed-address.service"
-for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-backup-loop paperless-status paperless-stop paperless-stack-up paperless-data-disk paperless-file-extents paperless-forget-passphrase paperless-fixed-address paperless-dns-records; do
+for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-backup-loop paperless-net-hardening paperless-status paperless-stop paperless-stack-up paperless-data-disk paperless-file-extents paperless-forget-passphrase paperless-fixed-address paperless-dns-records; do
   install -D -m 755 "$here/files/$script" "$root/usr/local/sbin/$script"
 done
 install -d -m 700 "$root/etc/paperless-anywhere"

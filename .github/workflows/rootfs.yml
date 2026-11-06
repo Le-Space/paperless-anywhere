@@ -35,8 +35,7 @@ jobs:
     runs-on: ${{ inputs.runner == 'aleph' && fromJSON('["self-hosted","aleph"]') || 'ubuntu-24.04' }}
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Check the secrets
         env:
           ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
@@ -49,7 +48,7 @@ jobs:
         # Usually about a minute; a stuck download on a node hung for 45 min.
         timeout-minutes: 15
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq debootstrap >/dev/null
+          sudo apt-get update -qq && sudo apt-get install -y -qq debootstrap debian-archive-keyring >/dev/null
           start=$(date +%s)
           sudo ./rootfs/build-image.sh "$RUNNER_TEMP/paperless.ext4"
           sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/paperless.ext4"
@@ -58,7 +57,7 @@ jobs:
 
       - name: Confidential, encrypted, published
         id: rootfs
-        uses: NiKrause/relay-button/.github/actions/aleph-confidential-rootfs@v0.12.1
+        uses: NiKrause/relay-button/.github/actions/aleph-confidential-rootfs@28e4e09c2e988a8cd903d457d734be0d0982be62 # v0.12.1
         with:
           image_path: ${{ runner.temp }}/paperless.ext4
           # The action wants a non-empty file; sshd ignores a comment line.
