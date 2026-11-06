@@ -6,6 +6,8 @@
 	import Lifecycle from '$lib/Lifecycle.svelte';
 	import Balances from '$lib/Balances.svelte';
 	import VmList from '$lib/VmList.svelte';
+	import Package from '$lib/Package.svelte';
+	import { CREDITS_URL } from '$lib/credits.js';
 	import BuildInfo from '$lib/BuildInfo.svelte';
 	import Logo from '$lib/Logo.svelte';
 	import { HOME, sharedOrigin } from '$lib/shared-origin.js';
@@ -124,7 +126,7 @@
 		}
 	};
 	const simple = $derived(tab === 'simple');
-	/** @type {{ money: string, lasts: string, warnings: string[] } | null} */
+	/** @type {{ money: string, lasts: string, warnings: ('start' | 'backups')[] } | null} */
 	let summary = $state(null);
 </script>
 
@@ -217,12 +219,20 @@
 		{#if !shownPhrase}
 			<div class="advanced" hidden={simple}><Balances {master} version={profileVersion} onsummary={(s) => (summary = s)} /></div>
 			<Lifecycle {master} {simple} version={profileVersion} onchange={() => profileVersion++} onadvanced={() => showTab('advanced')} />
-			{#if simple && summary?.money}
-				<section class="card money" data-testid="simple-balance">
-					<p class="line"><span class="label">Guthaben</span> <span class="data">{summary.money}</span>{#if summary.lasts}<span class="hint">reicht ca. {summary.lasts}</span>{/if}</p>
-					{#if summary.plan}<p class="line" data-testid="simple-plan"><span class="label">{summary.plan}</span></p>{/if}
-					{#each summary.warnings as w (w)}<p class="warn" role="status">{w} Aufladen geht unter „Erweitert“.</p>{/each}
-				</section>
+			<!-- With Le Space Credits a customer sees the package and euros only; Aleph
+			     and Filecoin balances stay under "Erweitert". -->
+			{#if CREDITS_URL}<Package {master} version={profileVersion} />{/if}
+			{#if simple && summary}
+				{#if !CREDITS_URL && summary.money}
+					<section class="card money" data-testid="simple-balance">
+						<p class="line"><span class="label">Guthaben</span> <span class="data">{summary.money}</span>{#if summary.lasts}<span class="hint">reicht ca. {summary.lasts}</span>{/if}</p>
+					</section>
+				{/if}
+				{#each summary.warnings as w (w)}
+					<p class="warn" role="status" data-testid={`simple-warning-${w}`}>{w === 'start'
+						? (CREDITS_URL ? 'Für einen Start reicht es gerade nicht: ein Paket wählen oder Stunden dazukaufen.' : 'Für einen Start reicht das Guthaben gerade nicht. Details unter „Erweitert“.')
+						: 'Das Guthaben für die Sicherungen geht bald zu Ende. Details unter „Erweitert“.'}</p>
+				{/each}
 			{/if}
 			<div class="advanced" hidden={simple}><VmList {master} version={profileVersion} onchange={() => profileVersion++} /><Setup {master} onsaved={() => profileVersion++} /></div>
 		{/if}
@@ -261,6 +271,5 @@
 	.money .line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; }
 	.money .data { font-size: 1.05rem; font-weight: 500; color: var(--text); }
 	.money .label { color: var(--text-2); }
-	.money .warn { margin-top: 0.6rem; }
 	.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 </style>
