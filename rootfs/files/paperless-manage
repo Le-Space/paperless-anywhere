@@ -9,8 +9,10 @@
 # scheduler, the OCR language install) beside the running one, on the same
 # database and in the same memory. A long export then failed after about an
 # hour without a word (production, 2026-11-04 to 06). manage.py runs directly
-# now, as the paperless user, with the stack's environment from compose.
+# now, with the stack's environment from compose. As root, as it did through
+# the entrypoint: paperless-restore unpacks the backup as root, and the
+# importer run as the paperless user could not read it (2026-11-06).
 set -eu
 cd /opt/paperless
-exec docker compose run --rm --no-deps -T --entrypoint /bin/sh -u paperless paperless \
+exec docker compose run --rm --no-deps -T --entrypoint /bin/sh -u root paperless \
   -c 'cd /usr/src/paperless/src && exec python3 manage.py "$@"' paperless-manage "$@"
