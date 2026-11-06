@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { restoreEntry, backupConfigFor } from './backups.js';
+import { restoreEntry, backupConfigFor, backupFacts } from './backups.js';
 
 describe('restoreEntry', () => {
 	it('names the piece and its copies, without a SHA-256 (the piece CID is the check)', () => {
@@ -50,5 +50,20 @@ describe('place', () => {
 		expect(place('C=GB;ST=Gloucestershire;L=Cheltenham')).toBe('GB, Cheltenham');
 		expect(place('C=US;ST=Texas')).toBe('US, Texas');
 		expect(place('somewhere')).toBe('somewhere');
+	});
+});
+
+describe('backupFacts', () => {
+	it('says what the VM saw when a backup failed: memory, free space, exit code', () => {
+		expect(backupFacts({ status: 'failed', exit: 1, oomKills: 2, memAvailableBytes: 812_000_000, swapBytes: 0, srvFreeBytes: 17_520_000_000 })).toEqual([
+			'Speicher reichte nicht: das System hat 2 Prozesse beendet.',
+			'Freier Arbeitsspeicher danach: 0,8 GB, keine Auslagerung',
+			'Freier Platz auf der Datenplatte: 17,5 GB',
+			'Exit-Code 1'
+		]);
+	});
+	it('stays empty for an image that reports none of it', () => {
+		expect(backupFacts({ status: 'failed', reason: 'the backup did not complete', log: [] })).toEqual([]);
+		expect(backupFacts(null)).toEqual([]);
 	});
 });

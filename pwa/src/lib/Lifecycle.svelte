@@ -124,7 +124,7 @@
 			await fn();
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
-			errorLog = /** @type {any} */ (e)?.log ?? [];
+			errorLog = [.../** @type {any} */ ((e)?.facts ?? []), .../** @type {any} */ ((e)?.log ?? [])];
 			if (e instanceof AlephShortError) short = e;
 		} finally {
 			busy = false;
@@ -270,6 +270,7 @@
 			{/if}
 		{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
+		{#if errorLog.length}<details class="log" data-testid="simple-backup-log"><summary>Details aus der VM</summary><pre>{errorLog.join('\n')}</pre></details>{/if}
 		{#if short && CREDITS_URL && profile.appPays}
 			<div class="fund" data-testid="fund-offer">
 				<label>Stunden aus Le Space Credits holen
@@ -363,7 +364,7 @@
 			</div>
 		{/if}
 		{#if errorLog.length}
-			<details open class="log"><summary>Letzte Zeilen der Sicherung (aus der VM)</summary><pre data-testid="backup-log">{errorLog.join('\n')}</pre></details>
+			<details open class="log"><summary>Was die VM zur Sicherung meldet</summary><pre data-testid="backup-log">{errorLog.join('\n')}</pre></details>
 		{/if}
 		{#if !profile.running && profile.lastBackup}
 			{@const b = profile.lastBackup}

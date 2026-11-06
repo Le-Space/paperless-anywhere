@@ -108,3 +108,22 @@ export function place(location) {
 	const parts = Object.fromEntries(String(location ?? '').split(';').map((p) => p.split('=')).filter((p) => p.length === 2).map(([k, v]) => [k.trim(), v.trim()]));
 	return [parts.C, parts.L ?? parts.ST].filter(Boolean).join(', ') || String(location ?? '');
 }
+
+const gb = (/** @type {number} */ bytes) => `${(bytes / 1e9).toLocaleString('de-DE', { maximumFractionDigits: 1 })} GB`;
+
+/**
+ * What the VM reported about a failed backup besides its log (paperless-backup:
+ * exit code, memory, free space), as lines a person can read. Images before
+ * these fields report none, so the list may be empty.
+ * @param {any} backup the status page's `backup` object
+ * @returns {string[]}
+ */
+export function backupFacts(backup) {
+	if (!backup) return [];
+	const facts = [];
+	if (backup.oomKills > 0) facts.push(`Speicher reichte nicht: das System hat ${backup.oomKills === 1 ? 'einen Prozess' : `${backup.oomKills} Prozesse`} beendet.`);
+	if (typeof backup.memAvailableBytes === 'number') facts.push(`Freier Arbeitsspeicher danach: ${gb(backup.memAvailableBytes)}${backup.swapBytes ? `, Auslagerung ${gb(backup.swapBytes)}` : ', keine Auslagerung'}`);
+	if (typeof backup.srvFreeBytes === 'number') facts.push(`Freier Platz auf der Datenplatte: ${gb(backup.srvFreeBytes)}`);
+	if (typeof backup.exit === 'number') facts.push(`Exit-Code ${backup.exit}`);
+	return facts;
+}

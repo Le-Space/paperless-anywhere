@@ -37,9 +37,11 @@ fi
 status() {
   printf '{"status":"%s","at":"%s"%s}\n' "$1" "$(date -u +%FT%TZ)" "${2:-}" > "$state.tmp" && mv "$state.tmp" "$state"
 }
-# The tool's own log lines, made fit for the public status page: only its
-# timestamped lines (not Python's warnings, which name files), with paths and
-# quoted names blanked, as a JSON array of the last N.
+# The tool's own log lines, made fit for the public status page: its
+# timestamped lines and its last "error:" line, with paths and quoted names
+# blanked; of an exception (Python's, the exporter's) only its class and errno,
+# never its message, which may quote a document. Not Python's warnings, which
+# name files. A JSON array of the last N.
 loglines() {
   python3 - "$log_dir/backup.log" "${1:-12}" <<'LOG'
 import json, re, sys
@@ -47,18 +49,36 @@ try:
     lines = open(sys.argv[1], errors="replace").read().splitlines()
 except OSError:
     lines = []
-keep = [l for l in lines if re.match(r"^\d{4}-\d{2}-\d{2}T[\d:.]+Z ", l)]
 def clean(l):
     l = re.sub(r"'[^']*'|\"[^\"]*\"", "'…'", l)
     l = re.sub(r"(?<![\w:])/[^\s]+", "/…", l)
     l = re.sub(r"(?:0x)?[0-9a-fA-F]{64}", "…", l)
     return l[:220]
-print(json.dumps([clean(l) for l in keep[-int(sys.argv[2]):]]))
+keep = []
+for l in lines:
+    if re.match(r"^\d{4}-\d{2}-\d{2}T[\d:.]+Z ", l) or l.startswith("error: "):
+        keep.append(clean(l))
+        continue
+    m = re.match(r"^((?:[A-Za-z_]\w*\.)*[A-Za-z_]\w*(?:Error|Exception|Interrupt|Exit))\b:?\s*(\[Errno \d+\] [A-Za-z ]+)?", l)
+    if m:
+        keep.append(("exception: " + m.group(1) + (" " + m.group(2).strip() if m.group(2) else ""))[:220])
+print(json.dumps(keep[-int(sys.argv[2]):]))
 LOG
+}
+# What the machine had when a backup failed: free memory and swap, free space
+# under /srv, and how often the kernel killed a process for lack of memory
+# since the backup began. Numbers only.
+oom_kills() { awk '$1 == "oom_kill" { print $2; f = 1 } END { if (!f) print 0 }' /proc/vmstat 2>/dev/null || echo 0; }
+machine() {
+  printf ',"exit":%s,"oomKills":%s,"memAvailableBytes":%s,"swapBytes":%s,"srvFreeBytes":%s' \
+    "${rc:-null}" "$(( $(oom_kills) - ${oom0:-0} ))" \
+    "$(awk '$1 == "MemAvailable:" { print $2 * 1024 }' /proc/meminfo)" \
+    "$(awk '$1 == "SwapTotal:" { print $2 * 1024 }' /proc/meminfo)" \
+    "$(df -B1 --output=avail /srv/paperless 2>/dev/null | tail -1 | tr -d ' ' | grep -E '^[0-9]+$' || echo null)"
 }
 fail() {
   echo "paperless-backup: $*" >&2
-  status failed ",\"reason\":\"$(printf '%s' "$*" | tr -d '"\\\n' | cut -c1-200)\",\"log\":$(loglines 12)"
+  status failed ",\"reason\":\"$(printf '%s' "$*" | tr -d '"\\\n' | cut -c1-200)\",\"log\":$(loglines 12)$(machine)"
   exit 1
 }
 
@@ -117,6 +137,11 @@ fi
 
 status running ",\"role\":\"$role\""
 t0=$(date +%s)
+oom0="$(oom_kills)"
+# What a run that failed left behind (its export folder, its zip, its sealed
+# file) goes first: it holds every document in the clear and takes the room
+# the next export needs. The restore's folder (export/restore) stays.
+find /srv/paperless/export -mindepth 1 -maxdepth 1 -name 'paperless-*' -exec rm -rf {} + 2>/dev/null
 cd /opt/backup-filecoin || fail "no backup tool in /opt/backup-filecoin"
 export BACKUP_CONFIG="$config" SESSION_KEY_FILE="$secrets/backup_session_key" \
   PAPERLESS_DIR=/srv/paperless PAPERLESS_MANAGE=/usr/local/sbin/paperless-manage
@@ -134,7 +159,11 @@ while kill -0 "$pid" 2>/dev/null; do
 done
 wait "$pid"; rc=$?
 cat "$log_dir/backup.log.run" >> "$log_dir/backup.log"; rm -f "$log_dir/backup.log.run"
-[ "$rc" -eq 0 ] || fail "the backup did not complete"
+if [ "$rc" -ne 0 ]; then
+  if [ "$(( $(oom_kills) - oom0 ))" -gt 0 ]; then fail "the backup ran out of memory (exit $rc)"
+  elif [ "$rc" -ge 128 ]; then fail "the backup was stopped by signal $(( rc - 128 ))"
+  else fail "the backup did not complete (exit $rc)"; fi
+fi
 entry="$(python3 -c '
 import json, sys
 e = json.load(open(sys.argv[1]))[-1]
@@ -152,7 +181,7 @@ have, want = len(e.get("copies") or []), e.get("requestedCopies") or 0
 print("" if e.get("complete") is True and have >= want else f"{have} of {want}")')"
 if [ -n "$short" ]; then
   echo "paperless-backup: only $short copies" >&2
-  status failed ",\"reason\":\"only $short copies reached the providers\",\"backup\":$entry,\"log\":$(loglines 12)"
+  status failed ",\"reason\":\"only $short copies reached the providers\",\"backup\":$entry,\"log\":$(loglines 12)$(machine)"
   exit 1
 fi
 printf '%s\n' "$now" > "$lib/backed-up.fingerprint"

@@ -56,6 +56,15 @@ def usage(path):
     except Exception:
         return None
 disks = {"system": usage("/"), "data": usage("/srv/sealed") if os.path.ismount("/srv/sealed") else None}
+# Memory, so a backup that runs out of it shows while it runs: totals from
+# /proc/meminfo and the kernel's count of processes it killed for lack of it.
+def memory():
+    try:
+        m = {l.split(":")[0]: int(l.split()[1]) * 1024 for l in open("/proc/meminfo") if l.split()[1:2] and l.split()[1].isdigit()}
+        v = dict(l.split() for l in open("/proc/vmstat") if len(l.split()) == 2)
+        return {"totalBytes": m.get("MemTotal"), "availableBytes": m.get("MemAvailable"), "swapBytes": m.get("SwapTotal"), "oomKills": int(v.get("oom_kill", 0))}
+    except Exception:
+        return None
 if stop and stop.get("status") in ("running", "ready", "failed"):
     phase = "stopping" if stop["status"] == "running" else "stopped" if stop["status"] == "ready" else "stop-failed"
 elif data_disk and data_disk.get("status") != "encrypted":
@@ -68,7 +77,7 @@ elif up:
     phase = "ready"
 else:
     phase = "starting"
-print(json.dumps({"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "disks": disks, "at": now}))
+print(json.dumps({"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "disks": disks, "memory": memory(), "at": now}))
 PY
   chmod 644 "$pub/status.json" 2>/dev/null
   sleep 5
