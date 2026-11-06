@@ -15,7 +15,13 @@
 # paperless user, as under the entrypoint.
 set -eu
 cd /opt/paperless
-exec docker compose run --rm --no-deps -T --entrypoint /bin/sh -u root paperless -c '
+# Django runs Paperless's system checks before every command; one of them
+# wants every OCR language installed, and rus and tur are installed only by
+# the init this skips (SystemCheckError, restore of 2026-11-06). Export,
+# import and the fingerprint do no OCR, so they get the languages the image
+# brings.
+exec docker compose run --rm --no-deps -T --entrypoint /bin/sh -u root \
+  -e PAPERLESS_OCR_LANGUAGE=deu+eng -e PAPERLESS_OCR_LANGUAGES= paperless -c '
   scratch="${PAPERLESS_SCRATCH_DIR:-/tmp/paperless}"
   mkdir -p "$scratch" /usr/src/paperless/export /usr/src/paperless/data/index \
     /usr/src/paperless/media/documents/originals /usr/src/paperless/media/documents/thumbnails
