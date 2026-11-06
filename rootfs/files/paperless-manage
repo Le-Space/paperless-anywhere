@@ -4,15 +4,24 @@
 # `docker exec` does not work in the confidential guest (Docker runs inside
 # the measured init's chroot), so commands run in a container of their own.
 #
-# Without the image's entrypoint: through it, the one-off container started a
-# whole second Paperless (s6 with web server, consumer, task worker,
-# scheduler, the OCR language install) beside the running one, on the same
-# database and in the same memory. A long export then failed after about an
-# hour without a word (production, 2026-11-04 to 06). manage.py runs directly
-# now, with the stack's environment from compose. As root, as it did through
-# the entrypoint: paperless-restore unpacks the backup as root, and the
-# importer run as the paperless user could not read it (2026-11-06).
+# Not through the image's entrypoint: that starts a whole second Paperless
+# (s6 with web server, consumer, task worker, scheduler, the OCR language
+# install) beside the running one, on the same database and in the same
+# memory, and a long export then failed after about an hour without a word
+# (production, 2026-11-04 to 06). Of what the entrypoint prepared, a command
+# needs what its init-folders step does: the scratch directory, and the
+# Paperless directories owned by the paperless user (the restore unpacks its
+# backup as root). That is done here as root; manage.py then runs as the
+# paperless user, as under the entrypoint.
 set -eu
 cd /opt/paperless
-exec docker compose run --rm --no-deps -T --entrypoint /bin/sh -u root paperless \
-  -c 'cd /usr/src/paperless/src && exec python3 manage.py "$@"' paperless-manage "$@"
+exec docker compose run --rm --no-deps -T --entrypoint /bin/sh -u root paperless -c '
+  scratch="${PAPERLESS_SCRATCH_DIR:-/tmp/paperless}"
+  mkdir -p "$scratch" /usr/src/paperless/export /usr/src/paperless/data/index \
+    /usr/src/paperless/media/documents/originals /usr/src/paperless/media/documents/thumbnails
+  for dir in "$scratch" /usr/src/paperless/export /usr/src/paperless/data /usr/src/paperless/media /usr/src/paperless/consume; do
+    find "$dir" -not \( -user paperless -and -group paperless \) -exec chown paperless:paperless {} +
+  done
+  cd /usr/src/paperless/src
+  exec /command/s6-setuidgid paperless python3 manage.py "$@"
+' paperless-manage "$@"

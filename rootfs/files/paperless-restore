@@ -31,7 +31,25 @@ status() { # status <state> [extra json fields]
 }
 fail() {
   echo "paperless-restore: $*" >&2
-  status failed ",\"reason\":\"$(printf '%s' "$*" | tr -d '"\\\n' | cut -c1-200)\""
+  # What the log says, fit for the public status page: of an exception only
+  # its class and errno, never its message, which may quote a document.
+  why="$(python3 - "$log" <<'WHY' 2>/dev/null || true
+import re, sys
+try:
+    lines = open(sys.argv[1], errors="replace").read().splitlines()
+except OSError:
+    lines = []
+found = []
+for l in lines:
+    m = re.match(r"^((?:[A-Za-z_]\w*\.)*[A-Za-z_]\w*(?:Error|Exception|Interrupt|Exit))\b:?\s*(\[Errno \d+\] [A-Za-z ]+)?", l)
+    if m:
+        found.append(m.group(1) + (" " + m.group(2).strip() if m.group(2) else ""))
+    elif re.search(r"Permission denied|No such file or directory|No space left", l):
+        found.append(re.sub(r"(?<![\w:])/[^\s]+", "/…", re.sub(r"'[^']*'|\"[^\"]*\"", "'…'", l))[:160])
+print(found[-1] if found else "")
+WHY
+)"
+  status failed ",\"reason\":\"$(printf '%s' "$*" | tr -d '"\\\n' | cut -c1-200)\",\"error\":\"$(printf '%s' "$why" | tr -d '"\\\n' | cut -c1-200)\""
   exit 1
 }
 forget_secrets() {
