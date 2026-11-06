@@ -12,6 +12,7 @@ import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
 import { alephPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets } from './keys/derive.js';
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
 import { relayTransports } from './attest-p2p.js';
+import { backupFacts } from './backups.js';
 import { attestRelaysFor } from './relays.js';
 import { vmPayer } from './profile.js';
 import { ALEPH_API, readFetch } from './aleph.js';
@@ -29,12 +30,14 @@ export class AlephShortError extends Error {
 	}
 }
 
-/** The last backup failed; the VM stays. Carries the VM's reason and its tool's last log lines. */
+/** The last backup failed; the VM stays. Carries the VM's reason, what it saw (memory, space, exit code) and its tool's last log lines. */
 export class BackupFailedError extends Error {
-	constructor(reason, log) {
+	/** @param {string} reason @param {string[]} log @param {string[]} [facts] */
+	constructor(reason, log, facts = []) {
 		super(`Die letzte Sicherung ist fehlgeschlagen; die VM bleibt. Grund: ${reason}`);
 		this.name = 'BackupFailedError';
 		this.log = log;
+		this.facts = facts;
 	}
 }
 
@@ -301,7 +304,7 @@ export async function stopPaperless(master, profile, onProgress) {
 	}, { tries: 180, delayMs: 10_000 });
 	if (status.phase !== 'stopped') {
 		const b = status.stop?.backup ?? status.backup;
-		throw new BackupFailedError(b?.reason ?? 'ohne Angabe', b?.log ?? []);
+		throw new BackupFailedError(b?.reason ?? 'ohne Angabe', b?.log ?? [], backupFacts(b));
 	}
 
 	onProgress({ step: 'forget', detail: 'VM löschen' });
