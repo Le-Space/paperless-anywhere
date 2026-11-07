@@ -412,7 +412,7 @@ export async function eraseStopped(master, profile, status, onProgress) {
 
 /**
  * Keep the VM after a partial backup: Paperless starts again (paperless-stop
- * answers stop_resume with "resumed"). The two-hourly check then backs up to
+ * answers stop_resume, naming the partial stop's request, with "resumed"). The two-hourly check then backs up to
  * every provider again.
  * @param {Uint8Array} master
  * @param {Record<string, any>} profile with `running`
@@ -421,7 +421,12 @@ export async function eraseStopped(master, profile, status, onProgress) {
 export async function resumeAfterPartial(master, profile, { send = sendToGuest, status: read = vmStatus, delayMs = 5000, tries = 36 } = {}) {
 	const run = profile.running;
 	if (!run?.instanceHash) throw new Error('Es läuft keine VM.');
-	await send(master, profile, { stop_resume: String(Date.now()) });
+	// The resume names the stop it answers: an old one never restarts
+	// Paperless after a later stop.
+	const page = await read(run.host, statusToken(master)).catch(() => null);
+	const request = page?.stop?.status === 'partial' ? page.stop.request : null;
+	if (!request) throw new Error('Die VM wartet auf keine Antwort mehr; bitte die Seite neu laden.');
+	await send(master, profile, { stop_resume: String(request) });
 	return until('Paperless wieder starten', async () => {
 		const s = await read(run.host, statusToken(master));
 		return s?.stop?.status === 'resumed' ? s : null;

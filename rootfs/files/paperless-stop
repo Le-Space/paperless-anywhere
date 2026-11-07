@@ -15,7 +15,8 @@
 # A backup with fewer copies than requested (a provider refused the piece) is
 # "partial": Paperless stays paused and the app asks the person. Erasing
 # anyway is the app's step; keeping the VM sends /tmp/secrets/stop_resume
-# (any new value), and Paperless starts again ("resumed"). stop.json names
+# naming the stop request it answers, and Paperless starts again ("resumed");
+# an old resume never restarts Paperless after a later stop. stop.json names
 # the request it answers, so the app never takes an older stop's outcome for
 # the one it just sent.
 set -u
@@ -56,10 +57,10 @@ while :; do
   fi
   # The person keeps the VM after a partial backup: Paperless runs again.
   if [ -s /tmp/secrets/stop_resume ]; then
-    resume="$(head -c 128 /tmp/secrets/stop_resume)"
-    if [ "$resume" != "$resumed" ]; then
+    resume="$(head -c 128 /tmp/secrets/stop_resume | tr -cd '0-9A-Za-z_-')"
+    if [ -n "$resume" ] && [ "$resume" != "$resumed" ]; then
       resumed="$resume"
-      if grep -q '"status":"partial"' "$dir/stop.json" 2>/dev/null; then
+      if grep -q '"status":"partial"' "$dir/stop.json" 2>/dev/null && grep -q "\"request\":\"$resume\"" "$dir/stop.json"; then
         $compose start paperless >/dev/null 2>&1 || echo "paperless-stop: could not start Paperless again" >&2
         status resumed ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)"
       fi

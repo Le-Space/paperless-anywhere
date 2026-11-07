@@ -113,11 +113,17 @@ describe('stopPaperless', () => {
 });
 
 describe('resumeAfterPartial', () => {
-	it('sends stop_resume and waits for "resumed"', async () => {
-		const g = guest([{ ...base, phase: 'stop-partial', stop: { status: 'partial' } }, { ...base, phase: 'ready', stop: { status: 'resumed' } }]);
+	it('sends stop_resume naming the partial stop, and waits for "resumed"', async () => {
+		const g = guest([{ ...base, phase: 'stop-partial', stop: { status: 'partial', request: '1700000000000' } }, { ...base, phase: 'ready', stop: { status: 'resumed', request: '1700000000000' } }]);
 		const s = await resumeAfterPartial(master, profile, { ...fast, send: g.send, status: g.status });
-		expect(Object.keys(g.sent[0])).toEqual(['stop_resume']);
+		expect(g.sent).toEqual([{ stop_resume: '1700000000000' }]);
 		expect(s.stop.status).toBe('resumed');
+	});
+
+	it('sends nothing when no stop waits any more', async () => {
+		const g = guest([{ ...base, phase: 'ready', stop: { status: 'resumed', request: '1' } }]);
+		await expect(resumeAfterPartial(master, profile, { ...fast, send: g.send, status: g.status })).rejects.toThrow(/wartet auf keine Antwort/);
+		expect(g.sent).toHaveLength(0);
 	});
 });
 
