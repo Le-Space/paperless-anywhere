@@ -45,6 +45,7 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await authenticator(page);
 
 	await page.goto('/app/');
+	await page.getByTestId('key-loss-ok').check();
 	await page.getByRole('button', { name: 'Passkey anlegen' }).click();
 	await expect(page.getByTestId('phrase').locator('li')).toHaveCount(24);
 	const words = await page.getByTestId('phrase').locator('li').allTextContents();
@@ -139,6 +140,7 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await authenticator(page);
 
 	await page.goto('/app/');
+	await page.getByTestId('key-loss-ok').check();
 	await page.getByRole('button', { name: 'Passkey anlegen' }).click();
 	await expect(page.getByTestId('phrase').locator('li')).toHaveCount(24);
 	const words = await page.getByTestId('phrase').locator('li').allTextContents();

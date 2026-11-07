@@ -20,6 +20,8 @@
 	let phrase = $state('');
 	let shownPhrase = $state('');
 	let name = $state('Paperless');
+	// The key-loss notice must be ticked before a vault is created.
+	let understood = $state(false);
 	let error = $state('');
 	let busy = $state(false);
 	let profileVersion = $state(0);
@@ -151,22 +153,30 @@
 				Bitte unter <a href={HOME}>{HOME}</a> öffnen.</p>
 		</section>
 	{:else if state === 'new'}
+		<!-- Coming from the landing page most people have no vault yet: creating
+		     one comes first, opening an existing one second. -->
 		<section class="card hero">
-			<h1>Paperless öffnen</h1>
-			<p class="lede">Deine Belege in Paperless, auf einer eigenen, verschlüsselten Maschine. Zum Öffnen brauchst du deinen Passkey.</p>
-			<button class="primary" onclick={unlockPasskey} disabled={busy || passkeyWaiting}>Auf diesem Gerät mit Passkey öffnen</button>
+			<h1>Neu hier? Tresor anlegen</h1>
+			<p class="lede">Deine Dokumente in Paperless, auf einer eigenen, verschlüsselten Maschine. Ein Passkey auf diesem Gerät öffnet deinen Tresor; dazu bekommst du 24 Wörter zum Aufschreiben.</p>
+			<div class="risk" data-testid="key-loss">
+				<p><strong>Nur du hast den Schlüssel.</strong> Le Space kann deinen Tresor weder öffnen noch wiederherstellen. Sind Passkey und die 24 Wörter weg, sind Paperless und alle Sicherungen verloren.</p>
+				<label class="check"><input type="checkbox" bind:checked={understood} data-testid="key-loss-ok" /> Verstanden: Ich bewahre die 24 Wörter sicher auf, auf Papier und nicht auf diesem Gerät.</label>
+			</div>
+			<button class="primary" onclick={create} disabled={busy || !understood}>Passkey anlegen</button>
+			<details class="fold">
+				<summary>Name des Passkeys ändern</summary>
+				<label>Name des Passkeys <input bind:value={name} /></label>
+			</details>
+		</section>
+		<section class="card">
+			<h2>Schon einen Tresor?</h2>
+			<button class="secondary" onclick={unlockPasskey} disabled={busy || passkeyWaiting}>Auf diesem Gerät mit Passkey öffnen</button>
 			{#if passkeyWaiting}<p class="hint" data-testid="passkey-waiting">Warte auf den Passkey … Gibt es für {location.host} noch keinen, mit den 24 Wörtern öffnen.</p>{/if}
 			<details class="fold">
 				<summary>Auf diesem Gerät mit Wiederherstellungsphrase öffnen</summary>
 				<textarea bind:value={phrase} rows="3" autocomplete="off" spellcheck="false"></textarea>
 				<button class="secondary" onclick={unlockPhrase} disabled={busy || !phrase.trim()}>Öffnen</button>
 			</details>
-		</section>
-		<section class="card">
-			<h2>Neu einrichten</h2>
-			<p class="hint">Ein Passkey schützt den Zugang. Dazu bekommst du eine Wiederherstellungsphrase aus 24 Wörtern.</p>
-			<label>Name des Passkeys <input bind:value={name} /></label>
-			<button class="secondary" onclick={create} disabled={busy}>Passkey anlegen</button>
 		</section>
 	{:else if state === 'locked'}
 		<section class="card hero">
@@ -185,7 +195,7 @@
 		{#if shownPhrase}
 			<section class="card phrase">
 				<h2>Wiederherstellungsphrase</h2>
-				<p>Schreib sie auf Papier und bewahre sie sicher auf. Sie wird nur jetzt angezeigt.</p>
+				<p>Schreib sie auf Papier und bewahre sie sicher auf, nicht auf diesem Gerät. Sie wird nur jetzt angezeigt. Mit ihr öffnest du den Tresor auf jedem Gerät, auch wenn der Passkey verloren ist; ohne sie und ohne Passkey hilft dir niemand, auch Le Space nicht.</p>
 				{#if !confirming}
 					<ol data-testid="phrase">{#each shownPhrase.split(' ') as word}<li>{word}</li>{/each}</ol>
 					<button class="primary" onclick={startConfirm}>Aufgeschrieben</button>
@@ -250,6 +260,10 @@
 	.hero h1 { font-size: 1.75rem; margin: 0 0 0.5rem; }
 	.lede { color: var(--text-2); margin: 0 0 1.25rem; }
 	.card h2 { margin: 0 0 0.5rem; }
+	.risk { border-left: 4px solid var(--warn); background: var(--warn-bg); padding: 0.6rem 0.9rem; margin: 1rem 0; border-radius: var(--radius-sm); }
+	.risk p { margin: 0 0 0.5rem; }
+	.check { display: flex; gap: 0.5rem; align-items: flex-start; }
+	.check input { width: auto; margin-top: 0.2rem; }
 	button { display: block; margin: 0.75rem 0; padding: 0.6rem 1.1rem; font-size: 1rem; }
 	.primary { width: 100%; padding: 0.85rem 1.25rem; font-weight: 600; font-size: 1.05rem; }
 	.secondary { background: transparent; color: var(--text); border-color: var(--line); }
