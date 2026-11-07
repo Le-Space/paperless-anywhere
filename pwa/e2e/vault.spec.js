@@ -21,6 +21,10 @@ test('a passkey and a seed phrase open the same vault, also on another device; n
 	// Which build: the version ("dev" outside a release) and the commit.
 	await expect(page.getByTestId('build-version')).toHaveText(process.env.PAPERLESS_VERSION || 'dev');
 	await expect(page.getByTestId('build-info')).toContainText(/· [0-9a-f]{7}/);
+	// The key-loss notice comes first: no vault without ticking it.
+	await expect(page.getByTestId('key-loss')).toContainText('Le Space kann deinen Tresor weder öffnen noch wiederherstellen');
+	await expect(page.getByRole('button', { name: 'Passkey anlegen' })).toBeDisabled();
+	await page.getByTestId('key-loss-ok').check();
 	await page.getByRole('button', { name: 'Passkey anlegen' }).click();
 	await expect(page.getByTestId('state')).toHaveText('unlocked');
 	const words = await page.getByTestId('phrase').locator('li').allTextContents();

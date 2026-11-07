@@ -14,6 +14,11 @@
 </script>
 
 <footer data-testid="build-info">
+	<nav class="legal" aria-label="Rechtliches">
+		<a href="/">Über Paperless anywhere</a>
+		<a href="https://le-space.de/#impressum">Impressum</a>
+		<a href="https://le-space.de/#datenschutz">Datenschutz</a>
+	</nav>
 	<span data-testid="build-version">{build.version}</span>
 	· <time datetime={build.time}>{time}</time>
 	{#if build.commit}· <code title="Commit">{build.commit}</code>{/if}
@@ -23,4 +28,6 @@
 <style>
 	footer { margin: 3rem 0 1rem; color: var(--text-2); font-size: 0.8rem; }
 	code { word-break: break-all; }
+	.legal { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; margin-bottom: 0.5rem; }
+	.legal a { color: var(--text-2); }
 </style>
