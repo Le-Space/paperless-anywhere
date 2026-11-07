@@ -7,7 +7,7 @@
 	import { BACKUP_LABEL, backupConfigFor } from '$lib/backups.js';
 	import { relayList } from '$lib/attest-p2p.js';
 	import { findAttestRelays } from '$lib/relays.js';
-	import { CREDITS_URL, fundBackups } from '$lib/credits.js';
+	import { CREDITS_URL, creditsCatalog, fundBackups } from '$lib/credits.js';
 	import { formatEther, formatUnits } from 'viem';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
 	import {
@@ -142,8 +142,12 @@
 		await refresh();
 	});
 	const payBackups = () => run('bycredits', async () => {
-		const r = await fundBackups(master, creditsPayer, 1);
 		const want = profile.network === 'mainnet' ? 'mainnet' : 'calibration';
+		// Asked before paying: credits spent in the wrong network would be lost to this Paperless.
+		const offered = (await creditsCatalog().catch(() => null))?.network;
+		if (offered === null) throw new Error('Le Space Credits bezahlen gerade keine Sicherungen.');
+		if (offered && offered !== want) throw new Error(`Le Space Credits bezahlen Sicherungen gerade im ${offered === 'mainnet' ? 'Produktivnetz' : 'Testnetz'}; diese Paperless sichert im ${want === 'mainnet' ? 'Produktivnetz' : 'Testnetz'}. Nichts abgebucht.`);
+		const r = await fundBackups(master, creditsPayer, 1);
 		if (r.network && r.network !== want) throw new Error(`Le Space Credits zahlen gerade im Netz ${r.network}, diese Paperless sichert in ${want}.`);
 		if (!r.confirmed) {
 			await refresh();

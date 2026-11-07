@@ -182,9 +182,14 @@ describe('packages and hours (belege#591 draft 2)', () => {
 		await expect(fundBackups(master, '0x0', 1, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/Adresse des Sicherungskontos/);
 	});
 
+	it('reads the network the service pays backups in', async () => {
+		const fetch = async () => new Response(JSON.stringify({ network: 'calibration', packages: [], topups: [] }));
+		expect((await creditsCatalog({ baseUrl, fetch }))?.network).toBe('calibration');
+	});
+
 	it('reads the catalog the service lists', async () => {
 		const fetch = async (url) => (String(url).endsWith('/v1/packages?product=paperless-anywhere') ? new Response(JSON.stringify({ product: 'paperless-anywhere', topups: [{ id: 'topup-20', amount_cents: 2000, credits: 2000 }], packages: [{ id: 'paperless-10', hours: 10, price_credits: 400 }, { id: 'paperless-30', hours: 30, price_credits: 600, backup_month_credits: 150 }] })) : new Response('{}', { status: 404 }));
-		expect(await creditsCatalog({ baseUrl, fetch })).toEqual({ plans: [{ id: 'paperless-10', hours: 10, priceCredits: 400 }, { id: 'paperless-30', hours: 30, priceCredits: 600, backupMonthCredits: 150 }], topups: [{ id: 'topup-20', amountCents: 2000, credits: 2000 }] });
+		expect(await creditsCatalog({ baseUrl, fetch })).toEqual({ network: null, plans: [{ id: 'paperless-10', hours: 10, priceCredits: 400 }, { id: 'paperless-30', hours: 30, priceCredits: 600, backupMonthCredits: 150 }], topups: [{ id: 'topup-20', amountCents: 2000, credits: 2000 }] });
 	});
 });
 
