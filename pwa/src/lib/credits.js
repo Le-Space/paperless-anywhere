@@ -133,7 +133,9 @@ const MESSAGES = {
 	CAP: 'Le Space hat gerade nicht genug Aleph-Credits vorrätig. Später noch einmal versuchen.',
 	HOURS: 'Diese Stundenzahl nimmt der Dienst nicht an.',
 	ADDRESS: 'Le Space Credits nehmen die Adresse des Sicherungskontos nicht an.',
-	TOO_SOON: 'Die Sicherungen wurden gerade erst bezahlt. Bitte etwas später noch einmal.'
+	TOO_SOON: 'Die Sicherungen wurden gerade erst bezahlt. Bitte in fünf Minuten noch einmal.',
+	MONTHS: 'Sicherungen lassen sich für 1 bis 12 Monate bezahlen.',
+	PAUSED: 'Le Space Credits zahlen gerade keine Sicherungen ein (Tageslimit oder noch nicht freigeschaltet). Später noch einmal versuchen.'
 };
 
 /**
@@ -194,8 +196,19 @@ export async function fundVm(master, hours, options) {
  * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
  */
 export async function fundBackups(master, payer, months, options) {
-	const r = await send(master, 'POST', '/v1/backup/fund', { payer, months }, options);
-	return { txHash: String(r?.txHash ?? r?.tx_hash ?? ''), deposited: String(r?.deposited ?? '0'), filSent: String(r?.filSent ?? r?.fil_sent ?? '0'), chargedCredits: Number(r?.chargedCredits ?? r?.charged_credits ?? 0), network: String(r?.network ?? '') };
+	const r = await send(master, 'POST', '/v1/backup/fund', { payer, months }, options).catch((e) => {
+		// The service's NO_PLAN speaks of hours; for backups it means the same: a package first.
+		if (/erst ein Paket wählen/.test(e?.message ?? '')) throw new Error('Sicherungen über Le Space Credits gehen mit einem Paket: erst ein Paket wählen.');
+		throw e;
+	});
+	return {
+		txHash: String(r?.txHash ?? ''),
+		confirmed: r?.confirmed !== false,
+		deposited: String(r?.deposited ?? '0'),
+		filSent: String(r?.filSent ?? '0'),
+		chargedCredits: Number(r?.chargedCredits ?? 0),
+		network: String(r?.network ?? '')
+	};
 }
 
 /**

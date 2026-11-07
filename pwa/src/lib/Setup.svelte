@@ -16,6 +16,7 @@
 		creditsPayerState,
 		isAuthorized,
 		prepareCreditsPayer,
+		waitForPayerFil,
 		readAuthorizations,
 		sessionKeyAddress,
 		sessionKeyExpiry,
@@ -144,6 +145,15 @@
 		const r = await fundBackups(master, creditsPayer, 1);
 		const want = profile.network === 'mainnet' ? 'mainnet' : 'calibration';
 		if (r.network && r.network !== want) throw new Error(`Le Space Credits zahlen gerade im Netz ${r.network}, diese Paperless sichert in ${want}.`);
+		if (!r.confirmed) {
+			await refresh();
+			throw new Error('Bezahlt; die Einzahlung ist noch unterwegs. In ein paar Minuten „Freigaben senden“.');
+		}
+		// The FIL for the approval may follow the deposit: wait for it first.
+		if (r.filSent !== '0' && !(await waitForPayerFil(master, want))) {
+			await refresh();
+			throw new Error('Bezahlt; das Filecoin für die Gebühren ist noch unterwegs. In ein paar Minuten „Freigaben senden“.');
+		}
 		await prepareCreditsPayer(master, want);
 		await refresh();
 	});

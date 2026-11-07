@@ -158,3 +158,18 @@ export async function prepareCreditsPayer(master, network, { days = 90, now = Da
 	}
 	return done;
 }
+
+/**
+ * Wait until the FIL that Le Space Credits sent has reached the payer.
+ * @param {Uint8Array} master @param {string} network
+ * @param {{ tries?: number, everyMs?: number }} [options]
+ */
+export async function waitForPayerFil(master, network, { tries = 24, everyMs = 10_000 } = {}) {
+	const address = creditsPayerAccount(master).address;
+	const client = readClient(network);
+	for (let i = 0; i < tries; i++) {
+		if ((await client.getBalance({ address }).catch(() => 0n)) > 0n) return true;
+		await new Promise((r) => setTimeout(r, everyMs));
+	}
+	return false;
+}

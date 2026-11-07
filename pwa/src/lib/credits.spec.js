@@ -167,9 +167,14 @@ describe('packages and hours (belege#591 draft 2)', () => {
 
 	it('pays backups for the vault\'s Filecoin payer, signed as the ledger address', async () => {
 		const payer = '0x' + '4'.repeat(40);
-		const svc = jsonService(() => [200, { txHash: '0xabc', deposited: '1000000000000000000', filSent: '5000000000000000', chargedCredits: 120, network: 'calibration' }]);
-		expect(await fundBackups(master, payer, 1, { baseUrl, fetch: svc.fetch })).toEqual({ txHash: '0xabc', deposited: '1000000000000000000', filSent: '5000000000000000', chargedCredits: 120, network: 'calibration' });
+		const svc = jsonService(() => [200, { txHash: '0xabc', confirmed: true, deposited: '1', filSent: '0.005', chargedCredits: 150, network: 'calibration' }]);
+		expect(await fundBackups(master, payer, 1, { baseUrl, fetch: svc.fetch })).toEqual({ txHash: '0xabc', confirmed: true, deposited: '1', filSent: '0.005', chargedCredits: 150, network: 'calibration' });
 		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, payer, months: 1 });
+	});
+
+	it('says a backup needs a package (409 NO_PLAN)', async () => {
+		const svc = jsonService(() => [409, { error: 'no plan', code: 'NO_PLAN' }]);
+		await expect(fundBackups(master, '0x' + '4'.repeat(40), 1, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/Sicherungen über Le Space Credits gehen mit einem Paket/);
 	});
 
 	it('explains a payer the service refuses', async () => {
