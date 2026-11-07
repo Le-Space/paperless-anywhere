@@ -8,8 +8,9 @@
 #
 # Paperless itself stops first (consumer, mail fetching, uploads), so nothing
 # arrives after the export began and is lost with the VM; the export runs in
-# a one-off container (paperless-manage). If the backup fails, Paperless
-# starts again and the VM stays.
+# a one-off container (paperless-manage). A backup that already runs is
+# waited for first. If the backup fails, Paperless starts again and the VM
+# stays.
 set -u
 dir=/run/paperless-anywhere
 mkdir -p "$dir"
@@ -24,8 +25,19 @@ while :; do
     if [ "$request" != "$handled" ]; then
       handled="$request"
       status running
+      # A backup that runs now (the two-hourly check, or one the app asked
+      # for) finishes first: pausing Paperless under it would break its
+      # export. Up to 30 minutes, then the stop goes on as before. If it
+      # backed up, the stop's own backup is a check: it uploads only what
+      # changed since (paperless-manage runs in a one-off container, so the
+      # fingerprint works with Paperless paused).
+      mode=run
+      if ! flock -n "$dir/backup.lock" true 2>/dev/null; then
+        flock -w 1800 "$dir/backup.lock" true 2>/dev/null || echo "paperless-stop: a backup still runs after 30 minutes; stopping anyway" >&2
+        grep -q '"status":"done"' "$dir/backup.json" 2>/dev/null && mode=check
+      fi
       $compose stop paperless >/dev/null 2>&1 || echo "paperless-stop: could not pause Paperless before the backup" >&2
-      if paperless-backup run; then
+      if paperless-backup "$mode"; then
         status ready ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)"
       else
         $compose start paperless >/dev/null 2>&1
