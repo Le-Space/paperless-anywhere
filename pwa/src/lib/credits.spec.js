@@ -172,9 +172,9 @@ describe('packages and hours (belege#591 draft 2)', () => {
 		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, payer, months: 1 });
 	});
 
-	it('says a backup needs a package (409 NO_PLAN)', async () => {
-		const svc = jsonService(() => [409, { error: 'no plan', code: 'NO_PLAN' }]);
-		await expect(fundBackups(master, '0x' + '4'.repeat(40), 1, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/Sicherungen über Le Space Credits gehen mit einem Paket/);
+	it('says when the product has no backups (409 NO_BACKUP)', async () => {
+		const svc = jsonService(() => [409, { error: 'no backup', code: 'NO_BACKUP' }]);
+		await expect(fundBackups(master, '0x' + '4'.repeat(40), 1, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/keine Sicherungen/);
 	});
 
 	it('explains a payer the service refuses', async () => {

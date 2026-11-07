@@ -137,6 +137,7 @@ const MESSAGES = {
 	ADDRESS: 'Le Space Credits nehmen die Adresse des Sicherungskontos nicht an.',
 	TOO_SOON: 'Die Sicherungen wurden gerade erst bezahlt. Bitte in fünf Minuten noch einmal.',
 	MONTHS: 'Sicherungen lassen sich für 1 bis 12 Monate bezahlen.',
+	NO_BACKUP: 'Für dieses Produkt bezahlen Le Space Credits keine Sicherungen.',
 	PAUSED: 'Le Space Credits zahlen gerade keine Sicherungen ein (Tageslimit oder noch nicht freigeschaltet). Später noch einmal versuchen.'
 };
 
@@ -198,11 +199,8 @@ export async function fundVm(master, hours, options) {
  * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
  */
 export async function fundBackups(master, payer, months, options) {
-	const r = await send(master, 'POST', '/v1/backup/fund', { payer, months }, options).catch((e) => {
-		// The service's NO_PLAN speaks of hours; for backups it means the same: a package first.
-		if (/erst ein Paket wählen/.test(e?.message ?? '')) throw new Error('Sicherungen über Le Space Credits gehen mit einem Paket: erst ein Paket wählen.');
-		throw e;
-	});
+	// No package needed: the months are charged from free credits (le-space-credits#31).
+	const r = await send(master, 'POST', '/v1/backup/fund', { payer, months }, options);
 	return {
 		txHash: String(r?.txHash ?? ''),
 		confirmed: r?.confirmed !== false,
