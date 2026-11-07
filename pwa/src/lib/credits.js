@@ -110,6 +110,8 @@ export async function creditsCatalog({ baseUrl = CREDITS_URL, fetch: fetchImpl =
 	if (!res.ok) throw new Error(`Le Space Credits antwortet ${res.status}`);
 	const body = await res.json();
 	return {
+		// Where the service pays backups: calibration, mainnet, or null while off.
+		network: body?.network === 'mainnet' || body?.network === 'calibration' ? body.network : null,
 		plans: (body?.packages ?? []).map((p) => ({ id: String(p.id), hours: Number(p.hours), priceCredits: Number(p.price_credits), ...(p.backup_month_credits != null ? { backupMonthCredits: Number(p.backup_month_credits) } : {}) })),
 		topups: (body?.topups ?? []).map((t) => ({ id: String(t.id), amountCents: Number(t.amount_cents), credits: Number(t.credits) }))
 	};
