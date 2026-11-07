@@ -20,6 +20,8 @@
 	let stage = $state('');
 	let result = $state('');
 	let resultOk = $state(true);
+	// A backup with fewer copies than requested: not a failure, a warning.
+	let resultWarn = $state(false);
 	/** @type {string[]} */
 	let details = $state([]);
 	const view = $derived(backupOverview(status));
@@ -52,10 +54,13 @@
 			});
 			status = done;
 			const outcome = done.backupRequest?.backup?.status;
-			resultOk = true;
-			result = outcome === 'unchanged' ? t.doneUnchanged : t.doneNow;
+			const entry = done.backupRequest?.backup?.backup;
+			resultOk = outcome !== 'partial';
+			resultWarn = outcome === 'partial';
+			result = outcome === 'partial' ? t.donePartial(entry?.copies?.length ?? 0, entry?.requestedCopies ?? 0) : outcome === 'unchanged' ? t.doneUnchanged : t.doneNow;
 		} catch (e) {
 			resultOk = false;
+			resultWarn = false;
 			result = e instanceof BackupFailedError ? `${t.failedNow} ${t.reason}: ${e.reason}` : e instanceof Error ? e.message : String(e);
 			details = [.../** @type {any} */ ((e)?.facts ?? []), .../** @type {any} */ ((e)?.log ?? [])];
 		} finally {
@@ -83,7 +88,8 @@
 			{t.last}:
 			{#if view.last}
 				{#if view.last.at}<strong>{when(view.last.at, lang)}</strong>{/if}
-				{#if view.last.ok}<span class="ok"> · {view.last.copies >= view.last.requested ? t.ok(view.last.copies, view.last.requested) : t.short(view.last.copies, view.last.requested)}</span>
+				{#if view.last.ok && view.last.copies >= view.last.requested}<span class="ok"> · {t.ok(view.last.copies, view.last.requested)}</span>
+				{:else if view.last.ok}<span class="warn" data-testid="backup-short"> · {t.short(view.last.copies, view.last.requested)}</span>
 				{:else}<span class="bad"> · {t.failed}{view.last.reason ? ` (${view.last.reason})` : ''}</span>{/if}
 			{:else}{t.none}{/if}
 		</p>
@@ -94,7 +100,7 @@
 	{:else if answered}
 		<p class="hint" data-testid="backup-unreachable">{t.unreachable}</p>
 	{/if}
-	{#if result}<p class={resultOk ? 'ok' : 'bad'} role="status" data-testid="backup-result">{result}</p>{/if}
+	{#if result}<p class={resultOk ? 'ok' : resultWarn ? 'warn' : 'bad'} role="status" data-testid="backup-result">{result}</p>{/if}
 	{#if details.length}<details class="log"><summary>{t.reason}</summary><pre>{details.join('\n')}</pre></details>{/if}
 </div>
 
@@ -106,6 +112,7 @@
 	.summary::first-letter { text-transform: uppercase; }
 	.ok { color: var(--ok); }
 	.bad { color: var(--danger); }
+	.warn { color: var(--warn); }
 	.progress { color: var(--text-2); font-size: 0.9rem; word-break: break-word; }
 	.small { margin-top: 0.6rem; padding: 0.35rem 0.85rem; font-size: 0.875rem; background: var(--surface); color: var(--text); border-color: var(--line); }
 	.log pre { white-space: pre-wrap; font-size: 0.8rem; }

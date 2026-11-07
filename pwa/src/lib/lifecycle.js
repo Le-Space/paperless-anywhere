@@ -42,6 +42,27 @@ export class BackupFailedError extends Error {
 	}
 }
 
+/**
+ * A stop whose backup reached fewer providers than requested (one refused the
+ * piece; the others hold their copies). Paperless is paused and the VM waits
+ * for the person: erase it anyway (eraseStopped) or keep it (resumeAfterPartial).
+ */
+export class BackupPartialError extends Error {
+	/** @param {any} status the VM's status page in phase "stop-partial" */
+	constructor(status) {
+		const b = status?.stop?.backup ?? status?.backup;
+		const have = b?.backup?.copies?.length ?? 0;
+		const want = b?.backup?.requestedCopies ?? have;
+		super(`Gesichert, aber nur ${have} von ${want} Kopien sind angekommen: ein Anbieter hat die Sicherung abgelehnt. Paperless ist angehalten.`);
+		this.name = 'BackupPartialError';
+		this.status = status;
+		this.copies = have;
+		this.requested = want;
+		this.log = b?.log ?? [];
+		this.facts = [];
+	}
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function loadWasm() {
@@ -304,7 +325,8 @@ async function sendToGuest(master, profile, secrets) {
  * Back up now, while Paperless keeps running (paperless-backup-loop answers
  * backup_request with "paperless-backup run", or "check" when a backup just
  * ran or holds the lock). Follows the VM's status page until the request is
- * done; throws BackupFailedError when it failed.
+ * done ("partial" when a provider refused the piece; the others hold their
+ * copies); throws BackupFailedError when it failed.
  * @param {Uint8Array} master
  * @param {Record<string, any>} profile with `running`
  * @param {(p: { detail: string, status?: any }) => void} onProgress
@@ -326,9 +348,9 @@ export async function requestBackup(master, profile, onProgress, { send = sendTo
 		const req = s?.backupRequest;
 		if (!req || req.at === earlier) return null;
 		onProgress({ detail: req.status, status: s });
-		return ['done', 'failed'].includes(req.status) ? s : null;
+		return ['done', 'partial', 'failed'].includes(req.status) ? s : null;
 	}, { tries, delayMs });
-	if (done.backupRequest.status !== 'done') {
+	if (!['done', 'partial'].includes(done.backupRequest.status)) {
 		const b = done.backupRequest.backup ?? done.backup;
 		throw new BackupFailedError(b?.reason ?? ({ interrupted: 'unterbrochen', stopping: 'Paperless wird gerade gesichert und beendet' }[done.backupRequest.mode] ?? 'ohne Angabe'), b?.log ?? [], backupFacts(b));
 	}
@@ -340,29 +362,68 @@ export async function requestBackup(master, profile, onProgress, { send = sendTo
  * @param {Record<string, any>} profile with `running` from startPaperless
  * @param {(p: { step: string, detail?: string }) => void} onProgress
  */
-export async function stopPaperless(master, profile, onProgress) {
+export async function stopPaperless(master, profile, onProgress, { send = sendToGuest, status: read = vmStatus, delayMs = 10_000, tries = 180, erase = eraseStopped } = {}) {
 	const run = profile.running;
 	if (!run?.instanceHash) throw new Error('Es läuft keine VM.');
-	const app = privateKeyToAccount(alephPrivateKey(master));
+	const token = statusToken(master);
 
 	onProgress({ step: 'stop', detail: 'Stopp anfordern (letzte Sicherung)' });
-	await sendToGuest(master, profile, { stop_request: String(Date.now()) });
+	// Only the answer to this request counts: the status page may still show an
+	// earlier stop's outcome until the VM picks the new one up (within seconds).
+	// An image that names no request in stop.json is told apart by the time.
+	const earlier = (await read(run.host, token).catch(() => null))?.stop?.at ?? null;
+	const request = String(Date.now());
+	await send(master, profile, { stop_request: request });
 	const status = await until('stop', async () => {
-		const s = await vmStatus(run.host, statusToken(master));
+		const s = await read(run.host, token);
+		if (!s?.stop) return null;
+		if ('request' in s.stop ? s.stop.request !== request : s.stop.at === earlier) return null;
 		// The backup's latest log line, while it runs (status page: backup.log).
-		const line = s?.backup?.status === 'running' ? s.backup.log?.at(-1) : null;
+		const line = s.backup?.status === 'running' ? s.backup.log?.at(-1) : null;
 		if (line) onProgress({ step: 'stop', detail: line.replace(/^\S+Z /, ''), status: s });
-		return s && ['stopped', 'stop-failed'].includes(s.phase) ? s : null;
-	}, { tries: 180, delayMs: 10_000 });
+		return ['stopped', 'stop-failed', 'stop-partial'].includes(s.phase) ? s : null;
+	}, { tries, delayMs });
+	if (status.phase === 'stop-partial') throw new BackupPartialError(status);
 	if (status.phase !== 'stopped') {
 		const b = status.stop?.backup ?? status.backup;
 		throw new BackupFailedError(b?.reason ?? 'ohne Angabe', b?.log ?? [], backupFacts(b));
 	}
+	return erase(master, profile, status, onProgress);
+}
 
+/**
+ * Erase the VM after its last backup: at once after a full one, or when the
+ * person chose to after a partial one.
+ * @param {Uint8Array} master
+ * @param {Record<string, any>} profile with `running`
+ * @param {any} status the VM's status page at the end of the stop
+ * @param {(p: { step: string, detail?: string }) => void} onProgress
+ */
+export async function eraseStopped(master, profile, status, onProgress) {
+	const run = profile.running;
+	const app = privateKeyToAccount(alephPrivateKey(master));
 	onProgress({ step: 'forget', detail: 'VM löschen' });
 	const crnUrl = await crnAddress(run.crnHash).catch(() => null);
 	if (crnUrl) await eraseOnNode(app, run.instanceHash, crnUrl);
 	// Who paid at the start, also when the profile changed since.
 	await forgetInstance(app, run.payer ?? vmPayer(profile, app.address), run.instanceHash);
 	return status;
+}
+
+/**
+ * Keep the VM after a partial backup: Paperless starts again (paperless-stop
+ * answers stop_resume with "resumed"). The two-hourly check then backs up to
+ * every provider again.
+ * @param {Uint8Array} master
+ * @param {Record<string, any>} profile with `running`
+ * @param {{ send?: typeof sendToGuest, status?: typeof vmStatus, delayMs?: number, tries?: number }} [deps] for the tests
+ */
+export async function resumeAfterPartial(master, profile, { send = sendToGuest, status: read = vmStatus, delayMs = 5000, tries = 36 } = {}) {
+	const run = profile.running;
+	if (!run?.instanceHash) throw new Error('Es läuft keine VM.');
+	await send(master, profile, { stop_resume: String(Date.now()) });
+	return until('Paperless wieder starten', async () => {
+		const s = await read(run.host, statusToken(master));
+		return s?.stop?.status === 'resumed' ? s : null;
+	}, { tries, delayMs });
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BackupFailedError, requestBackup } from './lifecycle.js';
+import { BackupFailedError, BackupPartialError, requestBackup, resumeAfterPartial, stopPaperless } from './lifecycle.js';
 import { newMasterSecret, statusToken } from './keys/derive.js';
 
 const master = newMasterSecret();
@@ -62,5 +62,69 @@ describe('requestBackup', () => {
 
 	it('needs a running VM', async () => {
 		await expect(requestBackup(master, {}, () => {})).rejects.toThrow('Es läuft keine VM.');
+	});
+});
+
+const entry = (have, want) => ({ pieceCid: 'bafkzcibmadeup', requestedCopies: want, complete: have >= want, copies: Array.from({ length: have }, (_, i) => ({ providerId: i + 1 })) });
+
+describe('stopPaperless', () => {
+	const erase = async (_m, _p, status) => ({ erased: true, status });
+
+	it('does not take an earlier stop’s outcome for the new one', async () => {
+		const old = { ...base, phase: 'stop-failed', stop: { status: 'failed', request: '1', at: 't0', backup: { status: 'failed', reason: 'made up' } } };
+		const g = guest([old, old, old, { ...base, phase: 'stopping', stop: { status: 'running', request: 'NEW', at: 't1' } }, { ...base, phase: 'stopped', stop: { status: 'ready', request: 'NEW', at: 't2', backup: { status: 'done' } } }]);
+		// The page names the request the app just sent ("NEW" stands for it).
+		let request = '';
+		const send = async (_m, _p, secrets) => void (request = secrets.stop_request);
+		const status = async (h, t) => {
+			const s = await g.status(h, t);
+			return s.stop?.request === 'NEW' ? { ...s, stop: { ...s.stop, request } } : s;
+		};
+		const out = await stopPaperless(master, profile, () => {}, { ...fast, send, status, erase });
+		expect(out.erased).toBe(true);
+		expect(out.status.stop.status).toBe('ready');
+	});
+
+	it('an image without the request field is told apart by the time', async () => {
+		const old = { ...base, phase: 'stop-failed', stop: { status: 'failed', at: 't0', backup: { status: 'failed', reason: 'made up' } } };
+		const g = guest([old, old, { ...base, phase: 'stopped', stop: { status: 'ready', at: 't1', backup: { status: 'done' } } }]);
+		const out = await stopPaperless(master, profile, () => {}, { ...fast, send: g.send, status: g.status, erase });
+		expect(out.status.stop.at).toBe('t1');
+	});
+
+	it('a partial backup asks instead of erasing', async () => {
+		let request = '';
+		const send = async (_m, _p, secrets) => void (request = secrets.stop_request);
+		const status = async () => ({ ...base, phase: 'stop-partial', stop: { status: 'partial', request, at: 't1', backup: { status: 'partial', reason: 'only 1 of 2 copies reached the providers', backup: entry(1, 2), log: ['made up'] } } });
+		let erased = false;
+		const error = await stopPaperless(master, profile, () => {}, { ...fast, send, status, erase: async () => void (erased = true) }).catch((e) => e);
+		expect(error).toBeInstanceOf(BackupPartialError);
+		expect([error.copies, error.requested]).toEqual([1, 2]);
+		expect(error.message).toMatch(/nur 1 von 2 Kopien/);
+		expect(erased).toBe(false);
+	});
+
+	it('a failed backup still throws BackupFailedError', async () => {
+		let request = '';
+		const send = async (_m, _p, secrets) => void (request = secrets.stop_request);
+		const status = async () => ({ ...base, phase: 'stop-failed', stop: { status: 'failed', request, at: 't1', backup: { status: 'failed', reason: 'made up' } } });
+		await expect(stopPaperless(master, profile, () => {}, { ...fast, send, status, erase })).rejects.toBeInstanceOf(BackupFailedError);
+	});
+});
+
+describe('resumeAfterPartial', () => {
+	it('sends stop_resume and waits for "resumed"', async () => {
+		const g = guest([{ ...base, phase: 'stop-partial', stop: { status: 'partial' } }, { ...base, phase: 'ready', stop: { status: 'resumed' } }]);
+		const s = await resumeAfterPartial(master, profile, { ...fast, send: g.send, status: g.status });
+		expect(Object.keys(g.sent[0])).toEqual(['stop_resume']);
+		expect(s.stop.status).toBe('resumed');
+	});
+});
+
+describe('requestBackup, partial', () => {
+	it('a partial backup is no failure', async () => {
+		const g = guest([{ ...base, backupRequest: null }, { ...base, backupRequest: { status: 'partial', mode: 'run', at: 't1', backup: { status: 'partial', backup: entry(1, 2) } } }]);
+		const done = await requestBackup(master, profile, () => {}, { ...fast, send: g.send, status: g.status });
+		expect(done.backupRequest.status).toBe('partial');
 	});
 });

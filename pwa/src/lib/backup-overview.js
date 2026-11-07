@@ -31,11 +31,13 @@ export function backupOverview(status) {
 	const backup = status?.backup ?? null;
 	// An image older than this feature has none of the three fields.
 	const supported = Boolean(status && ('backupSchedule' in status || 'lastBackup' in status || 'backupRequest' in status));
-	const lastRaw = status?.lastBackup ?? (backup && ['done', 'failed'].includes(backup.status) ? backup : null);
+	const lastRaw = status?.lastBackup ?? (backup && ['done', 'partial', 'failed'].includes(backup.status) ? backup : null);
 	const entry = lastRaw?.backup ?? null;
 	const last = lastRaw
 		? {
-				ok: lastRaw.status === 'done',
+				// A partial backup is a backup: fewer copies than requested (one
+				// provider refused the piece), shown as such.
+				ok: ['done', 'partial'].includes(lastRaw.status),
 				// The backup's own date (when the export was made), else when it was reported.
 				at: date(entry?.date) ?? date(lastRaw.at),
 				copies: entry?.copies?.length ?? 0,
@@ -87,7 +89,7 @@ export const BACKUP_TEXTS = {
 		failed: 'fehlgeschlagen',
 		reason: 'Grund',
 		checked: 'Zuletzt geprüft',
-		checkOutcome: (s) => ({ unchanged: 'keine Änderung', skipped: 'Sicherungen sind aus', done: 'gesichert', failed: 'fehlgeschlagen' })[s] ?? s,
+		checkOutcome: (s) => ({ unchanged: 'keine Änderung', skipped: 'Sicherungen sind aus', done: 'gesichert', partial: 'nur teilweise gesichert', failed: 'fehlgeschlagen' })[s] ?? s,
 		lastShort: 'letzte Sicherung',
 		nextShort: 'nächste Prüfung',
 		nextHint: 'Alle zwei Stunden wird geprüft; gesichert wird nur, wenn sich etwas geändert hat.',
@@ -95,6 +97,7 @@ export const BACKUP_TEXTS = {
 		running: 'Sicherung läuft …',
 		sending: 'Sicherung anfordern …',
 		doneNow: 'Gesichert',
+		donePartial: (copies, requested) => `Gesichert, aber nur ${copies} von ${requested} Kopien: ein Anbieter hat abgelehnt. Die nächste Prüfung versucht es wieder bei allen.`,
 		doneUnchanged: 'Schon gesichert: seit der letzten Sicherung hat sich nichts geändert.',
 		failedNow: 'Die Sicherung ist fehlgeschlagen; Paperless läuft weiter.',
 		oldImage: 'Diese VM läuft mit einem älteren Image: Sicherungsstand und „Jetzt sichern“ gibt es ab dem nächsten Image.',
@@ -110,7 +113,7 @@ export const BACKUP_TEXTS = {
 		failed: 'failed',
 		reason: 'Reason',
 		checked: 'Last checked',
-		checkOutcome: (s) => ({ unchanged: 'no change', skipped: 'backups are off', done: 'backed up', failed: 'failed' })[s] ?? s,
+		checkOutcome: (s) => ({ unchanged: 'no change', skipped: 'backups are off', done: 'backed up', partial: 'partly backed up', failed: 'failed' })[s] ?? s,
 		lastShort: 'last backup',
 		nextShort: 'next check',
 		nextHint: 'Checked every two hours; a backup is made only if something changed.',
@@ -118,6 +121,7 @@ export const BACKUP_TEXTS = {
 		running: 'Backing up …',
 		sending: 'Requesting a backup …',
 		doneNow: 'Backed up',
+		donePartial: (copies, requested) => `Backed up, but only ${copies} of ${requested} copies: a provider refused. The next check tries all of them again.`,
 		doneUnchanged: 'Already backed up: nothing changed since the last backup.',
 		failedNow: 'The backup failed; Paperless keeps running.',
 		oldImage: 'This VM runs an older image: backup details and “Back up now” come with the next image.',

@@ -1,6 +1,8 @@
 <script>
 	import { backupPayer, loadProfile, updateProfile } from '$lib/profile.js';
-	import { AlephShortError, resumeStart, startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
+	import { AlephShortError, BackupPartialError, eraseStopped, resumeAfterPartial, resumeStart, startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
+	import { vmStatus } from '$lib/vm.js';
+	import { statusToken } from '$lib/keys/derive.js';
 	import { CREDITS_URL, fundVm } from '$lib/credits.js';
 	import { alephBalance } from '$lib/balances.js';
 	import { privateKeyToAccount } from 'viem/accounts';
@@ -79,6 +81,10 @@
 	let error = $state('');
 	/** @type {string[]} the VM's backup log lines when a backup failed */
 	let errorLog = $state([]);
+	// A stop whose backup reached fewer providers than requested: Paperless is
+	// paused and the VM waits for the person to erase it anyway or keep it.
+	/** @type {BackupPartialError | null} */
+	let partial = $state(null);
 	let busy = $state(false);
 	// A backup requested from the overview runs: no stop meanwhile.
 	let backingUp = $state(false);
@@ -111,6 +117,11 @@
 	const reload = async () => {
 		profile = await loadProfile(master);
 		loaded = true;
+		// A stop that ended partial while this page was closed still waits.
+		if (profile.running && !busy && !partial)
+			vmStatus(profile.running.host, statusToken(master))
+				.then((s) => { if (s?.phase === 'stop-partial' && !busy) partial = new BackupPartialError(s); })
+				.catch(() => {});
 		const owner = profile.backupOwner || backupPayer(profile, creditsPayerAddress);
 		if (owner && profile.ageIdentity && !profile.running) {
 			backupsError = '';
@@ -134,6 +145,7 @@
 		error = '';
 		errorLog = [];
 		short = null;
+		partial = null;
 		busy = true;
 		try {
 			await fn();
@@ -141,6 +153,10 @@
 			error = e instanceof Error ? e.message : String(e);
 			errorLog = [.../** @type {any} */ ((e)?.facts ?? []), .../** @type {any} */ ((e)?.log ?? [])];
 			if (e instanceof AlephShortError) short = e;
+			if (e instanceof BackupPartialError) {
+				partial = e;
+				error = '';
+			}
 		} finally {
 			busy = false;
 			progress = '';
@@ -199,7 +215,32 @@
 	});
 	const stop = () => run(async () => {
 		await reload();
-		const status = await stopPaperless(master, $state.snapshot(profile), track('stop'));
+		finishStop(await stopPaperless(master, $state.snapshot(profile), track('stop')));
+	});
+	// After a partial backup, on the person's word: erase the VM anyway, or
+	// keep it and let Paperless run again. If that fails, the question stays.
+	const answer = (/** @type {(p: BackupPartialError) => Promise<void>} */ fn) => {
+		const asked = partial;
+		if (!asked) return;
+		return run(async () => {
+			try {
+				await fn(asked);
+			} catch (e) {
+				partial = asked;
+				throw e;
+			}
+		});
+	};
+	const eraseAnyway = () => answer(async (p) => {
+		await reload();
+		finishStop(await eraseStopped(master, $state.snapshot(profile), p.status, track('stop')));
+	});
+	const keepVm = () => answer(async () => {
+		progress = 'Paperless wieder starten';
+		await resumeAfterPartial(master, $state.snapshot(profile));
+	});
+	/** @param {any} status the VM's status page at the end of the stop */
+	async function finishStop(status) {
 		const made = pieceCidOfStop(status);
 		const result = status?.stop?.backup?.backup ?? null;
 		profile = await updateProfile(master, ({ running, ...rest }) =>
@@ -212,7 +253,7 @@
 				: rest
 		);
 		onchange();
-	});
+	}
 	const missing = $derived(startRequirements(profile));
 
 	// The simple view: one status, one calm progress line, one button. It starts
@@ -286,6 +327,16 @@
 			{/if}
 		{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
+		{#if partial}
+			<div class="partial" role="alert" data-testid="stop-partial">
+				<p class="warn">{partial.message}</p>
+				<p class="hint">Die angekommenen Kopien reichen zum Wiederherstellen. Wird die VM jetzt gelöscht, fehlt diese Sicherung bei {partial.requested - partial.copies === 1 ? 'einem Anbieter' : `${partial.requested - partial.copies} Anbietern`}. Bleibt sie, versucht die nächste Prüfung wieder alle.</p>
+				<div class="row">
+					<button onclick={eraseAnyway} disabled={busy} data-testid="stop-partial-erase">VM trotzdem löschen</button>
+					<button class="secondary" onclick={keepVm} disabled={busy} data-testid="stop-partial-keep">VM behalten, Paperless weiter</button>
+				</div>
+			</div>
+		{/if}
 		{#if errorLog.length}<details class="log" data-testid="simple-backup-log"><summary>Details aus der VM</summary><pre>{errorLog.join('\n')}</pre></details>{/if}
 		{#if short && CREDITS_URL && profile.appPays}
 			<div class="fund" data-testid="fund-offer">
@@ -378,6 +429,16 @@
 		{/if}
 		{#if progress}<p data-testid="progress">{progress} …</p>{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
+		{#if partial}
+			<div class="partial" role="alert" data-testid="stop-partial">
+				<p class="warn">{partial.message}</p>
+				<p class="hint">Die angekommenen Kopien reichen zum Wiederherstellen. Wird die VM jetzt gelöscht, fehlt diese Sicherung bei {partial.requested - partial.copies === 1 ? 'einem Anbieter' : `${partial.requested - partial.copies} Anbietern`}. Bleibt sie, versucht die nächste Prüfung wieder alle.</p>
+				<div class="row">
+					<button onclick={eraseAnyway} disabled={busy} data-testid="stop-partial-erase">VM trotzdem löschen</button>
+					<button class="secondary" onclick={keepVm} disabled={busy} data-testid="stop-partial-keep">VM behalten, Paperless weiter</button>
+				</div>
+			</div>
+		{/if}
 		{#if short && CREDITS_URL && profile.appPays}
 			<div class="fund" data-testid="fund-offer">
 				<label>Stunden aus Le Space Credits holen

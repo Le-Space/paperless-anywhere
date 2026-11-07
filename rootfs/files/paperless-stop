@@ -11,17 +11,25 @@
 # a one-off container (paperless-manage). A backup that already runs is
 # waited for first. If the backup fails, Paperless starts again and the VM
 # stays.
+#
+# A backup with fewer copies than requested (a provider refused the piece) is
+# "partial": Paperless stays paused and the app asks the person. Erasing
+# anyway is the app's step; keeping the VM sends /tmp/secrets/stop_resume
+# (any new value), and Paperless starts again ("resumed"). stop.json names
+# the request it answers, so the app never takes an older stop's outcome for
+# the one it just sent.
 set -u
 dir=/run/paperless-anywhere
 mkdir -p "$dir"
 handled=""
+resumed=""
 compose="docker compose --project-directory /opt/paperless"
 status() {
-  printf '{"status":"%s","at":"%s"%s}\n' "$1" "$(date -u +%FT%TZ)" "${2:-}" > "$dir/stop.json.tmp" && mv "$dir/stop.json.tmp" "$dir/stop.json"
+  printf '{"status":"%s","request":"%s","at":"%s"%s}\n' "$1" "$handled" "$(date -u +%FT%TZ)" "${2:-}" > "$dir/stop.json.tmp" && mv "$dir/stop.json.tmp" "$dir/stop.json"
 }
 while :; do
   if [ -s /tmp/secrets/stop_request ]; then
-    request="$(head -c 128 /tmp/secrets/stop_request)"
+    request="$(head -c 128 /tmp/secrets/stop_request | tr -cd '0-9A-Za-z_-')"
     if [ "$request" != "$handled" ]; then
       handled="$request"
       status running
@@ -37,11 +45,23 @@ while :; do
         grep -q '"status":"done"' "$dir/backup.json" 2>/dev/null && mode=check
       fi
       $compose stop paperless >/dev/null 2>&1 || echo "paperless-stop: could not pause Paperless before the backup" >&2
-      if paperless-backup "$mode"; then
-        status ready ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)"
-      else
-        $compose start paperless >/dev/null 2>&1
-        status failed ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)"
+      paperless-backup "$mode"
+      case $? in
+        0) status ready ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)" ;;
+        2) status partial ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)" ;;
+        *) $compose start paperless >/dev/null 2>&1
+           status failed ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)" ;;
+      esac
+    fi
+  fi
+  # The person keeps the VM after a partial backup: Paperless runs again.
+  if [ -s /tmp/secrets/stop_resume ]; then
+    resume="$(head -c 128 /tmp/secrets/stop_resume)"
+    if [ "$resume" != "$resumed" ]; then
+      resumed="$resume"
+      if grep -q '"status":"partial"' "$dir/stop.json" 2>/dev/null; then
+        $compose start paperless >/dev/null 2>&1 || echo "paperless-stop: could not start Paperless again" >&2
+        status resumed ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)"
       fi
     fi
   fi

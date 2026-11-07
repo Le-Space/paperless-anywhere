@@ -51,7 +51,7 @@ def read(name):
 restore, backup, stop, data_disk, fixed = read("restore.json"), read("backup.json"), read("stop.json"), read("data-disk.json"), read("fixed-address.json")
 net = read("net-hardening.json")
 schedule, request = read("backup-schedule.json"), read("backup-request.json")
-# The last backup that ran (done or failed): backup.json says "unchanged"
+# The last backup that ran (done, partial or failed): backup.json says "unchanged"
 # after every check that found nothing new, so the last real outcome is kept
 # aside, on the VM's disk (paperless-backup-loop's directory).
 last_path = "/var/lib/paperless-anywhere/last-backup.json"
@@ -59,7 +59,7 @@ try:
     last = json.load(open(last_path))
 except Exception:
     last = None
-if backup and backup.get("status") in ("done", "failed") and backup != last:
+if backup and backup.get("status") in ("done", "partial", "failed") and backup != last:
     try:
         os.makedirs(os.path.dirname(last_path), exist_ok=True)
         json.dump(backup, open(last_path + ".tmp", "w"))
@@ -83,8 +83,8 @@ def memory():
         return {"totalBytes": m.get("MemTotal"), "availableBytes": m.get("MemAvailable"), "swapBytes": m.get("SwapTotal"), "oomKills": int(v.get("oom_kill", 0))}
     except Exception:
         return None
-if stop and stop.get("status") in ("running", "ready", "failed"):
-    phase = "stopping" if stop["status"] == "running" else "stopped" if stop["status"] == "ready" else "stop-failed"
+if stop and stop.get("status") in ("running", "ready", "failed", "partial"):
+    phase = {"running": "stopping", "ready": "stopped", "partial": "stop-partial"}.get(stop["status"], "stop-failed")
 elif data_disk and data_disk.get("status") != "encrypted":
     phase = "data-disk-failed"
 elif restore and restore.get("status") == "running":
