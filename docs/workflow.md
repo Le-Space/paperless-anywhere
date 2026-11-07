@@ -153,7 +153,7 @@ sequenceDiagram
     PWA->>Aleph: AGGREGATE profile (sealed): running removed, own backup noted
 ```
 
-Without a backup choice, the stop is ready at once. "Meine VMs" erases a VM without the last backup.
+Without a backup choice, the stop is ready at once. "Meine VMs" erases a VM without the last backup. A backup that already runs when the stop comes (a check, or "Jetzt sichern") finishes first (up to 30 minutes); the stop's own backup is then a check that uploads only what changed since.
 
 ### Backup now, while Paperless runs
 
