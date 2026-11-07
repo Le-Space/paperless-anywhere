@@ -1,4 +1,6 @@
 <script>
+	import ProviderHealth from '$lib/ProviderHealth.svelte';
+	import { providerIdsIn } from '$lib/providers.js';
 	// The backups of a running Paperless, in the overview: the last one, the
 	// next check, and "back up now" without stopping the VM.
 	import { onDestroy, onMount } from 'svelte';
@@ -101,7 +103,7 @@
 		<p class="hint" data-testid="backup-unreachable">{t.unreachable}</p>
 	{/if}
 	{#if result}<p class={resultOk ? 'ok' : resultWarn ? 'warn' : 'bad'} role="status" data-testid="backup-result">{result}</p>{/if}
-	{#if details.length}<details class="log"><summary>{t.reason}</summary><pre>{details.join('\n')}</pre></details>{/if}
+	{#if details.length}<details class="log"><summary>{t.reason}</summary><pre>{details.join('\n')}</pre><ProviderHealth network={profile.network ?? 'calibration'} ids={[...new Set([...providerIdsIn(details), ...(profile.backupConfig?.providerIds ?? [])])]} /></details>{/if}
 </div>
 
 <style>

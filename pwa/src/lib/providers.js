@@ -116,3 +116,37 @@ export async function bytesPerCopy(network, owner) {
 	const { totalSizeBytes, datasetCount } = await getAccountTotalStorageSize(client, { address: /** @type {`0x${string}`} */ (owner) });
 	return datasetCount ? Number(totalSizeBytes) / datasetCount : 0;
 }
+
+/** A provider's address in the Filfox explorer. @param {string} network @param {string} address */
+export const explorerUrl = (network, address) => `https://${network === 'mainnet' ? '' : 'calibration.'}filfox.info/en/address/${address}`;
+
+/** Provider ids named in the VM's backup lines ("service provider 43"). @param {string[]} lines */
+export const providerIdsIn = (lines) => [...new Set(lines.flatMap((l) => [...String(l).matchAll(/(?:service )?provider (\d+)/gi)].map((m) => Number(m[1]))))];
+
+/**
+ * Whether providers answer right now: their public PDP ping (CORS open),
+ * with the time it took. Answering means reachable, not that an upload
+ * will be taken.
+ * @param {string} network @param {number[]} ids
+ * @param {{ fetch?: typeof fetch, timeoutMs?: number, client?: any }} [options]
+ * @returns {Promise<{ id: number, name: string, place: string, url: string, explorer: string, ok: boolean, status: number | null, ms: number | null }[]>}
+ */
+export async function providerHealth(network, ids, { fetch: fetchImpl = fetch, timeoutMs = 8000, client } = {}) {
+	if (!ids.length) return [];
+	const c = client ?? createPublicClient({ chain: filecoinChain(network), transport: http(undefined, { retryCount: 1, timeout: 20_000 }) });
+	const providers = await getPDPProvidersByIds(c, { providerIds: ids.map(BigInt) });
+	return Promise.all(
+		providers.map(async (p) => {
+			const url = String(p.pdp?.serviceURL ?? '').replace(/\/+$/, '');
+			const base = { id: Number(p.id), name: p.name, place: place(p.pdp?.location), url, explorer: explorerUrl(network, p.serviceProvider) };
+			if (!/^https:\/\//.test(url)) return { ...base, ok: false, status: null, ms: null };
+			const t0 = performance.now();
+			try {
+				const res = await fetchImpl(`${url}/pdp/ping`, { cache: 'no-store', signal: AbortSignal.timeout(timeoutMs) });
+				return { ...base, ok: res.ok, status: res.status, ms: Math.round(performance.now() - t0) };
+			} catch {
+				return { ...base, ok: false, status: null, ms: null };
+			}
+		})
+	);
+}
