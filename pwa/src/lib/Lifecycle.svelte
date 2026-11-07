@@ -8,6 +8,7 @@
 	import { listBackups, pieceCidOfStop, place, restoreEntry, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
+	import BackupNow from '$lib/BackupNow.svelte';
 
 	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void }} */
 	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {} } = $props();
@@ -77,6 +78,8 @@
 	/** @type {string[]} the VM's backup log lines when a backup failed */
 	let errorLog = $state([]);
 	let busy = $state(false);
+	// A backup requested from the overview runs: no stop meanwhile.
+	let backingUp = $state(false);
 	/** @type {any[] | null} */
 	let backups = $state(null);
 	let backupsError = $state('');
@@ -265,7 +268,8 @@
 					<button type="button" class="small" onclick={copyPassword}>Kopieren</button>
 				</div>
 			</div>
-			<button class="secondary" onclick={stop} disabled={busy}>Sichern und beenden</button>
+			{#if profile.backupConfig}<BackupNow {master} {profile} disabled={busy} onbusy={(b) => (backingUp = b)} />{/if}
+			<button class="secondary" onclick={stop} disabled={busy || backingUp}>Sichern und beenden</button>
 		{:else if phase === 'interrupted'}
 			<button class="cta" onclick={resume} disabled={busy}>Start fortsetzen</button>
 		{:else if phase === 'off'}
