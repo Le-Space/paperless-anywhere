@@ -42,9 +42,10 @@ while :; do
     if [ "$request" != "$handled" ]; then
       handled="$request"
       printf '%s' "$request" > "$lib/backup-request.handled"
-      # Not during or after a stop ("Sichern und beenden"): its own backup is
-      # the last one, and Paperless stays down for it.
-      if grep -qE '"status":"(running|ready)"' "$dir/stop.json" 2>/dev/null; then
+      # Not during or after a stop ("Sichern und beenden"), nor while a stop
+      # waits for the answer to fewer copies: its own backup is the last one,
+      # and Paperless stays down for it.
+      if grep -qE '"status":"(running|ready|partial)"' "$dir/stop.json" 2>/dev/null; then
         request_status "failed" "stopping"
         continue
       fi
@@ -54,11 +55,9 @@ while :; do
       flock -n "$dir/backup.lock" true 2>/dev/null || mode=check
       if [ "$dir/backup.json" -nt /tmp/secrets/backup_request ] && grep -q '"status":"done"' "$dir/backup.json"; then mode=check; fi
       request_status running "$mode"
-      if /usr/local/sbin/paperless-backup "$mode"; then
-        request_status "done" "$mode" ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)"
-      else
-        request_status "failed" "$mode" ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)"
-      fi
+      /usr/local/sbin/paperless-backup "$mode"
+      case $? in 0) outcome="done" ;; 2) outcome=partial ;; *) outcome=failed ;; esac
+      request_status "$outcome" "$mode" ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)"
     fi
   fi
   if [ "$(date +%s)" -ge "$next" ]; then

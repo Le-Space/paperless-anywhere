@@ -126,6 +126,32 @@ test.describe('German', () => {
 		await expect(page.getByRole('button', { name: 'Sichern und beenden' })).toBeEnabled();
 	});
 
+	test('a stop that reached fewer providers waits for the person: erase anyway or keep the VM', async ({ page }) => {
+		test.setTimeout(60_000);
+		const at = new Date().toISOString();
+		const partial = { status: 'partial', at, reason: 'only 1 of 2 copies reached the providers', backup: { name: 'paperless-made-up', date: at, requestedCopies: 2, complete: false, copies: [{ providerId: 1 }] } };
+		const { phrase } = await setUp(page, {
+			v: 2,
+			phase: 'stop-partial',
+			paperless: false,
+			backup: partial,
+			lastBackup: partial,
+			backupSchedule: { nextCheck: new Date(Date.now() + 3600_000).toISOString(), everySeconds: 7200 },
+			backupRequest: null,
+			stop: { status: 'partial', request: '1', at, backup: partial }
+		});
+		await open(page, phrase);
+		await expect(page.getByTestId('stop-partial')).toContainText('nur 1 von 2 Kopien');
+		await expect(page.getByTestId('stop-partial')).toContainText('fehlt diese Sicherung bei einem Anbieter');
+		await expect(page.getByTestId('stop-partial-erase')).toBeEnabled();
+		await expect(page.getByTestId('stop-partial-keep')).toBeEnabled();
+		await expect(page.getByTestId('backup-short')).toHaveText(' · nur 1 von 2 Kopien');
+		// Keeping it needs the attested channel; without a relay it says why and asks again.
+		await page.getByTestId('stop-partial-keep').click();
+		await expect(page.locator('.error[role=alert]')).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByTestId('stop-partial-keep')).toBeEnabled();
+	});
+
 	test('an older image: no backup details, no button', async ({ page }) => {
 		test.setTimeout(60_000);
 		const install = alephMock();

@@ -28,6 +28,12 @@ describe('backupOverview', () => {
 		expect(v.last).toMatchObject({ ok: false, copies: 1, requested: 2, reason: 'only 1 of 2 copies reached the providers' });
 	});
 
+	it('a partial backup counts as a backup with copies short', () => {
+		const v = backupOverview({ backupSchedule: {}, lastBackup: { status: 'partial', at: '2026-01-02T03:10:00Z', reason: 'only 1 of 2 copies reached the providers', backup: { ...entry, complete: false, copies: [{ providerId: 1 }] } } });
+		expect(v.last).toMatchObject({ ok: true, copies: 1, requested: 2 });
+		expect(BACKUP_TEXTS.de.checkOutcome('partial')).toBe('nur teilweise gesichert');
+	});
+
 	it('a failure without an entry is dated by its report', () => {
 		const v = backupOverview({ backupSchedule: {}, backup: { status: 'failed', at: '2026-01-02T03:10:00Z', reason: 'could not read Paperless’s state' } });
 		expect(v.last).toMatchObject({ ok: false, at: new Date('2026-01-02T03:10:00Z'), copies: 0 });

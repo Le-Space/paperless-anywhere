@@ -153,11 +153,15 @@ sequenceDiagram
     PWA->>Aleph: AGGREGATE profile (sealed): running removed, own backup noted
 ```
 
-Without a backup choice, the stop is ready at once. "Meine VMs" erases a VM without the last backup.
+Without a backup choice, the stop is ready at once. "Meine VMs" erases a VM without the last backup. A backup that already runs when the stop comes (a check, or "Jetzt sichern") finishes first (up to 30 minutes); the stop's own backup is then a check that uploads only what changed since.
+
+`stop.json` names the request it answers, so the app never takes an earlier stop's outcome for the one it just sent (the VM picks a new request up within seconds; an older image is told apart by the time of its answer).
+
+**A provider refuses the piece.** The backup tool goes on without it: the others get their copies, and the backup is marked incomplete. `paperless-backup` reports `partial` (exit 2) and does not record the fingerprint, so the next check asks every provider again. In a stop, `paperless-stop` answers `partial` (phase `stop-partial`), keeps Paperless paused and erases nothing. The app says how many copies arrived and asks: "VM trotzdem löschen" erases it as after a full backup; "VM behalten" injects `stop_resume` naming the partial stop's request (an old one never restarts Paperless after a later stop), Paperless starts again (`resumed`) and the VM stays. The question also shows when the app is opened later. No copy at all is still a failure: Paperless starts again and the VM stays.
 
 ### Backup now, while Paperless runs
 
-"Jetzt sichern" in the overview takes the same way as the stop: attest again, then inject `backup_request`, signed by the app key. `paperless-backup-loop` sees the new value within seconds and runs `paperless-backup run` (or `check`, when another backup holds the lock or finished after the request came, so the same state is not uploaded twice). The VM keeps running. The private status page carries `backupRequest` (the request's outcome), `lastBackup` (the last backup that ran, done or failed, kept across the two-hourly checks that find nothing new) and `backupSchedule.nextCheck`; the overview reads them every minute.
+"Jetzt sichern" in the overview takes the same way as the stop: attest again, then inject `backup_request`, signed by the app key. `paperless-backup-loop` sees the new value within seconds and runs `paperless-backup run` (or `check`, when another backup holds the lock or finished after the request came, so the same state is not uploaded twice). The VM keeps running. The private status page carries `backupRequest` (the request's outcome), `lastBackup` (the last backup that ran, done, partial or failed, kept across the two-hourly checks that find nothing new) and `backupSchedule.nextCheck`; the overview reads them every minute.
 
 ## 5. The relay: WebSocket or libp2p
 

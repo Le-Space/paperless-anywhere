@@ -19,6 +19,8 @@
 # No age identity is needed: backups are encrypted to ageRecipient. The session key
 # cannot delete pieces, so pruning stays with the wallet. Outcome:
 # /run/paperless-anywhere/backup.json; the tool's log stays on the encrypted disk.
+# Exit 0: backed up (or unchanged); 2: "partial", fewer copies than requested;
+# anything else: failed.
 set -u
 secrets=/tmp/secrets
 state_dir=/run/paperless-anywhere
@@ -173,16 +175,21 @@ print(json.dumps({"name": e.get("name"), "date": e.get("date"), "pieceCid": e.ge
   "copies": [{k: c.get(k) for k in keep} for c in e.get("copies", [])],
   "failedAttempts": len(e.get("failedAttempts", []))}))' \
   "$( [ "$role" = primary ] && echo ledger.json || echo ledger.calibration.json )")"
-# Every requested copy, or it counts as failed: a stop must not erase the VM
-# with fewer copies than asked for, and the next check tries again.
+# Fewer copies than requested (a provider refused the piece; the tool went on
+# with the others): "partial", exit 2. The fingerprint is not recorded, so the
+# next check tries every provider again; a stop does not erase the VM without
+# asking (paperless-stop). No copy at all is a failure.
 short="$(printf '%s' "$entry" | python3 -c 'import json, sys
 e = json.load(sys.stdin)
 have, want = len(e.get("copies") or []), e.get("requestedCopies") or 0
 print("" if e.get("complete") is True and have >= want else f"{have} of {want}")')"
 if [ -n "$short" ]; then
   echo "paperless-backup: only $short copies" >&2
-  status failed ",\"reason\":\"only $short copies reached the providers\",\"backup\":$entry,\"log\":$(loglines 12)$(machine)"
-  exit 1
+  case "$short" in
+    "0 of "*) status failed ",\"reason\":\"only $short copies reached the providers\",\"backup\":$entry,\"log\":$(loglines 12)$(machine)"; exit 1 ;;
+  esac
+  status partial ",\"role\":\"$role\",\"reason\":\"only $short copies reached the providers\",\"backup\":$entry,\"seconds\":$(( $(date +%s) - t0 )),\"log\":$(loglines 12)"
+  exit 2
 fi
 printf '%s\n' "$now" > "$lib/backed-up.fingerprint"
 status done ",\"role\":\"$role\",\"backup\":$entry,\"seconds\":$(( $(date +%s) - t0 ))"
