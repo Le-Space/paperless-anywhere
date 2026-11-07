@@ -53,9 +53,11 @@ except OSError:
     lines = []
 def clean(l):
     l = re.sub(r"'[^']*'|\"[^\"]*\"", "'…'", l)
-    l = re.sub(r"(?<![\w:])/[^\s]+", "/…", l)
+    # Paths go, a provider's https:// address stays: it says who refused.
+    l = re.sub(r"(?<![\w:/])/[^\s]+", "/…", l)
     l = re.sub(r"(?:0x)?[0-9a-fA-F]{64}", "…", l)
-    return l[:220]
+    # Long enough for the provider's answer after "provider says:".
+    return l[:400]
 keep = []
 for l in lines:
     if re.match(r"^\d{4}-\d{2}-\d{2}T[\d:.]+Z ", l) or l.startswith("error: "):
