@@ -1,13 +1,64 @@
 #!/bin/sh
-# paperless-backup-loop: every two hours, back up Paperless if it changed.
+# paperless-backup-loop: every two hours, back up Paperless if it changed; and
+# a backup now when the app asks for one.
 # A plain loop instead of a .timer: the confidential guest has no systemd, and
 # its systemctl replacement ran the timer's oneshot service once and never
 # again (production, 2026-11-04: one check at 09:00, none at 11:00 or later).
 # First check 20 minutes after boot, as the timer did. paperless-backup takes a
-# lock, so a check and the stop's last backup never run at the same time.
+# lock, so a check, a requested backup and the stop's last backup never run at
+# the same time.
+#
+# The request comes like the stop request, over the attested channel and
+# signed by the key that started this VM: /tmp/secrets/backup_request (any new
+# value is a new request). It runs "paperless-backup run"; when a backup holds
+# the lock at that moment, or one finished since the request came, it runs
+# "check" (after it), so the same state is not uploaded twice. A stop's
+# backup still stops Paperless first, so a requested backup that runs then may
+# fail; the stop's own backup follows. The outcome goes to /run/paperless-anywhere/
+# backup-request.json, when the next check is due to backup-schedule.json
+# (paperless-status shows both to the app).
 set -u
-sleep 1200
+dir=/run/paperless-anywhere
+lib=/var/lib/paperless-anywhere
+mkdir -p "$dir" "$lib"
+chmod 700 "$lib"
+EVERY=7200
+FIRST=1200
+schedule() {
+  printf '{"nextCheck":"%s","everySeconds":%s}\n' "$(date -u -d "@$next" +%FT%TZ)" "$EVERY" > "$dir/backup-schedule.json.tmp" && mv "$dir/backup-schedule.json.tmp" "$dir/backup-schedule.json"
+}
+request_status() {
+  printf '{"status":"%s","mode":"%s","at":"%s"%s}\n' "$1" "$2" "$(date -u +%FT%TZ)" "${3:-}" > "$dir/backup-request.json.tmp" && mv "$dir/backup-request.json.tmp" "$dir/backup-request.json"
+}
+# The last request handled, kept so a restarted loop does not run it again.
+handled="$(cat "$lib/backup-request.handled" 2>/dev/null || true)"
+# A request this loop was running when it stopped did not finish.
+grep -q '"status":"running"' "$dir/backup-request.json" 2>/dev/null && request_status failed interrupted
+next=$(( $(date +%s) + FIRST ))
+schedule
 while :; do
-  /usr/local/sbin/paperless-backup check || echo "paperless-backup-loop: the check failed; next try in two hours" >&2
-  sleep 7200
+  if [ -s /tmp/secrets/backup_request ]; then
+    request="$(head -c 128 /tmp/secrets/backup_request)"
+    if [ "$request" != "$handled" ]; then
+      handled="$request"
+      printf '%s' "$request" > "$lib/backup-request.handled"
+      # A backup that holds the lock now, or one that finished after the
+      # request came (this loop's own check ran meanwhile): "check" then.
+      mode=run
+      flock -n "$dir/backup.lock" true 2>/dev/null || mode=check
+      if [ "$dir/backup.json" -nt /tmp/secrets/backup_request ] && grep -q '"status":"done"' "$dir/backup.json"; then mode=check; fi
+      request_status running "$mode"
+      if /usr/local/sbin/paperless-backup "$mode"; then
+        request_status "done" "$mode" ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)"
+      else
+        request_status "failed" "$mode" ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)"
+      fi
+    fi
+  fi
+  if [ "$(date +%s)" -ge "$next" ]; then
+    /usr/local/sbin/paperless-backup check || echo "paperless-backup-loop: the check failed; next try in two hours" >&2
+    next=$(( $(date +%s) + EVERY ))
+    schedule
+  fi
+  sleep 5
 done

@@ -36,6 +36,7 @@ export class BackupFailedError extends Error {
 	constructor(reason, log, facts = []) {
 		super(`Die letzte Sicherung ist fehlgeschlagen; die VM bleibt. Grund: ${reason}`);
 		this.name = 'BackupFailedError';
+		this.reason = reason;
 		this.log = log;
 		this.facts = facts;
 	}
@@ -268,16 +269,15 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 }
 
 /**
- * @param {Uint8Array} master
- * @param {Record<string, any>} profile with `running` from startPaperless
- * @param {(p: { step: string, detail?: string }) => void} onProgress
+ * A request to the running VM, the way the unlock reaches it: attest the
+ * guest against the pins of this start, then hand over `secrets` over the
+ * attested channel, signed by the app's key (the guest's agent accepts only
+ * the key that started the VM). The guest writes each to /tmp/secrets.
+ * @param {Uint8Array} master @param {Record<string, any>} profile with `running` @param {Record<string, string>} secrets
  */
-export async function stopPaperless(master, profile, onProgress) {
+async function sendToGuest(master, profile, secrets) {
 	const run = profile.running;
-	if (!run?.instanceHash) throw new Error('Es läuft keine VM.');
 	const app = privateKeyToAccount(alephPrivateKey(master));
-
-	onProgress({ step: 'stop', detail: 'Stopp anfordern (letzte Sicherung)' });
 	const wasm = await loadWasm();
 	const { expectedMeasurements, expectedPolicy } = pinsOf(run.trustedExecution);
 	// Each relay once, until one carries the attestation.
@@ -292,10 +292,59 @@ export async function stopPaperless(master, profile, onProgress) {
 		}
 	}
 	try {
-		await injectSecrets({ wasm, attested, secrets: { stop_request: String(Date.now()) }, sign: (payload) => app.signMessage({ message: payload }) });
+		await injectSecrets({ wasm, attested, secrets, sign: (payload) => app.signMessage({ message: payload }) });
 	} finally {
 		attested.channel.close();
 	}
+}
+
+/**
+ * Back up now, while Paperless keeps running (paperless-backup-loop answers
+ * backup_request with "paperless-backup run", or "check" when a backup just
+ * ran or holds the lock). Follows the VM's status page until the request is
+ * done; throws BackupFailedError when it failed.
+ * @param {Uint8Array} master
+ * @param {Record<string, any>} profile with `running`
+ * @param {(p: { detail: string, status?: any }) => void} onProgress
+ * @param {{ send?: typeof sendToGuest, status?: typeof vmStatus, delayMs?: number, tries?: number }} [deps] for the tests
+ * @returns {Promise<any>} the status page with the finished request
+ */
+export async function requestBackup(master, profile, onProgress, { send = sendToGuest, status: read = vmStatus, delayMs = 5000, tries = 360 } = {}) {
+	const run = profile.running;
+	if (!run?.instanceHash) throw new Error('Es läuft keine VM.');
+	const token = statusToken(master);
+	const before = await read(run.host, token).catch(() => null);
+	// An image without the request would take it and never answer.
+	if (before && !('backupSchedule' in before)) throw new Error('Diese VM kennt „Jetzt sichern“ noch nicht (älteres Image).');
+	const earlier = before?.backupRequest?.at ?? null;
+	await send(master, profile, { backup_request: String(Date.now()) });
+	onProgress({ detail: 'requested' });
+	const done = await until('backup', async () => {
+		const s = await read(run.host, token);
+		const req = s?.backupRequest;
+		if (!req || req.at === earlier) return null;
+		onProgress({ detail: req.status, status: s });
+		return ['done', 'failed'].includes(req.status) ? s : null;
+	}, { tries, delayMs });
+	if (done.backupRequest.status !== 'done') {
+		const b = done.backupRequest.backup ?? done.backup;
+		throw new BackupFailedError(b?.reason ?? (done.backupRequest.mode === 'interrupted' ? 'unterbrochen' : 'ohne Angabe'), b?.log ?? [], backupFacts(b));
+	}
+	return done;
+}
+
+/**
+ * @param {Uint8Array} master
+ * @param {Record<string, any>} profile with `running` from startPaperless
+ * @param {(p: { step: string, detail?: string }) => void} onProgress
+ */
+export async function stopPaperless(master, profile, onProgress) {
+	const run = profile.running;
+	if (!run?.instanceHash) throw new Error('Es läuft keine VM.');
+	const app = privateKeyToAccount(alephPrivateKey(master));
+
+	onProgress({ step: 'stop', detail: 'Stopp anfordern (letzte Sicherung)' });
+	await sendToGuest(master, profile, { stop_request: String(Date.now()) });
 	const status = await until('stop', async () => {
 		const s = await vmStatus(run.host, statusToken(master));
 		// The backup's latest log line, while it runs (status page: backup.log).

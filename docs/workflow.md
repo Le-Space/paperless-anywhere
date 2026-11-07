@@ -155,6 +155,10 @@ sequenceDiagram
 
 Without a backup choice, the stop is ready at once. "Meine VMs" erases a VM without the last backup.
 
+### Backup now, while Paperless runs
+
+"Jetzt sichern" in the overview takes the same way as the stop: attest again, then inject `backup_request`, signed by the app key. `paperless-backup-loop` sees the new value within seconds and runs `paperless-backup run` (or `check`, when another backup holds the lock or finished after the request came, so the same state is not uploaded twice). The VM keeps running. The private status page carries `backupRequest` (the request's outcome), `lastBackup` (the last backup that ran, done or failed, kept across the two-hourly checks that find nothing new) and `backupSchedule.nextCheck`; the overview reads them every minute.
+
 ## 5. The relay: WebSocket or libp2p
 
 The setting holds one or more relays, tried in turn: a `wss://…/attest` URL, or the multiaddr of an orbitdb-relay that speaks `/le-space/attest/1.0.0`. The libp2p way needs no domain of the relay's own. The relay reaches the browser over WebSockets with an AutoTLS certificate (`*.libp2p.direct`), or WebRTC-Direct where the relay offers it.

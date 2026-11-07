@@ -50,6 +50,23 @@ def read(name):
         return None
 restore, backup, stop, data_disk, fixed = read("restore.json"), read("backup.json"), read("stop.json"), read("data-disk.json"), read("fixed-address.json")
 net = read("net-hardening.json")
+schedule, request = read("backup-schedule.json"), read("backup-request.json")
+# The last backup that ran (done or failed): backup.json says "unchanged"
+# after every check that found nothing new, so the last real outcome is kept
+# aside, on the VM's disk (paperless-backup-loop's directory).
+last_path = "/var/lib/paperless-anywhere/last-backup.json"
+try:
+    last = json.load(open(last_path))
+except Exception:
+    last = None
+if backup and backup.get("status") in ("done", "failed") and backup != last:
+    try:
+        os.makedirs(os.path.dirname(last_path), exist_ok=True)
+        json.dump(backup, open(last_path + ".tmp", "w"))
+        os.replace(last_path + ".tmp", last_path)
+    except OSError:
+        pass
+    last = backup
 def usage(path):
     try:
         st = os.statvfs(path)
@@ -78,7 +95,7 @@ elif up:
     phase = "ready"
 else:
     phase = "starting"
-full = {"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "netHardening": net, "disks": disks, "memory": memory(), "at": now}
+full = {"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "lastBackup": last, "backupSchedule": schedule, "backupRequest": request, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "netHardening": net, "disks": disks, "memory": memory(), "at": now}
 # The details only at a path the app that started this VM derives from its
 # vault (the status_token secret); the public page says no more than the phase.
 token = ""
