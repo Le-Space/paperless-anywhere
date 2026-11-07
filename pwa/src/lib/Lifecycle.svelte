@@ -11,6 +11,8 @@
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
 	import BackupNow from '$lib/BackupNow.svelte';
+	import ProviderHealth from '$lib/ProviderHealth.svelte';
+	import { providerIdsIn } from '$lib/providers.js';
 
 	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void }} */
 	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {} } = $props();
@@ -81,6 +83,8 @@
 	let error = $state('');
 	/** @type {string[]} the VM's backup log lines when a backup failed */
 	let errorLog = $state([]);
+	// The providers the VM named in its lines, and the ones the backups go to.
+	const healthIds = $derived([...new Set([...providerIdsIn(errorLog), ...(profile.backupConfig?.providerIds ?? [])])]);
 	// A stop whose backup reached fewer providers than requested: Paperless is
 	// paused and the VM waits for the person to erase it anyway or keep it.
 	/** @type {BackupPartialError | null} */
@@ -337,7 +341,7 @@
 				</div>
 			</div>
 		{/if}
-		{#if errorLog.length}<details class="log" data-testid="simple-backup-log"><summary>Details aus der VM</summary><pre>{errorLog.join('\n')}</pre></details>{/if}
+		{#if errorLog.length}<details class="log" data-testid="simple-backup-log"><summary>Details aus der VM</summary><pre>{errorLog.join('\n')}</pre><ProviderHealth network={profile.network ?? 'calibration'} ids={healthIds} /></details>{/if}
 		{#if short && CREDITS_URL && profile.appPays}
 			<div class="fund" data-testid="fund-offer">
 				<label>Stunden aus Le Space Credits holen
@@ -447,7 +451,7 @@
 			</div>
 		{/if}
 		{#if errorLog.length}
-			<details open class="log"><summary>Was die VM zur Sicherung meldet</summary><pre data-testid="backup-log">{errorLog.join('\n')}</pre></details>
+			<details open class="log"><summary>Was die VM zur Sicherung meldet</summary><pre data-testid="backup-log">{errorLog.join('\n')}</pre><ProviderHealth network={profile.network ?? 'calibration'} ids={healthIds} /></details>
 		{/if}
 		{#if !profile.running && profile.lastBackup}
 			{@const b = profile.lastBackup}
