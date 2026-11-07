@@ -1,10 +1,10 @@
 <script>
-	import { loadProfile, updateProfile } from '$lib/profile.js';
+	import { backupPayer, loadProfile, updateProfile } from '$lib/profile.js';
 	import { AlephShortError, resumeStart, startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
 	import { CREDITS_URL, fundVm } from '$lib/credits.js';
 	import { alephBalance } from '$lib/balances.js';
 	import { privateKeyToAccount } from 'viem/accounts';
-	import { alephPrivateKey } from '$lib/keys/derive.js';
+	import { alephPrivateKey, filecoinPayerPrivateKey } from '$lib/keys/derive.js';
 	import { listBackups, pieceCidOfStop, place, restoreEntry, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
@@ -12,6 +12,8 @@
 
 	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void }} */
 	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {} } = $props();
+	// The vault's own Filecoin payer, when Le Space Credits pay the backups.
+	const creditsPayerAddress = $derived(privateKeyToAccount(filecoinPayerPrivateKey(master)).address);
 
 	/** @type {Record<string, any>} */
 	let profile = $state({});
@@ -109,7 +111,7 @@
 	const reload = async () => {
 		profile = await loadProfile(master);
 		loaded = true;
-		const owner = profile.backupOwner || profile.payer;
+		const owner = profile.backupOwner || backupPayer(profile, creditsPayerAddress);
 		if (owner && profile.ageIdentity && !profile.running) {
 			backupsError = '';
 			listBackups({ network: profile.network ?? 'calibration', owner })
@@ -231,7 +233,7 @@
 		running: 'Paperless läuft',
 		interrupted: 'Start unterbrochen'
 	};
-	const backupsPending = $derived(Boolean(profile.ageIdentity && (profile.backupOwner || profile.payer) && backups === null));
+	const backupsPending = $derived(Boolean(profile.ageIdentity && (profile.backupOwner || backupPayer(profile, creditsPayerAddress)) && backups === null));
 	const typicalTotal = $derived(action ? STEPS[action].reduce((a, s) => a + typicalOf(s), 0) : 0);
 	const elapsed = $derived(Math.max(0, (now - startedAt) / 1000));
 	const share = $derived(typicalTotal ? Math.min(0.95, elapsed / typicalTotal) : 0);

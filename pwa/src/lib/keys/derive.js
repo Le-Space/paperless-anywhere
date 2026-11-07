@@ -13,6 +13,9 @@ export const LABELS = Object.freeze({
 	paperlessSecretKey: 'paperless-anywhere/paperless-secret-key/v1',
 	vaultKey: 'paperless-anywhere/vault-key/v1',
 	filecoinSession: 'paperless-anywhere/filecoin-session-key/v1',
+	// The Filecoin account that pays the backups when Le Space Credits pay them:
+	// its own key, apart from the Aleph app key, so it never pays a VM.
+	filecoinPayer: 'paperless-anywhere/filecoin-payer/v1',
 	profileKey: 'paperless-anywhere/profile-key/v1',
 	// The backups' age identity: derived, so the 24 words alone decrypt every
 	// backup, even when the sealed profile is gone.
@@ -60,6 +63,8 @@ export function alephPrivateKey(master, label = LABELS.alephAccount) {
  * @param {Uint8Array} master
  */
 export const filecoinSessionPrivateKey = (master) => alephPrivateKey(master, LABELS.filecoinSession);
+/** @param {Uint8Array} master */
+export const filecoinPayerPrivateKey = (master) => alephPrivateKey(master, LABELS.filecoinPayer);
 
 /**
  * The first label of this vault's fixed address: 16 base32 characters (80

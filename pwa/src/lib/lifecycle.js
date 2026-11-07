@@ -9,12 +9,12 @@
 import { privateKeyToAccount } from 'viem/accounts';
 import { confidentialTrustedExecution, unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
 import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
-import { alephPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
+import { alephPrivateKey, filecoinPayerPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
 import { relayTransports } from './attest-p2p.js';
 import { backupFacts } from './backups.js';
 import { attestRelaysFor } from './relays.js';
-import { vmPayer } from './profile.js';
+import { backupPayer, vmPayer } from './profile.js';
 import { ALEPH_API, readFetch } from './aleph.js';
 import { crnAddress, credits, estimateCreditsPerHour, FIXED_HOST_DOMAIN, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
@@ -71,7 +71,9 @@ export function startRequirements(profile) {
 	const missing = [];
 	// The wallet pays the VM, or only the backups when the app pays (appPays).
 	if (!profile.payer && !profile.appPays) missing.push('zahlendes Konto');
-	if (!profile.payer && profile.backupConfig) missing.push('Wallet für die Sicherungen');
+	// Backups paid through Le Space Credits need no wallet: the vault's own
+	// Filecoin payer pays them.
+	if (!profile.payer && profile.backupConfig && !profile.backupsByCredits) missing.push('Wallet für die Sicherungen');
 	if (!profile.rootfsItemHash) missing.push('Paperless-Image');
 	if (!profile.luksPassphrase) missing.push('Image-Passphrase');
 	if (!profile.crnHash) missing.push('Knoten');
@@ -192,7 +194,7 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 		status_token: statusToken(master)
 	};
 	if (profile.backupConfig) {
-		secrets.backup_config = JSON.stringify({ ...profile.backupConfig, payer: profile.payer, network: profile.network === 'mainnet' ? 'mainnet' : 'calibration' });
+		secrets.backup_config = JSON.stringify({ ...profile.backupConfig, payer: backupPayer(profile, privateKeyToAccount(filecoinPayerPrivateKey(master)).address), network: profile.network === 'mainnet' ? 'mainnet' : 'calibration' });
 		secrets.backup_session_key = filecoinSessionPrivateKey(master);
 	}
 	// Diagnosis only: a test may pass a public key, which the confidential init

@@ -110,7 +110,7 @@ export async function creditsCatalog({ baseUrl = CREDITS_URL, fetch: fetchImpl =
 	if (!res.ok) throw new Error(`Le Space Credits antwortet ${res.status}`);
 	const body = await res.json();
 	return {
-		plans: (body?.packages ?? []).map((p) => ({ id: String(p.id), hours: Number(p.hours), priceCredits: Number(p.price_credits) })),
+		plans: (body?.packages ?? []).map((p) => ({ id: String(p.id), hours: Number(p.hours), priceCredits: Number(p.price_credits), ...(p.backup_month_credits != null ? { backupMonthCredits: Number(p.backup_month_credits) } : {}) })),
 		topups: (body?.topups ?? []).map((t) => ({ id: String(t.id), amountCents: Number(t.amount_cents), credits: Number(t.credits) }))
 	};
 }
@@ -131,7 +131,9 @@ const MESSAGES = {
 	TREASURY_OFF: 'Le Space Credits können gerade keine Aleph-Credits ausgeben. Später noch einmal versuchen.',
 	REFUSED: 'Aleph hat die Gutschrift abgelehnt. Später noch einmal versuchen.',
 	CAP: 'Le Space hat gerade nicht genug Aleph-Credits vorrätig. Später noch einmal versuchen.',
-	HOURS: 'Diese Stundenzahl nimmt der Dienst nicht an.'
+	HOURS: 'Diese Stundenzahl nimmt der Dienst nicht an.',
+	ADDRESS: 'Le Space Credits nehmen die Adresse des Sicherungskontos nicht an.',
+	TOO_SOON: 'Die Sicherungen wurden gerade erst bezahlt. Bitte etwas später noch einmal.'
 };
 
 /**
@@ -182,6 +184,18 @@ export async function choosePlan(master, planId, options) {
 export async function fundVm(master, hours, options) {
 	const r = await send(master, 'POST', '/v1/vm/fund', { hours }, options);
 	return { transferId: String(r?.transfer_id ?? ''), alephCredits: Number(r?.aleph_credits ?? 0), chargedCredits: Number(r?.charged_credits ?? 0), expiration: r?.expiration ?? null };
+}
+
+/**
+ * Pay `months` of backups from Le Space Credits: the service deposits USDFC
+ * into the Filecoin Pay account of `payer` (the vault's Filecoin payer) and,
+ * the first time, sends it a little FIL for its approval transaction.
+ * @param {Uint8Array} master @param {string} payer @param {number} months
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ */
+export async function fundBackups(master, payer, months, options) {
+	const r = await send(master, 'POST', '/v1/backup/fund', { payer, months }, options);
+	return { txHash: String(r?.txHash ?? r?.tx_hash ?? ''), deposited: String(r?.deposited ?? '0'), filSent: String(r?.filSent ?? r?.fil_sent ?? '0'), chargedCredits: Number(r?.chargedCredits ?? r?.charged_credits ?? 0), network: String(r?.network ?? '') };
 }
 
 /**
