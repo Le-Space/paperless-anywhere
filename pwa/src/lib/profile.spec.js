@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { vmPayer } from './profile.js';
+import { backupPayer, vmPayer } from './profile.js';
 import { resumeStart, startRequirements } from './lifecycle.js';
 
 const app = '0x00000000000000000000000000000000000000A1';
@@ -15,6 +15,16 @@ describe('vmPayer', () => {
 	});
 });
 
+describe('backupPayer', () => {
+	it('is the wallet, or the vault\'s own payer when Le Space Credits pay the backups', () => {
+		const own = '0x' + '3'.repeat(40);
+		expect(backupPayer({ payer: wallet }, own)).toBe(wallet);
+		expect(backupPayer({ payer: wallet, appPays: true }, own)).toBe(wallet);
+		expect(backupPayer({ payer: wallet, backupsByCredits: true }, own)).toBe(own);
+		expect(backupPayer({ backupsByCredits: true }, own)).toBe(own);
+	});
+});
+
 describe('startRequirements', () => {
 	it('needs a wallet only to pay, or for backups when the app pays', () => {
 		expect(startRequirements({ ...ready })).toEqual(['zahlendes Konto']);
@@ -22,6 +32,8 @@ describe('startRequirements', () => {
 		expect(startRequirements({ ...ready, appPays: true })).toEqual([]);
 		expect(startRequirements({ ...ready, appPays: true, backupConfig: { copies: 2 } })).toEqual(['Wallet für die Sicherungen']);
 		expect(startRequirements({ ...ready, appPays: true, payer: wallet, backupConfig: { copies: 2 } })).toEqual([]);
+		// Backups paid through Le Space Credits: no wallet at all.
+		expect(startRequirements({ ...ready, appPays: true, backupsByCredits: true, backupConfig: { copies: 2 } })).toEqual([]);
 	});
 	it('runs a primary on mainnet only', () => {
 		expect(startRequirements({ ...ready, payer: wallet, role: 'primary', network: 'calibration' })).toEqual(['Netz Mainnet für die Rolle „Produktiv“']);

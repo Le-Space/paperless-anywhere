@@ -110,7 +110,7 @@ export async function creditsCatalog({ baseUrl = CREDITS_URL, fetch: fetchImpl =
 	if (!res.ok) throw new Error(`Le Space Credits antwortet ${res.status}`);
 	const body = await res.json();
 	return {
-		plans: (body?.packages ?? []).map((p) => ({ id: String(p.id), hours: Number(p.hours), priceCredits: Number(p.price_credits) })),
+		plans: (body?.packages ?? []).map((p) => ({ id: String(p.id), hours: Number(p.hours), priceCredits: Number(p.price_credits), ...(p.backup_month_credits != null ? { backupMonthCredits: Number(p.backup_month_credits) } : {}) })),
 		topups: (body?.topups ?? []).map((t) => ({ id: String(t.id), amountCents: Number(t.amount_cents), credits: Number(t.credits) }))
 	};
 }
@@ -131,7 +131,11 @@ const MESSAGES = {
 	TREASURY_OFF: 'Le Space Credits können gerade keine Aleph-Credits ausgeben. Später noch einmal versuchen.',
 	REFUSED: 'Aleph hat die Gutschrift abgelehnt. Später noch einmal versuchen.',
 	CAP: 'Le Space hat gerade nicht genug Aleph-Credits vorrätig. Später noch einmal versuchen.',
-	HOURS: 'Diese Stundenzahl nimmt der Dienst nicht an.'
+	HOURS: 'Diese Stundenzahl nimmt der Dienst nicht an.',
+	ADDRESS: 'Le Space Credits nehmen die Adresse des Sicherungskontos nicht an.',
+	TOO_SOON: 'Die Sicherungen wurden gerade erst bezahlt. Bitte in fünf Minuten noch einmal.',
+	MONTHS: 'Sicherungen lassen sich für 1 bis 12 Monate bezahlen.',
+	PAUSED: 'Le Space Credits zahlen gerade keine Sicherungen ein (Tageslimit oder noch nicht freigeschaltet). Später noch einmal versuchen.'
 };
 
 /**
@@ -182,6 +186,29 @@ export async function choosePlan(master, planId, options) {
 export async function fundVm(master, hours, options) {
 	const r = await send(master, 'POST', '/v1/vm/fund', { hours }, options);
 	return { transferId: String(r?.transfer_id ?? ''), alephCredits: Number(r?.aleph_credits ?? 0), chargedCredits: Number(r?.charged_credits ?? 0), expiration: r?.expiration ?? null };
+}
+
+/**
+ * Pay `months` of backups from Le Space Credits: the service deposits USDFC
+ * into the Filecoin Pay account of `payer` (the vault's Filecoin payer) and,
+ * the first time, sends it a little FIL for its approval transaction.
+ * @param {Uint8Array} master @param {string} payer @param {number} months
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ */
+export async function fundBackups(master, payer, months, options) {
+	const r = await send(master, 'POST', '/v1/backup/fund', { payer, months }, options).catch((e) => {
+		// The service's NO_PLAN speaks of hours; for backups it means the same: a package first.
+		if (/erst ein Paket wählen/.test(e?.message ?? '')) throw new Error('Sicherungen über Le Space Credits gehen mit einem Paket: erst ein Paket wählen.');
+		throw e;
+	});
+	return {
+		txHash: String(r?.txHash ?? ''),
+		confirmed: r?.confirmed !== false,
+		deposited: String(r?.deposited ?? '0'),
+		filSent: String(r?.filSent ?? '0'),
+		chargedCredits: Number(r?.chargedCredits ?? 0),
+		network: String(r?.network ?? '')
+	};
 }
 
 /**

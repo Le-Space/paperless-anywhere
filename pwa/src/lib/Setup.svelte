@@ -2,16 +2,21 @@
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey, fixedHostLabel } from '$lib/keys/derive.js';
 	import { FIXED_HOST_DOMAIN } from '$lib/vm.js';
-	import { loadProfile, updateProfile } from '$lib/profile.js';
+	import { backupPayer, loadProfile, updateProfile } from '$lib/profile.js';
 	import { ageIdentityFromMaster, ageRecipient } from '$lib/keys/age.js';
 	import { BACKUP_LABEL, backupConfigFor } from '$lib/backups.js';
 	import { relayList } from '$lib/attest-p2p.js';
 	import { findAttestRelays } from '$lib/relays.js';
-	import { CREDITS_URL } from '$lib/credits.js';
+	import { CREDITS_URL, fundBackups } from '$lib/credits.js';
+	import { formatEther, formatUnits } from 'viem';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
 	import {
 		connectPayer,
+		creditsPayerAccount,
+		creditsPayerState,
 		isAuthorized,
+		prepareCreditsPayer,
+		waitForPayerFil,
 		readAuthorizations,
 		sessionKeyAddress,
 		sessionKeyExpiry,
@@ -24,6 +29,9 @@
 
 	const pwaAddress = privateKeyToAccount(alephPrivateKey(master)).address;
 	const sessionAddress = sessionKeyAddress(master);
+	const creditsPayer = creditsPayerAccount(master).address;
+	/** @type {Awaited<ReturnType<typeof creditsPayerState>> | null} */
+	let payerState = $state(null);
 
 	/** @type {Record<string, any>} */
 	let profile = $state({});
@@ -46,7 +54,11 @@
 	let busy = $state('');
 
 	async function refresh() {
-		if (profile.payer) {
+		if (profile.backupsByCredits) {
+			payerState = await creditsPayerState(master, profile.network ?? 'calibration').catch(() => null);
+			sessionUntil = payerState?.sessionUntil ?? 0n;
+		}
+		if (profile.payer && !profile.backupsByCredits) {
 			alephOk = isAuthorized(await readAuthorizations(profile.payer), pwaAddress);
 			sessionUntil = await sessionKeyExpiry(profile.payer, sessionAddress, profile.network ?? 'calibration').catch(() => 0n);
 		}
@@ -121,6 +133,32 @@
 	});
 	const session = (revoke = false) => run('wallet', async () => {
 		await setFilecoinSessionKey(profile.payer, sessionAddress, profile.network, { days: 30, revoke });
+		await refresh();
+	});
+	// Backups paid through Le Space Credits: the vault's own Filecoin payer,
+	// funded by the service; it sends its approval and session key itself.
+	const setBackupsByCredits = (on) => run('bycredits', async () => {
+		await save({ backupsByCredits: on });
+		await refresh();
+	});
+	const payBackups = () => run('bycredits', async () => {
+		const r = await fundBackups(master, creditsPayer, 1);
+		const want = profile.network === 'mainnet' ? 'mainnet' : 'calibration';
+		if (r.network && r.network !== want) throw new Error(`Le Space Credits zahlen gerade im Netz ${r.network}, diese Paperless sichert in ${want}.`);
+		if (!r.confirmed) {
+			await refresh();
+			throw new Error('Bezahlt; die Einzahlung ist noch unterwegs. In ein paar Minuten „Freigaben senden“.');
+		}
+		// The FIL for the approval may follow the deposit: wait for it first.
+		if (r.filSent !== '0' && !(await waitForPayerFil(master, want))) {
+			await refresh();
+			throw new Error('Bezahlt; das Filecoin für die Gebühren ist noch unterwegs. In ein paar Minuten „Freigaben senden“.');
+		}
+		await prepareCreditsPayer(master, want);
+		await refresh();
+	});
+	const preparePayer = () => run('bycredits', async () => {
+		await prepareCreditsPayer(master, profile.network === 'mainnet' ? 'mainnet' : 'calibration');
 		await refresh();
 	});
 	const saveRelay = () => run('relay', async () => {
@@ -224,7 +262,7 @@
 		{#if profile.appPays}
 			<p>Adresse der App: <code data-testid="app-payer">{pwaAddress}</code>
 				<br /><small class="money">Hier liegen die Aleph-Credits für die VMs. Der Schlüssel dazu kommt aus deinem Tresor: wer den Tresor öffnet, kann sie ausgeben. Aufladen per Aleph-Überweisung an diese Adresse{CREDITS_URL ? ' oder aus Le Space Credits' : ''}.</small></p>
-			<p class="hint">Ein Wallet brauchst du so nur für Sicherungen (Filecoin).</p>
+			<p class="hint">Ein Wallet brauchst du so nur für Sicherungen (Filecoin){CREDITS_URL ? ', und auch dafür nicht, wenn Le Space Credits sie bezahlen (Schritt 5)' : ''}.</p>
 		{/if}
 		{#if profile.payer}
 			<p>{profile.appPays ? 'Wallet für die Sicherungen' : 'Verbunden'}: <code data-testid="payer">{profile.payer}</code>
@@ -245,7 +283,7 @@
 			{/if}
 		{/if}
 
-		{#if profile.payer}
+		{#if profile.payer && !profile.backupsByCredits}
 
 			<h3>3. Filecoin: Sicherungen hinzufügen</h3>
 			<p>Sitzungsschlüssel: <code>{sessionAddress}</code>
@@ -265,6 +303,20 @@
 		{@render feedback('relay')}
 
 		<h3>5. Sicherungen</h3>
+		{#if CREDITS_URL}
+			<fieldset class="payer-choice" disabled={busy === 'bycredits'} data-testid="backups-paid-by">
+				<label><input type="radio" name="bypay" checked={!profile.backupsByCredits} onchange={() => setBackupsByCredits(false)} data-testid="backups-wallet" /> Bezahlt aus meinem Wallet (Schritt 3)</label>
+				<label><input type="radio" name="bypay" checked={Boolean(profile.backupsByCredits)} onchange={() => setBackupsByCredits(true)} data-testid="backups-credits" /> Bezahlt über Le Space Credits, ohne Wallet</label>
+			</fieldset>
+			{#if profile.backupsByCredits}
+				<p>Sicherungskonto: <code data-testid="credits-payer">{creditsPayer}</code>
+					<br /><small class="money">Aus deinem Tresor abgeleitet. Le Space Credits zahlen hier das Guthaben für den Speicher ein; nichts selbst überweisen.</small></p>
+				<p data-testid="credits-payer-state">{#if !payerState}…{:else}Guthaben für den Speicher: {formatUnits(payerState.deposit, 18)} USDFC · Gebühren: {formatEther(payerState.fil)} FIL · Speicherdienst {payerState.approved ? 'freigegeben' : 'noch nicht freigegeben'} · Sitzungsschlüssel {until(sessionUntil) ? `gültig bis ${until(sessionUntil)}` : 'nicht freigegeben'}{/if}</p>
+				<button onclick={payBackups} disabled={busy === 'bycredits'} data-testid="pay-backups">Einen Monat Sicherungen bezahlen</button>
+				{#if payerState && payerState.fil > 0n && (!payerState.approved || !until(sessionUntil))}<button onclick={preparePayer} disabled={busy === 'bycredits'} data-testid="prepare-payer">Freigaben senden</button>{/if}
+				{@render feedback('bycredits')}
+			{/if}
+		{/if}
 		<label>Wallet, dem die Sicherungen gehören (0x…, leer = zahlendes Konto)<input bind:value={ownerInput} placeholder={profile.payer ? `Wallet der Sicherungen (leer = ${profile.payer.slice(0, 10)}…)` : 'Wallet der Sicherungen'} /></label>
 		<button onclick={saveOwner} disabled={busy === 'owner'}>Wallet der Sicherungen speichern</button>
 		{@render feedback('owner')}
@@ -284,11 +336,11 @@
 			Sichern, alle zwei Stunden bei Änderungen und beim Stoppen ({profile.network === 'mainnet' ? 'Mainnet' : 'Testnetz'}, Datensatz <code>{BACKUP_LABEL[profile.network === 'mainnet' ? 'mainnet' : 'calibration']}</code>)
 		</label>
 		{#if profile.backupConfig}
-			<BackupPlaces network={profile.network} payer={profile.backupOwner || profile.payer} config={profile.backupConfig} busy={busy === 'places'} onsave={savePlaces} />
+			<BackupPlaces network={profile.network} payer={profile.backupOwner || backupPayer(profile, creditsPayer)} config={profile.backupConfig} busy={busy === 'places'} onsave={savePlaces} />
 		{/if}
 		{@render feedback('backups')}{@render feedback('places')}
 		{#if profile.network === 'mainnet' && profile.role !== 'primary'}<p class="hint" data-testid="mainnet-backup-hint">Auf Mainnet sichert nur eine produktive Paperless (Rolle oben). Als Test bleibt sie ohne Sicherung.</p>
-		{:else if profile.backupConfig && !until(sessionUntil)}<p class="hint">Dafür braucht die VM den Sitzungsschlüssel aus Schritt 3.</p>{/if}
+		{:else if profile.backupConfig && !until(sessionUntil)}<p class="hint">{profile.backupsByCredits ? 'Dafür braucht die VM den Sitzungsschlüssel: Sicherungen bezahlen, dann setzt die App ihn selbst.' : 'Dafür braucht die VM den Sitzungsschlüssel aus Schritt 3.'}</p>{/if}
 
 		<h3>6. Paperless-Image und Knoten</h3>
 		<label>Image (STORE-Hash, 64 Zeichen)<input bind:value={imageInput} placeholder="Image (STORE-Hash)" /></label>

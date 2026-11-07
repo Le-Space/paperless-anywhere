@@ -42,6 +42,15 @@ export function vmPayer(profile, appAddress) {
 }
 
 /**
+ * Who pays the backups on Filecoin: with `backupsByCredits` the vault's own
+ * Filecoin payer, funded through Le Space Credits; otherwise the wallet.
+ * @param {Record<string, any>} profile @param {string} creditsPayerAddress
+ */
+export function backupPayer(profile, creditsPayerAddress) {
+	return profile.backupsByCredits ? creditsPayerAddress : profile.payer;
+}
+
+/**
  * Change the profile as it is on Aleph now, not as a component loaded it:
  * the setup, the start and stop and the VM list each write it, and a copy
  * loaded earlier would undo what another wrote meanwhile (2026-11-04: saving

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { recoverMessageAddress } from 'viem';
-import { canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, fundVm, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
+import { canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, fundBackups, fundVm, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
 
 // A made-up vault: the ledger knows it by the address its Aleph key has.
 const master = new Uint8Array(32).fill(7);
@@ -165,9 +165,26 @@ describe('packages and hours (belege#591 draft 2)', () => {
 		await expect(fundVm(master, 5, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/erst ein Paket wählen/);
 	});
 
+	it('pays backups for the vault\'s Filecoin payer, signed as the ledger address', async () => {
+		const payer = '0x' + '4'.repeat(40);
+		const svc = jsonService(() => [200, { txHash: '0xabc', confirmed: true, deposited: '1', filSent: '0.005', chargedCredits: 150, network: 'calibration' }]);
+		expect(await fundBackups(master, payer, 1, { baseUrl, fetch: svc.fetch })).toEqual({ txHash: '0xabc', confirmed: true, deposited: '1', filSent: '0.005', chargedCredits: 150, network: 'calibration' });
+		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, payer, months: 1 });
+	});
+
+	it('says a backup needs a package (409 NO_PLAN)', async () => {
+		const svc = jsonService(() => [409, { error: 'no plan', code: 'NO_PLAN' }]);
+		await expect(fundBackups(master, '0x' + '4'.repeat(40), 1, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/Sicherungen über Le Space Credits gehen mit einem Paket/);
+	});
+
+	it('explains a payer the service refuses', async () => {
+		const svc = jsonService(() => [400, { error: 'bad address', code: 'ADDRESS' }]);
+		await expect(fundBackups(master, '0x0', 1, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/Adresse des Sicherungskontos/);
+	});
+
 	it('reads the catalog the service lists', async () => {
-		const fetch = async (url) => (String(url).endsWith('/v1/packages?product=paperless-anywhere') ? new Response(JSON.stringify({ product: 'paperless-anywhere', topups: [{ id: 'topup-20', amount_cents: 2000, credits: 2000 }], packages: [{ id: 'paperless-10', hours: 10, price_credits: 400 }] })) : new Response('{}', { status: 404 }));
-		expect(await creditsCatalog({ baseUrl, fetch })).toEqual({ plans: [{ id: 'paperless-10', hours: 10, priceCredits: 400 }], topups: [{ id: 'topup-20', amountCents: 2000, credits: 2000 }] });
+		const fetch = async (url) => (String(url).endsWith('/v1/packages?product=paperless-anywhere') ? new Response(JSON.stringify({ product: 'paperless-anywhere', topups: [{ id: 'topup-20', amount_cents: 2000, credits: 2000 }], packages: [{ id: 'paperless-10', hours: 10, price_credits: 400 }, { id: 'paperless-30', hours: 30, price_credits: 600, backup_month_credits: 150 }] })) : new Response('{}', { status: 404 }));
+		expect(await creditsCatalog({ baseUrl, fetch })).toEqual({ plans: [{ id: 'paperless-10', hours: 10, priceCredits: 400 }, { id: 'paperless-30', hours: 30, priceCredits: 600, backupMonthCredits: 150 }], topups: [{ id: 'topup-20', amountCents: 2000, credits: 2000 }] });
 	});
 });
 
