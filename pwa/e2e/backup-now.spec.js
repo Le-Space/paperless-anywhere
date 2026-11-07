@@ -81,9 +81,9 @@ test.describe('German', () => {
 		await open(page, phrase);
 		await expect(page.getByRole('heading', { name: 'Paperless läuft' })).toBeVisible();
 		await expect(page.getByTestId('backup-last')).toContainText(`Letzte Sicherung: ${hhmm(last)} · alle 2 Kopien angekommen`);
-		await expect(page.getByTestId('backup-check')).toContainText(`Zuletzt geprüft: ${hhmm(checked)} · nichts geändert`);
-		await expect(page.getByTestId('backup-next')).toContainText(`Nächste Prüfung: ${hhmm(next)}`);
-		await expect(page.getByTestId('backup-next')).toContainText('gesichert wird nur, wenn sich etwas geändert hat');
+		// The check apart from the backup: most checks find nothing new.
+		await expect(page.getByTestId('backup-summary')).toHaveText(`Zuletzt geprüft ${hhmm(checked)}, keine Änderung · letzte Sicherung ${hhmm(last)} · nächste Prüfung ${hhmm(next)}`);
+		await expect(page.getByTestId('simple-backup')).toContainText('gesichert wird nur, wenn sich etwas geändert hat');
 		// Only the private page, by the vault's token.
 		expect(asked).toContain(`/anywhere/s/${statusToken(master)}.json`);
 		expect(asked).not.toContain('/anywhere/status.json');
@@ -155,7 +155,7 @@ test.describe('English', () => {
 		);
 		await open(page, phrase);
 		await expect(page.getByTestId('backup-last')).toHaveText('Last backup: No backup since the start yet');
-		await expect(page.getByTestId('backup-next')).toContainText('Next check:');
+		await expect(page.getByTestId('backup-summary')).toContainText('next check');
 		await expect(page.getByTestId('backup-now')).toHaveText('Back up now');
 	});
 });

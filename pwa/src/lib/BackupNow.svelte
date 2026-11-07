@@ -72,6 +72,13 @@
 	{#if status && !view.supported}
 		<p class="hint" data-testid="backup-old-image">{t.oldImage}</p>
 	{:else if status}
+		<!-- The check and the backup apart: most checks find nothing new and back up nothing. -->
+		<p class="summary" data-testid="backup-summary">
+			{#if view.check?.at}<span data-testid="backup-check">{t.checked} {when(view.check.at, lang)}, {t.checkOutcome(view.check.status)}</span>{#if view.last?.at || view.nextCheck}{' · '}{/if}{/if}
+			{#if view.last?.at}<span>{t.lastShort} {when(view.last.at, lang)}</span>{#if view.nextCheck}{' · '}{/if}{/if}
+			{#if view.nextCheck}<span data-testid="backup-next">{t.nextShort} {when(view.nextCheck, lang)}</span>{/if}
+		</p>
+		<p class="hint">{t.nextHint}</p>
 		<p data-testid="backup-last">
 			{t.last}:
 			{#if view.last}
@@ -80,12 +87,6 @@
 				{:else}<span class="bad"> · {t.failed}{view.last.reason ? ` (${view.last.reason})` : ''}</span>{/if}
 			{:else}{t.none}{/if}
 		</p>
-		{#if view.check && view.check.at && ['unchanged', 'skipped'].includes(view.check.status)}
-			<p class="hint" data-testid="backup-check">{t.checked}: {when(view.check.at, lang)} · {view.check.status === 'skipped' ? t.skipped : t.unchanged}</p>
-		{/if}
-		{#if view.nextCheck}
-			<p data-testid="backup-next">{t.next}: <strong>{when(view.nextCheck, lang)}</strong> <span class="hint">({t.nextHint})</span></p>
-		{/if}
 		{#if busy || view.running}
 			<p class="progress" role="status" data-testid="backup-progress">{stage === 'sending' ? t.sending : t.running}{view.log ? ` ${view.log}` : ''}</p>
 		{/if}
@@ -102,6 +103,7 @@
 	.backup p { margin: 0.15rem 0; }
 	.label { color: var(--text-2); font-size: 0.85rem; margin-bottom: 0.35rem; }
 	.hint { color: var(--text-2); font-size: 0.875rem; }
+	.summary::first-letter { text-transform: uppercase; }
 	.ok { color: var(--ok); }
 	.bad { color: var(--danger); }
 	.progress { color: var(--text-2); font-size: 0.9rem; word-break: break-word; }

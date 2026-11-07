@@ -42,6 +42,12 @@ while :; do
     if [ "$request" != "$handled" ]; then
       handled="$request"
       printf '%s' "$request" > "$lib/backup-request.handled"
+      # Not during or after a stop ("Sichern und beenden"): its own backup is
+      # the last one, and Paperless stays down for it.
+      if grep -qE '"status":"(running|ready)"' "$dir/stop.json" 2>/dev/null; then
+        request_status "failed" "stopping"
+        continue
+      fi
       # A backup that holds the lock now, or one that finished after the
       # request came (this loop's own check ran meanwhile): "check" then.
       mode=run

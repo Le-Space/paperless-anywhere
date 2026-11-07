@@ -328,7 +328,7 @@ export async function requestBackup(master, profile, onProgress, { send = sendTo
 	}, { tries, delayMs });
 	if (done.backupRequest.status !== 'done') {
 		const b = done.backupRequest.backup ?? done.backup;
-		throw new BackupFailedError(b?.reason ?? (done.backupRequest.mode === 'interrupted' ? 'unterbrochen' : 'ohne Angabe'), b?.log ?? [], backupFacts(b));
+		throw new BackupFailedError(b?.reason ?? ({ interrupted: 'unterbrochen', stopping: 'Paperless wird gerade gesichert und beendet' }[done.backupRequest.mode] ?? 'ohne Angabe'), b?.log ?? [], backupFacts(b));
 	}
 	return done;
 }

@@ -117,7 +117,9 @@ if re.fullmatch(r"[0-9a-f]{32}", token):
     os.replace(tmp, os.path.join(sdir, token + ".json"))
     print(json.dumps({"v": 2, "phase": phase, "paperless": up, "at": now}))
 else:
-    print(json.dumps(full))
+    # Without a token (an app from before the private page): the backup
+    # details of this image stay off the public page.
+    print(json.dumps({k: v for k, v in full.items() if k not in ("lastBackup", "backupSchedule", "backupRequest")}))
 PY
   chmod 644 "$pub/status.json" 2>/dev/null
   sleep 5

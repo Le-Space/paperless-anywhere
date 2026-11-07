@@ -58,3 +58,12 @@ describe('texts', () => {
 		expect(when(new Date(2026, 0, 1, 9, 5), 'de', now)).toMatch(/^01\.01\.26/);
 	});
 });
+
+describe('check outcomes', () => {
+	it('name what the last check did, in both languages', () => {
+		for (const lang of /** @type {const} */ (['de', 'en'])) {
+			for (const s of ['unchanged', 'skipped', 'done', 'failed']) expect(BACKUP_TEXTS[lang].checkOutcome(s)).toMatch(/\S/);
+		}
+		expect(BACKUP_TEXTS.de.checkOutcome('unchanged')).toBe('keine Änderung');
+	});
+});
