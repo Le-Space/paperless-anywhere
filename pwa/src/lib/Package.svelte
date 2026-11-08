@@ -89,7 +89,7 @@
 				</div>
 			{/if}
 			<p class="hint" data-testid="plan-current">
-				{#if current}Dein Paket: {current.hours} Stunden für {euro(current.priceCredits)} im Monat{balance.plan.periodEnd ? `; ab ${day(balance.plan.periodEnd)} gibt es wieder ${current.hours} Stunden` : ''}.{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}{:else}Paket {balance.plan.id}{/if}
+				{#if current}Dein Paket: {current.hours} Stunden für {euro(current.priceCredits)} im Monat. {balance.plan.periodEnd ? `Es verlängert sich am ${day(balance.plan.periodEnd)} und wird dann aus deinem Guthaben bezahlt, solange es reicht.` : 'Es verlängert sich monatlich und wird aus deinem Guthaben bezahlt, solange es reicht.'} Beenden kannst du es jederzeit zum Monatsende.{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}{:else}Paket {balance.plan.id}{/if}
 			</p>
 		{:else}
 			<p class="big" data-testid="plan-none"><strong>Noch kein Paket</strong></p>
