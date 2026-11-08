@@ -94,13 +94,24 @@
 		return () => clearInterval(t);
 	});
 	// Profiles from before this keep the last stop's backup.
-	const lastGood = $derived(profile.lastGoodBackup?.at ? profile.lastGoodBackup : profile.lastBackup?.date ? { at: profile.lastBackup.date, copies: profile.lastBackup.copies?.length ?? null } : null);
-	const goodStale = $derived(Boolean(lastGood && profile.running && nowTick - new Date(lastGood.at).getTime() > STALE_HOURS * 3600_000));
+	// A profile from before keeps only the last stop's backup: said as such.
+	const fromStop = $derived(!profile.lastGoodBackup?.at && Boolean(profile.lastBackup?.date));
+	const lastGood = $derived(profile.lastGoodBackup?.at ? profile.lastGoodBackup : profile.lastBackup?.date ? { at: profile.lastBackup.date, copies: profile.lastBackup.copies?.length ?? null, pieceCid: profile.lastBackup.pieceCid ?? null } : null);
+	// Older images do not report their two-hourly backups; the chain lists
+	// them (without a time). A newer piece than the one known here is said so.
+	const newerOnChain = $derived(Boolean(lastGood?.pieceCid && backups?.length && backups[0].pieceCid !== lastGood.pieceCid));
+	const goodStale = $derived(Boolean(lastGood && profile.running && !newerOnChain && nowTick - new Date(lastGood.at).getTime() > STALE_HOURS * 3600_000));
+	const ago = (/** @type {number} */ ms) => {
+		const minutes = Math.floor(ms / 60_000);
+		if (minutes < 60) return minutes <= 1 ? 'gerade eben' : `vor ${minutes} Minuten`;
+		const hours = Math.floor(minutes / 60);
+		if (hours < 48) return `vor ${hours} ${hours === 1 ? 'Stunde' : 'Stunden'}`;
+		return `vor ${Math.floor(hours / 24)} Tagen`;
+	};
 	const goodWhen = (/** @type {string} */ at) => {
 		const d = new Date(at);
-		const hours = Math.floor((nowTick - d.getTime()) / 3600_000);
 		const time = d.toLocaleString('de-DE', d.toDateString() === new Date(nowTick).toDateString() ? { hour: '2-digit', minute: '2-digit' } : { dateStyle: 'medium', timeStyle: 'short' });
-		return hours < 1 ? `${time} (vor weniger als einer Stunde)` : hours < 48 ? `${time} (vor ${hours} ${hours === 1 ? 'Stunde' : 'Stunden'})` : time;
+		return `${time} (${ago(nowTick - d.getTime())})`;
 	};
 	/** A backup that reached providers: remember it if newer. @param {{ at: string, copies?: number, requested?: number }} good */
 	async function rememberGood(good) {
@@ -152,7 +163,7 @@
 				.then((s) => { if (s?.phase === 'stop-partial' && !busy) partial = new BackupPartialError(s); })
 				.catch(() => {});
 		const owner = profile.backupOwner || backupPayer(profile, creditsPayerAddress);
-		if (owner && profile.ageIdentity && !profile.running) {
+		if (owner && profile.ageIdentity) {
 			backupsError = '';
 			listBackups({ network: profile.network ?? 'calibration', owner })
 				.then((list) => ((backups = list), (choice = defaultChoice(list))))
@@ -279,7 +290,7 @@
 						...rest,
 						ownBackups: [made, ...(rest.ownBackups ?? []).filter((c) => c !== made)].slice(0, 50),
 						lastBackup: result && { ...result, network: rest.network ?? 'calibration', payer: rest.payer, seconds: status.stop.backup.seconds ?? null },
-						...(goodAt && (!rest.lastGoodBackup?.at || new Date(rest.lastGoodBackup.at) < new Date(goodAt)) ? { lastGoodBackup: { at: goodAt, copies: result?.copies?.length ?? null, requested: result?.requestedCopies ?? null } } : {})
+						...(goodAt && (!rest.lastGoodBackup?.at || new Date(rest.lastGoodBackup.at) < new Date(goodAt)) ? { lastGoodBackup: { at: goodAt, copies: result?.copies?.length ?? null, requested: result?.requestedCopies ?? null, pieceCid: result?.pieceCid ?? null } } : {})
 					}
 				: rest
 		);
@@ -326,7 +337,7 @@
 				{:else if phase === 'interrupted'}<p class="sub">Die Maschine läuft schon und kostet, bis sie fertig gestartet ist.</p>{/if}
 				{#if profile.backupConfig}
 					<!-- The answer people look for first: when the documents were last safe. -->
-					<p class="good" class:stale={goodStale} data-testid="last-good-backup">{#if lastGood}Letzte erfolgreiche Sicherung: <strong>{goodWhen(lastGood.at)}</strong>{lastGood.copies ? ` · ${lastGood.copies} ${lastGood.copies === 1 ? 'Kopie' : 'Kopien'}` : ''}{#if goodStale}{` · seit über ${STALE_HOURS} Stunden keine neue`}{/if}{:else}Noch keine erfolgreiche Sicherung bekannt{/if}</p>
+					<p class="good" class:stale={goodStale} data-testid="last-good-backup">{#if lastGood}{fromStop ? 'Letzte Sicherung beim Beenden' : 'Letzte erfolgreiche Sicherung'}: <strong>{goodWhen(lastGood.at)}</strong>{lastGood.copies ? ` · ${lastGood.copies} ${lastGood.copies === 1 ? 'Kopie' : 'Kopien'}` : ''}{#if newerOnChain}<br /><span data-testid="newer-on-chain">Auf Filecoin liegt eine neuere ({backups?.[0]?.copies.length} {backups?.[0]?.copies.length === 1 ? 'Kopie' : 'Kopien'}); ihre Uhrzeit meldet erst das neue Image.</span>{/if}{:else}Noch keine erfolgreiche Sicherung bekannt{/if}</p>
 				{/if}
 			</div>
 		</div>
