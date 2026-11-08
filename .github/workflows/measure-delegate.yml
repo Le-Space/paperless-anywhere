@@ -6,7 +6,9 @@ name: Measure who pays for a delegated INSTANCE
 # delegate without credits starts a small, normal (not confidential) VM on
 # behalf of the owner (ALEPH_PRIVATE_KEY); both credit histories are compared
 # for expenses that reference that VM. Then the delegate forgets it (FORGET by
-# delegation) and the owner revokes the authorization.
+# delegation) and the owner revokes the authorization. Last, the delegate
+# tries a second INSTANCE after the revocation: Aleph must refuse it
+# (le-space-credits#38 relies on that to end a customer's starts).
 
 on:
   workflow_dispatch:
@@ -116,3 +118,27 @@ jobs:
             echo "instance now: $(curl -fsS "https://api2.aleph.im/api/v0/messages/$HASH" | jq -r .status)"
           fi
           aleph authorization revoke "$DELEGATE" --chain eth || true
+
+      - name: After the revocation, a new INSTANCE from the delegate is refused
+        if: always() && steps.vm.outputs.hash != ''
+        env:
+          OWNER: ${{ steps.keys.outputs.owner }}
+        run: |
+          # Aleph reads the security aggregate when it processes the message;
+          # give the revocation time to be processed first.
+          sleep 60
+          aleph instance create "$NAME-revoked" --image debian12 --size 1vcpu-2gb --ssh-pubkey-file "$RUNNER_TEMP/m_ed25519.pub" \
+            --on-behalf-of "$OWNER" --private-key "$(cat "$RUNNER_TEMP/delegate.key")" --chain eth --wait 180 > "$RUNNER_TEMP/revoked.log" 2>&1 || true
+          tail -5 "$RUNNER_TEMP/revoked.log"
+          hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/revoked.log" | grep -oE '[0-9a-f]{64}' | head -1 || true)"
+          if [ -z "$hash" ]; then
+            echo "REVOKED: the delegate's INSTANCE was not even accepted for processing"
+            exit 0
+          fi
+          status="$(curl -fsS "https://api2.aleph.im/api/v0/messages/$hash" | jq -r .status)"
+          echo "REVOKED: the delegate's INSTANCE after revocation has status $status"
+          if [ "$status" = processed ]; then
+            echo "::error::Aleph processed an INSTANCE from a revoked delegate"
+            aleph message forget "$hash" --reason "delegate measure ${GITHUB_RUN_ID} (revoked)" --chain eth -y || true
+            exit 1
+          fi
