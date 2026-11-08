@@ -6,6 +6,7 @@
 	import { amount } from '$lib/balances.js';
 	import { creditsBalance, creditsCatalog, creditsPurchases, choosePlan, fundVm, planOf, PLANS } from '$lib/credits.js';
 	import TopUp from '$lib/TopUp.svelte';
+	import Terms from '$lib/Terms.svelte';
 
 	/** @type {{ master: Uint8Array, version?: number }} */
 	let { master, version = 0 } = $props();
@@ -78,6 +79,7 @@
 
 <section class="card package" data-testid="package">
 	{#if balance}
+		<Terms {master} terms={balance.terms} onaccepted={read} />
 		{#if balance.plan}
 			<!-- One answer first: how long Paperless can run. Money and changes below. -->
 			<p class="big" data-testid="plan-left">

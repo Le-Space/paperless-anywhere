@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { recoverMessageAddress } from 'viem';
-import { canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, fundBackups, fundVm, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
+import { canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
 
 // A made-up vault: the ledger knows it by the address its Aleph key has.
 const master = new Uint8Array(32).fill(7);
@@ -44,7 +44,7 @@ describe('signed requests', () => {
 describe('creditsBalance', () => {
 	it('shows a top-up as this vault’s paperless-anywhere balance, and a Belege top-up not at all', async () => {
 		const fetch = fakeService({ 'paperless-anywhere': { credits: 2000, reserved: 150 }, belege: { credits: 5000, reserved: 0 } });
-		expect(await creditsBalance(master, { baseUrl: 'https://credits.example.com', fetch })).toEqual({ credits: 2000, reserved: 150, lines: { ki: 0, vm: 0, transfer: 0 }, plan: null });
+		expect(await creditsBalance(master, { baseUrl: 'https://credits.example.com', fetch })).toEqual({ credits: 2000, reserved: 150, lines: { ki: 0, vm: 0, transfer: 0 }, plan: null, terms: { accepted: null, current: null, pending: null, due: false, announced: false } });
 		const onlyBelege = fakeService({ belege: { credits: 5000, reserved: 0 } });
 		expect((await creditsBalance(master, { baseUrl: 'https://credits.example.com', fetch: onlyBelege }))?.credits).toBe(0);
 	});
@@ -212,5 +212,26 @@ describe('purchases', () => {
 		expect(stripeLink('http://invoice.stripe.com/x')).toBeNull();
 		expect(stripeLink('https://stripe.com.evil.example/x')).toBeNull();
 		expect(stripeLink('javascript:alert(1)')).toBeNull();
+	});
+});
+
+describe('terms', () => {
+	const baseUrl = 'https://credits.example.com';
+	it('says when the terms in force or an announced version still need consent', () => {
+		expect(termsOf(undefined)).toEqual({ accepted: null, current: null, pending: null, due: false, announced: false });
+		const t = termsOf({ accepted: { version: '1', url: 'https://example.com/agb-1.pdf', sha256: 'ab', accepted_at: '2026-11-09T10:00:00Z' }, current: '2', pending: null });
+		expect(t.due).toBe(true);
+		expect(t.accepted?.url).toBe('https://example.com/agb-1.pdf');
+		expect(termsOf({ accepted: { version: '2' }, current: '2', pending: { version: '3', effectiveAt: '2026-12-21' } }).announced).toBe(true);
+		expect(termsOf({ accepted: { version: '1', url: 'javascript:alert(1)' }, current: '1' }).accepted?.url).toBeNull();
+	});
+	it('accepts a version, signed as the ledger address', async () => {
+		const svc = jsonService(() => [200, { version: '2', sha256: 'ab', accepted_at: '2026-11-09T10:00:00Z' }]);
+		expect(await acceptTerms(master, '2', { baseUrl, fetch: svc.fetch })).toEqual({ version: '2', acceptedAt: '2026-11-09T10:00:00Z' });
+		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, version: '2' });
+	});
+	it('turns 412 TERMS into a TermsError', async () => {
+		const svc = jsonService(() => [412, { error: 'terms', code: 'TERMS' }]);
+		await expect(fundVm(master, 5, { baseUrl, fetch: svc.fetch })).rejects.toBeInstanceOf(TermsError);
 	});
 });
