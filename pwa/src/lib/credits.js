@@ -51,9 +51,60 @@ export async function creditsBalance(master, { baseUrl = CREDITS_URL, fetch: fet
 		credits: Number(body?.credits ?? 0),
 		reserved: Number(body?.reserved ?? 0),
 		lines: body?.lines_this_month ?? {},
-		plan: p?.id ? { id: String(p.id), periodStart: p.period_start ?? null, periodEnd: p.period_end ?? null, hoursLeft: p.hours_left == null ? null : Number(p.hours_left) } : null
+		plan: p?.id ? { id: String(p.id), periodStart: p.period_start ?? null, periodEnd: p.period_end ?? null, hoursLeft: p.hours_left == null ? null : Number(p.hours_left) } : null,
+		terms: termsOf(body?.terms)
 	};
 }
+
+/**
+ * Which terms (AGB) this account accepted, which are in force, which are
+ * announced (le-space-credits#36). `due` = in force and not accepted: buying
+ * is refused (412 TERMS) until it is. Null fields while none are published.
+ * @param {any} t
+ */
+export function termsOf(t) {
+	const accepted = t?.accepted?.version ? { version: String(t.accepted.version), url: safeUrl(t.accepted.url), sha256: String(t.accepted.sha256 ?? ''), acceptedAt: t.accepted.accepted_at ?? null } : null;
+	const current = t?.current ? String(t.current) : null;
+	const pending = t?.pending?.version ? { version: String(t.pending.version), effectiveAt: t.pending.effectiveAt ?? null } : null;
+	return { accepted, current, pending, due: Boolean(current && accepted?.version !== current), announced: Boolean(pending && accepted?.version !== pending.version) };
+}
+
+/** An https link only, for the terms' text. @param {unknown} url */
+const safeUrl = (url) => {
+	try {
+		const u = new URL(String(url ?? ''));
+		return u.protocol === 'https:' ? u.href : null;
+	} catch {
+		return null;
+	}
+};
+
+/**
+ * The published terms: the version in force and an announced one, each with
+ * its text's address, checksum and what changed. Public.
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ */
+export async function creditsTerms({ baseUrl = CREDITS_URL, fetch: fetchImpl = fetch } = {}) {
+	if (!baseUrl) return null;
+	const res = await fetchImpl(`${baseUrl}/v1/terms?product=${CREDITS_PRODUCT}`, { cache: 'no-store' });
+	if (!res.ok) throw new Error(`Le Space Credits antwortet ${res.status}`);
+	const body = await res.json();
+	const one = (v) => (v?.version ? { version: String(v.version), date: v.date ?? null, url: safeUrl(v.url), sha256: String(v.sha256 ?? ''), changes: Array.isArray(v.changes) ? v.changes.map(String) : v.changes ? [String(v.changes)] : [], effectiveAt: v.effectiveAt ?? null } : null);
+	return { current: one(body?.current), pending: one(body?.pending) };
+}
+
+/**
+ * Accept a version of the terms (the one in force or the announced one).
+ * @param {Uint8Array} master @param {string} version
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ */
+export async function acceptTerms(master, version, options) {
+	const r = await send(master, 'POST', '/v1/terms/accept', { version }, options);
+	return { version: String(r?.version ?? version), acceptedAt: r?.accepted_at ?? null };
+}
+
+/** Buying needs the terms in force accepted first (412 TERMS). */
+export class TermsError extends Error {}
 
 /**
  * This vault's purchases for paperless-anywhere, newest first, each with the
@@ -134,6 +185,7 @@ const MESSAGES = {
 	REFUSED: 'Aleph hat die Gutschrift abgelehnt. Später noch einmal versuchen.',
 	CAP: 'Le Space hat gerade nicht genug Aleph-Credits vorrätig. Später noch einmal versuchen.',
 	HOURS: 'Diese Stundenzahl nimmt der Dienst nicht an.',
+	VERSION: 'Diese Fassung der Bedingungen kann gerade nicht angenommen werden. Bitte die Seite neu laden.',
 	ADDRESS: 'Le Space Credits nehmen die Adresse des Sicherungskontos nicht an.',
 	TOO_SOON: 'Die Sicherungen wurden gerade erst bezahlt. Bitte in fünf Minuten noch einmal.',
 	MONTHS: 'Sicherungen lassen sich für 1 bis 12 Monate bezahlen.',
@@ -156,6 +208,7 @@ async function send(master, method, path, body, { baseUrl = CREDITS_URL, fetch: 
 		body: JSON.stringify({ product: CREDITS_PRODUCT, address: creditsAccount(master).address, ...body })
 	});
 	const answer = await res.json().catch(() => null);
+	if (res.status === 412) throw new TermsError('Erst den aktuellen Bedingungen (AGB) zustimmen, dann geht es weiter.');
 	if (res.status === 402) {
 		// "insufficient credits: N free, M needed"
 		const [, free, needed] = /(\d+)\s*free,\s*(\d+)\s*needed/.exec(String(answer?.error ?? '')) ?? [];
@@ -238,6 +291,7 @@ export async function startCheckout(master, packageId, { baseUrl = CREDITS_URL, 
 		body: JSON.stringify({ product: CREDITS_PRODUCT, package: packageId, locale: 'de' })
 	});
 	const body = await res.json().catch(() => null);
+	if (res.status === 412) throw new TermsError('Erst den aktuellen Bedingungen (AGB) zustimmen, dann geht es weiter.');
 	if (res.status === 503) throw new Error('Bezahlen ist beim Credits-Dienst noch nicht eingerichtet.');
 	if (!res.ok || typeof body?.client_secret !== 'string') throw new Error(body?.error ? `Le Space Credits: ${body.error}` : `Le Space Credits antwortet ${res.status}`);
 	return body.client_secret;
