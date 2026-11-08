@@ -9,8 +9,8 @@
 	import { BackupFailedError, requestBackup } from '$lib/lifecycle.js';
 	import { BACKUP_TEXTS, backupLang, backupOverview, when } from '$lib/backup-overview.js';
 
-	/** @type {{ master: Uint8Array, profile: Record<string, any>, disabled?: boolean, onbusy?: (busy: boolean) => void }} */
-	let { master, profile, disabled = false, onbusy = () => {} } = $props();
+	/** @type {{ master: Uint8Array, profile: Record<string, any>, disabled?: boolean, onbusy?: (busy: boolean) => void, ongood?: (good: { at: string, copies: number, requested: number }) => void }} */
+	let { master, profile, disabled = false, onbusy = () => {}, ongood = () => {} } = $props();
 
 	const lang = backupLang();
 	const t = BACKUP_TEXTS[lang];
@@ -27,6 +27,11 @@
 	/** @type {string[]} */
 	let details = $state([]);
 	const view = $derived(backupOverview(status));
+	// A backup that reached providers is handed up, so the overview keeps it.
+	$effect(() => {
+		const last = view.last;
+		if (last?.ok && last.at) ongood({ at: last.at.toISOString(), copies: last.copies, requested: last.requested });
+	});
 
 	const read = async () => {
 		const host = profile.running?.host;

@@ -84,6 +84,30 @@
 	/** @type {string[]} the VM's backup log lines when a backup failed */
 	let errorLog = $state([]);
 	// The providers the VM named in its lines, and the ones the backups go to.
+	// The last backup that reached providers, kept in the profile so it shows
+	// while Paperless is off and on images that do not report it.
+	const STALE_HOURS = 4;
+	let nowTick = $state(Date.now());
+	$effect(() => {
+		const t = setInterval(() => (nowTick = Date.now()), 60_000);
+		return () => clearInterval(t);
+	});
+	// Profiles from before this keep the last stop's backup.
+	const lastGood = $derived(profile.lastGoodBackup?.at ? profile.lastGoodBackup : profile.lastBackup?.date ? { at: profile.lastBackup.date, copies: profile.lastBackup.copies?.length ?? null } : null);
+	const goodStale = $derived(Boolean(lastGood && profile.running && nowTick - new Date(lastGood.at).getTime() > STALE_HOURS * 3600_000));
+	const goodWhen = (/** @type {string} */ at) => {
+		const d = new Date(at);
+		const hours = Math.floor((nowTick - d.getTime()) / 3600_000);
+		const time = d.toLocaleString('de-DE', d.toDateString() === new Date(nowTick).toDateString() ? { hour: '2-digit', minute: '2-digit' } : { dateStyle: 'medium', timeStyle: 'short' });
+		return hours < 1 ? `${time} (vor weniger als einer Stunde)` : hours < 48 ? `${time} (vor ${hours} ${hours === 1 ? 'Stunde' : 'Stunden'})` : time;
+	};
+	/** A backup that reached providers: remember it if newer. @param {{ at: string, copies?: number, requested?: number }} good */
+	async function rememberGood(good) {
+		if (!good?.at || (profile.lastGoodBackup?.at && new Date(profile.lastGoodBackup.at) >= new Date(good.at))) return;
+		profile = await updateProfile(master, (now) =>
+			now.lastGoodBackup?.at && new Date(now.lastGoodBackup.at) >= new Date(good.at) ? now : { ...now, lastGoodBackup: { at: good.at, copies: good.copies ?? null, requested: good.requested ?? null } }
+		);
+	}
 	const healthIds = $derived([...new Set([...providerIdsIn(errorLog), ...(profile.backupConfig?.providerIds ?? [])])]);
 	// A stop whose backup reached fewer providers than requested: Paperless is
 	// paused and the VM waits for the person to erase it anyway or keep it.
@@ -247,12 +271,14 @@
 	async function finishStop(status) {
 		const made = pieceCidOfStop(status);
 		const result = status?.stop?.backup?.backup ?? null;
+		const goodAt = result?.date ?? status?.stop?.backup?.at ?? null;
 		profile = await updateProfile(master, ({ running, ...rest }) =>
 			made
 				? {
 						...rest,
 						ownBackups: [made, ...(rest.ownBackups ?? []).filter((c) => c !== made)].slice(0, 50),
-						lastBackup: result && { ...result, network: rest.network ?? 'calibration', payer: rest.payer, seconds: status.stop.backup.seconds ?? null }
+						lastBackup: result && { ...result, network: rest.network ?? 'calibration', payer: rest.payer, seconds: status.stop.backup.seconds ?? null },
+						...(goodAt && (!rest.lastGoodBackup?.at || new Date(rest.lastGoodBackup.at) < new Date(goodAt)) ? { lastGoodBackup: { at: goodAt, copies: result?.copies?.length ?? null, requested: result?.requestedCopies ?? null } } : {})
 					}
 				: rest
 		);
@@ -297,6 +323,10 @@
 				{:else if phase === 'stopping'}<p class="sub">Erst die Sicherung, dann geht die Maschine aus. Lass dieses Fenster offen.</p>
 				{:else if phase === 'running'}<p class="sub data">{profile.running.host}</p>
 				{:else if phase === 'interrupted'}<p class="sub">Die Maschine läuft schon und kostet, bis sie fertig gestartet ist.</p>{/if}
+				{#if profile.backupConfig}
+					<!-- The answer people look for first: when the documents were last safe. -->
+					<p class="good" class:stale={goodStale} data-testid="last-good-backup">{#if lastGood}Letzte erfolgreiche Sicherung: <strong>{goodWhen(lastGood.at)}</strong>{lastGood.copies ? ` · ${lastGood.copies} ${lastGood.copies === 1 ? 'Kopie' : 'Kopien'}` : ''}{#if goodStale}{` · seit über ${STALE_HOURS} Stunden keine neue`}{/if}{:else}Noch keine erfolgreiche Sicherung bekannt{/if}</p>
+				{/if}
 			</div>
 		</div>
 
@@ -315,7 +345,7 @@
 					<button type="button" class="small" onclick={copyPassword}>Kopieren</button>
 				</div>
 			</div>
-			{#if profile.backupConfig}<BackupNow {master} {profile} disabled={busy} onbusy={(b) => (backingUp = b)} />{/if}
+			{#if profile.backupConfig}<BackupNow {master} {profile} disabled={busy} onbusy={(b) => (backingUp = b)} ongood={rememberGood} />{/if}
 			<button class="secondary" onclick={stop} disabled={busy || backingUp}>Sichern und beenden</button>
 		{:else if phase === 'interrupted'}
 			<button class="cta" onclick={resume} disabled={busy}>Start fortsetzen</button>
@@ -477,6 +507,9 @@
 </section>
 
 <style>
+	.good { margin: 0.4rem 0 0; font-size: 0.9rem; color: var(--text-2); }
+	.good strong { color: var(--text); }
+	.good.stale { color: var(--warn); }
 	.simple { padding: 1.5rem 1.25rem; }
 	.status { display: flex; gap: 1rem; align-items: flex-start; }
 	.status h1 { font-size: 1.6rem; margin: 0; line-height: 1.2; }
