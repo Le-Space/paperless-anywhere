@@ -11,6 +11,7 @@
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
 	import BackupNow from '$lib/BackupNow.svelte';
+	import TrialRestore from '$lib/TrialRestore.svelte';
 	import ProviderHealth from '$lib/ProviderHealth.svelte';
 	import { providerIdsIn } from '$lib/providers.js';
 
@@ -347,6 +348,7 @@
 			</div>
 			{#if profile.backupConfig}<BackupNow {master} {profile} disabled={busy} onbusy={(b) => (backingUp = b)} ongood={rememberGood} />{/if}
 			<button class="secondary" onclick={stop} disabled={busy || backingUp}>Sichern und beenden</button>
+			{#if profile.ageIdentity && (profile.backupOwner || backupPayer(profile, creditsPayerAddress))}<TrialRestore {master} {profile} owner={profile.backupOwner || backupPayer(profile, creditsPayerAddress)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{:else if phase === 'interrupted'}
 			<button class="cta" onclick={resume} disabled={busy}>Start fortsetzen</button>
 		{:else if phase === 'off'}
@@ -360,6 +362,7 @@
 				{:else if profile.ageIdentity}<p class="hint" data-testid="simple-restore">{choice === 'latest' || choice === 'own' ? `Startet mit der neuesten Sicherung (${pick(choice === 'latest' ? backups ?? [] : split.own)?.pieceCid.slice(-12)}).` : 'Startet ohne Daten: es gibt noch keine eigene Sicherung.'}</p>{/if}
 			{/if}
 		{/if}
+		{#if phase !== 'running' && profile.trial}<TrialRestore {master} {profile} owner={profile.backupOwner || backupPayer(profile, creditsPayerAddress)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
 		{#if partial}
 			<div class="partial" role="alert" data-testid="stop-partial">

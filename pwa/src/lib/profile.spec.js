@@ -57,3 +57,11 @@ describe('resumeStart', () => {
 		expect(steps).toEqual(['instance']);
 	});
 });
+
+describe('trialProfile', () => {
+	it('restores as a test: no backups, no fixed address, not the running VM', async () => {
+		const { trialProfile } = await import('./lifecycle.js');
+		const p = trialProfile({ role: 'primary', network: 'mainnet', dnsToken: 't', backupConfig: { copies: 3 }, running: { host: 'x' }, trial: {}, ageIdentity: 'AGE-SECRET-KEY-1X', rootfsItemHash: 'h' }, { pieceCid: 'bafk' });
+		expect(p).toEqual({ role: 'test', network: 'mainnet', ageIdentity: 'AGE-SECRET-KEY-1X', rootfsItemHash: 'h', restoreEntry: { pieceCid: 'bafk' } });
+	});
+});
