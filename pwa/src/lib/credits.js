@@ -51,7 +51,18 @@ export async function creditsBalance(master, { baseUrl = CREDITS_URL, fetch: fet
 		credits: Number(body?.credits ?? 0),
 		reserved: Number(body?.reserved ?? 0),
 		lines: body?.lines_this_month ?? {},
-		plan: p?.id ? { id: String(p.id), periodStart: p.period_start ?? null, periodEnd: p.period_end ?? null, hoursLeft: p.hours_left == null ? null : Number(p.hours_left) } : null,
+		plan: p?.id
+			? {
+					id: String(p.id),
+					periodStart: p.period_start ?? null,
+					periodEnd: p.period_end ?? null,
+					hoursLeft: p.hours_left == null ? null : Number(p.hours_left),
+					// A Stripe subscription (card, monthly invoice) or a plan paid from the balance.
+					billing: p.billing === 'stripe' ? 'stripe' : 'credits',
+					renewsAt: p.renews_at ?? null,
+					cancelAtPeriodEnd: Boolean(p.cancel_at_period_end)
+				}
+			: null,
 		terms: termsOf(body?.terms)
 	};
 }
@@ -189,6 +200,11 @@ const MESSAGES = {
 	ADDRESS: 'Le Space Credits nehmen die Adresse des Sicherungskontos nicht an.',
 	TOO_SOON: 'Die Sicherungen wurden gerade erst bezahlt. Bitte in fünf Minuten noch einmal.',
 	MONTHS: 'Sicherungen lassen sich für 1 bis 12 Monate bezahlen.',
+	SUBSCRIBED: 'Es läuft schon ein Abo. Ändern oder kündigen geht über „Abo verwalten“.',
+	NO_SUBSCRIPTION: 'Es gibt noch kein Abo zum Verwalten.',
+	ORIGIN: 'Diese Adresse der App darf das Abo-Portal nicht öffnen.',
+	PRICE_TAX: 'Das Abo ist beim Credits-Dienst noch nicht fertig eingerichtet (Preise).',
+	STRIPE_OFF: 'Bezahlen ist beim Credits-Dienst gerade abgeschaltet.',
 	NO_BACKUP: 'Für dieses Produkt bezahlen Le Space Credits keine Sicherungen.',
 	PAUSED: 'Le Space Credits zahlen gerade keine Sicherungen ein (Tageslimit oder noch nicht freigeschaltet). Später noch einmal versuchen.'
 };
@@ -295,6 +311,48 @@ export async function startCheckout(master, packageId, { baseUrl = CREDITS_URL, 
 	if (res.status === 503) throw new Error('Bezahlen ist beim Credits-Dienst noch nicht eingerichtet.');
 	if (!res.ok || typeof body?.client_secret !== 'string') throw new Error(body?.error ? `Le Space Credits: ${body.error}` : `Le Space Credits antwortet ${res.status}`);
 	return body.client_secret;
+}
+
+/**
+ * Subscribe to a package with Stripe (card, monthly invoice): the service
+ * answers a Checkout in subscription mode, mounted like a top-up on /pay.
+ * @param {Uint8Array} master @param {string} packageId
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<string>} the client secret
+ */
+export async function startSubscription(master, packageId, options) {
+	const r = await send(master, 'POST', '/v1/subscribe', { package: packageId, locale: 'de' }, options);
+	if (typeof r?.client_secret !== 'string') throw new Error('Le Space Credits haben keine Bezahlseite für das Abo geliefert.');
+	return r.client_secret;
+}
+
+/**
+ * The Stripe customer portal for this account's subscription (change, cancel,
+ * card, invoices); it returns to this app.
+ * @param {Uint8Array} master
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ */
+export async function subscriptionPortal(master, options) {
+	const r = await send(master, 'POST', '/v1/portal', {}, options);
+	const url = stripeLink(r?.url);
+	if (!url) throw new Error('Le Space Credits haben keine Stripe-Adresse geliefert.');
+	return url;
+}
+
+/**
+ * Read the balance until the package is billed by Stripe (the webhook opens
+ * it a moment after the payment), or give up and return the last one.
+ * @param {Uint8Array} master
+ * @param {{ tries?: number, delayMs?: number, read?: typeof creditsBalance }} [options]
+ */
+export async function waitForSubscription(master, { tries = 30, delayMs = 2000, read = creditsBalance } = {}) {
+	let last = null;
+	for (let i = 0; i < tries; i++) {
+		last = await read(master).catch(() => last);
+		if (last?.plan?.billing === 'stripe') return { booked: true, balance: last };
+		await new Promise((r) => setTimeout(r, delayMs));
+	}
+	return { booked: false, balance: last };
 }
 
 /**

@@ -4,7 +4,8 @@
 	// credits, FIL and USDFC are under "Erweitert" (Balances).
 	import { loadProfile } from '$lib/profile.js';
 	import { amount } from '$lib/balances.js';
-	import { creditsBalance, creditsCatalog, creditsPurchases, choosePlan, fundVm, planOf, PLANS } from '$lib/credits.js';
+	import { creditsBalance, creditsCatalog, creditsPurchases, choosePlan, fundVm, planOf, PLANS, startSubscription, subscriptionPortal, waitForSubscription } from '$lib/credits.js';
+	import StripeCheckout from '$lib/StripeCheckout.svelte';
 	import TopUp from '$lib/TopUp.svelte';
 	import Terms from '$lib/Terms.svelte';
 
@@ -61,6 +62,36 @@
 			return id ? `Paket gewählt${r.periodEnd ? `, läuft bis ${day(r.periodEnd)}` : ''}.` : 'Das Paket endet mit dem Zeitraum.';
 		});
 	};
+	/** @type {StripeCheckout | undefined} */
+	let checkout = $state();
+	// A package is a Stripe subscription: card, monthly invoice, cancel in the
+	// portal. Until the service offers it (Stripe off, prices missing), the
+	// package is paid from the balance as before.
+	const subscribe = (/** @type {string} */ id) =>
+		act(async () => {
+			let secret;
+			try {
+				secret = await startSubscription(master, id);
+			} catch (e) {
+				const msg = e instanceof Error ? e.message : String(e);
+				if (!/noch nicht fertig eingerichtet|gerade abgeschaltet|antwortet 404/.test(msg)) throw e;
+				if (!confirm(`Das Abo per Karte geht gerade noch nicht (${msg}). Das Paket stattdessen aus deinem Guthaben bezahlen?`)) return '';
+				const r = await choosePlan(master, id);
+				return `Paket gewählt, aus dem Guthaben bezahlt${r.periodEnd ? `, läuft bis ${day(r.periodEnd)}` : ''}.`;
+			}
+			const outcome = await checkout?.pay(secret);
+			if (outcome === 'closed') return 'Abo nicht abgeschlossen.';
+			if (outcome === 'failed') throw new Error('Die Bezahlseite ließ sich nicht laden. Bitte später noch einmal.');
+			note = 'Bezahlt – das Abo wird eingerichtet …';
+			const { booked } = await waitForSubscription(master);
+			return booked ? 'Abo abgeschlossen. Die Rechnung kommt von Stripe per E-Mail.' : 'Bezahlt; das Abo erscheint in Kürze.';
+		});
+	const portal = () =>
+		act(async () => {
+			location.href = await subscriptionPortal(master);
+			return 'Stripe öffnet …';
+		});
+	const byStripe = $derived(balance?.plan?.billing === 'stripe');
 	const buyHours = (/** @type {number} */ hours) =>
 		act(async () => {
 			const r = await fundVm(master, hours);
@@ -91,7 +122,8 @@
 				</div>
 			{/if}
 			<p class="hint" data-testid="plan-current">
-				{#if current}Dein Paket: {current.hours} Stunden für {euro(current.priceCredits)} im Monat. {balance.plan.periodEnd ? `Es verlängert sich am ${day(balance.plan.periodEnd)} und wird dann aus deinem Guthaben bezahlt, solange es reicht.` : 'Es verlängert sich monatlich und wird aus deinem Guthaben bezahlt, solange es reicht.'} Beenden kannst du es jederzeit zum Monatsende.{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}{:else}Paket {balance.plan.id}{/if}
+				{#if current && byStripe}Dein Abo: {current.hours} Stunden für {euro(current.priceCredits)} im Monat, per Karte über Stripe. {balance.plan.cancelAtPeriodEnd ? `Gekündigt, endet am ${day(balance.plan.renewsAt ?? balance.plan.periodEnd)}.` : `Es verlängert sich am ${day(balance.plan.renewsAt ?? balance.plan.periodEnd)}; jede Abbuchung mit Rechnung.`}{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}
+				{:else if current}Dein Paket: {current.hours} Stunden für {euro(current.priceCredits)} im Monat. {balance.plan.periodEnd ? `Es verlängert sich am ${day(balance.plan.periodEnd)} und wird dann aus deinem Guthaben bezahlt, solange es reicht.` : 'Es verlängert sich monatlich und wird aus deinem Guthaben bezahlt, solange es reicht.'} Beenden kannst du es jederzeit zum Monatsende.{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}{:else}Paket {balance.plan.id}{/if}
 			</p>
 		{:else}
 			<p class="big" data-testid="plan-none"><strong>Noch kein Paket</strong></p>
@@ -102,10 +134,10 @@
 			<span class="hint">{#if balance.reserved}davon {euro(balance.reserved)} für das laufende Paperless vorgemerkt · {/if}daraus werden Paket und Zusatzstunden bezahlt</span></p>
 
 		{#if !balance.plan || choosing}
-			<p class="hint">{balance.plan ? 'Neues Paket wählen:' : 'Paket wählen:'}</p>
+			<p class="hint">{balance.plan ? 'Neues Paket wählen:' : 'Paket als Monatsabo per Karte wählen (Stripe, jederzeit zum Monatsende kündbar):'}</p>
 			<div class="plans">
 				{#each plans as p (p.id)}
-					<button class="plan-choice" class:current={balance.plan?.id === p.id} onclick={() => plan(p.id)} disabled={busy || balance.plan?.id === p.id} data-testid={`plan-${p.id}`}>
+					<button class="plan-choice" class:current={balance.plan?.id === p.id} onclick={() => (balance?.plan ? plan(p.id) : subscribe(p.id))} disabled={busy || balance.plan?.id === p.id} data-testid={`plan-${p.id}`}>
 						<span>{p.hours} Stunden im Monat</span><strong>{euro(p.priceCredits)}</strong>
 					</button>
 				{/each}
@@ -126,8 +158,13 @@
 			{/if}
 			{#if balance.plan}
 				<p class="row">
-					<button class="link" onclick={() => (choosing = !choosing)} data-testid="plan-change">{choosing ? 'Doch nicht wechseln' : 'Paket wechseln'}</button>
-					<button class="link" onclick={() => plan(null)} disabled={busy} data-testid="plan-end">Paket beenden</button>
+					{#if byStripe}
+						<button class="link" onclick={portal} disabled={busy} data-testid="plan-portal">Abo verwalten (wechseln, Karte, Rechnungen)</button>
+						<button class="link" onclick={portal} disabled={busy} data-testid="plan-cancel">Verträge hier kündigen</button>
+					{:else}
+						<button class="link" onclick={() => (choosing = !choosing)} data-testid="plan-change">{choosing ? 'Doch nicht wechseln' : 'Paket wechseln'}</button>
+						<button class="link" onclick={() => plan(null)} disabled={busy} data-testid="plan-end">Paket beenden</button>
+					{/if}
 				</p>
 			{/if}
 			<!-- Always there, so the invoices are found: the list, or why it is empty. -->
@@ -154,6 +191,7 @@
 		<p class="hint">…</p>
 	{/if}
 </section>
+<StripeCheckout bind:this={checkout} label="Abo abschließen" />
 
 <style>
 	.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; margin: 0 0 1rem; box-shadow: var(--shadow); }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { recoverMessageAddress } from 'viem';
-import { canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
+import { canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
 
 // A made-up vault: the ledger knows it by the address its Aleph key has.
 const master = new Uint8Array(32).fill(7);
@@ -132,7 +132,7 @@ describe('packages and hours (belege#591 draft 2)', () => {
 
 	it('reads the package from the balance', async () => {
 		const fetch = async () => new Response(JSON.stringify({ credits: 600, reserved: 0, package: { id: 'paperless-30', period_start: '2026-11-01T00:00:00Z', period_end: '2026-12-01T00:00:00Z', hours_left: 12.5 } }));
-		expect((await creditsBalance(master, { baseUrl, fetch }))?.plan).toEqual({ id: 'paperless-30', periodStart: '2026-11-01T00:00:00Z', periodEnd: '2026-12-01T00:00:00Z', hoursLeft: 12.5 });
+		expect((await creditsBalance(master, { baseUrl, fetch }))?.plan).toEqual({ id: 'paperless-30', periodStart: '2026-11-01T00:00:00Z', periodEnd: '2026-12-01T00:00:00Z', hoursLeft: 12.5, billing: 'credits', renewsAt: null, cancelAtPeriodEnd: false });
 	});
 
 	it('chooses and ends a package with a signed PUT', async () => {
@@ -233,5 +233,29 @@ describe('terms', () => {
 	it('turns 412 TERMS into a TermsError', async () => {
 		const svc = jsonService(() => [412, { error: 'terms', code: 'TERMS' }]);
 		await expect(fundVm(master, 5, { baseUrl, fetch: svc.fetch })).rejects.toBeInstanceOf(TermsError);
+	});
+});
+
+describe('subscription (Stripe)', () => {
+	const baseUrl = 'https://credits.example.com';
+	it('starts a subscription checkout for a package, signed', async () => {
+		const svc = jsonService(() => [200, { client_secret: 'cs_test_x' }]);
+		expect(await startSubscription(master, 'paperless-30', { baseUrl, fetch: svc.fetch })).toBe('cs_test_x');
+		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, package: 'paperless-30', locale: 'de' });
+	});
+	it('opens only a Stripe portal address', async () => {
+		const ok = jsonService(() => [200, { url: 'https://billing.stripe.com/p/session/x' }]);
+		expect(await subscriptionPortal(master, { baseUrl, fetch: ok.fetch })).toBe('https://billing.stripe.com/p/session/x');
+		const bad = jsonService(() => [200, { url: 'https://evil.example.com/' }]);
+		await expect(subscriptionPortal(master, { baseUrl, fetch: bad.fetch })).rejects.toThrow(/keine Stripe-Adresse/);
+	});
+	it('explains a running subscription (409 SUBSCRIBED)', async () => {
+		const svc = jsonService(() => [409, { error: 'subscribed', code: 'SUBSCRIBED' }]);
+		await expect(startSubscription(master, 'paperless-10', { baseUrl, fetch: svc.fetch })).rejects.toThrow(/schon ein Abo/);
+	});
+	it('waits until the package is billed by Stripe', async () => {
+		let n = 0;
+		const read = async () => ({ plan: { billing: ++n > 2 ? 'stripe' : 'credits' } });
+		expect((await waitForSubscription(master, { read, delayMs: 1 })).booked).toBe(true);
 	});
 });
