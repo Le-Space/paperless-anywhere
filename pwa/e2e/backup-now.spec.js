@@ -70,7 +70,8 @@ test.describe('German', () => {
 			backup: { status: 'unchanged', at: checked.toISOString() },
 			lastBackup: { status: 'done', at: last.toISOString(), seconds: 410, backup: { name: 'paperless-made-up', date: last.toISOString(), requestedCopies: 2, complete: true, copies: [{ providerId: 1 }, { providerId: 2 }] } },
 			backupSchedule: { nextCheck: next.toISOString(), everySeconds: 7200 },
-			backupRequest: null
+			backupRequest: null,
+			storage: { documentsBytes: 2.5e9, databaseBytes: 1e8, at: Math.floor(Date.now() / 1000) }
 		};
 		const asked = [];
 		await page.context().route(`https://${HOST}/anywhere/**`, (route) => {
@@ -84,6 +85,9 @@ test.describe('German', () => {
 		// The check apart from the backup: most checks find nothing new.
 		await expect(page.getByTestId('backup-summary')).toHaveText(`Zuletzt geprüft ${hhmm(checked)}, keine Änderung · letzte Sicherung ${hhmm(last)} · nächste Prüfung ${hhmm(next)}`);
 		await expect(page.getByTestId('simple-backup')).toContainText('gesichert wird nur, wenn sich etwas geändert hat');
+		// The documents against the 8 GB a package includes.
+		await expect(page.getByTestId('storage-used')).toHaveText('2,5 GB von 8,0 GB');
+		await expect(page.getByTestId('storage-hint')).toHaveText('Noch 5,5 GB frei.');
 		// Only the private page, by the vault's token.
 		expect(asked).toContain(`/anywhere/s/${statusToken(master)}.json`);
 		expect(asked).not.toContain('/anywhere/status.json');

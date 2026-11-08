@@ -133,6 +133,7 @@
 				</li>
 			{/each}
 		</ul>
+		<p class="included" data-testid="prices-included">{t.prices.included}</p>
 		<p>{t.prices.example}</p>
 	</section>
 
@@ -166,6 +167,7 @@
 
 	section { padding: 3.5rem 0 1rem; scroll-margin-top: 1rem; }
 	h2 { font-size: 1.75rem; margin: 0 0 0.75rem; }
+	.included { font-weight: 600; }
 	.lead { font-size: 1.1rem; color: var(--text-2); max-width: 46rem; }
 
 	.hero { padding-top: 3rem; }

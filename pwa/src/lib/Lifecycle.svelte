@@ -2,6 +2,7 @@
 	import { backupPayer, loadProfile, updateProfile } from '$lib/profile.js';
 	import { AlephShortError, BackupPartialError, eraseStopped, resumeAfterPartial, resumeStart, startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
 	import { vmStatus } from '$lib/vm.js';
+	import Storage from '$lib/Storage.svelte';
 	import { statusToken } from '$lib/keys/derive.js';
 	import { CREDITS_URL, fundVm } from '$lib/credits.js';
 	import { alephBalance } from '$lib/balances.js';
@@ -359,6 +360,7 @@
 			</div>
 			{#if profile.backupConfig}<BackupNow {master} {profile} disabled={busy} onbusy={(b) => (backingUp = b)} ongood={rememberGood} />{/if}
 			<button class="secondary" onclick={stop} disabled={busy || backingUp}>Sichern und beenden</button>
+			<Storage {master} {profile} />
 			{#if profile.ageIdentity && (profile.backupOwner || backupPayer(profile, creditsPayerAddress))}<TrialRestore {master} {profile} owner={profile.backupOwner || backupPayer(profile, creditsPayerAddress)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{:else if phase === 'interrupted'}
 			<button class="cta" onclick={resume} disabled={busy}>Start fortsetzen</button>
@@ -371,6 +373,7 @@
 				{#if backupsPending}<p class="hint">Sicherungen werden gelesen …</p>
 				{:else if backupsError}<p class="warn">{backupsError} Bitte gleich noch einmal versuchen.</p>
 				{:else if profile.ageIdentity}<p class="hint" data-testid="simple-restore">{choice === 'latest' || choice === 'own' ? `Startet mit der neuesten Sicherung (${pick(choice === 'latest' ? backups ?? [] : split.own)?.pieceCid.slice(-12)}).` : 'Startet ohne Daten: es gibt noch keine eigene Sicherung.'}</p>{/if}
+				<Storage {master} {profile} />
 			{/if}
 		{/if}
 		{#if phase !== 'running' && profile.trial}<TrialRestore {master} {profile} owner={profile.backupOwner || backupPayer(profile, creditsPayerAddress)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
