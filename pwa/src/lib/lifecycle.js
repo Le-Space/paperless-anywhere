@@ -432,3 +432,44 @@ export async function resumeAfterPartial(master, profile, { send = sendToGuest, 
 		return s?.stop?.status === 'resumed' ? s : null;
 	}, { tries, delayMs });
 }
+
+/**
+ * A trial: a second Paperless beside the running one, restored from a backup
+ * to check that the backup is whole. It runs as a test (mail rules off), makes
+ * no backups of its own and takes no fixed address (that belongs to the
+ * production one): the instance's own name. It ends without a backup.
+ * @param {Record<string, any>} profile
+ * @param {any} entry the restore entry of the backup to try (restoreEntry())
+ */
+export function trialProfile(profile, entry) {
+	const { running, starting, trial, dnsToken, backupConfig, ...rest } = profile;
+	return { ...rest, role: 'test', restoreEntry: entry };
+}
+
+/**
+ * Start a trial (see trialProfile); `onRequested` gets the VM as soon as Aleph
+ * has it, so it can be kept in the profile and ended after a reload.
+ * @param {Uint8Array} master @param {Record<string, any>} profile @param {any} entry
+ * @param {(p: { step: string, detail?: string, instanceHash?: string }) => void} onProgress
+ * @param {{ onRequested?: (starting: Starting) => Promise<void> | void }} [options]
+ */
+export async function startTrial(master, profile, entry, onProgress, options) {
+	if (!profile.ageIdentity) throw new Error('Ohne den Schlüssel der Sicherungen lässt sich keine Sicherung prüfen.');
+	const run = await startPaperless(master, trialProfile(profile, entry), onProgress, options);
+	// How the restore went: the status page's restore.json (documents, seconds).
+	const status = await vmStatus(run.host, statusToken(master)).catch(() => null);
+	return { ...run, restore: status?.restore ?? run.restore ?? null };
+}
+
+/**
+ * End a trial: the VM goes without a backup (it never makes one).
+ * @param {Uint8Array} master @param {Record<string, any>} trial `profile.trial`
+ * @param {Record<string, any>} profile
+ */
+export async function endTrial(master, trial, profile) {
+	if (!trial?.instanceHash) return;
+	const app = privateKeyToAccount(alephPrivateKey(master));
+	const crnUrl = await crnAddress(trial.crnHash).catch(() => null);
+	if (crnUrl) await eraseOnNode(app, trial.instanceHash, crnUrl).catch(() => {});
+	await forgetInstance(app, trial.payer ?? vmPayer(profile, app.address), trial.instanceHash);
+}
