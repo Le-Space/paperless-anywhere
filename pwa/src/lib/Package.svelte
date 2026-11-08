@@ -20,6 +20,8 @@
 	let error = $state('');
 	let note = $state('');
 	let choosing = $state(false);
+	// The actions stay folded until someone wants them; a short balance opens them.
+	let moreOpen = $state(false);
 	// The service's own list once it answered; until then the known one.
 	let plans = $state(/** @type {{ id: string, hours: number, priceCredits: number }[]} */ ([...PLANS]));
 	creditsCatalog().then((c) => c?.plans.length && (plans = c.plans)).catch(() => {});
@@ -74,57 +76,69 @@
 </script>
 
 <section class="card package" data-testid="package">
-	<h2>Dein Paket</h2>
 	{#if balance}
 		{#if balance.plan}
-			<p class="plan" data-testid="plan-current">
-				<strong>{current ? `${current.hours} Stunden im Monat` : balance.plan.id}</strong>
-				{#if current}<span class="hint">· {euro(current.priceCredits)} im Monat</span>{/if}
+			<!-- One answer first: how long Paperless can run. Money and changes below. -->
+			<p class="big" data-testid="plan-left">
+				{#if hoursLeft != null}<strong>{hoursLeft} {hoursLeft === 1 ? 'Stunde' : 'Stunden'}</strong> Paperless übrig{balance.plan.periodEnd ? `, bis ${day(balance.plan.periodEnd)}` : ''}{:else}Paket aktiv{/if}
 			</p>
-			{#if hoursLeft != null}
-				<div class="meter" role="meter" aria-valuemin="0" aria-valuemax={current?.hours ?? hoursLeft} aria-valuenow={hoursLeft} aria-label="Verbleibende Stunden">
+			{#if hoursLeft != null && current && hoursLeft <= current.hours}
+				<div class="meter" role="meter" aria-valuemin="0" aria-valuemax={current.hours} aria-valuenow={hoursLeft} aria-label="Verbleibende Stunden">
 					<span style="width: {(share ?? 1) * 100}%"></span>
 				</div>
-				<p class="hint" data-testid="plan-left">Noch {hoursLeft} {hoursLeft === 1 ? 'Stunde' : 'Stunden'}{balance.plan.periodEnd ? ` bis ${day(balance.plan.periodEnd)}` : ''}</p>
 			{/if}
-			{#if appPays}
-				<p class="row"><span class="hint">Stunden dazukaufen:</span>
-					{#each [5, 10, 30] as h (h)}<button class="chip" onclick={() => buyHours(h)} disabled={busy} data-testid={`buy-${h}`}>+{h} h</button>{/each}</p>
-			{/if}
-			<p class="row">
-				<button class="link" onclick={() => (choosing = !choosing)} data-testid="plan-change">{choosing ? 'Doch nicht wechseln' : 'Paket wechseln'}</button>
-				<button class="link" onclick={() => plan(null)} disabled={busy} data-testid="plan-end">Paket beenden</button>
+			<p class="hint" data-testid="plan-current">
+				{#if current}Dein Paket: {current.hours} Stunden für {euro(current.priceCredits)} im Monat{balance.plan.periodEnd ? `; ab ${day(balance.plan.periodEnd)} gibt es wieder ${current.hours} Stunden` : ''}.{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}{:else}Paket {balance.plan.id}{/if}
 			</p>
 		{:else}
-			<p class="hint" data-testid="plan-none">Noch kein Paket. Ein Paket gibt dir jeden Monat Stunden für dein Paperless; bezahlt wird aus deinem Guthaben.</p>
+			<p class="big" data-testid="plan-none"><strong>Noch kein Paket</strong></p>
+			<p class="hint">Ein Paket gibt dir jeden Monat Stunden für dein Paperless. Bezahlt wird aus deinem Guthaben.</p>
 		{/if}
+
+		<p class="line"><span class="label">Guthaben</span> <strong data-testid="balance-euro">{euro(balance.credits)}</strong>
+			<span class="hint">{#if balance.reserved}davon {euro(balance.reserved)} für das laufende Paperless vorgemerkt · {/if}daraus werden Paket und Zusatzstunden bezahlt</span></p>
+
 		{#if !balance.plan || choosing}
+			<p class="hint">{balance.plan ? 'Neues Paket wählen:' : 'Paket wählen:'}</p>
 			<div class="plans">
 				{#each plans as p (p.id)}
 					<button class="plan-choice" class:current={balance.plan?.id === p.id} onclick={() => plan(p.id)} disabled={busy || balance.plan?.id === p.id} data-testid={`plan-${p.id}`}>
-						<span>{p.hours} h im Monat</span><strong>{euro(p.priceCredits)}</strong>
+						<span>{p.hours} Stunden im Monat</span><strong>{euro(p.priceCredits)}</strong>
 					</button>
 				{/each}
 			</div>
 		{/if}
 
-		<div class="money">
-			<p class="line"><span class="label">Guthaben</span> <strong data-testid="balance-euro">{euro(balance.credits)}</strong>
-				{#if balance.reserved}<span class="hint">· davon {euro(balance.reserved)} für das laufende Paperless vorgemerkt</span>{/if}</p>
-			<TopUp {master} credits={balance.credits} onbooked={read} />
-		</div>
-
-		{#if purchases?.length}
-			<details class="purchases" data-testid="purchases">
-				<summary>{purchases.length} Aufladung{purchases.length === 1 ? '' : 'en'}, mit Rechnung</summary>
-				<ul>
-					{#each purchases as p (p.id)}
-						<li data-testid="purchase">{p.at ? new Date(p.at).toLocaleDateString('de-DE') : '–'} · {euro(p.cents)}
-							{#if p.invoiceUrl}· <a href={p.invoiceUrl} target="_blank" rel="noopener noreferrer">Rechnung</a>{:else}<small class="hint">· Rechnung folgt</small>{/if}</li>
-					{/each}
-				</ul>
-			</details>
-		{/if}
+		<details class="more" bind:open={moreOpen}>
+			<summary>Aufladen, Stunden dazukaufen, Paket ändern</summary>
+			<div class="group">
+				<p class="label">Guthaben aufladen (per Karte)</p>
+				<TopUp {master} credits={balance.credits} onbooked={read} />
+			</div>
+			{#if balance.plan && appPays}
+				<div class="group">
+					<p class="label">Mehr Stunden für diesen Monat, aus dem Guthaben</p>
+					<p class="row">{#each [5, 10, 30] as h (h)}<button class="chip" onclick={() => buyHours(h)} disabled={busy} data-testid={`buy-${h}`}>+{h} Stunden</button>{/each}</p>
+				</div>
+			{/if}
+			{#if balance.plan}
+				<p class="row">
+					<button class="link" onclick={() => (choosing = !choosing)} data-testid="plan-change">{choosing ? 'Doch nicht wechseln' : 'Paket wechseln'}</button>
+					<button class="link" onclick={() => plan(null)} disabled={busy} data-testid="plan-end">Paket beenden</button>
+				</p>
+			{/if}
+			{#if purchases?.length}
+				<details class="purchases" data-testid="purchases">
+					<summary>{purchases.length} Aufladung{purchases.length === 1 ? '' : 'en'}, mit Rechnung</summary>
+					<ul>
+						{#each purchases as p (p.id)}
+							<li data-testid="purchase">{p.at ? new Date(p.at).toLocaleDateString('de-DE') : '–'} · {euro(p.cents)}
+								{#if p.invoiceUrl}· <a href={p.invoiceUrl} target="_blank" rel="noopener noreferrer">Rechnung</a>{:else}<small class="hint">· Rechnung folgt</small>{/if}</li>
+						{/each}
+					</ul>
+				</details>
+			{/if}
+		</details>
 		{#if note}<p class="hint" role="status" data-testid="plan-note">{note}</p>{/if}
 		{#if error}<p class="warn" role="alert" data-testid="plan-error">{error}</p>{/if}
 	{:else if balanceError}
@@ -137,23 +151,26 @@
 <style>
 	.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; margin: 0 0 1rem; box-shadow: var(--shadow); }
 	h2 { font-size: 1rem; margin: 0 0 0.75rem; }
-	.plan { margin: 0 0 0.5rem; }
+	.big { margin: 0 0 0.5rem; font-size: 1.15rem; }
+	.big strong { font-size: 1.6rem; letter-spacing: -0.02em; }
 	.hint { color: var(--text-2); }
 	.warn { color: var(--warn); }
-	.meter { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+	.meter { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin: 0 0 0.5rem; }
 	.meter span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
-	[data-testid='plan-left'] { margin: 0.35rem 0 0; font-size: 0.9rem; }
-	.row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; margin: 0.75rem 0 0; }
+	.row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; margin: 0.5rem 0 0; }
 	.chip { padding: 0.3rem 0.8rem; font-size: 0.9rem; }
 	.link { background: none; border: none; color: var(--text-2); text-decoration: underline; padding: 0; font-size: 0.9rem; }
-	.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.5rem; margin: 0.75rem 0 0; }
+	.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.5rem; margin: 0.5rem 0 0; }
 	.plan-choice { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; padding: 0.7rem 0.9rem; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); border-color: var(--line); text-align: left; }
 	.plan-choice strong { font-size: 1.2rem; }
 	.plan-choice.current { border-color: var(--accent); }
-	.money { margin: 1.25rem 0 0; padding: 1rem 0 0; border-top: 1px solid var(--line); }
-	.line { margin: 0 0 0.5rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; }
-	.label { color: var(--text-2); }
+	.line { margin: 1rem 0 0; padding: 0.9rem 0 0; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.6rem; }
+	.label { color: var(--text-2); margin: 0; }
 	.line strong { font-size: 1.2rem; }
+	.line .hint { font-size: 0.85rem; flex-basis: 100%; }
+	.more { margin: 0.75rem 0 0; }
+	.more summary { color: var(--text-2); cursor: pointer; }
+	.group { margin: 0.75rem 0 0; }
 	.purchases { margin: 0.75rem 0 0; font-size: 0.9rem; }
 	.purchases summary { color: var(--text-2); }
 	.purchases ul { list-style: none; padding: 0; margin: 0.3rem 0; }
