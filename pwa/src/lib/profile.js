@@ -38,6 +38,9 @@ export async function saveProfile(master, profile) {
  * @param {Record<string, any>} profile @param {string} appAddress
  */
 export function vmPayer(profile, appAddress) {
+	// Model A: Le Space's account for this customer owns and pays the VM; the
+	// app starts it as that account's delegate (le-space-credits#38).
+	if (profile.leSpacePays) return profile.vmOwner ?? null;
 	return profile.appPays ? appAddress : profile.payer;
 }
 

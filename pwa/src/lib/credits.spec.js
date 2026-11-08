@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { recoverMessageAddress } from 'viem';
-import { canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
+import { canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
 
 // A made-up vault: the ledger knows it by the address its Aleph key has.
 const master = new Uint8Array(32).fill(7);
@@ -257,5 +257,19 @@ describe('subscription (Stripe)', () => {
 		let n = 0;
 		const read = async () => ({ plan: { billing: ++n > 2 ? 'stripe' : 'credits' } });
 		expect((await waitForSubscription(master, { read, delayMs: 1 })).booked).toBe(true);
+	});
+});
+
+describe('model A: the VM paid by Le Space', () => {
+	const baseUrl = 'https://credits.example.com';
+	it('asks for the delegation and returns the paying account', async () => {
+		const owner = '0x' + '6'.repeat(40);
+		const svc = jsonService(() => [200, { owner, delegate: account.address, types: ['INSTANCE', 'FORGET', 'AGGREGATE'], aggregate_keys: ['port-forwarding'], hours_left: 34, period_end: '2026-12-06T00:00:00Z', revoke_at: null }]);
+		expect(await vmAuthorize(master, { baseUrl, fetch: svc.fetch })).toEqual({ owner, delegate: account.address, hoursLeft: 34, periodEnd: '2026-12-06T00:00:00Z', revokeAt: null });
+		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address });
+	});
+	it('says when the service does not pay VMs yet (503 SUBS_OFF)', async () => {
+		const svc = jsonService(() => [503, { error: 'subs off', code: 'SUBS_OFF' }]);
+		await expect(vmAuthorize(master, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/noch nicht selbst/);
 	});
 });

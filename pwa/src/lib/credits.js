@@ -191,7 +191,7 @@ export class CreditsShortError extends Error {
 
 /** What the service's error codes mean for a person (le-space-credits, /v1/vm/fund). */
 const MESSAGES = {
-	NO_PLAN: 'Stunden nachkaufen geht mit einem Paket: erst ein Paket wählen.',
+	NO_PLAN: 'Dafür braucht es ein laufendes Paket: erst ein Paket wählen.',
 	TREASURY_OFF: 'Le Space Credits können gerade keine Aleph-Credits ausgeben. Später noch einmal versuchen.',
 	REFUSED: 'Aleph hat die Gutschrift abgelehnt. Später noch einmal versuchen.',
 	CAP: 'Le Space hat gerade nicht genug Aleph-Credits vorrätig. Später noch einmal versuchen.',
@@ -200,6 +200,8 @@ const MESSAGES = {
 	ADDRESS: 'Le Space Credits nehmen die Adresse des Sicherungskontos nicht an.',
 	TOO_SOON: 'Die Sicherungen wurden gerade erst bezahlt. Bitte in fünf Minuten noch einmal.',
 	MONTHS: 'Sicherungen lassen sich für 1 bis 12 Monate bezahlen.',
+	SUBS_OFF: 'Le Space Credits bezahlen VMs gerade noch nicht selbst. Später noch einmal versuchen.',
+	DELEGATES: 'Zu viele Geräte sind schon für dieses Konto freigegeben.',
 	SUBSCRIBED: 'Es läuft schon ein Abo. Ändern oder kündigen geht über „Abo verwalten“.',
 	NO_SUBSCRIPTION: 'Es gibt noch kein Abo zum Verwalten.',
 	ORIGIN: 'Diese Adresse der App darf das Abo-Portal nicht öffnen.',
@@ -311,6 +313,26 @@ export async function startCheckout(master, packageId, { baseUrl = CREDITS_URL, 
 	if (res.status === 503) throw new Error('Bezahlen ist beim Credits-Dienst noch nicht eingerichtet.');
 	if (!res.ok || typeof body?.client_secret !== 'string') throw new Error(body?.error ? `Le Space Credits: ${body.error}` : `Le Space Credits antwortet ${res.status}`);
 	return body.client_secret;
+}
+
+/**
+ * Model A: let this app start and forget VMs as the delegate of the Le Space
+ * account that owns and pays them for this customer. The customer never holds
+ * Aleph credits; the service accounts the hours (le-space-credits#38).
+ * @param {Uint8Array} master
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<{ owner: string, delegate: string, hoursLeft: number | null, periodEnd: string | null, revokeAt: string | null }>}
+ */
+export async function vmAuthorize(master, options) {
+	const r = await send(master, 'POST', '/v1/vm/authorize', {}, options);
+	if (!/^0x[0-9a-fA-F]{40}$/.test(String(r?.owner ?? ''))) throw new Error('Le Space Credits haben kein Konto für die VM genannt.');
+	return {
+		owner: String(r.owner),
+		delegate: String(r.delegate ?? ''),
+		hoursLeft: r.hours_left == null ? null : Number(r.hours_left),
+		periodEnd: r.period_end ?? null,
+		revokeAt: r.revoke_at ?? null
+	};
 }
 
 /**
