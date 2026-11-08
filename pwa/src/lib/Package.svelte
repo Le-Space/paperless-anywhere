@@ -20,6 +20,7 @@
 	let error = $state('');
 	let note = $state('');
 	let choosing = $state(false);
+	let purchasesError = $state('');
 	// The actions stay folded until someone wants them; a short balance opens them.
 	let moreOpen = $state(false);
 	// The service's own list once it answered; until then the known one.
@@ -35,7 +36,7 @@
 	async function read() {
 		await Promise.all([
 			creditsBalance(master).then((b) => ((balance = b), (balanceError = ''))).catch((e) => ((balance = null), (balanceError = e.message))),
-			creditsPurchases(master).then((p) => (purchases = p)).catch(() => (purchases = null))
+			creditsPurchases(master).then((p) => ((purchases = p), (purchasesError = ''))).catch((e) => ((purchases = null), (purchasesError = e instanceof Error ? e.message : String(e))))
 		]);
 	}
 
@@ -127,17 +128,21 @@
 					<button class="link" onclick={() => plan(null)} disabled={busy} data-testid="plan-end">Paket beenden</button>
 				</p>
 			{/if}
-			{#if purchases?.length}
-				<details class="purchases" data-testid="purchases">
-					<summary>{purchases.length} Aufladung{purchases.length === 1 ? '' : 'en'}, mit Rechnung</summary>
+			<!-- Always there, so the invoices are found: the list, or why it is empty. -->
+			<details class="purchases" data-testid="purchases">
+				<summary>Aufladungen und Rechnungen{purchases?.length ? ` (${purchases.length})` : ''}</summary>
+				{#if purchasesError}<p class="warn">Die Aufladungen ließen sich gerade nicht lesen: {purchasesError}</p>
+				{:else if purchases === null}<p class="hint">…</p>
+				{:else if !purchases.length}<p class="hint">Noch keine Aufladung.</p>
+				{:else}
 					<ul>
 						{#each purchases as p (p.id)}
 							<li data-testid="purchase">{p.at ? new Date(p.at).toLocaleDateString('de-DE') : '–'} · {euro(p.cents)}
-								{#if p.invoiceUrl}· <a href={p.invoiceUrl} target="_blank" rel="noopener noreferrer">Rechnung</a>{:else}<small class="hint">· Rechnung folgt</small>{/if}</li>
+								{#if p.invoiceUrl}· <a href={p.invoiceUrl} target="_blank" rel="noopener noreferrer">Rechnung (Stripe)</a>{:else}<small class="hint">· Rechnung folgt</small>{/if}</li>
 						{/each}
 					</ul>
-				</details>
-			{/if}
+				{/if}
+			</details>
 		</details>
 		{#if note}<p class="hint" role="status" data-testid="plan-note">{note}</p>{/if}
 		{#if error}<p class="warn" role="alert" data-testid="plan-error">{error}</p>{/if}
