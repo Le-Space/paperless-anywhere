@@ -12,6 +12,9 @@ describe('vmPayer', () => {
 		expect(vmPayer({ payer: wallet, appPays: true }, app)).toBe(app);
 		expect(vmPayer({ appPays: true }, app)).toBe(app);
 		expect(vmPayer({}, app)).toBeUndefined();
+		// Model A: Le Space's account for this customer, once known.
+		expect(vmPayer({ payer: wallet, appPays: true, leSpacePays: true, vmOwner: '0x' + '5'.repeat(40) }, app)).toBe('0x' + '5'.repeat(40));
+		expect(vmPayer({ leSpacePays: true }, app)).toBeNull();
 	});
 });
 
@@ -30,6 +33,7 @@ describe('startRequirements', () => {
 		expect(startRequirements({ ...ready })).toEqual(['zahlendes Konto']);
 		expect(startRequirements({ ...ready, payer: wallet })).toEqual([]);
 		expect(startRequirements({ ...ready, appPays: true })).toEqual([]);
+		expect(startRequirements({ ...ready, leSpacePays: true })).toEqual([]);
 		expect(startRequirements({ ...ready, appPays: true, backupConfig: { copies: 2 } })).toEqual(['Wallet für die Sicherungen']);
 		expect(startRequirements({ ...ready, appPays: true, payer: wallet, backupConfig: { copies: 2 } })).toEqual([]);
 		// Backups paid through Le Space Credits: no wallet at all.

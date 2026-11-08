@@ -4,7 +4,8 @@
 	import { vmStatus } from '$lib/vm.js';
 	import Storage from '$lib/Storage.svelte';
 	import { statusToken } from '$lib/keys/derive.js';
-	import { CREDITS_URL, fundVm } from '$lib/credits.js';
+	import { CREDITS_URL, fundVm, vmAuthorize } from '$lib/credits.js';
+	import { isAuthorized, readAuthorizations } from '$lib/permissions.js';
 	import { alephBalance } from '$lib/balances.js';
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey, filecoinPayerPrivateKey } from '$lib/keys/derive.js';
@@ -207,8 +208,25 @@
 	}
 
 	const start = () => run(startNow);
+	/**
+	 * Model A: ask Le Space Credits for this app's delegation on the account
+	 * that pays the VM, keep that account in the profile, and wait until Aleph
+	 * shows the delegation (an INSTANCE before that would be refused).
+	 */
+	async function leSpaceOwner() {
+		progress = 'Le Space Credits: Freigabe für die VM holen';
+		const a = await vmAuthorize(master);
+		if (profile.vmOwner !== a.owner) profile = await updateProfile(master, (now) => ({ ...now, vmOwner: a.owner }));
+		const app = privateKeyToAccount(alephPrivateKey(master)).address;
+		for (let i = 0; i < 30; i++) {
+			if (isAuthorized(await readAuthorizations(a.owner).catch(() => []), app)) return a.owner;
+			await new Promise((r) => setTimeout(r, 4000));
+		}
+		throw new Error('Aleph zeigt die Freigabe von Le Space noch nicht. In ein paar Minuten noch einmal starten.');
+	}
 	async function startNow() {
 		await reload();
+		if (profile.leSpacePays) await leSpaceOwner();
 		const chosen = choice === 'latest' ? pick(backups ?? []) : choice === 'own' ? pick(split.own) : choice === 'any' ? pick(split.other) : null;
 		const forStart = { ...$state.snapshot(profile), restoreEntry: chosen ? restoreEntry(chosen) : null };
 		// Once Aleph has the VM, the profile knows it: a reload carries on from there.
@@ -226,8 +244,10 @@
 		await fundVm(master, fundHours);
 		progress = 'Warte, bis Aleph die Gutschrift zeigt';
 		const app = privateKeyToAccount(alephPrivateKey(master)).address;
+		// The account that pays: the app's own, or Le Space's for this customer (model A).
+		const payerAccount = profile.leSpacePays ? (profile.vmOwner ?? app) : app;
 		for (let i = 0; i < 36; i++) {
-			const b = await alephBalance(app).catch(() => null);
+			const b = await alephBalance(payerAccount).catch(() => null);
 			if (b && b.credits >= need) break;
 			if (i === 35) throw new Error('Die Gutschrift ist bei Aleph noch nicht zu sehen. In ein paar Minuten noch einmal starten.');
 			await new Promise((res) => setTimeout(res, 5000));
@@ -389,7 +409,7 @@
 			</div>
 		{/if}
 		{#if errorLog.length}<details class="log" data-testid="simple-backup-log"><summary>Details aus der VM</summary><pre>{errorLog.join('\n')}</pre><ProviderHealth network={profile.network ?? 'calibration'} ids={healthIds} /></details>{/if}
-		{#if short && CREDITS_URL && profile.appPays}
+		{#if short && CREDITS_URL && (profile.appPays || profile.leSpacePays)}
 			<div class="fund" data-testid="fund-offer">
 				<label>Stunden aus Le Space Credits holen
 					<select bind:value={fundHours} data-testid="fund-hours">{#each [5, 10, 30] as h (h)}<option value={h}>{h} h</option>{/each}</select></label>

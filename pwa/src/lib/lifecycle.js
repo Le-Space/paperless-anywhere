@@ -91,7 +91,7 @@ async function until(what, fn, { tries = 60, delayMs = 5000 } = {}) {
 export function startRequirements(profile) {
 	const missing = [];
 	// The wallet pays the VM, or only the backups when the app pays (appPays).
-	if (!profile.payer && !profile.appPays) missing.push('zahlendes Konto');
+	if (!profile.payer && !profile.appPays && !profile.leSpacePays) missing.push('zahlendes Konto');
 	// Backups paid through Le Space Credits need no wallet: the vault's own
 	// Filecoin payer pays them.
 	if (!profile.payer && profile.backupConfig && !profile.backupsByCredits) missing.push('Wallet für die Sicherungen');
@@ -128,6 +128,7 @@ export async function startPaperless(master, profile, onProgress, { onRequested 
 
 	onProgress({ step: 'instance', detail: 'VM anfordern' });
 	const payer = vmPayer(profile, app.address);
+	if (!payer) throw new Error('Es ist noch kein Konto bekannt, das die VM bezahlt.');
 	const message = await instanceMessage({ app, payer, rootfsItemHash: profile.rootfsItemHash, crnHash: profile.crnHash, trustedExecution, name: `paperless-${new Date().toISOString().slice(0, 16)}` });
 	// Aleph takes the VM only when the account holds a day of the VM's price
 	// plus a day of what it already pays for; checked here so an account short
@@ -141,7 +142,7 @@ export async function startPaperless(master, profile, onProgress, { onRequested 
 	if (balance < reserve) {
 		const running = runningPerHour ? ` und ${runningPerHour.toLocaleString('de-DE')} Credits/h für das, was schon läuft` : '';
 		throw new AlephShortError(
-			`Für einen Start fehlen noch ${(reserve - balance).toLocaleString('de-DE')} Aleph-Credits auf ${profile.appPays ? 'dem Konto der App' : 'dem zahlenden Konto'}. Aleph nimmt die VM erst mit einem Tag Reserve an: ${reserve.toLocaleString('de-DE')} (${vmPerHour.toLocaleString('de-DE')} Credits/h für Paperless${running}), da sind ${balance.toLocaleString('de-DE')}.`,
+			`Für einen Start fehlen noch ${(reserve - balance).toLocaleString('de-DE')} Aleph-Credits auf ${profile.leSpacePays ? 'dem Konto, mit dem Le Space deine VM bezahlt' : profile.appPays ? 'dem Konto der App' : 'dem zahlenden Konto'}. Aleph nimmt die VM erst mit einem Tag Reserve an: ${reserve.toLocaleString('de-DE')} (${vmPerHour.toLocaleString('de-DE')} Credits/h für Paperless${running}), da sind ${balance.toLocaleString('de-DE')}.`,
 			{ balance, reserve, vmPerHour }
 		);
 	}

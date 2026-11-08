@@ -114,7 +114,10 @@
 		await save({ network, ...(profile.backupConfig ? { backupConfig: null } : {}) });
 		await refresh();
 	});
-	const setAppPays = (on) => run('pays', () => save({ appPays: on }));
+	// Who pays the VM: the wallet, the app's own address, or Le Space for this
+	// customer from the package (model A, le-space-credits#38).
+	const setPays = (/** @type {'wallet' | 'app' | 'lespace'} */ who) => run('pays', () => save({ appPays: who === 'app', leSpacePays: who === 'lespace' }));
+	const setAppPays = (on) => setPays(on ? 'app' : 'wallet');
 	// One instance reads the mailbox and writes the mainnet backups; switching
 	// another one to that role while the first still runs would duplicate both.
 	/** @param {'test' | 'primary'} role @param {HTMLInputElement} [radio] */
@@ -260,10 +263,13 @@
 
 		<h3>1. Wer zahlt die VM?</h3>
 		<fieldset class="payer-choice" disabled={busy === 'pays'}>
-			<label><input type="radio" name="pays" checked={!profile.appPays} onchange={() => setAppPays(false)} data-testid="pays-wallet" /> Mein Wallet (MetaMask), mit einer Freigabe für diese App</label>
-			<label><input type="radio" name="pays" checked={Boolean(profile.appPays)} onchange={() => setAppPays(true)} data-testid="pays-app" /> Diese App selbst: Aleph-Credits liegen auf ihrer Adresse</label>
+			{#if CREDITS_URL}<label><input type="radio" name="pays" checked={Boolean(profile.leSpacePays)} onchange={() => setPays('lespace')} data-testid="pays-lespace" /> Le Space, aus meinem Paket: kein Wallet, keine Kryptowerte</label>{/if}
+			<label><input type="radio" name="pays" checked={!profile.appPays && !profile.leSpacePays} onchange={() => setPays('wallet')} data-testid="pays-wallet" /> Mein Wallet (MetaMask), mit einer Freigabe für diese App</label>
+			<label><input type="radio" name="pays" checked={Boolean(profile.appPays) && !profile.leSpacePays} onchange={() => setPays('app')} data-testid="pays-app" /> Diese App selbst: Aleph-Credits liegen auf ihrer Adresse</label>
 		</fieldset>
-		{#if profile.appPays}
+		{#if profile.leSpacePays}
+			<p class="hint" data-testid="lespace-pays">Le Space bezahlt deine VM aus einem eigenen Konto für dich; diese App startet und beendet sie in dessen Auftrag. Abgerechnet wird über dein Paket. {profile.vmOwner ? 'Konto für deine VM: ' : ''}{#if profile.vmOwner}<code>{profile.vmOwner}</code>{/if}</p>
+		{:else if profile.appPays}
 			<p>Adresse der App: <code data-testid="app-payer">{pwaAddress}</code>
 				<br /><small class="money">Hier liegen die Aleph-Credits für die VMs. Der Schlüssel dazu kommt aus deinem Tresor: wer den Tresor öffnet, kann sie ausgeben. Aufladen per Aleph-Überweisung an diese Adresse{CREDITS_URL ? ' oder aus Le Space Credits' : ''}.</small></p>
 			<p class="hint">Ein Wallet brauchst du so nur für Sicherungen (Filecoin){CREDITS_URL ? ', und auch dafür nicht, wenn Le Space Credits sie bezahlen (Schritt 5)' : ''}.</p>
@@ -275,7 +281,7 @@
 		{@render feedback('pays')}
 		<button onclick={connect} disabled={busy === 'wallet'}>{profile.payer ? 'Anderes Wallet verbinden' : profile.appPays ? 'Wallet für Sicherungen verbinden' : 'Wallet verbinden'}</button>
 
-		{#if profile.payer && !profile.appPays}
+		{#if profile.payer && !profile.appPays && !profile.leSpacePays}
 			<h3>2. Aleph: diese App darf VMs starten und löschen</h3>
 			<p>App-Schlüssel: <code>{pwaAddress}</code>
 				<br /><small class="nomoney">Hält kein Geld – nichts dorthin überweisen. Er darf nur im Auftrag des zahlenden Kontos VMs starten und löschen.</small></p>
