@@ -7,8 +7,8 @@
 	import { listBackups, restoreEntry } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 
-	/** @type {{ master: Uint8Array, profile: Record<string, any>, owner: string | null, onchange?: () => void }} */
-	let { master, profile, owner, onchange = () => {} } = $props();
+	/** @type {{ master: Uint8Array, profile: Record<string, any>, listing: { owner: string, customer?: string, label?: string } | null, onchange?: () => void }} */
+	let { master, profile, listing, onchange = () => {} } = $props();
 
 	let busy = $state(false);
 	let step = $state('');
@@ -23,8 +23,8 @@
 		error = '';
 		step = 'Sicherungen lesen';
 		try {
-			if (!owner) throw new Error('Es ist kein Wallet der Sicherungen eingerichtet.');
-			const list = await listBackups({ network: profile.network ?? 'calibration', owner });
+			if (!listing) throw new Error('Es ist nicht eingerichtet, wo die Sicherungen liegen.');
+			const list = await listBackups({ network: profile.network ?? 'calibration', ...listing });
 			const newest = list[0];
 			if (!newest) throw new Error('Es gibt noch keine Sicherung zum Prüfen.');
 			const entry = restoreEntry(newest);

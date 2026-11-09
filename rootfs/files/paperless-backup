@@ -1,6 +1,8 @@
 #!/bin/sh
 # paperless-backup [check|run|fingerprint]: back up this Paperless with
-# paperless-backup-filecoin, signed by a session key, never by the wallet.
+# paperless-backup-filecoin, signed by a session key, never by the wallet:
+# the wallet's session key, or Le Space's, which Le Space Credits use for the
+# VM after their checks (remoteSigner).
 #
 #   check        back up if Paperless changed since the last backup or the restore
 #                (paperless-backup-loop runs this every two hours; stop runs it last)
@@ -10,9 +12,16 @@
 # Comes with the unlock, over the attested channel:
 #   /tmp/secrets/backup_config       paperless-backup-filecoin config.json: network,
 #                                    providers, ageRecipient (public), datasetMetadata,
-#                                    payer (the wallet the session key acts for)
-#   /tmp/secrets/backup_session_key  a session key the wallet authorized for creating
-#                                    data sets and adding pieces only, until it expires
+#                                    payer (the wallet the session key acts for, or
+#                                    Le Space's payer), and with Le Space Credits
+#                                    remoteSigner: { creditsUrl, product, account,
+#                                    payer, signer, tag, label }
+#   /tmp/secrets/backup_session_key  wallet path: a session key the wallet authorized
+#                                    for creating data sets and adding pieces only,
+#                                    until it expires (SESSION_KEY_FILE)
+#   /tmp/secrets/backup_key          Le Space Credits: this VM's backup key, derived
+#                                    from the vault; it holds nothing and only asks
+#                                    the service to sign each step (BACKUP_KEY_FILE)
 #   /tmp/secrets/paperless_role      "primary" backs up to mainnet; anything else is a
 #                                    test and must use the calibration network
 #
@@ -109,7 +118,15 @@ if [ ! -s "$secrets/backup_config" ]; then
   status skipped ',"reason":"no backup_config came with the unlock"'
   exit 0
 fi
-[ -s "$secrets/backup_session_key" ] || fail "a backup_config came without a backup_session_key"
+# Le Space Credits sign for the VM (remoteSigner) with its backup key; the
+# wallet path signs with the wallet's session key.
+if python3 -c 'import json, sys; sys.exit(0 if isinstance(json.load(open(sys.argv[1])).get("remoteSigner"), dict) else 1)' "$secrets/backup_config" 2>/dev/null; then
+  signing=remote
+  [ -s "$secrets/backup_key" ] || fail "a backup_config with remoteSigner came without a backup_key"
+else
+  signing=session
+  [ -s "$secrets/backup_session_key" ] || fail "a backup_config came without a backup_session_key"
+fi
 role="$(cat "$secrets/paperless_role" 2>/dev/null || echo test)"
 
 # The config as the tool reads it; the network must fit the role, and the
@@ -126,6 +143,17 @@ if not re.fullmatch(r"0x[0-9a-fA-F]{40}", str(c.get("payer", ""))):
     sys.exit("backup_config has no payer address")
 if not str(c.get("ageRecipient", "")).startswith("age1"):
     sys.exit("backup_config has no ageRecipient")
+r = c.get("remoteSigner")
+if r is not None:
+    addr = lambda v: re.fullmatch(r"0x[0-9a-fA-F]{40}", str(v or "")) is not None
+    if not isinstance(r, dict) or not all(addr(r.get(k)) for k in ("account", "payer", "signer")):
+        sys.exit("remoteSigner needs account, payer and signer addresses")
+    if not str(r.get("creditsUrl", "")).startswith("https://"):
+        sys.exit("remoteSigner needs an https creditsUrl")
+    if not (r.get("product") and r.get("tag") and r.get("label")):
+        sys.exit("remoteSigner needs product, tag and label")
+    if r["payer"].lower() != str(c.get("payer", "")).lower():
+        sys.exit("remoteSigner names another payer than the config")
 c.pop("mail", None)
 c["daily"] = {**c.get("daily", {}), "prune": False}
 json.dump(c, open(sys.argv[2], "w"))
@@ -147,8 +175,13 @@ oom0="$(oom_kills)"
 # the next export needs. The restore's folder (export/restore) stays.
 find /srv/paperless/export -mindepth 1 -maxdepth 1 -name 'paperless-*' -exec rm -rf {} + 2>/dev/null
 cd /opt/backup-filecoin || fail "no backup tool in /opt/backup-filecoin"
-export BACKUP_CONFIG="$config" SESSION_KEY_FILE="$secrets/backup_session_key" \
-  PAPERLESS_DIR=/srv/paperless PAPERLESS_MANAGE=/usr/local/sbin/paperless-manage
+export BACKUP_CONFIG="$config" PAPERLESS_DIR=/srv/paperless PAPERLESS_MANAGE=/usr/local/sbin/paperless-manage
+# The key's file, never the key: it stays in /tmp/secrets and out of the log.
+if [ "$signing" = remote ]; then
+  export BACKUP_KEY_FILE="$secrets/backup_key"
+else
+  export SESSION_KEY_FILE="$secrets/backup_session_key"
+fi
 # The fixed address's certificate and lego account go along (sealed with the
 # backup), so a restore brings them back instead of asking the CA again.
 [ -d /etc/paperless-anywhere/tls ] && export EXPORT_EXTRA_DIR=/etc/paperless-anywhere/tls

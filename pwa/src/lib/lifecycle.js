@@ -9,12 +9,13 @@
 import { privateKeyToAccount } from 'viem/accounts';
 import { confidentialTrustedExecution, unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
 import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
-import { alephPrivateKey, filecoinPayerPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
+import { alephPrivateKey, backupPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
+import { backupAuthorize, backupKeyAddress, creditsAccount, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
 import { relayTransports } from './attest-p2p.js';
-import { backupFacts } from './backups.js';
+import { backupFacts, vmBackupSecrets } from './backups.js';
 import { attestRelaysFor } from './relays.js';
-import { backupPayer, vmPayer } from './profile.js';
+import { vmPayer } from './profile.js';
 import { ALEPH_API, readFetch } from './aleph.js';
 import { crnAddress, credits, estimateCreditsPerHour, FIXED_HOST_DOMAIN, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
@@ -92,9 +93,11 @@ export function startRequirements(profile) {
 	const missing = [];
 	// The wallet pays the VM, or only the backups when the app pays (appPays).
 	if (!profile.payer && !profile.appPays && !profile.leSpacePays) missing.push('zahlendes Konto');
-	// Backups paid through Le Space Credits need no wallet: the vault's own
-	// Filecoin payer pays them.
+	// Backups paid through Le Space Credits need no wallet: Le Space's payer
+	// pays them, once the service has the VM's backup key.
 	if (!profile.payer && profile.backupConfig && !profile.backupsByCredits) missing.push('Wallet für die Sicherungen');
+	const signerNetwork = profile.network === 'mainnet' ? 'mainnet' : 'calibration';
+	if (profile.backupConfig && profile.backupsByCredits && (!profile.backupSigner?.payer || profile.backupSigner.network !== signerNetwork)) missing.push('Sicherungen über Le Space Credits freigeben');
 	if (!profile.rootfsItemHash) missing.push('Paperless-Image');
 	if (!profile.luksPassphrase) missing.push('Image-Passphrase');
 	if (!profile.crnHash) missing.push('Knoten');
@@ -216,8 +219,22 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 		status_token: statusToken(master)
 	};
 	if (profile.backupConfig) {
-		secrets.backup_config = JSON.stringify({ ...profile.backupConfig, payer: backupPayer(profile, privateKeyToAccount(filecoinPayerPrivateKey(master)).address), network: profile.network === 'mainnet' ? 'mainnet' : 'calibration' });
-		secrets.backup_session_key = filecoinSessionPrivateKey(master);
+		// Through Le Space Credits: ask the service again (it may have a new
+		// payer or signer); without an answer, what the setup recorded.
+		const signer = profile.backupsByCredits ? await backupAuthorize(master, backupKeyAddress(master)).catch(() => profile.backupSigner ?? null) : null;
+		try {
+			Object.assign(
+				secrets,
+				vmBackupSecrets(profile, {
+					...(profile.backupsByCredits
+						? { backupKey: backupPrivateKey(master), signer, creditsUrl: CREDITS_URL, product: CREDITS_PRODUCT, account: creditsAccount(master).address }
+						: { sessionKey: filecoinSessionPrivateKey(master) })
+				})
+			);
+		} catch (e) {
+			// Paperless starts anyway; the VM reports "no backup_config".
+			onProgress({ step: 'unlock', detail: `Ohne Sicherungen: ${e instanceof Error ? e.message : String(e)}` });
+		}
 	}
 	// Diagnosis only: a test may pass a public key, which the confidential init
 	// adds to root's authorized_keys (relay-button's confidential-init.sh). The

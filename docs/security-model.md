@@ -18,6 +18,7 @@ from that master with HKDF, each under its own label:
 | the profile key | seals the setup (image passphrase, backup settings, age identity, DNS token, running VM) before it is stored on Aleph |
 | the Paperless secrets | admin password, database password, `PAPERLESS_SECRET_KEY` |
 | the Filecoin session key | adds backup pieces to the owner's data sets; the owner's wallet authorizes it for a limited time |
+| the VM backup key | with backups paid through Le Space Credits: the VM signs its requests to the service with it, and the service signs each backup step with Le Space's session key, only for this account's own data sets, within the paid time and quota; it holds nothing and has no right on chain |
 | the vault's own age identity (optional) | encrypts the backups, if no age identity was pasted in |
 
 A second vault has a different master, so every one of these is different:
@@ -70,6 +71,11 @@ database, so only inside that person's running VM and their encrypted backups.
   else's backup fails at decryption.
 - The session key can only add pieces, to the data sets of the wallet that
   authorized it, and expires. It cannot delete pieces.
+- With backups paid through Le Space Credits, Le Space's one Filecoin payer
+  owns the data sets of every customer; each carries the account's tag in its
+  metadata, which does not name the account. The VM's backup key only asks
+  the service to sign; the service checks the account, the paid time, the
+  quota and that the data set is the account's own before it signs.
 - The VM wipes the age identity and the restore entry once the restore is
   done.
 

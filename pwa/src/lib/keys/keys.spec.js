@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
-import { alephPrivateKey, deriveBytes, fixedHostLabel, LABELS, newMasterSecret, paperlessSecrets, statusToken } from './derive.js';
+import { alephPrivateKey, backupPrivateKey, deriveBytes, fixedHostLabel, LABELS, newMasterSecret, paperlessSecrets, statusToken } from './derive.js';
 import { newSeedPhrase, seal, sealingKeyFromPrf, sealingKeyFromSeedPhrase, unseal } from './seal.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -65,5 +65,24 @@ describe('statusToken', () => {
 		expect(statusToken(a)).toMatch(/^[0-9a-f]{32}$/);
 		expect(statusToken(a)).toBe(statusToken(a));
 		expect(statusToken(a)).not.toBe(statusToken(b));
+	});
+});
+
+describe('backupPrivateKey', () => {
+	const master = new Uint8Array(32).fill(7);
+	it('is deterministic, a key of its own, and different per slot and per vault', () => {
+		const k = backupPrivateKey(master);
+		expect(k).toMatch(/^0x[0-9a-f]{64}$/);
+		expect(backupPrivateKey(master)).toBe(k);
+		expect(backupPrivateKey(master, 0)).toBe(k);
+		expect(k).toBe(alephPrivateKey(master, LABELS.backupKey));
+		expect(backupPrivateKey(master, 1)).not.toBe(k);
+		expect(backupPrivateKey(new Uint8Array(32).fill(8))).not.toBe(k);
+		for (const label of Object.values(LABELS).filter((l) => l !== LABELS.backupKey)) expect(alephPrivateKey(master, label)).not.toBe(k);
+	});
+	it('has a fixed label, so every device derives the same key', () => {
+		expect(LABELS.backupKey).toBe('paperless-anywhere/backup-key/v1');
+		expect(() => backupPrivateKey(master, -1)).toThrow();
+		expect(() => backupPrivateKey(master, 1.5)).toThrow();
 	});
 });

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { backupPayer, vmPayer } from './profile.js';
+import { backupListing, vmPayer } from './profile.js';
 import { resumeStart, startRequirements } from './lifecycle.js';
 
 const app = '0x00000000000000000000000000000000000000A1';
@@ -18,13 +18,19 @@ describe('vmPayer', () => {
 	});
 });
 
-describe('backupPayer', () => {
-	it('is the wallet, or the vault\'s own payer when Le Space Credits pay the backups', () => {
-		const own = '0x' + '3'.repeat(40);
-		expect(backupPayer({ payer: wallet }, own)).toBe(wallet);
-		expect(backupPayer({ payer: wallet, appPays: true }, own)).toBe(wallet);
-		expect(backupPayer({ payer: wallet, backupsByCredits: true }, own)).toBe(own);
-		expect(backupPayer({ backupsByCredits: true }, own)).toBe(own);
+describe('backupListing', () => {
+	const lePayer = '0x' + '0'.repeat(39) + '1';
+	const signer = { payer: lePayer, signer: '0x' + '0'.repeat(39) + '2', tag: 'ab'.repeat(16), label: 'paperless-backup-test', network: 'calibration' };
+	it('lists the wallet\'s data sets, or Le Space\'s payer\'s with this account\'s tag', () => {
+		expect(backupListing({ payer: wallet })).toEqual({ owner: wallet });
+		expect(backupListing({ payer: wallet, appPays: true })).toEqual({ owner: wallet });
+		expect(backupListing({ payer: wallet, backupsByCredits: true, backupSigner: signer })).toEqual({ owner: lePayer, customer: signer.tag, label: 'paperless-backup-test' });
+		expect(backupListing({ backupsByCredits: true })).toBeNull();
+		expect(backupListing({})).toBeNull();
+	});
+	it('takes a wallet set as the backups\' owner first', () => {
+		const owner = '0x' + '0'.repeat(39) + '3';
+		expect(backupListing({ backupOwner: owner, backupsByCredits: true, backupSigner: signer })).toEqual({ owner });
 	});
 });
 
@@ -37,7 +43,10 @@ describe('startRequirements', () => {
 		expect(startRequirements({ ...ready, appPays: true, backupConfig: { copies: 2 } })).toEqual(['Wallet für die Sicherungen']);
 		expect(startRequirements({ ...ready, appPays: true, payer: wallet, backupConfig: { copies: 2 } })).toEqual([]);
 		// Backups paid through Le Space Credits: no wallet at all.
-		expect(startRequirements({ ...ready, appPays: true, backupsByCredits: true, backupConfig: { copies: 2 } })).toEqual([]);
+		expect(startRequirements({ ...ready, appPays: true, backupsByCredits: true, backupConfig: { copies: 2 }, backupSigner: { payer: '0x' + '0'.repeat(39) + '1', network: 'calibration' } })).toEqual([]);
+		// …once the service has the VM's backup key, for this network.
+		expect(startRequirements({ ...ready, appPays: true, backupsByCredits: true, backupConfig: { copies: 2 } })).toEqual(['Sicherungen über Le Space Credits freigeben']);
+		expect(startRequirements({ ...ready, appPays: true, backupsByCredits: true, backupConfig: { copies: 2 }, backupSigner: { payer: '0x' + '0'.repeat(39) + '1', network: 'mainnet' } })).toEqual(['Sicherungen über Le Space Credits freigeben']);
 	});
 	it('runs a primary on mainnet only', () => {
 		expect(startRequirements({ ...ready, payer: wallet, role: 'primary', network: 'calibration' })).toEqual(['Netz Mainnet für die Rolle „Produktiv“']);
