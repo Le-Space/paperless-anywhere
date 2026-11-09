@@ -86,20 +86,23 @@ const NETWORKS = ['calibration', 'mainnet'];
 
 /**
  * Where this account's backups stand with the service (design 2.2): Le
- * Space's one Filecoin payer, the account's tag in its data sets' metadata,
- * the network, paid until when, and how many data sets the service signed.
- * Null while the service pays no backups, or when it names no payer.
+ * Space's one Filecoin payer and the session key that signs for it, the
+ * account's tag in its data sets' metadata, the network, paid until when,
+ * and the client data set ids the service signed for this account (decimal
+ * strings; anything else is dropped). Null while the service pays no
+ * backups, or when it names no payer.
  * @param {any} b
- * @returns {{ payer: string, tag: string, network: 'calibration' | 'mainnet', fundedUntil: string | null, dataSets: number } | null}
+ * @returns {{ payer: string, signer: string | null, tag: string, network: 'calibration' | 'mainnet', fundedUntil: string | null, dataSets: string[] } | null}
  */
 export function backupOf(b) {
 	if (!b || !ADDRESS.test(String(b.payer ?? ''))) return null;
 	return {
 		payer: String(b.payer),
+		signer: ADDRESS.test(String(b.signer ?? '')) ? String(b.signer) : null,
 		tag: String(b.tag ?? ''),
 		network: b.network === 'mainnet' ? 'mainnet' : 'calibration',
 		fundedUntil: b.funded_until ? String(b.funded_until) : null,
-		dataSets: Number(b.data_sets ?? 0)
+		dataSets: Array.isArray(b.data_sets) ? b.data_sets.map((id) => String(id)).filter((id) => /^\d{1,78}$/.test(id)) : []
 	};
 }
 
@@ -390,6 +393,20 @@ export async function vmAuthorize(master, options) {
 		periodEnd: r.period_end ?? null,
 		revokeAt: r.revoke_at ?? null
 	};
+}
+
+/**
+ * Revoke a VM's backup key (DELETE /v1/backup/authorize): the service signs
+ * nothing more for it. No terms needed. `revoked` is false when the service
+ * did not know the key (already revoked).
+ * @param {Uint8Array} master @param {string} backupKey the backup key's address
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<{ revoked: boolean }>}
+ */
+export async function backupRevoke(master, backupKey, options) {
+	if (!ADDRESS.test(String(backupKey ?? ''))) throw new Error('Der Schlüssel der VM für die Sicherungen ist keine Adresse.');
+	const r = await send(master, 'DELETE', '/v1/backup/authorize', { backupKey }, options, BACKUP_KEY_MESSAGES);
+	return { revoked: r?.revoked === true };
 }
 
 /**

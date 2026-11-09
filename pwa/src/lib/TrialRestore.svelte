@@ -5,6 +5,7 @@
 	import { updateProfile } from '$lib/profile.js';
 	import { endTrial, startTrial } from '$lib/lifecycle.js';
 	import { listBackups, restoreEntry } from '$lib/backups.js';
+	import { creditsBalance } from '$lib/credits.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 
 	/** @type {{ master: Uint8Array, profile: Record<string, any>, listing: { owner: string, customer?: string, label?: string } | null, onchange?: () => void }} */
@@ -24,7 +25,9 @@
 		step = 'Sicherungen lesen';
 		try {
 			if (!listing) throw new Error('Es ist nicht eingerichtet, wo die Sicherungen liegen.');
-			const list = await listBackups({ network: profile.network ?? 'calibration', ...listing });
+			// Through Le Space Credits, the data sets the service lists for this account.
+			const ids = profile.backupsByCredits && !profile.backupOwner ? (await creditsBalance(master).catch(() => null))?.backup?.dataSets : undefined;
+			const list = await listBackups({ network: profile.network ?? 'calibration', ...listing, ...(ids ? { dataSetIds: ids } : {}) });
 			const newest = list[0];
 			if (!newest) throw new Error('Es gibt noch keine Sicherung zum Prüfen.');
 			const entry = restoreEntry(newest);

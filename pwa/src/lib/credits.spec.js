@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { recoverMessageAddress } from 'viem';
-import { backupAuthorize, backupKeyAddress, backupOf, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
+import { backupAuthorize, backupKeyAddress, backupOf, backupRevoke, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
 
 // A made-up vault: the ledger knows it by the address its Aleph key has.
 const master = new Uint8Array(32).fill(7);
@@ -220,13 +220,36 @@ describe('packages and hours (belege#591 draft 2)', () => {
 		});
 	});
 
-	it('reads balance.backup: payer, tag, network, paid until, data sets', async () => {
-		const backup = { payer: '0x' + '0'.repeat(39) + '1', tag: 'ab'.repeat(16), network: 'mainnet', funded_until: '2027-01-01T00:00:00.000Z', data_sets: 2 };
+	describe('backupRevoke', () => {
+		it('sends a DELETE signed as the ledger address, with the backup key\'s address', async () => {
+			const svc = jsonService(() => [200, { revoked: true }]);
+			const key = backupKeyAddress(master);
+			expect(await backupRevoke(master, key, { baseUrl, fetch: svc.fetch })).toEqual({ revoked: true });
+			expect(svc.seen.last?.method).toBe('DELETE');
+			expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, backupKey: key });
+			expect(svc.seen.last?.line.startsWith('ls-credits/v1\nDELETE\n/v1/backup/authorize\npaperless-anywhere\n')).toBe(true);
+			expect(await recoverMessageAddress({ message: svc.seen.last?.line ?? '', signature: svc.seen.last?.signature })).toBe(account.address);
+		});
+		it('says when the key was not known, and refuses what is not an address', async () => {
+			expect(await backupRevoke(master, backupKeyAddress(master), { baseUrl, fetch: jsonService(() => [200, { revoked: false }]).fetch })).toEqual({ revoked: false });
+			const svc = jsonService(() => [200, { revoked: true }]);
+			await expect(backupRevoke(master, 'nope', { baseUrl, fetch: svc.fetch })).rejects.toThrow(/keine Adresse/);
+			expect(svc.seen.last).toBeNull();
+			await expect(backupRevoke(master, backupKeyAddress(master), { baseUrl, fetch: jsonService(() => [400, { error: 'bad', code: 'ADDRESS' }]).fetch })).rejects.toThrow(/Schlüssel der VM/);
+		});
+	});
+
+	it('reads balance.backup: payer, signer, tag, network, paid until, the data sets\' client ids', async () => {
+		const backup = { payer: '0x' + '0'.repeat(39) + '1', signer: '0x' + '0'.repeat(39) + '2', tag: 'ab'.repeat(16), network: 'mainnet', funded_until: '2027-01-01T00:00:00.000Z', data_sets: ['1', '18446744073709551617'] };
 		const fetch = async () => new Response(JSON.stringify({ credits: 600, reserved: 0, backup }));
-		expect((await creditsBalance(master, { baseUrl, fetch }))?.backup).toEqual({ payer: backup.payer, tag: backup.tag, network: 'mainnet', fundedUntil: '2027-01-01T00:00:00.000Z', dataSets: 2 });
+		expect((await creditsBalance(master, { baseUrl, fetch }))?.backup).toEqual({ payer: backup.payer, signer: backup.signer, tag: backup.tag, network: 'mainnet', fundedUntil: '2027-01-01T00:00:00.000Z', dataSets: ['1', '18446744073709551617'] });
 		expect(backupOf(null)).toBeNull();
 		expect(backupOf({ payer: 'nope' })).toBeNull();
-		expect(backupOf({ payer: backup.payer })).toEqual({ payer: backup.payer, tag: '', network: 'calibration', fundedUntil: null, dataSets: 0 });
+		expect(backupOf({ payer: backup.payer })).toEqual({ payer: backup.payer, signer: null, tag: '', network: 'calibration', fundedUntil: null, dataSets: [] });
+		// The old count, and anything that is not a decimal id, gives no ids.
+		expect(backupOf({ payer: backup.payer, data_sets: 2 })?.dataSets).toEqual([]);
+		expect(backupOf({ payer: backup.payer, data_sets: ['7', '0x1f', '-3', 12] })?.dataSets).toEqual(['7', '12']);
+		expect(backupOf({ payer: backup.payer, signer: 'x' })?.signer).toBeNull();
 	});
 
 	it('reads the network the service pays backups in', async () => {

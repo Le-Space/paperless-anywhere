@@ -1,10 +1,10 @@
 <script>
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
-	import { AlephShortError, BackupPartialError, eraseStopped, resumeAfterPartial, resumeStart, startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
+	import { AlephShortError, BackupPartialError, eraseStopped, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
 	import { vmStatus } from '$lib/vm.js';
 	import Storage from '$lib/Storage.svelte';
 	import { statusToken } from '$lib/keys/derive.js';
-	import { CREDITS_URL, fundVm, vmAuthorize } from '$lib/credits.js';
+	import { CREDITS_URL, creditsBalance, fundVm, vmAuthorize } from '$lib/credits.js';
 	import { isAuthorized, readAuthorizations } from '$lib/permissions.js';
 	import { alephBalance } from '$lib/balances.js';
 	import { privateKeyToAccount } from 'viem/accounts';
@@ -154,15 +154,21 @@
 	const copyPassword = () => navigator.clipboard?.writeText(adminPassword);
 
 	let loaded = $state(false);
+	/** A revoke of the backup key retried in the background; a start waits for it. */
+	let revoking = Promise.resolve();
 	const reload = async () => {
 		profile = await loadProfile(master);
 		loaded = true;
+		// A revoke that failed when the VM was deleted, as long as no VM uses the key.
+		if (profile.backupRevokePending && !busy) revoking = retryBackupRevoke(master, $state.snapshot(profile)).then(() => {}, () => {});
 		// A stop that ended partial while this page was closed still waits.
 		if (profile.running && !busy && !partial)
 			vmStatus(profile.running.host, statusToken(master))
 				.then((s) => { if (s?.phase === 'stop-partial' && !busy) partial = new BackupPartialError(s); })
 				.catch(() => {});
-		const listing = backupListing(profile);
+		// Through Le Space Credits, the service lists this account's data sets;
+		// without its answer, the payer's are filtered by label and tag alone.
+		const listing = backupListing(profile, profile.backupsByCredits && profile.backupSigner ? ((await creditsBalance(master).catch(() => null))?.backup ?? null) : null);
 		if (listing && profile.ageIdentity) {
 			backupsError = '';
 			listBackups({ network: profile.network ?? 'calibration', ...listing })
@@ -223,7 +229,10 @@
 		throw new Error('Aleph zeigt die Freigabe von Le Space noch nicht. In ein paar Minuten noch einmal starten.');
 	}
 	async function startNow() {
+		// A retried revoke first: the start authorizes the key again after it.
+		await revoking;
 		await reload();
+		await revoking;
 		if (profile.leSpacePays) await leSpaceOwner();
 		const chosen = choice === 'latest' ? pick(backups ?? []) : choice === 'own' ? pick(split.own) : choice === 'any' ? pick(split.other) : null;
 		const forStart = { ...$state.snapshot(profile), restoreEntry: chosen ? restoreEntry(chosen) : null };
@@ -399,6 +408,7 @@
 			{/if}
 		{/if}
 		{#if phase !== 'running' && profile.trial}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
+		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">Der Schlüssel der gelöschten VM für die Sicherungen ist bei Le Space Credits noch freigegeben; die App versucht die Rücknahme beim nächsten Öffnen erneut.</p>{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
 		{#if partial}
 			<div class="partial" role="alert" data-testid="stop-partial">
@@ -501,6 +511,7 @@
 				· üblich ca. {minutes(STEPS[action].reduce((a, s) => a + typicalOf(s), 0))}</p>
 		{/if}
 		{#if progress}<p data-testid="progress">{progress} …</p>{/if}
+		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">Der Schlüssel der gelöschten VM für die Sicherungen ist bei Le Space Credits noch freigegeben; die App versucht die Rücknahme beim nächsten Öffnen erneut.</p>{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
 		{#if partial}
 			<div class="partial" role="alert" data-testid="stop-partial">

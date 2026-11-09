@@ -27,7 +27,7 @@
 	// The VM's backup key when Le Space Credits pay the backups: the service
 	// signs each backup step for it. Only its address is ever shown.
 	const backupKey = backupKeyAddress(master);
-	/** @type {{ payer: string, tag: string, network: string, fundedUntil: string | null, dataSets: number } | null | undefined} undefined while it loads */
+	/** @type {{ payer: string, signer: string | null, tag: string, network: string, fundedUntil: string | null, dataSets: string[] } | null | undefined} undefined while it loads */
 	let backupState = $state(undefined);
 
 	/** @type {Record<string, any>} */
@@ -54,6 +54,11 @@
 		if (profile.backupsByCredits) {
 			backupState = undefined;
 			backupState = (await creditsBalance(master).catch(() => null))?.backup ?? null;
+			// The service may have a new payer or signer since the key was authorized.
+			const s = profile.backupSigner;
+			if (s && backupState && backupState.network === s.network && backupState.signer && (backupState.payer !== s.payer || backupState.signer !== s.signer || backupState.tag !== s.tag)) {
+				await save({ backupSigner: { ...s, payer: backupState.payer, signer: backupState.signer, tag: backupState.tag } });
+			}
 		}
 		if (profile.payer && !profile.backupsByCredits) {
 			alephOk = isAuthorized(await readAuthorizations(profile.payer), pwaAddress);
@@ -343,7 +348,7 @@
 			{#if profile.backupsByCredits}
 				<p>Schlüssel der VM für die Sicherungen: <code data-testid="backup-key">{backupKey}</code>
 					<br /><small class="nomoney">Aus deinem Tresor abgeleitet. Hält kein Geld – nichts dorthin überweisen. Le Space bezahlt den Speicher; der Dienst unterschreibt jeden Schritt der Sicherung nur für deine eigenen Datensätze, solange sie bezahlt sind.</small></p>
-				<p data-testid="credits-backup-state">{#if backupState === undefined}…{:else if !backupState}Le Space Credits bezahlen gerade keine Sicherungen.{:else}{fundedUntil(backupState.fundedUntil) ? `Bezahlt bis ${fundedUntil(backupState.fundedUntil)}` : 'Noch nicht bezahlt'} · {backupState.dataSets === 1 ? '1 Datensatz' : `${backupState.dataSets} Datensätze`} · VM-Schlüssel {profile.backupSigner?.payer ? 'freigegeben' : 'noch nicht freigegeben'}{/if}</p>
+				<p data-testid="credits-backup-state">{#if backupState === undefined}…{:else if !backupState}Le Space Credits bezahlen gerade keine Sicherungen.{:else}{fundedUntil(backupState.fundedUntil) ? `Bezahlt bis ${fundedUntil(backupState.fundedUntil)}` : 'Noch nicht bezahlt'} · {backupState.dataSets.length === 1 ? '1 Datensatz' : `${backupState.dataSets.length} Datensätze`} · VM-Schlüssel {profile.backupSigner?.payer ? 'freigegeben' : 'noch nicht freigegeben'}{/if}</p>
 				<button onclick={payBackups} disabled={busy === 'bycredits'} data-testid="pay-backups">Einen Monat Sicherungen bezahlen</button>
 				{#if !profile.backupSigner?.payer}<button onclick={authorizeBackupKey} disabled={busy === 'bycredits'} data-testid="authorize-backup-key">VM-Schlüssel freigeben</button>{/if}
 				{@render feedback('bycredits')}
