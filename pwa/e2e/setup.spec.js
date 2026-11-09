@@ -63,6 +63,7 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await page.getByRole('button', { name: 'Wallet verbinden' }).click();
 	await expect(page.getByTestId('payer')).toHaveText(payer.address);
 	await expect(page.getByTestId('aleph-status')).toHaveText('nicht freigegeben');
+	await expect(page.getByTestId('setup').locator('h3')).toHaveText([/^1\. /, /^2\. Aleph/, /^3\. Filecoin/, /^4\. /, /^5\. /, /^6\. /, /^7\. /]);
 
 	await page.getByRole('button', { name: 'Im Wallet freigeben' }).click();
 	await expect(page.getByTestId('aleph-status')).toHaveText('freigegeben (INSTANCE, FORGET, Port-Freigaben)');
@@ -177,6 +178,8 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await expect(page.getByTestId('app-payer')).toHaveText(appAddress);
 	await expect(page.getByTestId('aleph-status')).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Wallet für Sicherungen verbinden' })).toBeVisible();
+	// Steps are numbered as shown: no Aleph approval and no Filecoin key here, so no gap.
+	await expect(page.getByTestId('setup').locator('h3')).toHaveText(['1. Wer zahlt die VM?', '2. Attest-Relay', '3. Sicherungen', '4. Paperless-Image und Knoten', '5. Feste Adresse (optional)']);
 	await expect(page.getByTestId('balances')).toContainText('Konto der App');
 	await expect(page.getByTestId('balance-credits')).toContainText('1.500.000');
 	await expect(page.getByTestId('balance-gas')).toHaveCount(0);

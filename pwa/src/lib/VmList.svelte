@@ -50,7 +50,7 @@
 	async function remove(vm) {
 		const isRunning = profile.running?.instanceHash === vm.itemHash;
 		const question = isRunning
-			? `${vm.name} löschen, ohne letzte Sicherung? (Zum Sichern oben „Sichern und stoppen“.)`
+			? `${vm.name} löschen, ohne letzte Sicherung? (Zum Sichern oben „Sichern und beenden“.)`
 			: `${vm.name} löschen? Die VM wird gestoppt und kostet danach nichts mehr.`;
 		if (!confirm(question)) return;
 		busy = vm.itemHash;
@@ -83,7 +83,7 @@
 	// signed (checked here), its address from 2n6, and it must answer as a
 	// paperless-anywhere guest.
 	async function adopt(vm) {
-		if (!confirm(`${vm.name} als laufendes Paperless übernehmen? Danach geht „Sichern und stoppen“ wieder.`)) return;
+		if (!confirm(`${vm.name} als laufendes Paperless übernehmen? Danach geht „Sichern und beenden“ wieder.`)) return;
 		busy = vm.itemHash;
 		error = '';
 		try {
@@ -122,7 +122,7 @@
 		<p class="hint">Keine VM läuft.</p>
 	{:else}
 		{#if strays > 0}
-			<p class="warn" data-testid="vm-stray">Es laufen VMs, die nicht als gestartet bekannt sind (z. B. ein abgebrochener Start oder ein neu geladener Tab). Sie kosten Credits, bis sie gelöscht sind. Läuft Paperless darin, „Übernehmen“: dann sichert „Sichern und stoppen“ sie wie gewohnt.</p>
+			<p class="warn" data-testid="vm-stray">Es laufen VMs, die nicht als gestartet bekannt sind (z. B. ein abgebrochener Start oder ein neu geladener Tab). Sie kosten Credits, bis sie gelöscht sind. Läuft Paperless darin, „Übernehmen“: dann sichert „Sichern und beenden“ sie wie gewohnt.</p>
 		{/if}
 		<ul>
 			{#each vms as vm (vm.itemHash)}

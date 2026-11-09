@@ -116,7 +116,13 @@
 	});
 	// Who pays the VM: the wallet, the app's own address, or Le Space for this
 	// customer from the package (model A, le-space-credits#38).
-	const setPays = (/** @type {'wallet' | 'app' | 'lespace'} */ who) => run('pays', () => save({ appPays: who === 'app', leSpacePays: who === 'lespace' }));
+	// Without a wallet the backups go through Le Space Credits by default, as
+	// long as nobody chose otherwise (#105); an explicit choice is never changed.
+	const setPays = (/** @type {'wallet' | 'app' | 'lespace'} */ who) => run('pays', async () => {
+		const byCredits = CREDITS_URL && who !== 'wallet' && !profile.payer && profile.backupsByCredits === undefined;
+		await save({ appPays: who === 'app', leSpacePays: who === 'lespace', ...(byCredits ? { backupsByCredits: true } : {}) });
+		if (byCredits) await refresh();
+	});
 	const setAppPays = (on) => setPays(on ? 'app' : 'wallet');
 	// One instance reads the mailbox and writes the mainnet backups; switching
 	// another one to that role while the first still runs would duplicate both.
@@ -227,6 +233,23 @@
 		await save({ dnsToken: token || null });
 		dnsInput = '';
 	});
+	// Steps are numbered as shown: when the app or Le Space pays, there is no
+	// Aleph approval; when credits pay the backups, no Filecoin session key.
+	const showAleph = $derived(Boolean(profile?.payer && !profile.appPays && !profile.leSpacePays));
+	const showFilecoin = $derived(Boolean(profile?.payer && !profile.backupsByCredits));
+	const step = $derived.by(() => {
+		let n = 1;
+		const at = /** @type {Record<string, number>} */ ({ pays: n });
+		if (showAleph) at.aleph = ++n;
+		if (showFilecoin) at.filecoin = ++n;
+		at.relay = ++n;
+		at.backups = ++n;
+		at.image = ++n;
+		at.address = ++n;
+		return at;
+	});
+	// Money for the backups: test coins on Calibration, real ones on mainnet.
+	const backupCoins = $derived(profile?.network === 'mainnet' ? 'FIL und USDFC' : 'im Testnetz tFIL und USDFC');
 	const until = (s) => (s > 0n && Number(s) * 1000 > Date.now() ? new Date(Number(s) * 1000).toLocaleDateString('de-DE') : '');
 </script>
 
@@ -261,7 +284,7 @@
 		</fieldset>
 		{@render feedback('network')}{@render feedback('role')}
 
-		<h3>1. Wer zahlt die VM?</h3>
+		<h3>{step.pays}. Wer zahlt die VM?</h3>
 		<fieldset class="payer-choice" disabled={busy === 'pays'}>
 			{#if CREDITS_URL}<label><input type="radio" name="pays" checked={Boolean(profile.leSpacePays)} onchange={() => setPays('lespace')} data-testid="pays-lespace" /> Le Space, aus meinem Paket: kein Wallet, keine Kryptowerte</label>{/if}
 			<label><input type="radio" name="pays" checked={!profile.appPays && !profile.leSpacePays} onchange={() => setPays('wallet')} data-testid="pays-wallet" /> Mein Wallet (MetaMask), mit einer Freigabe für diese App</label>
@@ -272,17 +295,17 @@
 		{:else if profile.appPays}
 			<p>Adresse der App: <code data-testid="app-payer">{pwaAddress}</code>
 				<br /><small class="money">Hier liegen die Aleph-Credits für die VMs. Der Schlüssel dazu kommt aus deinem Tresor: wer den Tresor öffnet, kann sie ausgeben. Aufladen per Aleph-Überweisung an diese Adresse{CREDITS_URL ? ' oder aus Le Space Credits' : ''}.</small></p>
-			<p class="hint">Ein Wallet brauchst du so nur für Sicherungen (Filecoin){CREDITS_URL ? ', und auch dafür nicht, wenn Le Space Credits sie bezahlen (Schritt 5)' : ''}.</p>
+			<p class="hint">Ein Wallet brauchst du so nur für Sicherungen (Filecoin){CREDITS_URL ? `, und auch dafür nicht, wenn Le Space Credits sie bezahlen (Schritt ${step.backups})` : ''}.</p>
 		{/if}
 		{#if profile.payer}
 			<p>{profile.appPays ? 'Wallet für die Sicherungen' : 'Verbunden'}: <code data-testid="payer">{profile.payer}</code>
-				<br /><small class="money">{profile.appPays ? 'Hier liegt das Geld für die Sicherungen: im Testnetz tFIL und USDFC.' : 'Hier liegt das Geld: Aleph-Credits für die VMs, im Testnetz tFIL und USDFC für die Sicherungen.'} Der Schlüssel dazu bleibt in deinem Wallet; diese App sieht ihn nie.</small></p>
+				<br /><small class="money">{profile.appPays ? `Hier liegt das Geld für die Sicherungen: ${backupCoins}.` : `Hier liegt das Geld: Aleph-Credits für die VMs, ${backupCoins} für die Sicherungen.`} Der Schlüssel dazu bleibt in deinem Wallet; diese App sieht ihn nie.</small></p>
 		{/if}
 		{@render feedback('pays')}
 		<button onclick={connect} disabled={busy === 'wallet'}>{profile.payer ? 'Anderes Wallet verbinden' : profile.appPays ? 'Wallet für Sicherungen verbinden' : 'Wallet verbinden'}</button>
 
-		{#if profile.payer && !profile.appPays && !profile.leSpacePays}
-			<h3>2. Aleph: diese App darf VMs starten und löschen</h3>
+		{#if showAleph}
+			<h3>{step.aleph}. Aleph: diese App darf VMs starten und löschen</h3>
 			<p>App-Schlüssel: <code>{pwaAddress}</code>
 				<br /><small class="nomoney">Hält kein Geld – nichts dorthin überweisen. Er darf nur im Auftrag des zahlenden Kontos VMs starten und löschen.</small></p>
 			<p data-testid="aleph-status">{alephOk ? 'freigegeben (INSTANCE, FORGET, Port-Freigaben)' : 'nicht freigegeben'}</p>
@@ -293,9 +316,8 @@
 			{/if}
 		{/if}
 
-		{#if profile.payer && !profile.backupsByCredits}
-
-			<h3>3. Filecoin: Sicherungen hinzufügen</h3>
+		{#if showFilecoin}
+			<h3>{step.filecoin}. Filecoin: Sicherungen hinzufügen</h3>
 			<p>Sitzungsschlüssel: <code>{sessionAddress}</code>
 				<br /><small class="nomoney">Hält kein Geld – nichts dorthin überweisen. Er darf 30 Tage lang Sicherungen hinzufügen, bezahlt vom zahlenden Konto.</small></p>
 			<p data-testid="session-status">{until(sessionUntil) ? `gültig bis ${until(sessionUntil)}` : 'nicht freigegeben'}</p>
@@ -304,7 +326,7 @@
 			{#if until(sessionUntil)}<button onclick={() => session(true)} disabled={busy === 'wallet'}>Zurücknehmen</button>{/if}
 		{/if}
 
-		<h3>4. Attest-Relay</h3>
+		<h3>{step.relay}. Attest-Relay</h3>
 		<p class="hint">Die App findet die Relays von Le Space bei jedem Start selbst über Aleph: nur solche, die Aleph als laufende VM eines Le-Space-Kontos führt. Ein Relay sieht die Prüfung der VM nur verschlüsselt.</p>
 		<p data-testid="relays-found">Gefunden: {#if foundRelays === null}…{:else if foundRelays.length}{#each foundRelays as relay, i (relay)}{i ? ', ' : ''}<code>{relay}</code>{/each}{:else}keins (Aleph gerade nicht erreichbar oder kein Relay angemeldet){/if}</p>
 		<label>Eigene Relays (optional), eins pro Zeile, werden vor denen von Le Space versucht: <code>wss://…/attest</code> oder die Multiaddr eines orbitdb-relay (<code>/dns4/…/p2p/…</code>)
@@ -312,10 +334,10 @@
 		<button onclick={saveRelay} disabled={busy === 'relay'}>{relayInput.trim() || !profile.attestRelay ? 'Relays speichern' : 'Eigene Relays entfernen'}</button>
 		{@render feedback('relay')}
 
-		<h3>5. Sicherungen</h3>
+		<h3>{step.backups}. Sicherungen</h3>
 		{#if CREDITS_URL}
 			<fieldset class="payer-choice" disabled={busy === 'bycredits'} data-testid="backups-paid-by">
-				<label><input type="radio" name="bypay" checked={!profile.backupsByCredits} onchange={() => setBackupsByCredits(false)} data-testid="backups-wallet" /> Bezahlt aus meinem Wallet (Schritt 3)</label>
+				<label><input type="radio" name="bypay" checked={!profile.backupsByCredits} onchange={() => setBackupsByCredits(false)} data-testid="backups-wallet" /> Bezahlt aus meinem Wallet{showFilecoin ? ` (Schritt ${step.filecoin})` : ''}</label>
 				<label><input type="radio" name="bypay" checked={Boolean(profile.backupsByCredits)} onchange={() => setBackupsByCredits(true)} data-testid="backups-credits" /> Bezahlt über Le Space Credits, ohne Wallet</label>
 			</fieldset>
 			{#if profile.backupsByCredits}
@@ -350,16 +372,16 @@
 		{/if}
 		{@render feedback('backups')}{@render feedback('places')}
 		{#if profile.network === 'mainnet' && profile.role !== 'primary'}<p class="hint" data-testid="mainnet-backup-hint">Auf Mainnet sichert nur eine produktive Paperless (Rolle oben). Als Test bleibt sie ohne Sicherung.</p>
-		{:else if profile.backupConfig && !until(sessionUntil)}<p class="hint">{profile.backupsByCredits ? 'Dafür braucht die VM den Sitzungsschlüssel: Sicherungen bezahlen, dann setzt die App ihn selbst.' : 'Dafür braucht die VM den Sitzungsschlüssel aus Schritt 3.'}</p>{/if}
+		{:else if profile.backupConfig && !until(sessionUntil)}<p class="hint">{profile.backupsByCredits ? 'Dafür braucht die VM den Sitzungsschlüssel: Sicherungen bezahlen, dann setzt die App ihn selbst.' : `Dafür braucht die VM den Sitzungsschlüssel aus Schritt ${step.filecoin}.`}</p>{/if}
 
-		<h3>6. Paperless-Image und Knoten</h3>
+		<h3>{step.image}. Paperless-Image und Knoten</h3>
 		<label>Image (STORE-Hash, 64 Zeichen)<input bind:value={imageInput} placeholder="Image (STORE-Hash)" /></label>
 		<label>SEV-SNP-Knoten (Hash, 64 Zeichen)<input bind:value={crnInput} placeholder="SEV-SNP-Knoten (Hash)" /></label>
 		<label>Passphrase des Images<input bind:value={passInput} type="password" autocomplete="off" placeholder={profile.luksPassphrase ? `Passphrase hinterlegt, ${profile.luksPassphrase.length} Zeichen (leer lassen = behalten)` : 'Passphrase des Images'} /></label>
 		<button onclick={saveImage} disabled={busy === 'image'}>Image und Knoten speichern</button>
 		{@render feedback('image')}
 
-		<h3>7. Feste Adresse (optional)</h3>
+		<h3>{step.address}. Feste Adresse (optional)</h3>
 		<p class="hint">Mit einem Cloudflare-API-Token (Zone {FIXED_HOST_DOMAIN.split('.').slice(-2).join('.')}, Rechte: DNS bearbeiten, Zone lesen) bekommt Paperless bei jedem Start dieselbe Adresse, <code>{fixedHostLabel(master)}.{FIXED_HOST_DOMAIN}</code>: Die VM trägt sich selbst ein und holt das Zertifikat über DNS. Ohne Token gibt es bei jedem Start einen neuen <code>*.2n6.me</code>-Namen. Das Token kann alle DNS-Einträge der Zone ändern; es liegt verschlüsselt im Profil und geht nur an die VM.</p>
 		<label>Cloudflare-API-Token<input bind:value={dnsInput} type="password" autocomplete="off" data-testid="dns-token" placeholder={profile.dnsToken ? 'Token hinterlegt (leer speichern = entfernen)' : 'Cloudflare-API-Token'} /></label>
 		<button onclick={saveDns} disabled={busy === 'dns'}>{profile.dnsToken && !dnsInput.trim() ? 'Token entfernen' : 'Token speichern'}</button>

@@ -38,7 +38,7 @@ export const texts = {
 				{ t: 'Tresor anlegen', d: 'Ein Passkey auf deinem Gerät öffnet deinen Tresor. Dazu bekommst du 24 Wörter zum Aufschreiben: damit kommst du auch ohne das Gerät wieder hinein. Kein Konto, keine E-Mail.' },
 				{ t: 'Starten', d: 'Die App sucht einen freien TEE-Knoten, prüft dessen Hardware-Nachweis und gibt erst dann den Schlüssel für die Platte heraus. Das Backup wird eingespielt.' },
 				{ t: 'Arbeiten', d: 'Paperless-ngx wie gewohnt im Browser: hochladen, verschlagworten, suchen.' },
-				{ t: 'Sichern und stoppen', d: 'Ein Klick: Die VM verschlüsselt ein Backup, legt es dezentral ab und fährt herunter. Ab dann läuft keine Rechenzeit mehr.' }
+				{ t: 'Sichern und beenden', d: 'Ein Klick: Die VM verschlüsselt ein Backup, legt es dezentral ab und fährt herunter. Ab dann läuft keine Rechenzeit mehr.' }
 			]
 		},
 		tee: {
@@ -107,7 +107,7 @@ export const texts = {
 				{ t: 'Create your vault', d: 'A passkey on your device opens your vault. You also get 24 words to write down: they get you back in without the device. No account, no e-mail.' },
 				{ t: 'Start', d: 'The app finds a free TEE node, checks its hardware attestation and only then hands over the disk key. The backup is restored.' },
 				{ t: 'Work', d: 'Paperless-ngx in your browser as usual: upload, tag, search.' },
-				{ t: 'Back up and stop', d: 'One click: the VM encrypts a backup, stores it decentrally and shuts down. From then on no compute time runs.' }
+				{ t: 'Back up and shut down', d: 'One click: the VM encrypts a backup, stores it decentrally and shuts down. From then on no compute time runs.' }
 			]
 		},
 		tee: {
