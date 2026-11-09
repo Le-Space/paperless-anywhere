@@ -10,7 +10,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { confidentialTrustedExecution, unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
 import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
 import { alephPrivateKey, backupPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
-import { backupAuthorize, backupKeyAddress, creditsAccount, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
+import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
 import { relayTransports } from './attest-p2p.js';
 import { backupFacts, vmBackupSecrets } from './backups.js';
@@ -105,8 +105,56 @@ export async function refreshBackupSigner(master, profile, { authorize = (m) => 
 	}
 	const fresh = { payer: s.payer, signer: s.signer, tag: s.tag, label: s.label, network: s.network };
 	const old = profile.backupSigner;
-	if (!old || Object.keys(fresh).some((k) => old[k] !== fresh[k])) await update(master, (p) => ({ ...p, backupSigner: fresh })).catch(() => {});
+	// Authorized again: a revoke still pending from a deleted VM is moot.
+	if (!old || profile.backupRevokePending || Object.keys(fresh).some((k) => old[k] !== fresh[k]))
+		await update(master, ({ backupRevokePending, ...p }) => ({ ...p, backupSigner: fresh })).catch(() => {});
 	return fresh;
+}
+
+/**
+ * Whether the backup key may be revoked once the VM `deletedHash` is gone:
+ * only with backups paid through Le Space Credits, and only when no other VM
+ * of this vault still uses the key. Production and trial share it (slot 0),
+ * so a running, starting or trial VM other than the deleted one keeps it.
+ * A trial's end never calls this.
+ * @param {Record<string, any>} profile @param {string | null} deletedHash
+ */
+export function shouldRevokeBackupKey(profile, deletedHash) {
+	if (!profile?.backupsByCredits) return false;
+	return ![profile.running, profile.starting, profile.trial].some((vm) => vm && vm.instanceHash !== deletedHash);
+}
+
+/**
+ * Revoke the VM's backup key after the production VM `deletedHash` is
+ * deleted, when no other VM uses it. A failure never blocks the deletion:
+ * it is said in the progress line and kept as `backupRevokePending` in the
+ * sealed profile, for the start screen to try again.
+ * @param {Uint8Array} master @param {Record<string, any>} profile @param {string | null} deletedHash
+ * @param {{ revoke?: (master: Uint8Array) => Promise<{ revoked: boolean }>, update?: typeof updateProfile, onProgress?: (p: { step: string, detail?: string }) => void }} [deps]
+ * @returns {Promise<'skipped' | 'revoked' | 'pending'>}
+ */
+export async function revokeBackupKey(master, profile, deletedHash, { revoke = (m) => backupRevoke(m, backupKeyAddress(m)), update = updateProfile, onProgress = () => {} } = {}) {
+	if (!shouldRevokeBackupKey(profile, deletedHash)) return 'skipped';
+	try {
+		await revoke(master);
+	} catch (e) {
+		onProgress({ step: 'forget', detail: `VM gelöscht; den Schlüssel der VM für die Sicherungen nimmt die App beim nächsten Öffnen zurück (${e instanceof Error ? e.message : String(e)})` });
+		await update(master, (p) => ({ ...p, backupRevokePending: true })).catch(() => {});
+		return 'pending';
+	}
+	if (profile.backupRevokePending) await update(master, ({ backupRevokePending, ...p }) => p).catch(() => {});
+	return 'revoked';
+}
+
+/**
+ * On the start screen: try a revoke that failed when the VM was deleted, as
+ * long as no VM of this vault uses the key again.
+ * @param {Uint8Array} master @param {Record<string, any>} profile
+ * @param {Parameters<typeof revokeBackupKey>[3]} [deps]
+ */
+export async function retryBackupRevoke(master, profile, deps) {
+	if (!profile?.backupRevokePending) return null;
+	return revokeBackupKey(master, profile, null, deps);
 }
 
 /** What a start needs from the profile; throws with a reason a person can act on. */
@@ -447,6 +495,7 @@ export async function eraseStopped(master, profile, status, onProgress) {
 	if (crnUrl) await eraseOnNode(app, run.instanceHash, crnUrl);
 	// Who paid at the start, also when the profile changed since.
 	await forgetInstance(app, run.payer ?? vmPayer(profile, app.address), run.instanceHash);
+	await revokeBackupKey(master, profile, run.instanceHash, { onProgress });
 	return status;
 }
 

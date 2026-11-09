@@ -396,6 +396,20 @@ export async function vmAuthorize(master, options) {
 }
 
 /**
+ * Revoke a VM's backup key (DELETE /v1/backup/authorize): the service signs
+ * nothing more for it. No terms needed. `revoked` is false when the service
+ * did not know the key (already revoked).
+ * @param {Uint8Array} master @param {string} backupKey the backup key's address
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<{ revoked: boolean }>}
+ */
+export async function backupRevoke(master, backupKey, options) {
+	if (!ADDRESS.test(String(backupKey ?? ''))) throw new Error('Der Schlüssel der VM für die Sicherungen ist keine Adresse.');
+	const r = await send(master, 'DELETE', '/v1/backup/authorize', { backupKey }, options, BACKUP_KEY_MESSAGES);
+	return { revoked: r?.revoked === true };
+}
+
+/**
  * Subscribe to a package with Stripe (card, monthly invoice): the service
  * answers a Checkout in subscription mode, mounted like a top-up on /pay.
  * @param {Uint8Array} master @param {string} packageId

@@ -3,6 +3,7 @@
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey, fixedHostLabel, statusToken } from '$lib/keys/derive.js';
 	import { loadProfile, updateProfile } from '$lib/profile.js';
+	import { revokeBackupKey } from '$lib/lifecycle.js';
 	import { startingInstance } from '$lib/starting.js';
 	import { crnAddress, eraseOnNode, FIXED_HOST_DOMAIN, forgetInstance, hostname, listVms, nodeState, ownInstance, PAPERLESS_VM, publicAddress, vmStatus } from '$lib/vm.js';
 	import { pinsOf } from '@le-space/attest-wasm/instance';
@@ -16,6 +17,8 @@
 	/** @type {Record<string, any>} */
 	let profile = $state({});
 	let error = $state('');
+	/** What happened besides the deletion, e.g. a revoke left for later. */
+	let notice = $state('');
 	let busy = $state('');
 	// Aleph's current price for one Paperless.
 	let perHour = $state(0);
@@ -55,11 +58,14 @@
 		if (!confirm(question)) return;
 		busy = vm.itemHash;
 		error = '';
+		notice = '';
 		try {
 			const crnUrl = vm.crnHash ? await crnAddress(vm.crnHash).catch(() => null) : null;
 			if (crnUrl) await eraseOnNode(app, vm.itemHash, crnUrl);
 			await forgetInstance(app, vm.payer, vm.itemHash, 'paperless-anywhere: removed from the VM list');
 			if (isRunning || profile.starting?.instanceHash === vm.itemHash) {
+				// The production VM is gone: its backup key too, unless a trial still uses it.
+				await revokeBackupKey(master, $state.snapshot(profile), vm.itemHash, { onProgress: ({ detail }) => (notice = detail ?? '') });
 				profile = await updateProfile(master, ({ running, starting, ...rest }) => ({
 					...rest,
 					...(running && running.instanceHash !== vm.itemHash ? { running } : {}),
@@ -140,6 +146,7 @@
 			{/each}
 		</ul>
 	{/if}
+	{#if notice}<p class="hint" data-testid="vm-notice">{notice}</p>{/if}
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
 </section>
 

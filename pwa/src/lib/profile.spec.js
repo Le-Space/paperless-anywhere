@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { backupListing, vmPayer } from './profile.js';
-import { refreshBackupSigner, resumeStart, startRequirements } from './lifecycle.js';
+import { refreshBackupSigner, resumeStart, retryBackupRevoke, revokeBackupKey, shouldRevokeBackupKey, startRequirements } from './lifecycle.js';
 
 const app = '0x00000000000000000000000000000000000000A1';
 const wallet = '0x00000000000000000000000000000000000000B2';
@@ -106,5 +106,74 @@ describe('refreshBackupSigner', () => {
 	it('does nothing on the wallet path', async () => {
 		const r = recorder();
 		expect(await refreshBackupSigner(master, { payer: wallet }, { authorize: async () => { throw new Error('not called'); }, update: r.update })).toBeNull();
+	});
+});
+
+describe('revoking the backup key when the production VM is deleted', () => {
+	const master = new Uint8Array(32).fill(7);
+	const prod = { instanceHash: 'p'.repeat(64) };
+	const trial = { instanceHash: 't'.repeat(64) };
+	const credits = { backupsByCredits: true, backupSigner: { payer: '0x' + '0'.repeat(39) + '1' } };
+	const deps = () => {
+		const calls = { revoke: 0, saved: [], progress: [] };
+		return {
+			calls,
+			ok: { revoke: async () => (calls.revoke++, { revoked: true }), update: async (_m, change) => calls.saved.push(change({ keep: 1, backupRevokePending: true })), onProgress: (p) => calls.progress.push(p) },
+			failing: { revoke: async () => { calls.revoke++; throw new Error('offline'); }, update: async (_m, change) => calls.saved.push(change({ keep: 1 })), onProgress: (p) => calls.progress.push(p) }
+		};
+	};
+
+	it('revokes when the deleted VM was the last one using the key', async () => {
+		expect(shouldRevokeBackupKey({ ...credits, running: prod }, prod.instanceHash)).toBe(true);
+		const d = deps();
+		expect(await revokeBackupKey(master, { ...credits, running: prod }, prod.instanceHash, d.ok)).toBe('revoked');
+		expect(d.calls.revoke).toBe(1);
+		expect(d.calls.saved).toEqual([]);
+	});
+
+	it('skips, with no pending flag, while a trial or another VM still uses the key', async () => {
+		expect(shouldRevokeBackupKey({ ...credits, running: prod, trial }, prod.instanceHash)).toBe(false);
+		expect(shouldRevokeBackupKey({ ...credits, running: prod, trial: { backup: 'x' } }, prod.instanceHash)).toBe(false);
+		expect(shouldRevokeBackupKey({ ...credits, running: prod, starting: { instanceHash: 's'.repeat(64) } }, prod.instanceHash)).toBe(false);
+		expect(shouldRevokeBackupKey({ ...credits, running: { instanceHash: 'o'.repeat(64) } }, prod.instanceHash)).toBe(false);
+		const d = deps();
+		expect(await revokeBackupKey(master, { ...credits, running: prod, trial }, prod.instanceHash, d.failing)).toBe('skipped');
+		expect(d.calls.revoke).toBe(0);
+		expect(d.calls.saved).toEqual([]);
+	});
+
+	it('skips on the wallet path', async () => {
+		expect(shouldRevokeBackupKey({ payer: '0x' + '0'.repeat(39) + 'b', running: prod }, prod.instanceHash)).toBe(false);
+		const d = deps();
+		expect(await revokeBackupKey(master, { running: prod }, prod.instanceHash, d.failing)).toBe('skipped');
+		expect(d.calls.revoke).toBe(0);
+	});
+
+	it('never blocks the deletion: a failed revoke is said and kept as pending', async () => {
+		const d = deps();
+		expect(await revokeBackupKey(master, { ...credits, running: prod }, prod.instanceHash, d.failing)).toBe('pending');
+		expect(d.calls.saved).toEqual([{ keep: 1, backupRevokePending: true }]);
+		expect(d.calls.progress[0].detail).toMatch(/nächsten Öffnen/);
+	});
+
+	it('retries a pending revoke on the start screen, and clears the flag', async () => {
+		const d = deps();
+		expect(await retryBackupRevoke(master, { ...credits }, d.ok)).toBeNull();
+		expect(await retryBackupRevoke(master, { ...credits, backupRevokePending: true }, d.ok)).toBe('revoked');
+		expect(d.calls.saved).toEqual([{ keep: 1 }]);
+	});
+
+	it('does not retry while a VM uses the key again', async () => {
+		const d = deps();
+		expect(await retryBackupRevoke(master, { ...credits, backupRevokePending: true, running: prod }, d.ok)).toBe('skipped');
+		expect(await retryBackupRevoke(master, { ...credits, backupRevokePending: true, trial }, d.ok)).toBe('skipped');
+		expect(d.calls.revoke).toBe(0);
+	});
+
+	it('a new start authorizes again and drops a pending revoke', async () => {
+		const saved = [];
+		const s = { payer: '0x' + '0'.repeat(39) + '1', signer: '0x' + '0'.repeat(39) + '2', tag: 'ab'.repeat(16), label: 'paperless-backup-test', network: 'calibration' };
+		await refreshBackupSigner(master, { backupsByCredits: true, backupSigner: s, backupRevokePending: true }, { authorize: async () => s, update: async (_m, change) => saved.push(change({ keep: 1, backupRevokePending: true })) });
+		expect(saved).toEqual([{ keep: 1, backupSigner: s }]);
 	});
 });

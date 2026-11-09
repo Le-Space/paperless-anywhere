@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { recoverMessageAddress } from 'viem';
-import { backupAuthorize, backupKeyAddress, backupOf, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
+import { backupAuthorize, backupKeyAddress, backupOf, backupRevoke, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
 
 // A made-up vault: the ledger knows it by the address its Aleph key has.
 const master = new Uint8Array(32).fill(7);
@@ -217,6 +217,25 @@ describe('packages and hours (belege#591 draft 2)', () => {
 			await expect(refused(409, 'NO_BACKUP')).rejects.toThrow(/keine Sicherungen/);
 			await expect(refused(400, 'ADDRESS')).rejects.toThrow(/Schlüssel der VM/);
 			await expect(refused(503, 'BACKUP_OFF')).rejects.toThrow(/nicht eingerichtet/);
+		});
+	});
+
+	describe('backupRevoke', () => {
+		it('sends a DELETE signed as the ledger address, with the backup key\'s address', async () => {
+			const svc = jsonService(() => [200, { revoked: true }]);
+			const key = backupKeyAddress(master);
+			expect(await backupRevoke(master, key, { baseUrl, fetch: svc.fetch })).toEqual({ revoked: true });
+			expect(svc.seen.last?.method).toBe('DELETE');
+			expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, backupKey: key });
+			expect(svc.seen.last?.line.startsWith('ls-credits/v1\nDELETE\n/v1/backup/authorize\npaperless-anywhere\n')).toBe(true);
+			expect(await recoverMessageAddress({ message: svc.seen.last?.line ?? '', signature: svc.seen.last?.signature })).toBe(account.address);
+		});
+		it('says when the key was not known, and refuses what is not an address', async () => {
+			expect(await backupRevoke(master, backupKeyAddress(master), { baseUrl, fetch: jsonService(() => [200, { revoked: false }]).fetch })).toEqual({ revoked: false });
+			const svc = jsonService(() => [200, { revoked: true }]);
+			await expect(backupRevoke(master, 'nope', { baseUrl, fetch: svc.fetch })).rejects.toThrow(/keine Adresse/);
+			expect(svc.seen.last).toBeNull();
+			await expect(backupRevoke(master, backupKeyAddress(master), { baseUrl, fetch: jsonService(() => [400, { error: 'bad', code: 'ADDRESS' }]).fetch })).rejects.toThrow(/Schlüssel der VM/);
 		});
 	});
 
