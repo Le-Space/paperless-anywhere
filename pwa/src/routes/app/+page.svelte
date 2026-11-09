@@ -214,6 +214,18 @@
 				<button role="tab" aria-selected={!simple} class:on={!simple} onclick={() => showTab('advanced')} data-testid="tab-advanced">Erweitert</button>
 			</div>
 		{/if}
+		{#if !shownPhrase}
+			<!-- Erweitert puts what we sell first: the package, then Paperless itself,
+			     then keys, balances, VMs and the setup (#105). The overview keeps
+			     Paperless first; only the package moves, by CSS order, so a running
+			     checkout is not torn down when the tab changes. -->
+			<div class="stack" class:simple>
+				<div class="life"><Lifecycle {master} {simple} version={profileVersion} onchange={() => profileVersion++} onadvanced={() => showTab('advanced')} /></div>
+				{#if CREDITS_URL}<div class="pkg"><Package {master} version={profileVersion} /></div>{/if}
+			</div>
+		{/if}
+		<!-- Rendered also while the words are shown (hidden then): the address is
+		     known from the first moment. -->
 		<div class="advanced" hidden={simple || !!shownPhrase}>
 			<section class="card">
 				<p>Entsperrt. Schlüssel dieser App für Aleph: <code data-testid="address">{address}</code>
@@ -228,10 +240,8 @@
 		</div>
 		{#if !shownPhrase}
 			<div class="advanced" hidden={simple}><Balances {master} version={profileVersion} onsummary={(s) => (summary = s)} /></div>
-			<Lifecycle {master} {simple} version={profileVersion} onchange={() => profileVersion++} onadvanced={() => showTab('advanced')} />
 			<!-- With Le Space Credits a customer sees the package and euros only; Aleph
 			     and Filecoin balances stay under "Erweitert". -->
-			{#if CREDITS_URL}<Package {master} version={profileVersion} />{/if}
 			{#if simple && summary}
 				{#if !CREDITS_URL && summary.money}
 					<section class="card money" data-testid="simple-balance">
@@ -278,6 +288,8 @@
 	.error { color: var(--danger); background: var(--danger-bg); padding: 0.6rem 0.8rem; border-radius: var(--radius-sm); }
 	.warn { color: var(--warn); background: var(--warn-bg); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); margin: 0.5rem 0 0; font-size: 0.9rem; }
 	code { word-break: break-all; }
+	.stack { display: flex; flex-direction: column; }
+	.stack:not(.simple) .pkg { order: -1; }
 	.tabs { display: flex; gap: 0.25rem; padding: 0.25rem; margin: 0 0 1rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; }
 	.tabs button { flex: 1; margin: 0; padding: 0.45rem 0.75rem; background: transparent; color: var(--text-2); border-color: transparent; font-size: 0.95rem; }
 	.tabs button.on { background: var(--surface); color: var(--text); border-color: var(--line); font-weight: 600; box-shadow: var(--shadow); }

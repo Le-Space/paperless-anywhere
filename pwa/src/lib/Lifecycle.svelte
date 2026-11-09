@@ -427,7 +427,7 @@
 				<button type="button" onclick={() => (showPassword = !showPassword)}>{showPassword ? 'Verbergen' : 'Passwort anzeigen'}</button>
 				<button type="button" onclick={copyPassword}>Kopieren</button>
 			</p>
-			<button onclick={stop} disabled={busy}>Sichern und stoppen</button>
+			<button onclick={stop} disabled={busy}>Sichern und beenden</button>
 		{:else}
 			{#if profile.ageIdentity}
 				<fieldset class="restore">
