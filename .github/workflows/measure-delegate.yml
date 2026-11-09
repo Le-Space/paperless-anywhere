@@ -9,6 +9,15 @@ name: Measure who pays for a delegated INSTANCE
 # delegation) and the owner revokes the authorization. Last, the delegate
 # tries a second INSTANCE after the revocation: Aleph must refuse it
 # (le-space-credits#38 relies on that to end a customer's starts).
+#
+# With reduced=true the revocation is the one le-space-credits#39 posts: the
+# delegate stays in the owner's security aggregate, but only for FORGET and
+# AGGREGATE on the key port-forwarding. Then a new INSTANCE must be refused,
+# while the delegate can still write port-forwarding. Measured (run
+# 42575506726): the INSTANCE is refused, and so is the delegate's FORGET of
+# its VM: Aleph lets a delegate forget a message only if it could have
+# created it (pyaleph permissions.is_sender_authorized_for_owner), so after
+# the reduction only the owner can forget the VM.
 
 on:
   workflow_dispatch:
@@ -18,6 +27,11 @@ on:
         required: false
         default: '15'
         type: string
+      reduced:
+        description: Revoke by reducing the entry to FORGET + port-forwarding (le-space-credits#39) instead of removing it
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -97,6 +111,57 @@ jobs:
               | jq -c --arg h "$HASH" '[.credit_history[] | select(.credit_ref == $h)] | {expenses_for_this_vm: length, credits: (map(.amount) | add // 0)}'
           done
 
+      - name: The owner reduces the delegate to FORGET and port-forwarding
+        if: inputs.reduced && steps.vm.outputs.hash != ''
+        env:
+          OWNER: ${{ steps.keys.outputs.owner }}
+          DELEGATE: ${{ steps.keys.outputs.delegate }}
+        run: |
+          aleph authorization revoke "$DELEGATE" --chain eth
+          aleph authorization add "$DELEGATE" --message-types forget,aggregate --aggregate-keys port-forwarding --chain eth
+          sleep 60
+          curl -fsS "https://api2.aleph.im/api/v0/aggregates/$OWNER.json?keys=security" \
+            | jq -c --arg d "$DELEGATE" '[.data.security.authorizations[] | select(.address == $d) | {types, aggregate_keys}]' || true
+
+      - name: With the reduced entry, a new INSTANCE from the delegate is refused
+        if: inputs.reduced && steps.vm.outputs.hash != ''
+        env:
+          OWNER: ${{ steps.keys.outputs.owner }}
+        run: |
+          aleph instance create "$NAME-reduced" --image debian12 --size 1vcpu-2gb --ssh-pubkey-file "$RUNNER_TEMP/m_ed25519.pub" \
+            --on-behalf-of "$OWNER" --private-key "$(cat "$RUNNER_TEMP/delegate.key")" --chain eth --wait 180 > "$RUNNER_TEMP/reduced.log" 2>&1 || true
+          tail -5 "$RUNNER_TEMP/reduced.log"
+          hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/reduced.log" | grep -oE '[0-9a-f]{64}' | head -1 || true)"
+          if [ -z "$hash" ]; then
+            echo "REDUCED 1: the delegate's INSTANCE was not even accepted for processing"
+            exit 0
+          fi
+          status="$(curl -fsS "https://api2.aleph.im/api/v0/messages/$hash" | jq -r .status)"
+          echo "REDUCED 1: the delegate's INSTANCE has status $status"
+          if [ "$status" = processed ]; then
+            echo "::error::Aleph processed an INSTANCE from a delegate reduced to FORGET + port-forwarding"
+            aleph message forget "$hash" --reason "delegate measure ${GITHUB_RUN_ID} (reduced)" --chain eth -y || true
+            exit 1
+          fi
+
+      - name: With the reduced entry, the delegate still writes port-forwarding
+        if: inputs.reduced && steps.vm.outputs.hash != ''
+        env:
+          OWNER: ${{ steps.keys.outputs.owner }}
+          HASH: ${{ steps.vm.outputs.hash }}
+        run: |
+          # `create` refuses an existing key; `edit --subkey` merges one entry in.
+          out="$(aleph aggregate edit --key port-forwarding --subkey "$HASH" --content '{"ports":{"22":{"tcp":true,"udp":false}}}' \
+            --on-behalf-of "$OWNER" --private-key "$(cat "$RUNNER_TEMP/delegate.key")" --chain eth -y --json 2>&1)" || true
+          hash="$(printf '%s' "$out" | grep -oE '[0-9a-f]{64}' | head -1 || true)"
+          if [ -z "$hash" ]; then
+            echo "REDUCED 3: the delegate's port-forwarding AGGREGATE was not accepted"; printf '%s\n' "$out" | tail -5
+            echo "::warning::the reduced entry does not let the delegate write port-forwarding"
+            exit 0
+          fi
+          sleep 20
+          echo "REDUCED 3: the delegate's port-forwarding AGGREGATE has status $(curl -fsS "https://api2.aleph.im/api/v0/messages/$hash" | jq -r .status)"
+
       - name: The delegate forgets the VM; the owner revokes the authorization
         if: always()
         env:
@@ -118,9 +183,13 @@ jobs:
             echo "instance now: $(curl -fsS "https://api2.aleph.im/api/v0/messages/$HASH" | jq -r .status)"
           fi
           aleph authorization revoke "$DELEGATE" --chain eth || true
+          # The test VM's port-forwarding entry goes again.
+          if [ -n "$HASH" ] && [ "${{ inputs.reduced }}" = true ]; then
+            aleph aggregate unset --key port-forwarding --subkey "$HASH" --chain eth -y || true
+          fi
 
       - name: After the revocation, a new INSTANCE from the delegate is refused
-        if: always() && steps.vm.outputs.hash != ''
+        if: always() && !inputs.reduced && steps.vm.outputs.hash != ''
         env:
           OWNER: ${{ steps.keys.outputs.owner }}
         run: |
