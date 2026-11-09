@@ -13,7 +13,11 @@ name: Measure who pays for a delegated INSTANCE
 # With reduced=true the revocation is the one le-space-credits#39 posts: the
 # delegate stays in the owner's security aggregate, but only for FORGET and
 # AGGREGATE on the key port-forwarding. Then a new INSTANCE must be refused,
-# while the delegate can still write port-forwarding and forget its VM.
+# while the delegate can still write port-forwarding. Measured (run
+# 42575506726): the INSTANCE is refused, and so is the delegate's FORGET of
+# its VM: Aleph lets a delegate forget a message only if it could have
+# created it (pyaleph permissions.is_sender_authorized_for_owner), so after
+# the reduction only the owner can forget the VM.
 
 on:
   workflow_dispatch:
@@ -146,8 +150,9 @@ jobs:
           OWNER: ${{ steps.keys.outputs.owner }}
           HASH: ${{ steps.vm.outputs.hash }}
         run: |
-          out="$(aleph aggregate create --key port-forwarding --content "{\"$HASH\":{\"ports\":{\"22\":{\"tcp\":true,\"udp\":false}}}}" \
-            --on-behalf-of "$OWNER" --private-key "$(cat "$RUNNER_TEMP/delegate.key")" --chain eth --json 2>&1)" || true
+          # `create` refuses an existing key; `edit --subkey` merges one entry in.
+          out="$(aleph aggregate edit --key port-forwarding --subkey "$HASH" --content '{"ports":{"22":{"tcp":true,"udp":false}}}' \
+            --on-behalf-of "$OWNER" --private-key "$(cat "$RUNNER_TEMP/delegate.key")" --chain eth -y --json 2>&1)" || true
           hash="$(printf '%s' "$out" | grep -oE '[0-9a-f]{64}' | head -1 || true)"
           if [ -z "$hash" ]; then
             echo "REDUCED 3: the delegate's port-forwarding AGGREGATE was not accepted"; printf '%s\n' "$out" | tail -5
