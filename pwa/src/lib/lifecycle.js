@@ -15,7 +15,7 @@ import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from
 import { relayTransports } from './attest-p2p.js';
 import { backupFacts, vmBackupSecrets } from './backups.js';
 import { attestRelaysFor } from './relays.js';
-import { vmPayer } from './profile.js';
+import { updateProfile, vmPayer } from './profile.js';
 import { ALEPH_API, readFetch } from './aleph.js';
 import { crnAddress, credits, estimateCreditsPerHour, FIXED_HOST_DOMAIN, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
@@ -86,6 +86,27 @@ async function until(what, fn, { tries = 60, delayMs = 5000 } = {}) {
 		await sleep(delayMs);
 	}
 	throw new Error(`${what}: no answer in time`);
+}
+
+/**
+ * With backups paid through Le Space Credits: authorize the VM's backup key
+ * again and keep the service's answer (payer, signer, tag, label, network)
+ * in the profile when it changed. Without an answer, the recorded one.
+ * @param {Uint8Array} master @param {Record<string, any>} profile
+ * @param {{ authorize?: (master: Uint8Array) => Promise<{ payer: string, signer: string, tag: string, label: string, network: string }>, update?: typeof updateProfile }} [deps]
+ */
+export async function refreshBackupSigner(master, profile, { authorize = (m) => backupAuthorize(m, backupKeyAddress(m)), update = updateProfile } = {}) {
+	if (!profile.backupsByCredits) return null;
+	let s;
+	try {
+		s = await authorize(master);
+	} catch {
+		return profile.backupSigner ?? null;
+	}
+	const fresh = { payer: s.payer, signer: s.signer, tag: s.tag, label: s.label, network: s.network };
+	const old = profile.backupSigner;
+	if (!old || Object.keys(fresh).some((k) => old[k] !== fresh[k])) await update(master, (p) => ({ ...p, backupSigner: fresh })).catch(() => {});
+	return fresh;
 }
 
 /** What a start needs from the profile; throws with a reason a person can act on. */
@@ -220,8 +241,9 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	};
 	if (profile.backupConfig) {
 		// Through Le Space Credits: ask the service again (it may have a new
-		// payer or signer); without an answer, what the setup recorded.
-		const signer = profile.backupsByCredits ? await backupAuthorize(master, backupKeyAddress(master)).catch(() => profile.backupSigner ?? null) : null;
+		// payer or signer, which the profile then keeps); without an answer,
+		// what the setup recorded.
+		const signer = await refreshBackupSigner(master, profile);
 		try {
 			Object.assign(
 				secrets,

@@ -3,8 +3,8 @@
 // that hold each. No ledger and no key needed; the VM checks the piece it
 // downloads against its piece CID (the content address).
 import { createPublicClient, http } from 'viem';
-import { getPdpDataSets } from '@filoz/synapse-core/warm-storage';
-import { getActivePiecesByCursor } from '@filoz/synapse-core/pdp-verifier';
+import { getAllDataSetMetadata, getClientDataSets, getPdpDataSets } from '@filoz/synapse-core/warm-storage';
+import { dataSetLive, getActivePiecesByCursor } from '@filoz/synapse-core/pdp-verifier';
 import { getPDPProvidersByIds } from '@filoz/synapse-core/sp-registry';
 import { filecoinChain } from './permissions.js';
 
@@ -32,16 +32,59 @@ export function backupDataSets(items, { label, customer = null }) {
 	});
 }
 
+/** Pages of an owner's data sets read at most, 100 each, while looking for this account's ids. */
+export const MAX_DATA_SET_PAGES = 50;
+
+/**
+ * The owner's data sets whose client data set id is one of `ids` (the ids
+ * Le Space Credits signed for this account), read page by page until all are
+ * found. Le Space's payer owns every customer's data sets: reading only
+ * their ids is cheap, and only this account's are read in full afterwards.
+ * @param {(cursor: bigint | undefined) => Promise<{ items: any[], nextCursor?: bigint }>} readPage
+ * @param {string[]} ids decimal client data set ids
+ * @param {{ maxPages?: number }} [options]
+ */
+export async function dataSetsByClientIds(readPage, ids, { maxPages = MAX_DATA_SET_PAGES } = {}) {
+	const want = new Set(ids.map(String));
+	const found = [];
+	let cursor;
+	for (let page = 0; want.size && page < maxPages; page++) {
+		const { items, nextCursor } = await readPage(cursor);
+		for (const ds of items) {
+			const id = String(ds.clientDataSetId);
+			if (want.delete(id)) found.push(ds);
+		}
+		if (nextCursor == null) break;
+		cursor = nextCursor;
+	}
+	return found;
+}
+
 /**
  * Newest first. A backup is complete when every labelled data set holds it.
  * `customer`: only data sets with this tag (the owner is Le Space's payer).
- * @param {{ network: string, owner: string, label?: string, customer?: string | null }} a
+ * `dataSetIds`: the client data set ids Le Space Credits list for this
+ * account; the data sets are picked by them, then checked by label and tag.
+ * @param {{ network: string, owner: string, label?: string, customer?: string | null, dataSetIds?: string[] | null }} a
  * @returns {Promise<Array<{ pieceCid: string, copies: Array<{ providerId: string, retrievalUrl: string, place: string }>, complete: boolean, order: number }>>}
  */
-export async function listBackups({ network, owner, label, customer = null }) {
+export async function listBackups({ network, owner, label, customer = null, dataSetIds = null }) {
 	const want = label ?? BACKUP_LABEL[network === 'mainnet' ? 'mainnet' : 'calibration'];
 	const client = createPublicClient({ chain: filecoinChain(network), transport: http(undefined, { retryCount: 1, timeout: 20_000 }) });
-	const { items } = await getPdpDataSets(client, { address: owner });
+	const address = /** @type {`0x${string}`} */ (owner);
+	let items;
+	if (dataSetIds) {
+		const picked = await dataSetsByClientIds((cursor) => getClientDataSets(client, { address, ...(cursor == null ? {} : { cursor }) }), dataSetIds);
+		items = await Promise.all(
+			picked.map(async (ds) => ({
+				...ds,
+				live: await dataSetLive(client, { dataSetId: ds.dataSetId }),
+				metadata: await getAllDataSetMetadata(client, { dataSetId: ds.dataSetId })
+			}))
+		);
+	} else {
+		({ items } = await getPdpDataSets(client, { address }));
+	}
 	const sets = backupDataSets(items, { label: want, customer });
 	if (!sets.length) return [];
 	const providers = await getPDPProvidersByIds(client, { providerIds: [...new Set(sets.map((ds) => BigInt(ds.providerId)))] });

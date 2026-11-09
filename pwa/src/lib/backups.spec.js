@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { restoreEntry, backupConfigFor, backupDataSets, backupFacts, vmBackupSecrets } from './backups.js';
+import { restoreEntry, backupConfigFor, backupDataSets, backupFacts, dataSetsByClientIds, vmBackupSecrets } from './backups.js';
 
 describe('restoreEntry', () => {
 	it('names the piece and its copies, without a SHA-256 (the piece CID is the check)', () => {
@@ -123,5 +123,40 @@ describe('vmBackupSecrets', () => {
 		expect(() => vmBackupSecrets(profile, keys)).toThrow(/noch nicht freigegeben/);
 		expect(() => vmBackupSecrets(profile, { ...keys, signer: { ...signer, network: 'mainnet' } })).toThrow(/Netz mainnet/);
 		expect(() => vmBackupSecrets(profile, { ...keys, signer, creditsUrl: '' })).toThrow(/Adresse des Dienstes/);
+	});
+});
+
+describe('dataSetsByClientIds', () => {
+	// Le Space's payer's data sets, 2 a page; ids as the chain gives them (bigint).
+	const all = [1n, 2n, 3n, 4n, 5n].map((id) => ({ clientDataSetId: id, dataSetId: id + 100n }));
+	const pages = (seen) => async (cursor) => {
+		seen.push(cursor);
+		const at = Number(cursor ?? 0n);
+		return { items: all.slice(at, at + 2), ...(at + 2 < all.length ? { nextCursor: BigInt(at + 2) } : {}) };
+	};
+	it('picks the account\'s data sets by client id and stops once all are found', async () => {
+		const seen = [];
+		expect((await dataSetsByClientIds(pages(seen), ['2', '3'])).map((d) => d.dataSetId)).toEqual([102n, 103n]);
+		expect(seen).toEqual([undefined, 2n]);
+	});
+	it('reads to the end for an id that is not on chain yet, and not at all without ids', async () => {
+		const seen = [];
+		expect((await dataSetsByClientIds(pages(seen), ['5', '99'])).map((d) => d.dataSetId)).toEqual([105n]);
+		expect(seen).toEqual([undefined, 2n, 4n]);
+		const none = [];
+		expect(await dataSetsByClientIds(pages(none), [])).toEqual([]);
+		expect(none).toEqual([]);
+	});
+	it('reads at most maxPages', async () => {
+		const seen = [];
+		expect(await dataSetsByClientIds(pages(seen), ['5'], { maxPages: 1 })).toEqual([]);
+		expect(seen).toEqual([undefined]);
+	});
+	it('then checks label and tag as a second filter', async () => {
+		const picked = [
+			{ clientDataSetId: 1n, live: true, metadata: { app: 'paperless-backup-test', customer: 'aa'.repeat(16) } },
+			{ clientDataSetId: 2n, live: true, metadata: { app: 'paperless-backup-test', customer: 'bb'.repeat(16) } }
+		];
+		expect(backupDataSets(picked, { label: 'paperless-backup-test', customer: 'aa'.repeat(16) }).map((d) => d.clientDataSetId)).toEqual([1n]);
 	});
 });

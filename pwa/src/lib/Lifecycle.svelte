@@ -4,7 +4,7 @@
 	import { vmStatus } from '$lib/vm.js';
 	import Storage from '$lib/Storage.svelte';
 	import { statusToken } from '$lib/keys/derive.js';
-	import { CREDITS_URL, fundVm, vmAuthorize } from '$lib/credits.js';
+	import { CREDITS_URL, creditsBalance, fundVm, vmAuthorize } from '$lib/credits.js';
 	import { isAuthorized, readAuthorizations } from '$lib/permissions.js';
 	import { alephBalance } from '$lib/balances.js';
 	import { privateKeyToAccount } from 'viem/accounts';
@@ -162,7 +162,9 @@
 			vmStatus(profile.running.host, statusToken(master))
 				.then((s) => { if (s?.phase === 'stop-partial' && !busy) partial = new BackupPartialError(s); })
 				.catch(() => {});
-		const listing = backupListing(profile);
+		// Through Le Space Credits, the service lists this account's data sets;
+		// without its answer, the payer's are filtered by label and tag alone.
+		const listing = backupListing(profile, profile.backupsByCredits && profile.backupSigner ? ((await creditsBalance(master).catch(() => null))?.backup ?? null) : null);
 		if (listing && profile.ageIdentity) {
 			backupsError = '';
 			listBackups({ network: profile.network ?? 'calibration', ...listing })

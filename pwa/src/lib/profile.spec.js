@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { backupListing, vmPayer } from './profile.js';
-import { resumeStart, startRequirements } from './lifecycle.js';
+import { refreshBackupSigner, resumeStart, startRequirements } from './lifecycle.js';
 
 const app = '0x00000000000000000000000000000000000000A1';
 const wallet = '0x00000000000000000000000000000000000000B2';
@@ -27,6 +27,11 @@ describe('backupListing', () => {
 		expect(backupListing({ payer: wallet, backupsByCredits: true, backupSigner: signer })).toEqual({ owner: lePayer, customer: signer.tag, label: 'paperless-backup-test' });
 		expect(backupListing({ backupsByCredits: true })).toBeNull();
 		expect(backupListing({})).toBeNull();
+	});
+	it('carries the service\'s client data set ids when it has them', () => {
+		expect(backupListing({ backupsByCredits: true, backupSigner: signer }, { dataSets: ['7'] })).toEqual({ owner: lePayer, customer: signer.tag, label: 'paperless-backup-test', dataSetIds: ['7'] });
+		expect(backupListing({ backupsByCredits: true, backupSigner: signer }, null)).not.toHaveProperty('dataSetIds');
+		expect(backupListing({ payer: wallet }, { dataSets: ['7'] })).toEqual({ owner: wallet });
 	});
 	it('takes a wallet set as the backups\' owner first', () => {
 		const owner = '0x' + '0'.repeat(39) + '3';
@@ -76,5 +81,30 @@ describe('trialProfile', () => {
 		const { trialProfile } = await import('./lifecycle.js');
 		const p = trialProfile({ role: 'primary', network: 'mainnet', dnsToken: 't', backupConfig: { copies: 3 }, running: { host: 'x' }, trial: {}, ageIdentity: 'AGE-SECRET-KEY-1X', rootfsItemHash: 'h' }, { pieceCid: 'bafk' });
 		expect(p).toEqual({ role: 'test', network: 'mainnet', ageIdentity: 'AGE-SECRET-KEY-1X', rootfsItemHash: 'h', restoreEntry: { pieceCid: 'bafk' } });
+	});
+});
+
+describe('refreshBackupSigner', () => {
+	const master = new Uint8Array(32).fill(7);
+	const old = { payer: '0x' + '0'.repeat(39) + '1', signer: '0x' + '0'.repeat(39) + '2', tag: 'ab'.repeat(16), label: 'paperless-backup-test', network: 'calibration' };
+	const recorder = () => {
+		const saved = [];
+		return { saved, update: async (_m, change) => { const next = change({ keep: 1 }); saved.push(next); return next; } };
+	};
+	it('keeps a new signer from the service in the profile', async () => {
+		const r = recorder();
+		const fresh = { ...old, signer: '0x' + '0'.repeat(39) + '3', fundedUntil: null };
+		expect(await refreshBackupSigner(master, { backupsByCredits: true, backupSigner: old }, { authorize: async () => fresh, update: r.update })).toEqual({ ...old, signer: fresh.signer });
+		expect(r.saved).toEqual([{ keep: 1, backupSigner: { ...old, signer: fresh.signer } }]);
+	});
+	it('writes nothing when nothing changed, and falls back to the recorded one without an answer', async () => {
+		const r = recorder();
+		expect(await refreshBackupSigner(master, { backupsByCredits: true, backupSigner: old }, { authorize: async () => ({ ...old, fundedUntil: null }), update: r.update })).toEqual(old);
+		expect(await refreshBackupSigner(master, { backupsByCredits: true, backupSigner: old }, { authorize: async () => { throw new Error('offline'); }, update: r.update })).toBe(old);
+		expect(r.saved).toEqual([]);
+	});
+	it('does nothing on the wallet path', async () => {
+		const r = recorder();
+		expect(await refreshBackupSigner(master, { payer: wallet }, { authorize: async () => { throw new Error('not called'); }, update: r.update })).toBeNull();
 	});
 });

@@ -50,14 +50,18 @@ export function vmPayer(profile, appAddress) {
  * this account's tag (`customer`), since Le Space's one payer owns every
  * customer's. A wallet set as the backups' owner wins (e.g. the Mac's
  * backups). Null when nothing says where.
+ * With the service's balance, its client data set ids for this account pick
+ * the data sets first (`dataSetIds`).
  * @param {Record<string, any>} profile
- * @returns {{ owner: string, customer?: string, label?: string } | null}
+ * @param {{ dataSets?: string[] } | null} [backup] creditsBalance().backup
+ * @returns {{ owner: string, customer?: string, label?: string, dataSetIds?: string[] } | null}
  */
-export function backupListing(profile) {
+export function backupListing(profile, backup = null) {
 	if (profile.backupOwner) return { owner: profile.backupOwner };
 	if (profile.backupsByCredits) {
 		const s = profile.backupSigner;
-		return s?.payer && s?.tag ? { owner: s.payer, customer: s.tag, ...(s.label ? { label: s.label } : {}) } : null;
+		if (!s?.payer || !s?.tag) return null;
+		return { owner: s.payer, customer: s.tag, ...(s.label ? { label: s.label } : {}), ...(Array.isArray(backup?.dataSets) ? { dataSetIds: backup.dataSets } : {}) };
 	}
 	return profile.payer ? { owner: profile.payer } : null;
 }
