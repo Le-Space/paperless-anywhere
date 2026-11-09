@@ -17,8 +17,8 @@
 	import ProviderHealth from '$lib/ProviderHealth.svelte';
 	import { providerIdsIn } from '$lib/providers.js';
 
-	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void }} */
-	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {} } = $props();
+	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void, onmissing?: (missing: string[]) => void }} */
+	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {}, onmissing = () => {} } = $props();
 	// The vault's own Filecoin payer, when Le Space Credits pay the backups.
 	const creditsPayerAddress = $derived(privateKeyToAccount(filecoinPayerPrivateKey(master)).address);
 
@@ -318,6 +318,10 @@
 		onchange();
 	}
 	const missing = $derived(startRequirements(profile));
+	// Tells the page, which opens the setup when something is missing.
+	$effect(() => {
+		if (loaded) onmissing(missing);
+	});
 
 	// The simple view: one status, one calm progress line, one button. It starts
 	// with the restore choice computed above (the newest own backup, if any), and
