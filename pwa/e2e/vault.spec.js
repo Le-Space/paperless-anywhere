@@ -1,6 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { alephMock } from './aleph-mock.js';
 
+/** Opens a folded part of "Technisch" (#105), whether or not it is open already. */
+const open = (page, id) => page.getByTestId(id).evaluate((d) => { d.open = true; });
+
 /** A virtual authenticator that can evaluate PRF stands for the YubiKey. */
 async function authenticator(page) {
 	const cdp = await page.context().newCDPSession(page);
@@ -80,6 +83,7 @@ test('a passkey and a seed phrase open the same vault, also on another device; n
 	// There, a passkey of its own: a third box in Aleph, and the vault opens with it.
 	await authenticator(phone);
 	await phone.getByTestId('tab-advanced').click();
+	await open(phone, 'tech-keys');
 	await phone.getByText('Weiteren Passkey hinzufügen').click();
 	await phone.getByRole('button', { name: /^Passkey für / }).click();
 	await expect(phone.getByTestId('passkey-added')).toBeVisible();

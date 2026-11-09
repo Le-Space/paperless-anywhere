@@ -3,6 +3,9 @@ import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
 import { alephMock } from './aleph-mock.js';
 import { ageRecipient, newAgeIdentity } from '../src/lib/keys/age.js';
 
+/** Opens a folded part of "Technisch" (#105), whether or not it is open already. */
+const open = (page, id) => page.getByTestId(id).evaluate((d) => { d.open = true; });
+
 const payer = privateKeyToAccount(generatePrivateKey());
 const OTHER = { address: '0x00000000000000000000000000000000000000aa', types: ['POST'] };
 // Shaped like an age identity; never used to decrypt anything here.
@@ -119,6 +122,7 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await expect(phone.getByTestId('relays')).toHaveValue('wss://relay.example.com/attest');
 
 	// Revoking removes this app's entry and keeps the others.
+	await open(phone, 'tech-setup');
 	await phone.getByRole('button', { name: 'Freigabe zurücknehmen' }).click();
 	await expect(phone.getByTestId('aleph-status')).toHaveText('nicht freigegeben');
 	expect(aggregates.get(payer.address).security.authorizations).toEqual([OTHER]);
@@ -159,6 +163,10 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await expect(page.getByRole('button', { name: 'Paperless starten' })).toHaveCount(0);
 	await page.getByRole('button', { name: 'Einrichtung öffnen' }).click();
 	await expect(page.getByTestId('tab-advanced')).toHaveAttribute('aria-selected', 'true');
+	// Under "Technisch" only the setup is open, because something is missing; the rest stays folded.
+	await expect(page.getByTestId('tech-setup')).toHaveAttribute('open', '');
+	await expect(page.getByTestId('tech-setup')).toContainText('es fehlt etwas');
+	for (const id of ['tech-keys', 'tech-balances', 'tech-vms']) await expect(page.getByTestId(id)).not.toHaveAttribute('open');
 
 	// The role: test by default; production asks first and warns.
 	await expect(page.getByTestId('role-test')).toBeChecked();
@@ -180,6 +188,7 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await expect(page.getByRole('button', { name: 'Wallet für Sicherungen verbinden' })).toBeVisible();
 	// Steps are numbered as shown: no Aleph approval and no Filecoin key here, so no gap.
 	await expect(page.getByTestId('setup').locator('h3')).toHaveText(['1. Wer zahlt die VM?', '2. Attest-Relay', '3. Sicherungen', '4. Paperless-Image und Knoten', '5. Feste Adresse (optional)']);
+	await open(page, 'tech-balances');
 	await expect(page.getByTestId('balances')).toContainText('Konto der App');
 	await expect(page.getByTestId('balance-credits')).toContainText('1.500.000');
 	await expect(page.getByTestId('balance-gas')).toHaveCount(0);

@@ -128,6 +128,15 @@
 		}
 	};
 	const simple = $derived(tab === 'simple');
+	// The setup opens by itself only when something required is missing, or
+	// from "Einrichtung öffnen" in the overview.
+	let setupOpen = $state(false);
+	/** @type {string[]} */
+	let missing = $state([]);
+	const openSetup = () => {
+		setupOpen = true;
+		showTab('advanced');
+	};
 	/** @type {{ money: string, lasts: string, warnings: ('start' | 'backups')[] } | null} */
 	let summary = $state(null);
 </script>
@@ -220,14 +229,19 @@
 			     Paperless first; only the package moves, by CSS order, so a running
 			     checkout is not torn down when the tab changes. -->
 			<div class="stack" class:simple>
-				<div class="life"><Lifecycle {master} {simple} version={profileVersion} onchange={() => profileVersion++} onadvanced={() => showTab('advanced')} /></div>
+				<div class="life"><Lifecycle {master} {simple} version={profileVersion} onchange={() => profileVersion++} onadvanced={openSetup} onmissing={(m) => { missing = m; if (m.length) setupOpen = true; }} /></div>
 				{#if CREDITS_URL}<div class="pkg"><Package {master} version={profileVersion} /></div>{/if}
 			</div>
 		{/if}
-		<!-- Rendered also while the words are shown (hidden then): the address is
-		     known from the first moment. -->
-		<div class="advanced" hidden={simple || !!shownPhrase}>
-			<section class="card">
+		<!-- "Technisch" (#105): what the everyday use does not need, folded, one
+		     click away. Rendered also while the words are shown (hidden then): the
+		     address is known from the first moment, and the balances feed the
+		     overview's warnings. -->
+		<section class="card tech" hidden={simple || !!shownPhrase} data-testid="tech">
+			<h2>Technisch</h2>
+			<p class="purpose">Für Fortgeschrittene. Für den Alltag ist nichts davon nötig.</p>
+			<details class="part" data-testid="tech-keys">
+				<summary><span>Schlüssel und Passkeys</span></summary>
 				<p>Entsperrt. Schlüssel dieser App für Aleph: <code data-testid="address">{address}</code>
 					<br /><small class="hint">Geld liegt hier nur, wenn die App ihre VMs selbst bezahlt (Einrichtung, Schritt 1); sonst beim zahlenden Konto.</small></p>
 				<details class="fold">
@@ -236,10 +250,23 @@
 					<button class="secondary" onclick={newPasskey} disabled={busy}>Passkey für {location.host} anlegen</button>
 					{#if added}<p data-testid="passkey-added">Neuer Passkey für {added} angelegt; dieser Browser nutzt ihn ab jetzt.</p>{/if}
 				</details>
-			</section>
-		</div>
+			</details>
+			{#if !shownPhrase}
+				<details class="part" data-testid="tech-balances">
+					<summary><span>Konten bei Aleph und Filecoin</span>{#if summary?.money}<span class="chip">{summary.money}</span>{/if}</summary>
+					<Balances {master} version={profileVersion} onsummary={(s) => (summary = s)} />
+				</details>
+				<details class="part" data-testid="tech-vms">
+					<summary><span>Meine VMs</span></summary>
+					<VmList {master} version={profileVersion} onchange={() => profileVersion++} />
+				</details>
+				<details class="part" bind:open={setupOpen} data-testid="tech-setup">
+					<summary><span>Einrichtung</span><span class="chip" class:warn={missing.length > 0}>{missing.length ? 'es fehlt etwas' : 'vollständig'}</span></summary>
+					<Setup {master} onsaved={() => profileVersion++} />
+				</details>
+			{/if}
+		</section>
 		{#if !shownPhrase}
-			<div class="advanced" hidden={simple}><Balances {master} version={profileVersion} onsummary={(s) => (summary = s)} /></div>
 			<!-- With Le Space Credits a customer sees the package and euros only; Aleph
 			     and Filecoin balances stay under "Erweitert". -->
 			{#if simple && summary}
@@ -254,7 +281,6 @@
 						: 'Das Guthaben für die Sicherungen geht bald zu Ende. Details unter „Erweitert“.'}</p>
 				{/each}
 			{/if}
-			<div class="advanced" hidden={simple}><VmList {master} version={profileVersion} onchange={() => profileVersion++} /><Setup {master} onsaved={() => profileVersion++} /></div>
 		{/if}
 	{/if}
 
@@ -281,6 +307,20 @@
 	.quiet { background: none; border: none; color: var(--text-2); text-decoration: underline; padding: 0; border-radius: 0; font-size: 0.9rem; }
 	textarea, input { width: 100%; }
 	label { display: block; margin: 0.5rem 0; font-size: 0.9rem; color: var(--text-2); }
+	.tech h2 { margin: 0; }
+	.purpose { color: var(--text-2); font-size: 0.9rem; margin: 0.25rem 0 0.5rem; }
+	.part { border-top: 1px solid var(--line); padding: 0.6rem 0; }
+	.part > summary { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 600; }
+	.part[open] > summary { margin-bottom: 0.5rem; }
+	.part > summary { list-style: none; }
+	/* Inside a fold the parts lose their own card frame: one card, "Technisch". */
+	.part > :global(:is(.balances, .vms, .setup)) { margin: 0; padding: 0.25rem 0 0; border: 0; box-shadow: none; background: transparent; }
+	.part > :global(:is(.balances, .vms, .setup) > h2) { font-size: 1rem; }
+	.part > summary::-webkit-details-marker { display: none; }
+	.part > summary > span:first-child::before { content: '▸'; display: inline-block; width: 1.1em; color: var(--text-2); }
+	.part[open] > summary > span:first-child::before { content: '▾'; }
+	.chip { font-size: 0.8rem; font-weight: 500; padding: 0.1rem 0.6rem; border-radius: 999px; background: var(--surface-2); color: var(--text-2); white-space: nowrap; }
+	.chip.warn { background: var(--warn-bg); color: var(--warn); }
 	.fold { margin: 0.75rem 0 0; color: var(--text-2); font-size: 0.95rem; }
 	.fold[open] summary { margin-bottom: 0.5rem; }
 	.phrase ol { columns: 2; font-family: var(--mono); padding-left: 2rem; }
