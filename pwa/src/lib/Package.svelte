@@ -18,6 +18,9 @@
 	/** @type {Awaited<ReturnType<typeof creditsPurchases>>} */
 	let purchases = $state(null);
 	let appPays = $state(false);
+	// Who pays the running VM: the package (Le Space, model A), the app's own
+	// address, or the person's wallet. Only for the package do its hours count.
+	let pays = $state(/** @type {'lespace' | 'app' | 'wallet' | null} */ (null));
 	let busy = $state(false);
 	let error = $state('');
 	let note = $state('');
@@ -102,7 +105,10 @@
 	$effect(() => {
 		version;
 		loadProfile(master)
-			.then((p) => (appPays = Boolean(p.appPays)))
+			.then((p) => {
+				appPays = Boolean(p.appPays);
+				pays = p.leSpacePays ? 'lespace' : p.appPays ? 'app' : p.payer ? 'wallet' : null;
+			})
 			.catch(() => {});
 		read();
 	});
@@ -113,10 +119,16 @@
 		<Terms {master} terms={balance.terms} onaccepted={read} />
 		{#if balance.plan}
 			<!-- One answer first: how long Paperless can run. Money and changes below. -->
-			<p class="big" data-testid="plan-left">
-				{#if hoursLeft != null}<strong>{hoursLeft} {hoursLeft === 1 ? 'Stunde' : 'Stunden'}</strong> Paperless übrig{balance.plan.periodEnd ? `, bis ${day(balance.plan.periodEnd)}` : ''}{:else}Paket aktiv{/if}
-			</p>
-			{#if hoursLeft != null && current && hoursLeft <= current.hours}
+			{#if pays === 'app' || pays === 'wallet'}
+				<!-- The VM is not paid from the package: say what pays it, so 0 hours do not alarm. -->
+				<p class="big" data-testid="plan-left"><strong>Paperless läuft über {pays === 'app' ? 'das Konto der App' : 'deine Wallet'}</strong></p>
+				<p class="hint" data-testid="plan-source">Das Paket wird dafür nicht verbraucht{hoursLeft != null ? ` (darin ${hoursLeft} ${hoursLeft === 1 ? 'Stunde' : 'Stunden'})` : ''}. Es zählt erst, wenn du beim Start „Le Space, aus meinem Paket“ wählst. Was {pays === 'app' ? 'das Konto der App' : 'deine Wallet'} hält, steht unter „Erweitert“.</p>
+			{:else}
+				<p class="big" data-testid="plan-left">
+					{#if hoursLeft != null}<strong>{hoursLeft} {hoursLeft === 1 ? 'Stunde' : 'Stunden'}</strong> Paperless übrig{balance.plan.periodEnd ? `, bis ${day(balance.plan.periodEnd)}` : ''}{:else}Paket aktiv{/if}
+				</p>
+			{/if}
+			{#if pays !== 'app' && pays !== 'wallet' && hoursLeft != null && current && hoursLeft <= current.hours}
 				<div class="meter" role="meter" aria-valuemin="0" aria-valuemax={current.hours} aria-valuenow={hoursLeft} aria-label="Verbleibende Stunden">
 					<span style="width: {(share ?? 1) * 100}%"></span>
 				</div>
