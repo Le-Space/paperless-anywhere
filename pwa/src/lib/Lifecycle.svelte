@@ -17,8 +17,9 @@
 	import ProviderHealth from '$lib/ProviderHealth.svelte';
 	import { providerIdsIn } from '$lib/providers.js';
 
-	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void, onmissing?: (missing: string[]) => void }} */
-	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {}, onmissing = () => {} } = $props();
+	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void, onmissing?: (missing: string[]) => void, onglance?: (g: Glance) => void }} */
+	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {}, onmissing = () => {}, onglance = () => {} } = $props();
+	/** @typedef {{ phase: string, host: string | null, lastGood: { at: string, copies: number | null } | null, backupsOn: boolean, pays: 'lespace' | 'app' | 'wallet' | null, fixedHost: boolean }} Glance */
 
 	/** @type {Record<string, any>} */
 	let profile = $state({});
@@ -329,6 +330,18 @@
 	$effect(() => {
 		if (loaded) onmissing(missing);
 	});
+	// What "Auf einen Blick" shows of Paperless, its backups and how it is paid.
+	$effect(() => {
+		if (!loaded) return;
+		onglance({
+			phase,
+			host: profile.running?.host ?? null,
+			lastGood: lastGood ? { at: lastGood.at, copies: lastGood.copies ?? null } : null,
+			backupsOn: Boolean(profile.backupConfig),
+			pays: profile.leSpacePays ? 'lespace' : profile.appPays ? 'app' : profile.payer ? 'wallet' : null,
+			fixedHost: Boolean(profile.dnsToken)
+		});
+	});
 
 	// The simple view: one status, one calm progress line, one button. It starts
 	// with the restore choice computed above (the newest own backup, if any), and
@@ -340,6 +353,8 @@
 		: profile.starting ? 'interrupted'
 		: loaded ? 'off' : 'loading'
 	);
+	// The short state for the card's chip and "Auf einen Blick".
+	const CHIPS = { loading: '…', off: 'aus', starting: 'startet', stopping: 'wird beendet', running: 'läuft', interrupted: 'Start unterbrochen' };
 	const TITLES = {
 		loading: 'Einen Moment …',
 		off: 'Paperless ist aus',
@@ -429,17 +444,23 @@
 			</div>
 		{/if}
 	{:else}
+		<header class="head">
+			<h2>Paperless</h2>
+			<span class="chip" class:on={phase === 'running'} data-testid="paperless-chip">{CHIPS[phase]}</span>
+		</header>
+		<p class="purpose">Deine Paperless-Maschine: starten, öffnen, sichern und beenden.</p>
 		{#if profile.running}
+			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener">Paperless öffnen</a>
 			<p>Paperless läuft: <a href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="paperless-link">{profile.running.host}</a></p>
 			{#if profile.running.restore?.status === 'failed'}<p class="error" data-testid="restore-failed">Wiederherstellung fehlgeschlagen ({profile.running.restore.reason ?? 'ohne Grund'}{profile.running.restore.error ? `: ${profile.running.restore.error}` : ''}). Paperless läuft leer. Diese VM nicht sichern, sondern unter „Meine VMs“ löschen: sonst wird die leere Paperless zur neuesten Sicherung.</p>{/if}
 			{#if profile.running.dataDisk === 'encrypted'}<p class="hint" data-testid="data-disk">Was diese VM schreibt, liegt auf einer eigenen Platte, verschlüsselt mit einem Schlüssel, den nur die VM kennt.</p>
 			{:else if profile.running.dataDisk === 'plain'}<p class="warn" data-testid="data-disk">Diese VM schreibt auf die gemeinsame Image-Platte, ohne eigenen Schlüssel. Die eigene Datenplatte ist vorerst ausgeschaltet (zu wenig Platz, bis die Container-Images flach sind).</p>{/if}
 			<p data-testid="paperless-login">Anmeldung: <code>admin</code>,
 				{#if showPassword}<code data-testid="admin-password">{adminPassword}</code>{:else}<span>••••••••</span>{/if}
-				<button type="button" onclick={() => (showPassword = !showPassword)}>{showPassword ? 'Verbergen' : 'Passwort anzeigen'}</button>
-				<button type="button" onclick={copyPassword}>Kopieren</button>
+				<button type="button" class="small" onclick={() => (showPassword = !showPassword)}>{showPassword ? 'Verbergen' : 'Passwort anzeigen'}</button>
+				<button type="button" class="small" onclick={copyPassword}>Kopieren</button>
 			</p>
-			<button onclick={stop} disabled={busy}>Sichern und beenden</button>
+			<button class="secondary" onclick={stop} disabled={busy}>Sichern und beenden</button>
 		{:else}
 			{#if profile.ageIdentity}
 				<fieldset class="restore">
@@ -468,12 +489,12 @@
 			{#if profile.starting && !busy}
 				<div class="interrupted" data-testid="start-interrupted">
 					<p>Ein Start wurde unterbrochen: VM <code>{profile.starting.instanceHash.slice(0, 12)}</code>, angefordert {new Date(profile.starting.at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}. Sie läuft auf Aleph und kostet, bis sie fertig gestartet oder gelöscht ist.</p>
-					<button onclick={resume} disabled={busy}>Start fortsetzen</button>
+					<button class="cta" onclick={resume} disabled={busy}>Start fortsetzen</button>
 					<button class="quiet" onclick={discard} disabled={busy}>Verwerfen (die VM dann unten unter „Meine VMs“ löschen)</button>
 				</div>
 			{:else}
 				<p class="role-line" data-testid="role-line">{profile.role === 'primary' ? 'Startet produktiv: Mail-Regeln an, Sicherungen auf Mainnet.' : 'Startet als Test: Mail-Regeln aus, Sicherungen ins Testnetz.'}</p>
-				<button onclick={start} disabled={busy || missing.length > 0}>Paperless starten</button>
+				<button class="cta" onclick={start} disabled={busy || missing.length > 0}>Paperless starten</button>
 				{#if missing.length}<p class="hint">Es fehlt noch: {missing.join(', ')}</p>{/if}
 			{/if}
 		{/if}
@@ -603,6 +624,12 @@
 	.substeps li { color: var(--text-2); }
 	.substeps li.done { color: var(--ok); }
 	.steps small { color: var(--text-2); font-weight: normal; margin-left: 0.4rem; }
+	.head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+	.head h2 { margin: 0; font-size: 1.15rem; }
+	.purpose { color: var(--text-2); font-size: 0.9rem; margin: 0.25rem 0 0.75rem; }
+	.chip { font-size: 0.8rem; padding: 0.1rem 0.6rem; border-radius: 999px; background: var(--surface-2); color: var(--text-2); white-space: nowrap; }
+	.chip.on { background: var(--ok-bg); color: var(--ok); }
+	.cta:disabled { opacity: 0.5; }
 	.lifecycle { margin: 0 0 1rem; padding: 1.25rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 	button { padding: 0.6rem 1.1rem; font-size: 1rem; margin: 0.25rem 0.25rem 0.25rem 0; }
 	.hint { color: var(--text-2); }

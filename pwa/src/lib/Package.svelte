@@ -9,8 +9,8 @@
 	import TopUp from '$lib/TopUp.svelte';
 	import Terms from '$lib/Terms.svelte';
 
-	/** @type {{ master: Uint8Array, version?: number }} */
-	let { master, version = 0 } = $props();
+	/** @type {{ master: Uint8Array, version?: number, onglance?: (g: { plan: boolean, hoursLeft: number | null, pays: string | null } | null) => void }} */
+	let { master, version = 0, onglance = () => {} } = $props();
 
 	/** @type {Awaited<ReturnType<typeof creditsBalance>>} */
 	let balance = $state(null);
@@ -112,6 +112,8 @@
 			.catch(() => {});
 		read();
 	});
+	// What "Auf einen Blick" shows of the package.
+	$effect(() => onglance(balance ? { plan: Boolean(balance.plan), hoursLeft, pays } : null));
 </script>
 
 <section class="card package" data-testid="package">
