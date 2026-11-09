@@ -133,6 +133,22 @@
 	let setupOpen = $state(false);
 	/** @type {string[]} */
 	let missing = $state([]);
+	// "Auf einen Blick" (#105): one row per card, each with its state.
+	/** @type {import('$lib/Lifecycle.svelte').Glance | null} */
+	let life = $state(null);
+	/** @type {{ plan: boolean, hoursLeft: number | null, pays: string | null } | null} */
+	let pkg = $state(null);
+	const PAYS = { lespace: 'Le Space Credits', app: 'Konto der App', wallet: 'Mein Wallet' };
+	const when = (/** @type {string} */ at) => new Date(at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+	const glance = $derived([
+		...(CREDITS_URL && pkg ? [{ id: 'paket', label: 'Paket', state: !pkg.plan ? 'kein Paket' : pkg.pays === 'app' || pkg.pays === 'wallet' ? 'nicht in Gebrauch' : pkg.hoursLeft != null ? `${pkg.hoursLeft} h übrig` : 'aktiv', tone: !pkg.plan ? 'warn' : pkg.pays === 'app' || pkg.pays === 'wallet' ? '' : 'ok' }] : []),
+		...(life ? [
+			{ id: 'paperless', label: 'Paperless', state: { off: 'aus', running: 'läuft', starting: 'startet', stopping: 'wird beendet', interrupted: 'Start unterbrochen', loading: '…' }[life.phase] ?? life.phase, tone: life.phase === 'running' ? 'ok' : life.phase === 'interrupted' ? 'warn' : '' },
+			{ id: 'paperless', label: 'Sicherungen', state: !life.backupsOn ? 'aus' : life.lastGood ? `${when(life.lastGood.at)}${life.lastGood.copies ? ` · ${life.lastGood.copies} Kopien` : ''}` : 'noch keine', tone: !life.backupsOn || !life.lastGood ? 'warn' : 'ok' },
+			{ id: 'technisch', label: 'Adresse', state: life.host ?? (life.fixedHost ? 'feste Adresse' : 'neu bei jedem Start'), tone: '' },
+			{ id: 'technisch', label: 'Zahlweg', state: life.pays ? PAYS[life.pays] : 'noch nicht gewählt', tone: life.pays ? '' : 'warn' }
+		] : [])
+	]);
 	const openSetup = () => {
 		setupOpen = true;
 		showTab('advanced');
@@ -229,15 +245,25 @@
 			     Paperless first; only the package moves, by CSS order, so a running
 			     checkout is not torn down when the tab changes. -->
 			<div class="stack" class:simple>
-				<div class="life"><Lifecycle {master} {simple} version={profileVersion} onchange={() => profileVersion++} onadvanced={openSetup} onmissing={(m) => { missing = m; if (m.length) setupOpen = true; }} /></div>
-				{#if CREDITS_URL}<div class="pkg"><Package {master} version={profileVersion} /></div>{/if}
+				{#if !simple && glance.length}
+					<section class="card glance" data-testid="glance">
+						<h2>Auf einen Blick</h2>
+						<ul>
+							{#each glance as row (row.label)}
+								<li><a href={`#${row.id}`}>{row.label}</a><span class="chip {row.tone}" data-testid={`glance-${row.label}`}>{row.state}</span></li>
+							{/each}
+						</ul>
+					</section>
+				{/if}
+				<div class="life" id="paperless"><Lifecycle {master} {simple} version={profileVersion} onchange={() => profileVersion++} onadvanced={openSetup} onmissing={(m) => { missing = m; if (m.length) setupOpen = true; }} onglance={(g) => (life = g)} /></div>
+				{#if CREDITS_URL}<div class="pkg" id="paket"><Package {master} version={profileVersion} onglance={(g) => (pkg = g)} /></div>{/if}
 			</div>
 		{/if}
 		<!-- "Technisch" (#105): what the everyday use does not need, folded, one
 		     click away. Rendered also while the words are shown (hidden then): the
 		     address is known from the first moment, and the balances feed the
 		     overview's warnings. -->
-		<section class="card tech" hidden={simple || !!shownPhrase} data-testid="tech">
+		<section class="card tech" id="technisch" hidden={simple || !!shownPhrase} data-testid="tech">
 			<h2>Technisch</h2>
 			<p class="purpose">Für Fortgeschrittene. Für den Alltag ist nichts davon nötig.</p>
 			<details class="part" data-testid="tech-keys">
@@ -330,6 +356,15 @@
 	code { word-break: break-all; }
 	.stack { display: flex; flex-direction: column; }
 	.stack:not(.simple) .pkg { order: -1; }
+	.stack:not(.simple) .glance { order: -2; }
+	.glance h2 { margin: 0 0 0.25rem; font-size: 1.15rem; }
+	.glance ul { list-style: none; margin: 0; padding: 0; }
+	.glance li { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-top: 1px solid var(--line); }
+	.glance li:first-child { border-top: 0; }
+	.glance a { color: var(--text); }
+	.glance .chip { overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+	.chip.ok { background: var(--ok-bg); color: var(--ok); }
+	:is(#paperless, #paket, #technisch) { scroll-margin-top: 1rem; }
 	.tabs { display: flex; gap: 0.25rem; padding: 0.25rem; margin: 0 0 1rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; }
 	.tabs button { flex: 1; margin: 0; padding: 0.45rem 0.75rem; background: transparent; color: var(--text-2); border-color: transparent; font-size: 0.95rem; }
 	.tabs button.on { background: var(--surface); color: var(--text); border-color: var(--line); font-weight: 600; box-shadow: var(--shadow); }

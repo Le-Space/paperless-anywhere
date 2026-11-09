@@ -169,6 +169,29 @@ test.describe('German', () => {
 		await expect(page.getByTestId('backup-old-image')).toContainText('älteren Image');
 		await expect(page.getByTestId('backup-now')).toHaveCount(0);
 	});
+
+	test('"Erweitert" opens with "Auf einen Blick": one row per card, each with its state and a link', async ({ page }) => {
+		test.setTimeout(90_000);
+		const { phrase } = await setUp(page, { v: 2, phase: 'ready', paperless: true });
+		await open(page, phrase);
+		await page.getByTestId('tab-advanced').click();
+		const glance = page.getByTestId('glance');
+		await expect(glance.locator('li a')).toHaveText(['Paperless', 'Sicherungen', 'Adresse', 'Zahlweg']);
+		await expect(page.getByTestId('glance-Paperless')).toHaveText('läuft');
+		await expect(page.getByTestId('glance-Sicherungen')).toHaveText('noch keine');
+		await expect(page.getByTestId('glance-Adresse')).toHaveText(HOST);
+		await expect(page.getByTestId('glance-Zahlweg')).toHaveText('noch nicht gewählt');
+		// It stands first; the Paperless card follows with its own chip and one main action.
+		const top = async (l) => (await l.boundingBox()).y;
+		expect(await top(glance)).toBeLessThan(await top(page.getByTestId('lifecycle')));
+		await expect(page.getByTestId('paperless-chip')).toHaveText('läuft');
+		await expect(page.getByRole('link', { name: 'Paperless öffnen' })).toHaveAttribute('href', `https://${HOST}/`);
+		await glance.getByRole('link', { name: 'Zahlweg' }).click();
+		await expect(page).toHaveURL(/#technisch$/);
+		// The overview has none of it.
+		await page.getByTestId('tab-simple').click();
+		await expect(glance).toHaveCount(0);
+	});
 });
 
 test.describe('English', () => {
