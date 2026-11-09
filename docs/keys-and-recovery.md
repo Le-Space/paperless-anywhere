@@ -20,6 +20,7 @@ What the app keeps, where the money is, and what you need to get back in, or to 
 | **App key** (Aleph) | derived from the master secret | **no** | gone with the master secret; revoke it in step 2 |
 | **Filecoin session key** | derived from the master secret | **no** | revoke it in step 3, or let it expire (30 days) |
 | **Backup key** (age) | derived from the master secret | no | the 24 words derive it again |
+| **VM backup key** (backups paid through Le Space Credits) | derived from the master secret; goes to the attested VM only | **no** | the 24 words derive it again; Le Space Credits accept at most 5 per account |
 | **Paperless passwords** | derived from the master secret | no | the 24 words derive them again |
 
 ## The vault, step by step

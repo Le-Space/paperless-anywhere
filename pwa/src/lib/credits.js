@@ -8,7 +8,7 @@
 // messages) over one line: the scheme, method, path, product, address and the
 // time in seconds. The service takes each timestamp once, within 5 minutes.
 import { privateKeyToAccount } from 'viem/accounts';
-import { alephPrivateKey } from './keys/derive.js';
+import { alephPrivateKey, backupPrivateKey } from './keys/derive.js';
 
 export const CREDITS_PRODUCT = 'paperless-anywhere';
 export const SCHEME = 'ls-credits/v1';
@@ -63,7 +63,8 @@ export async function creditsBalance(master, { baseUrl = CREDITS_URL, fetch: fet
 					cancelAtPeriodEnd: Boolean(p.cancel_at_period_end)
 				}
 			: null,
-		terms: termsOf(body?.terms)
+		terms: termsOf(body?.terms),
+		backup: backupOf(body?.backup)
 	};
 }
 
@@ -78,6 +79,28 @@ export function termsOf(t) {
 	const current = t?.current ? String(t.current) : null;
 	const pending = t?.pending?.version ? { version: String(t.pending.version), effectiveAt: t.pending.effectiveAt ?? null } : null;
 	return { accepted, current, pending, due: Boolean(current && accepted?.version !== current), announced: Boolean(pending && accepted?.version !== pending.version) };
+}
+
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+const NETWORKS = ['calibration', 'mainnet'];
+
+/**
+ * Where this account's backups stand with the service (design 2.2): Le
+ * Space's one Filecoin payer, the account's tag in its data sets' metadata,
+ * the network, paid until when, and how many data sets the service signed.
+ * Null while the service pays no backups, or when it names no payer.
+ * @param {any} b
+ * @returns {{ payer: string, tag: string, network: 'calibration' | 'mainnet', fundedUntil: string | null, dataSets: number } | null}
+ */
+export function backupOf(b) {
+	if (!b || !ADDRESS.test(String(b.payer ?? ''))) return null;
+	return {
+		payer: String(b.payer),
+		tag: String(b.tag ?? ''),
+		network: b.network === 'mainnet' ? 'mainnet' : 'calibration',
+		fundedUntil: b.funded_until ? String(b.funded_until) : null,
+		dataSets: Number(b.data_sets ?? 0)
+	};
 }
 
 /** An https link only, for the terms' text. @param {unknown} url */
@@ -197,7 +220,7 @@ const MESSAGES = {
 	CAP: 'Le Space hat gerade nicht genug Aleph-Credits vorrätig. Später noch einmal versuchen.',
 	HOURS: 'Diese Stundenzahl nimmt der Dienst nicht an.',
 	VERSION: 'Diese Fassung der Bedingungen kann gerade nicht angenommen werden. Bitte die Seite neu laden.',
-	ADDRESS: 'Le Space Credits nehmen die Adresse des Sicherungskontos nicht an.',
+	ADDRESS: 'Le Space Credits nehmen den Schlüssel der VM für die Sicherungen nicht an.',
 	TOO_SOON: 'Die Sicherungen wurden gerade erst bezahlt. Bitte in fünf Minuten noch einmal.',
 	MONTHS: 'Sicherungen lassen sich für 1 bis 12 Monate bezahlen.',
 	SUBS_OFF: 'Le Space Credits bezahlen VMs gerade noch nicht selbst. Später noch einmal versuchen.',
@@ -208,7 +231,14 @@ const MESSAGES = {
 	PRICE_TAX: 'Das Abo ist beim Credits-Dienst noch nicht fertig eingerichtet (Preise).',
 	STRIPE_OFF: 'Bezahlen ist beim Credits-Dienst gerade abgeschaltet.',
 	NO_BACKUP: 'Für dieses Produkt bezahlen Le Space Credits keine Sicherungen.',
-	PAUSED: 'Le Space Credits zahlen gerade keine Sicherungen ein (Tageslimit oder noch nicht freigeschaltet). Später noch einmal versuchen.'
+	PAUSED: 'Le Space Credits zahlen gerade keine Sicherungen ein (Tageslimit oder noch nicht freigeschaltet). Später noch einmal versuchen.',
+	BACKUP_OFF: 'Le Space Credits bezahlen gerade keine Sicherungen (beim Dienst nicht eingerichtet). Später noch einmal versuchen.',
+	PRODUCT: 'Le Space Credits kennen dieses Produkt nicht.'
+};
+
+/** The same codes where a backup key is meant (POST /v1/backup/authorize). */
+const BACKUP_KEY_MESSAGES = {
+	DELEGATES: 'Für dieses Konto sind schon 5 VM-Schlüssel für Sicherungen freigegeben, mehr nimmt der Dienst nicht an.'
 };
 
 /**
@@ -217,7 +247,7 @@ const MESSAGES = {
  * @param {Uint8Array} master @param {string} method @param {string} path @param {any} body
  * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
  */
-async function send(master, method, path, body, { baseUrl = CREDITS_URL, fetch: fetchImpl = fetch } = {}) {
+async function send(master, method, path, body, { baseUrl = CREDITS_URL, fetch: fetchImpl = fetch } = {}, messages = MESSAGES) {
 	if (!baseUrl) throw new Error('Le Space Credits sind hier nicht eingerichtet.');
 	const headers = await signedHeaders(creditsAccount(master), { method, path });
 	const res = await fetchImpl(`${baseUrl}${path}`, {
@@ -233,7 +263,7 @@ async function send(master, method, path, body, { baseUrl = CREDITS_URL, fetch: 
 		const missing = free != null ? Math.max(0, Number(needed) - Number(free)) : null;
 		throw new CreditsShortError(`Die Le Space Credits reichen dafür nicht${missing != null ? ` (es fehlen ${(missing / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })})` : ''}. Erst aufladen.`, missing);
 	}
-	if (!res.ok) throw new Error(MESSAGES[answer?.code] ?? (answer?.error ? `Le Space Credits: ${answer.error}` : `Le Space Credits antwortet ${res.status}`));
+	if (!res.ok) throw new Error(messages[answer?.code] ?? MESSAGES[answer?.code] ?? (answer?.error ? `Le Space Credits: ${answer.error}` : `Le Space Credits antwortet ${res.status}`));
 	return answer;
 }
 
@@ -263,22 +293,49 @@ export async function fundVm(master, hours, options) {
 }
 
 /**
- * Pay `months` of backups from Le Space Credits: the service deposits USDFC
- * into the Filecoin Pay account of `payer` (the vault's Filecoin payer) and,
- * the first time, sends it a little FIL for its approval transaction.
- * @param {Uint8Array} master @param {string} payer @param {number} months
+ * Pay `months` of backups from Le Space Credits (design 2.2). Nothing moves on
+ * chain: Le Space's one Filecoin payer pays the storage, and the service
+ * signs the VM's backup steps until `fundedUntil`, within `quotaBytes`.
+ * @param {Uint8Array} master @param {number} months
  * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<{ fundedUntil: string | null, chargedCredits: number, quotaBytes: number, payer: string, tag: string, network: string }>}
  */
-export async function fundBackups(master, payer, months, options) {
+export async function fundBackups(master, months, options) {
 	// No package needed: the months are charged from free credits (le-space-credits#31).
-	const r = await send(master, 'POST', '/v1/backup/fund', { payer, months }, options);
+	const r = await send(master, 'POST', '/v1/backup/fund', { months }, options);
 	return {
-		txHash: String(r?.txHash ?? ''),
-		confirmed: r?.confirmed !== false,
-		deposited: String(r?.deposited ?? '0'),
-		filSent: String(r?.filSent ?? '0'),
+		fundedUntil: r?.funded_until ? String(r.funded_until) : null,
 		chargedCredits: Number(r?.chargedCredits ?? 0),
+		quotaBytes: Number(r?.quota_bytes ?? 0),
+		payer: String(r?.payer ?? ''),
+		tag: String(r?.tag ?? ''),
 		network: String(r?.network ?? '')
+	};
+}
+
+/**
+ * Record a VM's backup key with the account (at most 5): the service then
+ * signs that key's backup steps for this account's own data sets. Answers
+ * what the VM's config needs: Le Space's payer, the session key that signs
+ * for it, the account's tag and the data sets' label.
+ * @param {Uint8Array} master @param {string} backupKey the backup key's address
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<{ payer: string, signer: string, tag: string, label: string, network: 'calibration' | 'mainnet', fundedUntil: string | null }>}
+ */
+export async function backupAuthorize(master, backupKey, options) {
+	if (!ADDRESS.test(String(backupKey ?? ''))) throw new Error('Der Schlüssel der VM für die Sicherungen ist keine Adresse.');
+	const r = await send(master, 'POST', '/v1/backup/authorize', { backupKey }, options, BACKUP_KEY_MESSAGES);
+	if (!ADDRESS.test(String(r?.payer ?? '')) || !ADDRESS.test(String(r?.signer ?? ''))) throw new Error('Le Space Credits haben kein Konto für die Sicherungen genannt.');
+	if (!/^[0-9a-f]{8,64}$/.test(String(r?.tag ?? ''))) throw new Error('Le Space Credits haben keine Kennung für die Sicherungen genannt.');
+	if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(String(r?.label ?? ''))) throw new Error('Le Space Credits haben keinen Namen für die Datensätze genannt.');
+	if (!NETWORKS.includes(r?.network)) throw new Error('Le Space Credits haben kein Netz für die Sicherungen genannt.');
+	return {
+		payer: String(r.payer),
+		signer: String(r.signer),
+		tag: String(r.tag),
+		label: String(r.label),
+		network: r.network,
+		fundedUntil: r.funded_until ? String(r.funded_until) : null
 	};
 }
 
@@ -412,3 +469,6 @@ export async function waitForTopUp(master, before, { tries = 20, delayMs = 1500,
 	}
 	return { booked: false, balance: last };
 }
+
+/** The address of a VM's backup key (slot 0: the vault's VM). @param {Uint8Array} master @param {number} [slot] */
+export const backupKeyAddress = (master, slot = 0) => privateKeyToAccount(backupPrivateKey(master, slot)).address;

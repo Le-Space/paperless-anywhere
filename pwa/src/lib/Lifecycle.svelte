@@ -1,5 +1,5 @@
 <script>
-	import { backupPayer, loadProfile, updateProfile } from '$lib/profile.js';
+	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
 	import { AlephShortError, BackupPartialError, eraseStopped, resumeAfterPartial, resumeStart, startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
 	import { vmStatus } from '$lib/vm.js';
 	import Storage from '$lib/Storage.svelte';
@@ -8,7 +8,7 @@
 	import { isAuthorized, readAuthorizations } from '$lib/permissions.js';
 	import { alephBalance } from '$lib/balances.js';
 	import { privateKeyToAccount } from 'viem/accounts';
-	import { alephPrivateKey, filecoinPayerPrivateKey } from '$lib/keys/derive.js';
+	import { alephPrivateKey } from '$lib/keys/derive.js';
 	import { listBackups, pieceCidOfStop, place, restoreEntry, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
@@ -19,8 +19,6 @@
 
 	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void }} */
 	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {} } = $props();
-	// The vault's own Filecoin payer, when Le Space Credits pay the backups.
-	const creditsPayerAddress = $derived(privateKeyToAccount(filecoinPayerPrivateKey(master)).address);
 
 	/** @type {Record<string, any>} */
 	let profile = $state({});
@@ -164,10 +162,10 @@
 			vmStatus(profile.running.host, statusToken(master))
 				.then((s) => { if (s?.phase === 'stop-partial' && !busy) partial = new BackupPartialError(s); })
 				.catch(() => {});
-		const owner = profile.backupOwner || backupPayer(profile, creditsPayerAddress);
-		if (owner && profile.ageIdentity) {
+		const listing = backupListing(profile);
+		if (listing && profile.ageIdentity) {
 			backupsError = '';
-			listBackups({ network: profile.network ?? 'calibration', owner })
+			listBackups({ network: profile.network ?? 'calibration', ...listing })
 				.then((list) => ((backups = list), (choice = defaultChoice(list))))
 				.catch(() => ((backups = []), (backupsError = 'Die Sicherungen ließen sich gerade nicht lesen.')));
 		}
@@ -337,7 +335,7 @@
 		running: 'Paperless läuft',
 		interrupted: 'Start unterbrochen'
 	};
-	const backupsPending = $derived(Boolean(profile.ageIdentity && (profile.backupOwner || backupPayer(profile, creditsPayerAddress)) && backups === null));
+	const backupsPending = $derived(Boolean(profile.ageIdentity && backupListing(profile) && backups === null));
 	const typicalTotal = $derived(action ? STEPS[action].reduce((a, s) => a + typicalOf(s), 0) : 0);
 	const elapsed = $derived(Math.max(0, (now - startedAt) / 1000));
 	const share = $derived(typicalTotal ? Math.min(0.95, elapsed / typicalTotal) : 0);
@@ -381,7 +379,7 @@
 			{#if profile.backupConfig}<BackupNow {master} {profile} disabled={busy} onbusy={(b) => (backingUp = b)} ongood={rememberGood} />{/if}
 			<button class="secondary" onclick={stop} disabled={busy || backingUp}>Sichern und beenden</button>
 			<Storage {master} {profile} />
-			{#if profile.ageIdentity && (profile.backupOwner || backupPayer(profile, creditsPayerAddress))}<TrialRestore {master} {profile} owner={profile.backupOwner || backupPayer(profile, creditsPayerAddress)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
+			{#if profile.ageIdentity && backupListing(profile)}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{:else if phase === 'interrupted'}
 			<button class="cta" onclick={resume} disabled={busy}>Start fortsetzen</button>
 		{:else if phase === 'off'}
@@ -396,7 +394,7 @@
 				<Storage {master} {profile} />
 			{/if}
 		{/if}
-		{#if phase !== 'running' && profile.trial}<TrialRestore {master} {profile} owner={profile.backupOwner || backupPayer(profile, creditsPayerAddress)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
+		{#if phase !== 'running' && profile.trial}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
 		{#if partial}
 			<div class="partial" role="alert" data-testid="stop-partial">

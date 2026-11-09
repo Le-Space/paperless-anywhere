@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { restoreEntry, backupConfigFor, backupFacts } from './backups.js';
+import { restoreEntry, backupConfigFor, backupDataSets, backupFacts, vmBackupSecrets } from './backups.js';
 
 describe('restoreEntry', () => {
 	it('names the piece and its copies, without a SHA-256 (the piece CID is the check)', () => {
@@ -65,5 +65,63 @@ describe('backupFacts', () => {
 	it('stays empty for an image that reports none of it', () => {
 		expect(backupFacts({ status: 'failed', reason: 'the backup did not complete', log: [] })).toEqual([]);
 		expect(backupFacts(null)).toEqual([]);
+	});
+});
+
+describe('backupDataSets', () => {
+	const sets = [
+		{ id: 1, live: true, metadata: { app: 'paperless-backup-test', customer: 'aa'.repeat(16) } },
+		{ id: 2, live: true, metadata: JSON.stringify({ app: 'paperless-backup-test', customer: 'bb'.repeat(16) }) },
+		{ id: 3, live: false, metadata: { app: 'paperless-backup-test', customer: 'aa'.repeat(16) } },
+		{ id: 4, live: true, metadata: { app: 'paperless-backup', customer: 'aa'.repeat(16) } },
+		{ id: 5, live: true, metadata: { app: 'paperless-backup-test' } },
+		{ id: 6, live: true, metadata: '{not json' }
+	];
+	it('keeps only this account\'s live data sets when Le Space\'s payer owns them all', () => {
+		expect(backupDataSets(sets, { label: 'paperless-backup-test', customer: 'aa'.repeat(16) }).map((d) => d.id)).toEqual([1]);
+		expect(backupDataSets(sets, { label: 'paperless-backup-test', customer: 'bb'.repeat(16) }).map((d) => d.id)).toEqual([2]);
+	});
+	it('keeps every labelled live data set of a wallet', () => {
+		expect(backupDataSets(sets, { label: 'paperless-backup-test' }).map((d) => d.id)).toEqual([1, 2, 5]);
+	});
+});
+
+describe('vmBackupSecrets', () => {
+	const recipient = 'age1' + 'q'.repeat(58);
+	const backupConfig = backupConfigFor('calibration', recipient);
+	const wallet = '0x' + '0'.repeat(39) + 'b';
+	const signer = { payer: '0x' + '0'.repeat(39) + '1', signer: '0x' + '0'.repeat(39) + '2', tag: 'ab'.repeat(16), label: 'paperless-backup-test', network: 'calibration' };
+	const account = '0x' + '0'.repeat(39) + 'a';
+	const keys = { sessionKey: '0x' + '1'.repeat(64), backupKey: '0x' + '2'.repeat(64), creditsUrl: 'https://credits.example.com', product: 'paperless-anywhere', account };
+
+	it('is empty without backups', () => {
+		expect(vmBackupSecrets({ payer: wallet }, keys)).toEqual({});
+	});
+
+	it('gives the wallet path the wallet as payer and the session key', () => {
+		const s = vmBackupSecrets({ payer: wallet, network: 'calibration', backupConfig }, keys);
+		expect(Object.keys(s).sort()).toEqual(['backup_config', 'backup_session_key']);
+		expect(s.backup_session_key).toBe(keys.sessionKey);
+		const c = JSON.parse(s.backup_config);
+		expect(c).toMatchObject({ payer: wallet, network: 'calibration', ageRecipient: recipient });
+		expect(c).not.toHaveProperty('remoteSigner');
+	});
+
+	it('gives the credits path remoteSigner and the backup key, never the session key', () => {
+		const s = vmBackupSecrets({ network: 'calibration', backupConfig, backupsByCredits: true }, { ...keys, signer });
+		expect(Object.keys(s).sort()).toEqual(['backup_config', 'backup_key']);
+		expect(s.backup_key).toBe(keys.backupKey);
+		const c = JSON.parse(s.backup_config);
+		expect(c.remoteSigner).toEqual({ creditsUrl: 'https://credits.example.com', product: 'paperless-anywhere', account, payer: signer.payer, signer: signer.signer, tag: signer.tag, label: signer.label });
+		expect(c).toMatchObject({ payer: signer.payer, network: 'calibration', ageRecipient: recipient, datasetMetadata: { app: 'paperless-backup-test', customer: signer.tag } });
+		expect(s.backup_config).not.toContain(keys.backupKey.slice(2));
+		expect(s.backup_config).not.toContain(keys.sessionKey.slice(2));
+	});
+
+	it('refuses the credits path without the service\'s answer, for another network, or without the service', () => {
+		const profile = { network: 'calibration', backupConfig, backupsByCredits: true };
+		expect(() => vmBackupSecrets(profile, keys)).toThrow(/noch nicht freigegeben/);
+		expect(() => vmBackupSecrets(profile, { ...keys, signer: { ...signer, network: 'mainnet' } })).toThrow(/Netz mainnet/);
+		expect(() => vmBackupSecrets(profile, { ...keys, signer, creditsUrl: '' })).toThrow(/Adresse des Dienstes/);
 	});
 });
