@@ -6,11 +6,10 @@
 import { createPublicClient, createWalletClient, custom, getAddress, http, toHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import * as SessionKey from '@filoz/synapse-core/session-key';
-import * as Pay from '@filoz/synapse-core/pay';
 import { calibration, mainnet } from '@filoz/synapse-core/chains';
 import { createUnsignedAggregateMessage, signAlephMessage } from '@le-space/core';
 import { broadcast, readAggregate } from './aleph.js';
-import { filecoinPayerPrivateKey, filecoinSessionPrivateKey } from './keys/derive.js';
+import { filecoinSessionPrivateKey } from './keys/derive.js';
 
 export const PWA_TYPES = ['INSTANCE', 'FORGET', 'AGGREGATE'];
 // AGGREGATE only for the payer's port forwards (443 for Caddy).
@@ -96,80 +95,4 @@ export async function setFilecoinSessionKey(payer, sessionAddress, network, { da
 	const expiresAt = BigInt(Math.floor(Date.now() / 1000 + days * 86400));
 	await SessionKey.loginSync(wallet, { address: sessionAddress, permissions: SESSION_PERMISSIONS, expiresAt });
 	return expiresAt;
-}
-
-
-// --- Backups paid through Le Space Credits ------------------------------------
-// The vault's own Filecoin payer stands in for the wallet. Le Space Credits
-// deposit USDFC into its Filecoin Pay account (anyone may deposit for anyone)
-// and send it a little FIL once; the two steps only the payer may send, the
-// approval of the storage service and the session key's login, it sends
-// itself from here, signed with its derived key (belege#591).
-
-/** The vault's Filecoin payer for backups paid through Le Space Credits. @param {Uint8Array} master */
-export const creditsPayerAccount = (master) => privateKeyToAccount(filecoinPayerPrivateKey(master));
-
-const readClient = (network) => createPublicClient({ chain: filecoinChain(network), transport: http(undefined, { retryCount: 1, timeout: 15_000 }) });
-
-/**
- * Where the credits-paid payer stands: FIL for gas, USDFC in Filecoin Pay,
- * the storage service's approval and the session key's expiry.
- * @param {Uint8Array} master @param {string} network
- * @returns {Promise<{ address: string, fil: bigint, deposit: bigint, approved: boolean, sessionUntil: bigint }>}
- */
-export async function creditsPayerState(master, network) {
-	const address = creditsPayerAccount(master).address;
-	const client = readClient(network);
-	const [fil, account, approved, sessionUntil] = await Promise.all([
-		client.getBalance({ address }),
-		Pay.accounts(client, { address }).catch(() => null),
-		Pay.isFwssMaxApproved(client, { clientAddress: address }).catch(() => false),
-		SessionKey.authorizationExpiry(client, { address, sessionKeyAddress: sessionKeyAddress(master), permission: SessionKey.AddPiecesPermission }).catch(() => 0n)
-	]);
-	return { address, fil, deposit: account?.availableFunds ?? 0n, approved, sessionUntil };
-}
-
-/** A session key with less than this left is renewed. */
-export const SESSION_RENEW_SECONDS = 7 * 86400;
-
-/**
- * Send what only the payer may send, as far as it is missing: the storage
- * service's approval (once) and the session key's login (renewed a week
- * before it ends). Needs the FIL that Le Space Credits send with the first
- * deposit. Returns what it did.
- * @param {Uint8Array} master @param {string} network
- * @param {{ days?: number, now?: number }} [options]
- */
-export async function prepareCreditsPayer(master, network, { days = 90, now = Date.now() } = {}) {
-	const state = await creditsPayerState(master, network);
-	const done = /** @type {string[]} */ ([]);
-	const needsSession = state.sessionUntil < BigInt(Math.floor(now / 1000) + SESSION_RENEW_SECONDS);
-	if (state.approved && !needsSession) return done;
-	if (state.fil === 0n) throw new Error('Dem Sicherungskonto fehlt noch das Filecoin für die Gebühren. Es kommt mit der ersten Bezahlung der Sicherungen über Le Space Credits.');
-	const wallet = createWalletClient({ account: creditsPayerAccount(master), chain: filecoinChain(network), transport: http(undefined, { retryCount: 2, timeout: 60_000 }) });
-	if (!state.approved) {
-		await Pay.setOperatorApprovalSync(wallet, { approve: true });
-		done.push('approval');
-	}
-	if (needsSession) {
-		const expiresAt = BigInt(Math.floor(now / 1000 + days * 86400));
-		await SessionKey.loginSync(wallet, { address: sessionKeyAddress(master), permissions: SESSION_PERMISSIONS, expiresAt });
-		done.push('session');
-	}
-	return done;
-}
-
-/**
- * Wait until the FIL that Le Space Credits sent has reached the payer.
- * @param {Uint8Array} master @param {string} network
- * @param {{ tries?: number, everyMs?: number }} [options]
- */
-export async function waitForPayerFil(master, network, { tries = 24, everyMs = 10_000 } = {}) {
-	const address = creditsPayerAccount(master).address;
-	const client = readClient(network);
-	for (let i = 0; i < tries; i++) {
-		if ((await client.getBalance({ address }).catch(() => 0n)) > 0n) return true;
-		await new Promise((r) => setTimeout(r, everyMs));
-	}
-	return false;
 }

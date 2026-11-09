@@ -45,12 +45,21 @@ export function vmPayer(profile, appAddress) {
 }
 
 /**
- * Who pays the backups on Filecoin: with `backupsByCredits` the vault's own
- * Filecoin payer, funded through Le Space Credits; otherwise the wallet.
- * @param {Record<string, any>} profile @param {string} creditsPayerAddress
+ * Where this vault's backups are listed on Filecoin: the data sets of `owner`
+ * with the backup label, and, when Le Space Credits pay them, only those with
+ * this account's tag (`customer`), since Le Space's one payer owns every
+ * customer's. A wallet set as the backups' owner wins (e.g. the Mac's
+ * backups). Null when nothing says where.
+ * @param {Record<string, any>} profile
+ * @returns {{ owner: string, customer?: string, label?: string } | null}
  */
-export function backupPayer(profile, creditsPayerAddress) {
-	return profile.backupsByCredits ? creditsPayerAddress : profile.payer;
+export function backupListing(profile) {
+	if (profile.backupOwner) return { owner: profile.backupOwner };
+	if (profile.backupsByCredits) {
+		const s = profile.backupSigner;
+		return s?.payer && s?.tag ? { owner: s.payer, customer: s.tag, ...(s.label ? { label: s.label } : {}) } : null;
+	}
+	return profile.payer ? { owner: profile.payer } : null;
 }
 
 /**

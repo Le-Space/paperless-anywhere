@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { recoverMessageAddress } from 'viem';
-import { canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
+import { backupAuthorize, backupKeyAddress, backupOf, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
 
 // A made-up vault: the ledger knows it by the address its Aleph key has.
 const master = new Uint8Array(32).fill(7);
@@ -44,7 +44,7 @@ describe('signed requests', () => {
 describe('creditsBalance', () => {
 	it('shows a top-up as this vault’s paperless-anywhere balance, and a Belege top-up not at all', async () => {
 		const fetch = fakeService({ 'paperless-anywhere': { credits: 2000, reserved: 150 }, belege: { credits: 5000, reserved: 0 } });
-		expect(await creditsBalance(master, { baseUrl: 'https://credits.example.com', fetch })).toEqual({ credits: 2000, reserved: 150, lines: { ki: 0, vm: 0, transfer: 0 }, plan: null, terms: { accepted: null, current: null, pending: null, due: false, announced: false } });
+		expect(await creditsBalance(master, { baseUrl: 'https://credits.example.com', fetch })).toEqual({ credits: 2000, reserved: 150, lines: { ki: 0, vm: 0, transfer: 0 }, plan: null, terms: { accepted: null, current: null, pending: null, due: false, announced: false }, backup: null });
 		const onlyBelege = fakeService({ belege: { credits: 5000, reserved: 0 } });
 		expect((await creditsBalance(master, { baseUrl: 'https://credits.example.com', fetch: onlyBelege }))?.credits).toBe(0);
 	});
@@ -165,21 +165,68 @@ describe('packages and hours (belege#591 draft 2)', () => {
 		await expect(fundVm(master, 5, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/erst ein Paket wählen/);
 	});
 
-	it('pays backups for the vault\'s Filecoin payer, signed as the ledger address', async () => {
-		const payer = '0x' + '4'.repeat(40);
-		const svc = jsonService(() => [200, { txHash: '0xabc', confirmed: true, deposited: '1', filSent: '0.005', chargedCredits: 150, network: 'calibration' }]);
-		expect(await fundBackups(master, payer, 1, { baseUrl, fetch: svc.fetch })).toEqual({ txHash: '0xabc', confirmed: true, deposited: '1', filSent: '0.005', chargedCredits: 150, network: 'calibration' });
-		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, payer, months: 1 });
+	it('pays months of backups with no payer in the body, and reads the answer', async () => {
+		const svc = jsonService(() => [200, { funded_until: '2026-12-09T00:00:00.000Z', chargedCredits: 150, quota_bytes: 34359738368, payer: '0x' + '0'.repeat(39) + '1', tag: 'ab'.repeat(16), network: 'calibration' }]);
+		expect(await fundBackups(master, 1, { baseUrl, fetch: svc.fetch })).toEqual({ fundedUntil: '2026-12-09T00:00:00.000Z', chargedCredits: 150, quotaBytes: 34359738368, payer: '0x' + '0'.repeat(39) + '1', tag: 'ab'.repeat(16), network: 'calibration' });
+		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, months: 1 });
+		expect(svc.seen.last?.body).not.toHaveProperty('payer');
+		expect(svc.seen.last?.line.startsWith('ls-credits/v1\nPOST\n/v1/backup/fund\npaperless-anywhere\n')).toBe(true);
+		expect(await recoverMessageAddress({ message: svc.seen.last?.line ?? '', signature: svc.seen.last?.signature })).toBe(account.address);
 	});
 
-	it('says when the product has no backups (409 NO_BACKUP)', async () => {
-		const svc = jsonService(() => [409, { error: 'no backup', code: 'NO_BACKUP' }]);
-		await expect(fundBackups(master, '0x' + '4'.repeat(40), 1, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/keine Sicherungen/);
+	it('says when the product has no backups (409 NO_BACKUP), the terms are due (412) or backups are off (503)', async () => {
+		await expect(fundBackups(master, 1, { baseUrl, fetch: jsonService(() => [409, { error: 'no backup', code: 'NO_BACKUP' }]).fetch })).rejects.toThrow(/keine Sicherungen/);
+		await expect(fundBackups(master, 1, { baseUrl, fetch: jsonService(() => [412, { error: 'terms', code: 'TERMS' }]).fetch })).rejects.toBeInstanceOf(TermsError);
+		await expect(fundBackups(master, 1, { baseUrl, fetch: jsonService(() => [503, { error: 'backups are not configured', code: 'BACKUP_OFF' }]).fetch })).rejects.toThrow(/nicht eingerichtet/);
+		await expect(fundBackups(master, 13, { baseUrl, fetch: jsonService(() => [400, { error: 'months', code: 'MONTHS' }]).fetch })).rejects.toThrow(/1 bis 12 Monate/);
 	});
 
-	it('explains a payer the service refuses', async () => {
-		const svc = jsonService(() => [400, { error: 'bad address', code: 'ADDRESS' }]);
-		await expect(fundBackups(master, '0x0', 1, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/Adresse des Sicherungskontos/);
+	describe('backupAuthorize', () => {
+		const payer = '0x' + '0'.repeat(39) + '1';
+		const signer = '0x' + '0'.repeat(39) + '2';
+		const tag = '0123456789abcdef'.repeat(2);
+		const ok = { payer, signer, tag, label: 'paperless-backup-test', network: 'calibration', funded_until: '2026-12-09T00:00:00.000Z' };
+
+		it('sends the backup key\'s address, signed as the ledger address, and reads what the VM needs', async () => {
+			const svc = jsonService(() => [200, ok]);
+			const key = backupKeyAddress(master);
+			expect(await backupAuthorize(master, key, { baseUrl, fetch: svc.fetch })).toEqual({ payer, signer, tag, label: 'paperless-backup-test', network: 'calibration', fundedUntil: '2026-12-09T00:00:00.000Z' });
+			expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, backupKey: key });
+			expect(svc.seen.last?.line.startsWith('ls-credits/v1\nPOST\n/v1/backup/authorize\npaperless-anywhere\n')).toBe(true);
+			expect(await recoverMessageAddress({ message: svc.seen.last?.line ?? '', signature: svc.seen.last?.signature })).toBe(account.address);
+		});
+
+		it('never sends something that is not an address', async () => {
+			const svc = jsonService(() => [200, ok]);
+			await expect(backupAuthorize(master, '0x12', { baseUrl, fetch: svc.fetch })).rejects.toThrow(/keine Adresse/);
+			expect(svc.seen.last).toBeNull();
+		});
+
+		it('refuses an answer without payer, signer, tag, label or network', async () => {
+			const key = backupKeyAddress(master);
+			for (const broken of [{ ...ok, payer: 'x' }, { ...ok, signer: undefined }, { ...ok, tag: 'NOT HEX' }, { ...ok, label: '<b>' }, { ...ok, network: 'devnet' }]) {
+				await expect(backupAuthorize(master, key, { baseUrl, fetch: jsonService(() => [200, broken]).fetch })).rejects.toThrow(/Le Space Credits haben/);
+			}
+		});
+
+		it('explains the refusals: too many keys, terms, no backup, a bad key, backups off', async () => {
+			const key = backupKeyAddress(master);
+			const refused = (status, code) => backupAuthorize(master, key, { baseUrl, fetch: jsonService(() => [status, { error: code, code }]).fetch });
+			await expect(refused(409, 'DELEGATES')).rejects.toThrow(/5 VM-Schlüssel/);
+			await expect(refused(412, 'TERMS')).rejects.toBeInstanceOf(TermsError);
+			await expect(refused(409, 'NO_BACKUP')).rejects.toThrow(/keine Sicherungen/);
+			await expect(refused(400, 'ADDRESS')).rejects.toThrow(/Schlüssel der VM/);
+			await expect(refused(503, 'BACKUP_OFF')).rejects.toThrow(/nicht eingerichtet/);
+		});
+	});
+
+	it('reads balance.backup: payer, tag, network, paid until, data sets', async () => {
+		const backup = { payer: '0x' + '0'.repeat(39) + '1', tag: 'ab'.repeat(16), network: 'mainnet', funded_until: '2027-01-01T00:00:00.000Z', data_sets: 2 };
+		const fetch = async () => new Response(JSON.stringify({ credits: 600, reserved: 0, backup }));
+		expect((await creditsBalance(master, { baseUrl, fetch }))?.backup).toEqual({ payer: backup.payer, tag: backup.tag, network: 'mainnet', fundedUntil: '2027-01-01T00:00:00.000Z', dataSets: 2 });
+		expect(backupOf(null)).toBeNull();
+		expect(backupOf({ payer: 'nope' })).toBeNull();
+		expect(backupOf({ payer: backup.payer })).toEqual({ payer: backup.payer, tag: '', network: 'calibration', fundedUntil: null, dataSets: 0 });
 	});
 
 	it('reads the network the service pays backups in', async () => {

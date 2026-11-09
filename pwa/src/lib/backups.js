@@ -14,18 +14,35 @@ export const BACKUP_LABEL = { mainnet: 'paperless-backup', calibration: 'paperle
 const cidText = (cid) => (typeof cid === 'string' ? cid : (cid?.toString?.() ?? cid?.['/'] ?? ''));
 
 /**
+ * The data sets that hold this vault's backups: live, with the backup tool's
+ * label, and, when Le Space's one payer owns them for every customer, with
+ * this account's tag as `customer` (backups paid through Le Space Credits).
+ * @param {any[]} items the owner's data sets
+ * @param {{ label: string, customer?: string | null }} want
+ */
+export function backupDataSets(items, { label, customer = null }) {
+	return items.filter((ds) => {
+		let meta;
+		try {
+			meta = typeof ds.metadata === 'string' ? JSON.parse(ds.metadata || '{}') : (ds.metadata ?? {});
+		} catch {
+			return false;
+		}
+		return ds.live !== false && meta?.app === label && (customer == null || meta?.customer === customer);
+	});
+}
+
+/**
  * Newest first. A backup is complete when every labelled data set holds it.
- * @param {{ network: string, owner: string, label?: string }} a
+ * `customer`: only data sets with this tag (the owner is Le Space's payer).
+ * @param {{ network: string, owner: string, label?: string, customer?: string | null }} a
  * @returns {Promise<Array<{ pieceCid: string, copies: Array<{ providerId: string, retrievalUrl: string, place: string }>, complete: boolean, order: number }>>}
  */
-export async function listBackups({ network, owner, label }) {
+export async function listBackups({ network, owner, label, customer = null }) {
 	const want = label ?? BACKUP_LABEL[network === 'mainnet' ? 'mainnet' : 'calibration'];
 	const client = createPublicClient({ chain: filecoinChain(network), transport: http(undefined, { retryCount: 1, timeout: 20_000 }) });
 	const { items } = await getPdpDataSets(client, { address: owner });
-	const sets = items.filter((ds) => {
-		const meta = typeof ds.metadata === 'string' ? JSON.parse(ds.metadata || '{}') : (ds.metadata ?? {});
-		return ds.live !== false && meta.app === want;
-	});
+	const sets = backupDataSets(items, { label: want, customer });
 	if (!sets.length) return [];
 	const providers = await getPDPProvidersByIds(client, { providerIds: [...new Set(sets.map((ds) => BigInt(ds.providerId)))] });
 	const byId = (id) => providers.find((p) => String(p.id) === String(id));
@@ -85,6 +102,46 @@ export function backupConfigFor(network, recipient, places = defaultPlaces(netwo
 	if (!ids.length && !(copies >= 1 && copies <= 3)) throw new Error('1 bis 3 Kopien.');
 	if (ids.length > 3) throw new Error('Höchstens 3 Anbieter.');
 	return { copies: ids.length || copies, providerIds: ids, regions: [...(regions ?? [])], datasetMetadata: { app: BACKUP_LABEL[network] }, keepWeeks: network === 'mainnet' ? 12 : 1, ageRecipient: recipient };
+}
+
+/**
+ * What the VM gets for its backups with the unlock: `backup_config`
+ * (paperless-backup-filecoin's config.json) and the key it signs with.
+ * - Wallet path: the wallet is the payer, the VM gets the session key the
+ *   wallet authorized (`backup_session_key`, SESSION_KEY_FILE on the VM).
+ * - Le Space Credits: Le Space's one payer pays, its session key (`signer`)
+ *   signs each step after the service's checks; the VM asks for it with its
+ *   own backup key (`backup_key`, BACKUP_KEY_FILE on the VM), and its config
+ *   names the service in `remoteSigner`.
+ * Empty without a backup configuration. Throws when the credits path lacks
+ * the service's answer or it is for another network.
+ * @param {Record<string, any>} profile
+ * @param {{ sessionKey?: string, backupKey?: string, signer?: { payer: string, signer: string, tag: string, label: string, network: string } | null, creditsUrl?: string, product?: string, account?: string }} k
+ * @returns {Record<string, string>}
+ */
+export function vmBackupSecrets(profile, { sessionKey, backupKey, signer, creditsUrl, product, account }) {
+	if (!profile.backupConfig) return {};
+	const network = profile.network === 'mainnet' ? 'mainnet' : 'calibration';
+	if (!profile.backupsByCredits) {
+		return {
+			backup_config: JSON.stringify({ ...profile.backupConfig, payer: profile.payer, network }),
+			backup_session_key: String(sessionKey)
+		};
+	}
+	if (!signer) throw new Error('Le Space Credits haben den Schlüssel der VM für die Sicherungen noch nicht freigegeben.');
+	if (signer.network !== network) throw new Error(`Le Space Credits sichern im Netz ${signer.network}, diese Paperless in ${network}.`);
+	if (!creditsUrl || !account || !product || !backupKey) throw new Error('Für Sicherungen über Le Space Credits fehlt die Adresse des Dienstes oder ein Schlüssel.');
+	const { payer, tag, label } = signer;
+	return {
+		backup_config: JSON.stringify({
+			...profile.backupConfig,
+			datasetMetadata: { ...(profile.backupConfig.datasetMetadata ?? {}), app: label, customer: tag },
+			payer,
+			network,
+			remoteSigner: { creditsUrl, product, account, payer, signer: signer.signer, tag, label }
+		}),
+		backup_key: String(backupKey)
+	};
 }
 
 /**
