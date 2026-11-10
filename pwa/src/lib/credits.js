@@ -188,6 +188,23 @@ export const PLANS = Object.freeze([
 export const planOf = (id, plans = PLANS) => plans.find((p) => p.id === id) ?? null;
 
 /**
+ * Few hours left of a package: at most a fifth of it, and never less than two hours.
+ * @param {number | null} hoursLeft @param {{ hours: number } | null} plan
+ */
+export const fewHoursLeft = (hoursLeft, plan) => Boolean(plan && hoursLeft != null && hoursLeft <= Math.max(2, Math.floor(plan.hours / 5)));
+
+/**
+ * The next larger package, or null for the largest.
+ * @template {{ hours: number }} P
+ * @param {P | null} plan @param {readonly P[]} [plans]
+ * @returns {P | null}
+ */
+export const biggerPlan = (plan, plans = /** @type {any} */ (PLANS)) => (plan ? ([...plans].sort((a, b) => a.hours - b.hours).find((p) => p.hours > plan.hours) ?? null) : null);
+
+/** What a package means in a week (about 4.33 weeks a month), as on the landing page. */
+export const hoursPerWeek = (/** @type {number} */ hours) => Math.max(1, Math.round(hours / 4.33));
+
+/**
  * The service's packages and top-ups for this product (public, unsigned).
  * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
  * @returns {Promise<{ plans: { id: string, hours: number, priceCredits: number }[], topups: { id: string, amountCents: number, credits: number }[] } | null>}

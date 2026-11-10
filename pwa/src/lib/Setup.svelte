@@ -295,6 +295,17 @@
 			<label><input type="radio" name="pays" checked={!profile.appPays && !profile.leSpacePays} onchange={() => setPays('wallet')} data-testid="pays-wallet" /> Mein Wallet (MetaMask), mit einer Freigabe für diese App</label>
 			<label><input type="radio" name="pays" checked={Boolean(profile.appPays) && !profile.leSpacePays} onchange={() => setPays('app')} data-testid="pays-app" /> Diese App selbst: Aleph-Credits liegen auf ihrer Adresse</label>
 		</fieldset>
+		{#if CREDITS_URL}
+			<details class="self-pay" data-testid="self-pay">
+				<summary>Aleph selbst bezahlen, ohne Paket (für Fortgeschrittene)</summary>
+				<p>Die VM läuft auf Aleph. Statt über ein Paket kannst du sie dort auch selbst bezahlen:</p>
+				<ul>
+					<li><strong>Mein Wallet:</strong> Die Aleph-Credits liegen in deinem Wallet (MetaMask). Du gibst dieser App dort frei, VMs zu starten und zu löschen (Schritt {step.aleph ?? 2}, sobald das Wallet verbunden ist).</li>
+					<li><strong>Diese App selbst:</strong> Du überweist Aleph-Credits an die Adresse der App. Wer den Tresor öffnet, kann sie ausgeben.</li>
+				</ul>
+				<p>Dann rechnet Le Space für die VM nichts ab: keine Stunden aus dem Paket, keine Rechnung dafür. Um Aleph-Credits und deren Kurs kümmerst du dich selbst; was das Konto hält, steht unter „Konten bei Aleph und Filecoin“. Die Sicherungen kannst du weiter über Le Space Credits bezahlen (Schritt {step.backups}).</p>
+			</details>
+		{/if}
 		{#if profile.leSpacePays}
 			<p class="hint" data-testid="lespace-pays">Le Space bezahlt deine VM aus einem eigenen Konto für dich; diese App startet und beendet sie in dessen Auftrag. Abgerechnet wird über dein Paket. {profile.vmOwner ? 'Konto für deine VM: ' : ''}{#if profile.vmOwner}<code>{profile.vmOwner}</code>{/if}</p>
 		{:else if profile.appPays}
@@ -402,6 +413,9 @@
 {/snippet}
 
 <style>
+	.self-pay { margin: 0.25rem 0 0.75rem; font-size: 0.95rem; color: var(--text-2); }
+	.self-pay summary { cursor: pointer; }
+	.self-pay ul { padding-left: 1.2rem; }
 	.setup { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.25rem; }
 	h3 { margin-top: 1.5rem; font-size: 1rem; }
 	select, input, textarea { width: 100%; font-size: 1rem; }

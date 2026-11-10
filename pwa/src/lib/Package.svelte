@@ -4,12 +4,12 @@
 	// credits, FIL and USDFC are under "Erweitert" (Balances).
 	import { loadProfile } from '$lib/profile.js';
 	import { amount } from '$lib/balances.js';
-	import { creditsBalance, creditsCatalog, creditsPurchases, choosePlan, fundVm, planOf, PLANS, startSubscription, subscriptionPortal, waitForSubscription } from '$lib/credits.js';
+	import { biggerPlan, creditsBalance, creditsCatalog, fewHoursLeft, hoursPerWeek, creditsPurchases, choosePlan, fundVm, planOf, PLANS, startSubscription, subscriptionPortal, waitForSubscription } from '$lib/credits.js';
 	import StripeCheckout from '$lib/StripeCheckout.svelte';
 	import TopUp from '$lib/TopUp.svelte';
 	import Terms from '$lib/Terms.svelte';
 
-	/** @type {{ master: Uint8Array, version?: number, onglance?: (g: { plan: boolean, hoursLeft: number | null, pays: string | null } | null) => void }} */
+	/** @type {{ master: Uint8Array, version?: number, onglance?: (g: { plan: boolean, hoursLeft: number | null, pays: string | null, low: boolean } | null) => void }} */
 	let { master, version = 0, onglance = () => {} } = $props();
 
 	/** @type {Awaited<ReturnType<typeof creditsBalance>>} */
@@ -36,6 +36,13 @@
 	const day = (/** @type {string | null} */ iso) => (iso ? new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : '');
 	const current = $derived(balance?.plan ? planOf(balance.plan.id, plans) : null);
 	const hoursLeft = $derived(balance?.plan?.hoursLeft == null ? null : Math.max(0, Math.floor(balance.plan.hoursLeft)));
+	// Few hours left in a package that is in use: say so, and name the next
+	// larger package as the recommendation.
+	const usesPackage = $derived(pays !== 'app' && pays !== 'wallet');
+	const low = $derived(usesPackage && fewHoursLeft(hoursLeft, current));
+	const bigger = $derived(biggerPlan(current, plans));
+	const recommended = $derived(low && bigger ? bigger.id : null);
+	const perWeek = (/** @type {number} */ hours) => `≈ ${hoursPerWeek(hours)} h pro Woche`;
 	const share = $derived(current && hoursLeft != null ? Math.min(1, hoursLeft / current.hours) : null);
 
 	async function read() {
@@ -113,7 +120,7 @@
 		read();
 	});
 	// What "Auf einen Blick" shows of the package.
-	$effect(() => onglance(balance ? { plan: Boolean(balance.plan), hoursLeft, pays } : null));
+	$effect(() => onglance(balance ? { plan: Boolean(balance.plan), hoursLeft, pays, low } : null));
 </script>
 
 <section class="card package" data-testid="package">
@@ -135,6 +142,12 @@
 					<span style="width: {(share ?? 1) * 100}%"></span>
 				</div>
 			{/if}
+			{#if low}
+				<div class="low" role="status" data-testid="plan-low">
+					<p>Nur noch {hoursLeft} {hoursLeft === 1 ? 'Stunde' : 'Stunden'} in diesem Monat. Reicht das nicht, nimm ein größeres Paket{appPays ? ' oder kauf Stunden dazu' : ''}.</p>
+					{#if bigger}<button class="upgrade" onclick={() => (byStripe ? portal() : plan(bigger.id))} disabled={busy} data-testid="plan-upgrade">{bigger.hours} Stunden im Monat für {euro(bigger.priceCredits)}</button>{/if}
+				</div>
+			{/if}
 			<p class="hint" data-testid="plan-current">
 				{#if current && byStripe}Dein Abo: {current.hours} Stunden für {euro(current.priceCredits)} im Monat, per Karte über Stripe. {balance.plan.cancelAtPeriodEnd ? `Gekündigt, endet am ${day(balance.plan.renewsAt ?? balance.plan.periodEnd)}.` : `Es verlängert sich am ${day(balance.plan.renewsAt ?? balance.plan.periodEnd)}; jede Abbuchung mit Rechnung.`}{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}
 				{:else if current}Dein Paket: {current.hours} Stunden für {euro(current.priceCredits)} im Monat. {balance.plan.periodEnd ? `Es verlängert sich am ${day(balance.plan.periodEnd)} und wird dann aus deinem Guthaben bezahlt, solange es reicht.` : 'Es verlängert sich monatlich und wird aus deinem Guthaben bezahlt, solange es reicht.'} Beenden kannst du es jederzeit zum Monatsende.{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}{:else}Paket {balance.plan.id}{/if}
@@ -152,7 +165,8 @@
 			<div class="plans">
 				{#each plans as p (p.id)}
 					<button class="plan-choice" class:current={balance.plan?.id === p.id} onclick={() => (balance?.plan ? plan(p.id) : subscribe(p.id))} disabled={busy || balance.plan?.id === p.id} data-testid={`plan-${p.id}`}>
-						<span>{p.hours} Stunden im Monat</span><strong>{euro(p.priceCredits)}</strong>
+						{#if recommended === p.id}<em class="badge">Empfehlung</em>{/if}
+						<span>{p.hours} Stunden im Monat</span><strong>{euro(p.priceCredits)}</strong><small class="hint">{perWeek(p.hours)}</small>
 					</button>
 				{/each}
 			</div>
@@ -181,21 +195,23 @@
 					{/if}
 				</p>
 			{/if}
-			<!-- Always there, so the invoices are found: the list, or why it is empty. -->
-			<details class="purchases" data-testid="purchases">
-				<summary>Aufladungen und Rechnungen{purchases?.length ? ` (${purchases.length})` : ''}</summary>
-				{#if purchasesError}<p class="warn">Die Aufladungen ließen sich gerade nicht lesen: {purchasesError}</p>
-				{:else if purchases === null}<p class="hint">…</p>
-				{:else if !purchases.length}<p class="hint">Noch keine Aufladung.</p>
-				{:else}
-					<ul>
-						{#each purchases as p (p.id)}
-							<li data-testid="purchase">{p.at ? new Date(p.at).toLocaleDateString('de-DE') : '–'} · {euro(p.cents)}
-								{#if p.invoiceUrl}· <a href={p.invoiceUrl} target="_blank" rel="noopener noreferrer">Rechnung (Stripe)</a>{:else}<small class="hint">· Rechnung folgt</small>{/if}</li>
-						{/each}
-					</ul>
-				{/if}
-			</details>
+		</details>
+		<!-- Always there and outside the fold, so the invoices are found: the list,
+		     or why it is empty; the subscription's own invoices are at Stripe. -->
+		<details class="purchases" data-testid="purchases">
+			<summary>Aufladungen und Rechnungen{purchases?.length ? ` (${purchases.length})` : ''}</summary>
+			{#if purchasesError}<p class="warn">Die Aufladungen ließen sich gerade nicht lesen: {purchasesError}</p>
+			{:else if purchases === null}<p class="hint">…</p>
+			{:else if !purchases.length}<p class="hint">Noch keine Aufladung.</p>
+			{:else}
+				<ul>
+					{#each purchases as p (p.id)}
+						<li data-testid="purchase">{p.at ? new Date(p.at).toLocaleDateString('de-DE') : '–'} · {euro(p.cents)}
+							{#if p.invoiceUrl}· <a href={p.invoiceUrl} target="_blank" rel="noopener noreferrer">Rechnung (Stripe)</a>{:else}<small class="hint">· Rechnung folgt</small>{/if}</li>
+					{/each}
+				</ul>
+			{/if}
+			{#if byStripe}<p><button class="link" onclick={portal} disabled={busy} data-testid="purchases-portal">Rechnungen des Abos bei Stripe</button></p>{/if}
 		</details>
 		{#if note}<p class="hint" role="status" data-testid="plan-note">{note}</p>{/if}
 		{#if error}<p class="warn" role="alert" data-testid="plan-error">{error}</p>{/if}
@@ -231,6 +247,11 @@
 	.more summary { color: var(--text-2); cursor: pointer; }
 	.group { margin: 0.75rem 0 0; }
 	.purchases { margin: 0.75rem 0 0; font-size: 0.9rem; }
+	.low { margin: 0.5rem 0; padding: 0.6rem 0.8rem; border-radius: var(--radius-sm); background: var(--warn-bg); color: var(--warn); }
+	.low p { margin: 0 0 0.5rem; }
+	.upgrade { padding: 0.5rem 1rem; font-weight: 600; }
+	.plan-choice small { font-size: 0.8rem; }
+	.badge { font-style: normal; font-size: 0.75rem; font-weight: 600; padding: 0.05rem 0.5rem; border-radius: 999px; background: var(--accent); color: var(--cta-text, #0f1b2d); }
 	.purchases summary { color: var(--text-2); }
 	.purchases ul { list-style: none; padding: 0; margin: 0.3rem 0; }
 </style>
