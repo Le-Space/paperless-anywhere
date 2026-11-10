@@ -19,12 +19,27 @@ export const CREDITS_URL = String(import.meta.env?.VITE_CREDITS_URL ?? '').repla
 export const canonical = ({ method, path, product, address, timestamp }) =>
 	`${SCHEME}\n${method.toUpperCase()}\n${path}\n${product}\n${address}\n${timestamp}`;
 
+// The service takes each (address, second) once: two requests in the same
+// second (read the balance, then fund) would get the second one refused as
+// REPLAY. So each request of an address gets a later second than the one
+// before; a few seconds ahead stay well inside the service's 5 minutes.
+/** @type {Map<string, number>} */
+const lastStamp = new Map();
+/** @param {string} address */
+export function nextStamp(address, now = Math.floor(Date.now() / 1000)) {
+	const key = address.toLowerCase();
+	const t = Math.max(now, (lastStamp.get(key) ?? 0) + 1);
+	lastStamp.set(key, t);
+	return t;
+}
+
 /**
  * The headers of a signed request.
  * @param {import('viem').LocalAccount} account
  * @param {{ method: string, path: string, product?: string, timestamp?: number }} r
  */
-export async function signedHeaders(account, { method, path, product = CREDITS_PRODUCT, timestamp = Math.floor(Date.now() / 1000) }) {
+export async function signedHeaders(account, { method, path, product = CREDITS_PRODUCT, timestamp }) {
+	timestamp ??= nextStamp(account.address);
 	const signature = await account.signMessage({ message: canonical({ method, path, product, address: account.address, timestamp }) });
 	return { 'X-LS-Address': account.address, 'X-LS-Timestamp': String(timestamp), 'X-LS-Signature': signature };
 }
