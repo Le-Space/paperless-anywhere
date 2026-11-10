@@ -1,0 +1,432 @@
+name: Paperless backup round trip through Le Space Credits
+
+# The backup paid through Le Space Credits end to end, on Filecoin mainnet
+# (le-space-credits #41-#43), with made-up documents only:
+#   1. The test vault (secret CREDITS_TEST_VAULT_MASTER) accepts the terms if
+#      needed, pays one month of backup if none is paid, and authorizes its
+#      VM backup key (slot 0) - with the PWA's own functions
+#      (pwa/scripts/roundtrip-credits.mjs imports pwa/src/lib/credits.js,
+#      keys/derive.js, keys/age.js and backups.js; nothing is signed here).
+#   2. VM 1 gets the backup config with remoteSigner and the backup key, as
+#      the PWA's start builds them, imports made-up documents and backs up:
+#      the service signs each step for Le Space's one payer.
+#   3. VM 1 is forgotten. VM 2 gets the backup's entry and the vault's age
+#      identity with the unlock, restores, and the run compares the counts.
+#   4. storage_until: how long the providers are paid for the data sets, read
+#      from FWSS and Filecoin Pay, next to the service's funded_until.
+#   5. The cleanup job forgets every VM of the run, revokes the backup key and
+#      deletes the fixed address's records. Data sets are never terminated.
+#
+# stage=address spends nothing: it prints the vault's ledger address (where
+# the test credits are booked), its backup key's address, the balance and
+# the terms.
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: '"address" only prints the addresses, balance and terms (no spending); "full" runs the round trip (costs credits, VM hours and mainnet storage)'
+        required: true
+        default: address
+        type: choice
+        options: [address, full]
+      rootfs_item_hash:
+        description: Encrypted Paperless rootfs with the remote signer (the STORE from "Paperless rootfs")
+        required: true
+        default: 123308e06226c67d33492005b608d8589a775e1d8608eed05f28a5da2068d676
+        type: string
+      crn:
+        description: SEV-SNP node (hash or unique prefix)
+        required: true
+        default: bb0aa1a9fc75
+        type: string
+      runner:
+        description: Where the jobs run. "aleph" needs runners started with `pnpm relay-button gh-runner up --repo Le-Space/paperless-anywhere --count 2` (full uses two jobs one after the other, address one); they use no hosted minutes.
+        required: true
+        default: aleph
+        type: choice
+        options:
+          - aleph
+          - github-hosted
+      allow_network:
+        description: The Filecoin network the service must back up on; the run stops on any other. "calibration" also makes VM 1 a test VM.
+        required: false
+        default: mainnet
+        type: choice
+        options: [mainnet, calibration]
+      provider_ids:
+        description: Providers, comma-separated (e.g. "36,37"); empty uses the PWA's default places (mainnet 36, 37, 1)
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CREDITS_URL: ${{ vars.VITE_CREDITS_URL || 'https://credits.le-space.de' }}
+  ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+  ITEM: ${{ inputs.rootfs_item_hash }}
+  CRN: ${{ inputs.crn }}
+  NAME: paperless-rtc-${{ github.run_id }}
+  DNS_TOKEN: ${{ secrets.CLOUDFLARE_DNS_TOKEN }}
+  FIXED_NAME: rtc-${{ github.run_id }}.vm.le-space.de
+
+jobs:
+  address:
+    if: inputs.stage == 'address'
+    runs-on: ${{ inputs.runner == 'aleph' && fromJSON('["self-hosted","aleph"]') || 'ubuntu-24.04' }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.x
+      - name: The PWA's modules
+        working-directory: pwa
+        run: pnpm install --frozen-lockfile --prod > /dev/null
+      - name: Addresses, balance and terms (no spending)
+        working-directory: pwa
+        env:
+          CREDITS_TEST_VAULT_MASTER: ${{ secrets.CREDITS_TEST_VAULT_MASTER }}
+        run: |
+          [ -n "$CREDITS_TEST_VAULT_MASTER" ] || { echo "::error::the secret CREDITS_TEST_VAULT_MASTER is not set"; exit 1; }
+          node scripts/roundtrip-credits.mjs address | tee "$RUNNER_TEMP/address.log"
+          { echo "## Le Space Credits test vault"; echo; echo '```'; cat "$RUNNER_TEMP/address.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  roundtrip:
+    if: inputs.stage == 'full'
+    runs-on: ${{ inputs.runner == 'aleph' && fromJSON('["self-hosted","aleph"]') || 'ubuntu-24.04' }}
+    timeout-minutes: 120
+    concurrency:
+      group: paperless-try
+      cancel-in-progress: false
+    steps:
+      - name: Check inputs
+        env:
+          PROVIDER_IDS: ${{ inputs.provider_ids }}
+        run: |
+          [[ "$ITEM" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::rootfs_item_hash is not an item hash"; exit 1; }
+          [[ "$CRN" =~ ^[0-9a-f]{6,64}$ ]] || { echo "::error::crn is not a hash or prefix"; exit 1; }
+          [[ -z "$PROVIDER_IDS" || "$PROVIDER_IDS" =~ ^[0-9]+(,[0-9]+){0,2}$ ]] || { echo "::error::provider_ids: one to three ids, comma-separated"; exit 1; }
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.x
+
+      - name: Tools
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/aleph" https://github.com/aleph-im/aleph-rs/releases/download/v0.22.0/aleph-cli-linux-x86_64
+          echo "41b8ced717d9962683ce2d4409725774e826643be0bae1bfc623f6c0c7fb19d7  $RUNNER_TEMP/aleph" | sha256sum -c -
+          sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
+          (cd pwa && pnpm install --frozen-lockfile --prod > /dev/null)
+
+      - name: Keys for this run (disk, SSH)
+        env:
+          LUKS: ${{ secrets.PAPERLESS_LUKS_PASSPHRASE }}
+        run: |
+          umask 077
+          printf '%s' "$LUKS" | tr -d '\r\n' > "$RUNNER_TEMP/luks.pass"
+          ssh-keygen -q -t ed25519 -N '' -C paperless-roundtrip-credits -f "$RUNNER_TEMP/rt_ed25519"
+          # wait_ssh <hash> <secret args file>: SSH up after the unlock, or unlock
+          # again. The node can restart a VM after it was unlocked; the disk is
+          # then locked again and sshd never starts. Logs when the node started it.
+          cat > "$RUNNER_TEMP/wait_ssh.sh" <<'EOS'
+          wait_ssh() {
+            for i in $(seq 1 36); do
+              $SSH true 2>/dev/null && { echo "SSH is up"; return 0; }
+              if [ "$i" = 9 ] || [ "$i" = 21 ]; then
+                started="$(curl -fsS --max-time 15 "$CRN_URL/v2/about/executions/list" | jq -r --arg h "$1" '.[$h].status.started_at // "?"' || echo '?')"
+                echo "no SSH yet; the node started the VM at $started; unlocking again"
+                xargs -0 -a "$2" aleph instance unlock "$1" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" --chain eth > "$RUNNER_TEMP/reunlock.log" 2>&1 \
+                  && echo "unlocked again" || tail -2 "$RUNNER_TEMP/reunlock.log" | grep -v -i secret
+              fi
+              sleep 10
+            done
+            echo "::error::SSH did not come up after the unlock"
+            return 1
+          }
+          EOS
+
+      - name: Le Space Credits - network, terms, one month of backup, the backup key
+        id: credits
+        working-directory: pwa
+        env:
+          CREDITS_TEST_VAULT_MASTER: ${{ secrets.CREDITS_TEST_VAULT_MASTER }}
+          ALLOW_NETWORK: ${{ inputs.allow_network || 'mainnet' }}
+          PROVIDER_IDS: ${{ inputs.provider_ids }}
+        run: |
+          [ -n "$CREDITS_TEST_VAULT_MASTER" ] || { echo "::error::the secret CREDITS_TEST_VAULT_MASTER is not set"; exit 1; }
+          # Masks the backup key and the age identity before it prints anything else;
+          # writes backup_config.json, backup_key and age_identity (mode 600).
+          node scripts/roundtrip-credits.mjs prepare "$RUNNER_TEMP/vm"
+
+      - name: The fixed address (only with the CLOUDFLARE_DNS_TOKEN secret)
+        run: |
+          crn_url="$(curl -fsS 'https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel' \
+            | jq -r --arg p "$CRN" '.data.corechannel.resource_nodes[] | select(.hash | startswith($p)) | .address' | head -1)"; crn_url="${crn_url%/}"
+          echo "CRN_URL=$crn_url" >> "$GITHUB_ENV"
+          # fixed_args <hash> <out>: the fixed address's secrets for that VM, or none.
+          cat > "$RUNNER_TEMP/fixed.sh" <<'EOS'
+          fixed_args() {
+            : > "$2"
+            [ -n "$DNS_TOKEN" ] || return 0
+            local entry ipv4 port i
+            for i in $(seq 1 30); do
+              entry="$(curl -fsS --max-time 15 "$CRN_URL/v2/about/executions/list" | jq -c --arg h "$1" '.[$h] // {}' || echo '{}')"
+              ipv4="$(jq -r '.networking.host_ipv4 // empty' <<<"$entry")"
+              [ -n "$ipv4" ] && break; sleep 10
+            done
+            port="$(jq -r '.networking.mapped_ports["443"].host // 443' <<<"$entry")"
+            printf '%s\0' --secret "dns_cloudflare_token=$DNS_TOKEN" --secret "https_hostname=$FIXED_NAME" \
+              --secret "https_ipv4=$ipv4" --secret "https_port=$port" > "$2"
+          }
+          EOS
+
+      - name: VM 1 - start, unlock with the remoteSigner config and the backup key
+        id: vm1
+        env:
+          ROLE: ${{ steps.credits.outputs.role }}
+        run: |
+          set -o pipefail
+          start=$(date +%s)
+          aleph instance create "$NAME-a" --confidential --image "$ITEM" --vcpus 2 --memory 4GB --disk-size 40GB --crn "$CRN" \
+            --ssh-pubkey-file "$RUNNER_TEMP/rt_ed25519.pub" --chain eth --wait 600 2>&1 | tee "$RUNNER_TEMP/create1.log"
+          hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/create1.log" | grep -oE '[0-9a-f]{64}' | head -1)"
+          [ -n "$hash" ] || { echo "::error::no INSTANCE item hash"; exit 1; }
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+          umask 077
+          # The role the PWA gives a VM that backs up to mainnet: primary (the image
+          # refuses mainnet for any other role).
+          printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=$ROLE" \
+            --secret "backup_config=$(cat "$RUNNER_TEMP/vm/backup_config.json")" --secret "backup_key=$(cat "$RUNNER_TEMP/vm/backup_key")" \
+            > "$RUNNER_TEMP/secrets1.args"
+          . "$RUNNER_TEMP/fixed.sh"; fixed_args "$hash" "$RUNNER_TEMP/fixed1.args"; cat "$RUNNER_TEMP/fixed1.args" >> "$RUNNER_TEMP/secrets1.args"
+          ok=""
+          for i in $(seq 1 12); do
+            xargs -0 -a "$RUNNER_TEMP/secrets1.args" aleph instance unlock "$hash" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
+              --chain eth > "$RUNNER_TEMP/unlock1.log" 2>&1 && { ok=1; break; }
+            tail -2 "$RUNNER_TEMP/unlock1.log" | grep -v -i secret; sleep 20
+          done
+          [ -n "$ok" ] || { echo "::error::VM 1 could not be unlocked"; exit 1; }
+          echo "VM1_UP=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+          echo "vm 1: up and unlocked as $ROLE in $(( $(date +%s) - start )) s"
+
+      - name: VM 1 - import made-up documents, back up through the remote signer
+        id: backup
+        env:
+          HASH: ${{ steps.vm1.outputs.hash }}
+        run: |
+          . "$RUNNER_TEMP/wait_ssh.sh"
+          for i in $(seq 1 30); do
+            entry="$(curl -fsS --max-time 15 "$CRN_URL/v2/about/executions/list" | jq -c --arg h "$HASH" '.[$h] // {}' || echo '{}')"
+            HOST="$(jq -r '.networking.host_ipv4 // empty' <<<"$entry")"; PORT="$(jq -r '.networking.mapped_ports["22"].host // empty' <<<"$entry")"
+            [ -n "$HOST" ] && [ -n "$PORT" ] && break; sleep 10
+          done
+          SSH="ssh -i $RUNNER_TEMP/rt_ed25519 -p $PORT -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@$HOST"
+          wait_ssh "$HASH" "$RUNNER_TEMP/secrets1.args" || exit 1
+          for i in $(seq 1 120); do
+            code="$($SSH 'curl -s -o /dev/null -w "%{http_code}" --max-time 10 http://127.0.0.1:8000/api/' 2>/dev/null || true)"
+            case "$code" in 200|302|401|403) break ;; esac; sleep 15
+          done
+          $SSH 'sh -s' <<'EOS'
+          set -e
+          cd /srv/paperless/consume
+          for n in 1 2 3 4 5; do
+            printf 'Wolkenfabrik Hosting GmbH\nRechnung TEST-%04d\nBetrag: 12,34 EUR\nMade-up document for a round trip.\n' "$n" > "roundtrip-$n.txt"
+          done
+          EOS
+          for i in $(seq 1 60); do [ "$($SSH 'ls /srv/paperless/consume | wc -l')" = 0 ] && break; sleep 10; done
+          docs="$($SSH 'paperless-backup fingerprint' | jq -r .documents)"
+          echo "documents in VM 1: $docs"
+          [ "$docs" = 5 ] || { echo "::error::VM 1 has $docs documents, expected 5"; exit 1; }
+          echo "DOCS_VM1=$docs" >> "$GITHUB_ENV"
+          start=$(date +%s)
+          # Exit 0: done; 2: partial (fewer copies than requested); else failed.
+          rc=0; $SSH 'paperless-backup run' || rc=$?
+          state="$($SSH 'cat /run/paperless-anywhere/backup.json' || echo '{}')"
+          echo "BACKUP_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+          status="$(jq -r '.status // "unknown"' <<<"$state")"
+          echo "BACKUP_STATUS=$status" >> "$GITHUB_ENV"
+          if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then
+            # The status page's own log lines (paths, quotes and 64-hex values blanked by the image).
+            jq '{status, reason, log, exit}' <<<"$state" | grep -vE 'AGE-SECRET|0x[0-9a-fA-F]{64}'
+            echo "::error::backup: failed (exit $rc, status $status): $(jq -r '.reason // "?"' <<<"$state")"
+            exit 1
+          fi
+          jq '.backup' <<<"$state" > "$RUNNER_TEMP/entry.full.json"
+          pieces="$(jq -r .pieceCid "$RUNNER_TEMP/entry.full.json")"
+          sets="$(jq -r '[.copies[].dataSetId | tostring] | join(",")' "$RUNNER_TEMP/entry.full.json")"
+          providers="$(jq -r '[.copies[].providerId | tostring] | join(",")' "$RUNNER_TEMP/entry.full.json")"
+          new="$(jq -r '[.copies[] | select(.isNewDataSet == true) | .dataSetId | tostring] | join(",")' "$RUNNER_TEMP/entry.full.json")"
+          copies="$(jq -r '"\(.copies | length) of \(.requestedCopies)"' "$RUNNER_TEMP/entry.full.json")"
+          echo "data_sets=$sets" >> "$GITHUB_OUTPUT"
+          { echo "PIECE_CID=$pieces"; echo "DATA_SETS=$sets"; echo "PROVIDERS=$providers"; echo "COPIES=$copies"; } >> "$GITHUB_ENV"
+          jq '{name, pieceCid, size, complete, requestedCopies, copies: [.copies[] | {providerId, dataSetId, isNewDataSet, location}], failedAttempts}' "$RUNNER_TEMP/entry.full.json"
+          echo "backup: $status, piece CID $pieces, $copies copies, data sets [$sets] (new: [${new:-none}]), providers [$providers], $(( $(date +%s) - start )) s"
+          [ "$status" = done ] || [ "$status" = partial ] || { echo "::error::backup: status $status"; exit 1; }
+          [ "$status" = done ] || echo "::warning::backup: partial, $copies copies reached the providers; the restore goes on with what is there"
+          if [ -n "$DNS_TOKEN" ]; then
+            serial="$($SSH "openssl x509 -noout -serial -in /etc/paperless-anywhere/tls/certificates/$FIXED_NAME.crt" | sed 's/^serial=//')"
+            [ -n "$serial" ] || { echo "::error::VM 1 has no certificate for the fixed address"; exit 1; }
+            echo "VM1_SERIAL=$serial" >> "$GITHUB_ENV"
+          fi
+          # What paperless-restore takes, as the PWA sends it: the piece CID and the copies.
+          jq '{name, pieceCid, copies: [.copies[] | {retrievalUrl}]}' "$RUNNER_TEMP/entry.full.json" > "$RUNNER_TEMP/entry.json"
+
+      - name: VM 1 - forget
+        if: always() && steps.vm1.outputs.hash != ''
+        env:
+          HASH: ${{ steps.vm1.outputs.hash }}
+        run: |
+          aleph instance erase "$HASH" --crn "$CRN" --chain eth || true
+          echo y | aleph instance delete "$HASH" --reason "paperless credits round trip ${GITHUB_RUN_ID}" --chain eth || true
+
+      - name: VM 2 - start, unlock with the backup's entry and the age identity, restore
+        id: vm2
+        run: |
+          set -o pipefail
+          aleph instance create "$NAME-b" --confidential --image "$ITEM" --vcpus 2 --memory 4GB --disk-size 40GB --crn "$CRN" \
+            --ssh-pubkey-file "$RUNNER_TEMP/rt_ed25519.pub" --chain eth --wait 600 2>&1 | tee "$RUNNER_TEMP/create2.log"
+          hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/create2.log" | grep -oE '[0-9a-f]{64}' | head -1)"
+          [ -n "$hash" ] || { echo "::error::no INSTANCE item hash"; exit 1; }
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+          umask 077
+          # A test VM: it restores and does not back up (no backup_config).
+          printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=test" \
+            --secret "restore_ledger_entry=$(jq -c . "$RUNNER_TEMP/entry.json")" --secret "age_identity=$(cat "$RUNNER_TEMP/vm/age_identity")" \
+            > "$RUNNER_TEMP/secrets2.args"
+          . "$RUNNER_TEMP/fixed.sh"; fixed_args "$hash" "$RUNNER_TEMP/fixed2.args"; cat "$RUNNER_TEMP/fixed2.args" >> "$RUNNER_TEMP/secrets2.args"
+          ok=""
+          for i in $(seq 1 12); do
+            xargs -0 -a "$RUNNER_TEMP/secrets2.args" aleph instance unlock "$hash" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
+              --chain eth > "$RUNNER_TEMP/unlock2.log" 2>&1 && { ok=1; break; }
+            tail -2 "$RUNNER_TEMP/unlock2.log" | grep -v -i secret; sleep 20
+          done
+          [ -n "$ok" ] || { echo "::error::VM 2 could not be unlocked"; exit 1; }
+          . "$RUNNER_TEMP/wait_ssh.sh"
+          for i in $(seq 1 30); do
+            entry="$(curl -fsS --max-time 15 "$CRN_URL/v2/about/executions/list" | jq -c --arg h "$hash" '.[$h] // {}' || echo '{}')"
+            HOST="$(jq -r '.networking.host_ipv4 // empty' <<<"$entry")"; PORT="$(jq -r '.networking.mapped_ports["22"].host // empty' <<<"$entry")"
+            [ -n "$HOST" ] && [ -n "$PORT" ] && break; sleep 10
+          done
+          SSH="ssh -i $RUNNER_TEMP/rt_ed25519 -p $PORT -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@$HOST"
+          wait_ssh "$hash" "$RUNNER_TEMP/secrets2.args" || exit 1
+          result=""
+          for i in $(seq 1 120); do
+            result="$($SSH 'cat /run/paperless-anywhere/restore.json 2>/dev/null' || true)"
+            case "$(jq -r '.status // empty' <<<"$result" 2>/dev/null)" in done|failed|skipped) break ;; esac
+            sleep 15
+          done
+          echo "$result" | jq .
+          echo "RESTORE=$(jq -c . <<<"$result")" >> "$GITHUB_ENV"
+          [ "$(jq -r .status <<<"$result")" = done ] || { $SSH 'tail -15 /var/log/paperless-anywhere/restore.log' | grep -vE 'AGE-SECRET' || true; echo "::error::restore: did not complete (status $(jq -r '.status // "none"' <<<"$result"))"; exit 1; }
+          docs="$(jq -r .documents <<<"$result")"
+          echo "DOCS_VM2=$docs" >> "$GITHUB_ENV"
+          echo "restore: done from provider $(jq -r .provider <<<"$result"), documents VM 1 $DOCS_VM1, VM 2 $docs"
+          [ "$docs" = "$DOCS_VM1" ] || { echo "::error::restore: VM 2 has $docs documents, VM 1 had $DOCS_VM1"; exit 1; }
+          $SSH 'test -e /tmp/secrets/age_identity && echo "AGE IDENTITY STILL THERE" || echo "age identity removed"'
+          if [ -n "$DNS_TOKEN" ]; then
+            for i in $(seq 1 30); do
+              fixed="$($SSH 'cat /run/paperless-anywhere/fixed-address.json 2>/dev/null' || true)"
+              case "$(jq -r '.status // empty' <<<"$fixed" 2>/dev/null)" in ready|failed) break ;; esac; sleep 10
+            done
+            serial="$($SSH "openssl x509 -noout -serial -in /etc/paperless-anywhere/tls/certificates/$FIXED_NAME.crt" | sed 's/^serial=//')"
+            echo "certificate serial: VM 1 $VM1_SERIAL, VM 2 $serial"
+            [ "$serial" = "$VM1_SERIAL" ] || { echo "::error::VM 2 did not reuse the certificate from the backup"; exit 1; }
+            echo "CERT_REUSED=yes" >> "$GITHUB_ENV"
+          fi
+
+      - name: storage_until - how long the providers are paid (FWSS, Filecoin Pay)
+        id: storage
+        if: always() && steps.backup.outputs.data_sets != ''
+        working-directory: pwa
+        env:
+          CREDITS_TEST_VAULT_MASTER: ${{ secrets.CREDITS_TEST_VAULT_MASTER }}
+          NETWORK: ${{ steps.credits.outputs.network }}
+          DATA_SETS: ${{ steps.backup.outputs.data_sets }}
+        run: node scripts/roundtrip-credits.mjs storage "$DATA_SETS"
+
+      - name: Summary
+        if: always()
+        env:
+          NETWORK: ${{ steps.credits.outputs.network }}
+          FUNDED: ${{ steps.credits.outputs.funded }}
+          FUNDED_UNTIL: ${{ steps.storage.outputs.service_funded_until || steps.credits.outputs.funded_until }}
+          STORAGE_UNTIL: ${{ steps.storage.outputs.storage_until }}
+        run: |
+          restore_status="$(printf '%s' "${RESTORE:-}" | jq -r '.status // empty' 2>/dev/null || true)"
+          line="round trip: backup ${BACKUP_STATUS:-not run}, restore ${restore_status:-none}, documents ${DOCS_VM1:-?} -> ${DOCS_VM2:-?}, data sets [${DATA_SETS:-}], piece ${PIECE_CID:-?}, storage_until ${STORAGE_UNTIL:-?}, service funded_until ${FUNDED_UNTIL:-?}"
+          echo "$line"
+          {
+            echo "## Paperless backup round trip through Le Space Credits (${NETWORK:-?})"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Funded a month in this run | ${FUNDED:-?} |"
+            echo "| VM 1 up (create + unlock) | ${VM1_UP:-?} s |"
+            echo "| Backup through the remote signer | ${BACKUP_STATUS:-not run}, ${BACKUP_SECONDS:-?} s, ${COPIES:-?} copies |"
+            echo "| Piece CID | \`${PIECE_CID:-?}\` |"
+            echo "| Data sets / providers | ${DATA_SETS:-?} / ${PROVIDERS:-?} |"
+            echo "| Restore in VM 2 | \`${RESTORE:-none}\` |"
+            echo "| Documents VM 1 / VM 2 | ${DOCS_VM1:-?} / ${DOCS_VM2:-?} |"
+            echo "| storage_until (chain, earliest data set) | ${STORAGE_UNTIL:-?} |"
+            echo "| funded_until (service) | ${FUNDED_UNTIL:-?} |"
+            [ -z "$DNS_TOKEN" ] || echo "| Fixed address: certificate reused from the backup | ${CERT_REUSED:-no} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "${BACKUP_STATUS:-}" != partial ] || { echo "::error::backup: partial, fewer copies than requested"; exit 1; }
+
+  # Runs even when the round trip was cancelled or timed out.
+  cleanup:
+    needs: roundtrip
+    if: always() && inputs.stage == 'full'
+    runs-on: ${{ inputs.runner == 'aleph' && fromJSON('["self-hosted","aleph"]') || 'ubuntu-24.04' }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.x
+      - name: Install the aleph CLI
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/aleph" https://github.com/aleph-im/aleph-rs/releases/download/v0.22.0/aleph-cli-linux-x86_64
+          echo "41b8ced717d9962683ce2d4409725774e826643be0bae1bfc623f6c0c7fb19d7  $RUNNER_TEMP/aleph" | sha256sum -c -
+          sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
+      - name: Erase and forget every VM of this run
+        run: |
+          npm install -q --prefix "$RUNNER_TEMP/eth" --no-audit --no-fund ethers@6.16.0 >/dev/null
+          addr="$(node -e 'const { Wallet } = require(process.argv[1]); const k = process.env.ALEPH_PRIVATE_KEY.trim(); console.log(new Wallet(k.startsWith("0x") ? k : "0x" + k).address)' "$RUNNER_TEMP/eth/node_modules/ethers")"
+          hashes="$(curl -fsS "https://api2.aleph.im/api/v0/messages.json?addresses=$addr&msgTypes=INSTANCE&pagination=50" \
+            | jq -r --arg n "$NAME" '.messages[] | select((.content.metadata.name // "") | startswith($n)) | .item_hash')"
+          if [ -n "$DNS_TOKEN" ]; then
+            api=https://api.cloudflare.com/client/v4; auth="Authorization: Bearer $DNS_TOKEN"
+            zone="$(curl -fsS -H "$auth" "$api/zones?name=le-space.de" | jq -r '.result[0].id // empty')"
+            for id in $(curl -fsS -H "$auth" "$api/zones/$zone/dns_records?name=$FIXED_NAME" | jq -r '.result[].id'); do
+              curl -fsS -X DELETE -H "$auth" "$api/zones/$zone/dns_records/$id" >/dev/null && echo "deleted a record of $FIXED_NAME"
+            done
+          fi
+          [ -n "$hashes" ] || { echo "cleanup: no VM of this run is left"; exit 0; }
+          for h in $hashes; do
+            echo "cleanup: forgetting $h"
+            aleph instance erase "$h" --crn "$CRN" --chain eth || true
+            echo y | aleph instance delete "$h" --reason "paperless credits round trip ${GITHUB_RUN_ID} (cleanup)" --chain eth || true
+          done
+      - name: Revoke the backup key (data sets stay)
+        if: always()
+        working-directory: pwa
+        env:
+          CREDITS_TEST_VAULT_MASTER: ${{ secrets.CREDITS_TEST_VAULT_MASTER }}
+        run: |
+          [ -n "$CREDITS_TEST_VAULT_MASTER" ] || { echo "cleanup: no CREDITS_TEST_VAULT_MASTER, nothing to revoke"; exit 0; }
+          pnpm install --frozen-lockfile --prod > /dev/null
+          node scripts/roundtrip-credits.mjs revoke
