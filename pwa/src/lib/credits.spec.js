@@ -366,3 +366,18 @@ describe('package hints', () => {
 		expect([10, 30, 80].map(hoursPerWeek)).toEqual([2, 7, 18]);
 	});
 });
+
+describe('nextStamp', () => {
+	it('gives each request of an address a later second, even within one second', async () => {
+		const { nextStamp } = await import('./credits.js');
+		const a = '0x00000000000000000000000000000000000000aa';
+		const t1 = nextStamp(a, 1_000_000);
+		const t2 = nextStamp(a, 1_000_000);
+		const t3 = nextStamp(a.toUpperCase().replace('0X', '0x'), 1_000_000);
+		expect([t2 - t1, t3 - t2]).toEqual([1, 1]);
+		// Another address starts from the clock.
+		expect(nextStamp('0x00000000000000000000000000000000000000bb', 1_000_000)).toBe(1_000_000);
+		// The clock moving past the last stamp wins.
+		expect(nextStamp(a, 1_000_100)).toBe(1_000_100);
+	});
+});
