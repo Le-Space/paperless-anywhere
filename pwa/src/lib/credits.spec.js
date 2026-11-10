@@ -343,3 +343,26 @@ describe('model A: the VM paid by Le Space', () => {
 		await expect(vmAuthorize(master, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/noch nicht selbst/);
 	});
 });
+
+describe('package hints', () => {
+	it('calls a fifth of the package, and at least two hours, few', async () => {
+		const { fewHoursLeft } = await import('./credits.js');
+		expect(fewHoursLeft(6, { hours: 30 })).toBe(true);
+		expect(fewHoursLeft(7, { hours: 30 })).toBe(false);
+		expect(fewHoursLeft(2, { hours: 10 })).toBe(true);
+		expect(fewHoursLeft(3, { hours: 10 })).toBe(false);
+		expect(fewHoursLeft(null, { hours: 10 })).toBe(false);
+		expect(fewHoursLeft(0, null)).toBe(false);
+	});
+	it('recommends the next larger package, none after the largest', async () => {
+		const { biggerPlan, PLANS } = await import('./credits.js');
+		expect(biggerPlan(PLANS[0])?.hours).toBe(30);
+		expect(biggerPlan(PLANS[1])?.hours).toBe(80);
+		expect(biggerPlan(PLANS[2])).toBe(null);
+		expect(biggerPlan(null)).toBe(null);
+	});
+	it('says what a package means in a week', async () => {
+		const { hoursPerWeek } = await import('./credits.js');
+		expect([10, 30, 80].map(hoursPerWeek)).toEqual([2, 7, 18]);
+	});
+});

@@ -136,12 +136,12 @@
 	// "Auf einen Blick" (#105): one row per card, each with its state.
 	/** @type {import('$lib/Lifecycle.svelte').Glance | null} */
 	let life = $state(null);
-	/** @type {{ plan: boolean, hoursLeft: number | null, pays: string | null } | null} */
+	/** @type {{ plan: boolean, hoursLeft: number | null, pays: string | null, low: boolean } | null} */
 	let pkg = $state(null);
-	const PAYS = { lespace: 'Le Space Credits', app: 'Konto der App', wallet: 'Mein Wallet' };
+	const PAYS = { lespace: 'Le Space, aus dem Paket', app: 'Konto der App', wallet: 'Mein Wallet' };
 	const when = (/** @type {string} */ at) => new Date(at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 	const glance = $derived([
-		...(CREDITS_URL && pkg ? [{ id: 'paket', label: 'Paket', state: !pkg.plan ? 'kein Paket' : pkg.pays === 'app' || pkg.pays === 'wallet' ? 'nicht in Gebrauch' : pkg.hoursLeft != null ? `${pkg.hoursLeft} h übrig` : 'aktiv', tone: !pkg.plan ? 'warn' : pkg.pays === 'app' || pkg.pays === 'wallet' ? '' : 'ok' }] : []),
+		...(CREDITS_URL && pkg ? [{ id: 'paket', label: 'Paket', state: !pkg.plan ? 'kein Paket' : pkg.pays === 'app' || pkg.pays === 'wallet' ? 'nicht in Gebrauch' : pkg.hoursLeft != null ? `${pkg.hoursLeft} h übrig` : 'aktiv', tone: !pkg.plan || pkg.low ? 'warn' : pkg.pays === 'app' || pkg.pays === 'wallet' ? '' : 'ok' }] : []),
 		...(life ? [
 			{ id: 'paperless', label: 'Paperless', state: { off: 'aus', running: 'läuft', starting: 'startet', stopping: 'wird beendet', interrupted: 'Start unterbrochen', loading: '…' }[life.phase] ?? life.phase, tone: life.phase === 'running' ? 'ok' : life.phase === 'interrupted' ? 'warn' : '' },
 			{ id: 'paperless', label: 'Sicherungen', state: !life.backupsOn ? 'aus' : life.lastGood ? `${when(life.lastGood.at)}${life.lastGood.copies ? ` · ${life.lastGood.copies} Kopien` : ''}` : 'noch keine', tone: !life.backupsOn || !life.lastGood ? 'warn' : 'ok' },
