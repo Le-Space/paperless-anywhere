@@ -536,7 +536,8 @@ describe('the cancel page (§ 312k BGB)', () => {
 		expect(text).toMatch(/Kündigung eingegangen am: 11\.11\.2026, 10:15 UTC \(2026-11-11T10:15:00\.000Z\)/);
 		expect(text).toContain('Wirksam zum: 01.12.2026 (2026-12-01T00:00:00.000Z)');
 		expect(text).toContain(`Konto (Adresse): 0x${'ab'.repeat(20)}`);
-		expect(text).toContain('info@le-space.de');
+		expect(text).toContain('Anbieter: Le Space UG (haftungsbeschränkt), info@le-space.de');
+		expect(text).toContain('Impressum: https://le-space.de/#impressum');
 		expect(contractName(null, 'paperless-x')).toBe('Paperless anywhere, Paket paperless-x, Monatsabo');
 	});
 });

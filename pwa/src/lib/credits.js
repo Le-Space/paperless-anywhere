@@ -606,6 +606,9 @@ export async function cancelSubscription(master, options) {
 /** The contract as the cancel page names it. @param {{ hours: number } | null} plan @param {string} [id] */
 export const contractName = (plan, id = '') => `Paperless anywhere, Paket ${plan ? `${plan.hours} Stunden` : id}, Monatsabo`;
 export const CANCEL_KIND = 'Ordentliche Kündigung zum Ende des bezahlten Monats';
+/** Who the contract is with, as the cancel page and its confirmation name it. */
+export const PROVIDER = 'Le Space UG (haftungsbeschränkt), info@le-space.de';
+export const IMPRINT_URL = 'https://le-space.de/#impressum';
 
 /** @param {string | null} iso @param {string} [timeZone] */
 export const germanDate = (iso, timeZone) => (iso ? new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone }) : '–');
@@ -628,7 +631,8 @@ export function cancellationRecord({ contract, receivedAt, effectiveAt, address,
 		`Wirksam zum: ${germanDate(effectiveAt, timeZone)}${effectiveAt ? ` (${effectiveAt})` : ''}`,
 		`Konto (Adresse): ${address}`,
 		'',
-		'Anbieter: Le Space, info@le-space.de',
+		`Anbieter: ${PROVIDER}`,
+		`Impressum: ${IMPRINT_URL}`,
 		''
 	].join('\n');
 	return { filename: `kuendigung-paperless-anywhere-${receivedAt.slice(0, 10)}.txt`, text };

@@ -4,7 +4,7 @@
 	// that cancels, then when it was received and a file to keep. Stripe's
 	// portal stays for payment details and invoices; an older service without
 	// the cancel route sends the person there to cancel.
-	import { CANCEL_KIND, CancelUnsupportedError, cancelSubscription, cancellationRecord, contractName, creditsAccount, germanDate, germanDateTime } from '$lib/credits.js';
+	import { CANCEL_KIND, IMPRINT_URL, PROVIDER, CancelUnsupportedError, cancelSubscription, cancellationRecord, contractName, creditsAccount, germanDate, germanDateTime } from '$lib/credits.js';
 
 	/** @type {{ master: Uint8Array, plan: { id: string, renewsAt: string | null, periodEnd: string | null, cancelAtPeriodEnd: boolean }, current: { hours: number } | null, onportal: () => Promise<void> | void, ondone?: () => Promise<void> | void, onclose?: () => void }} */
 	let { master, plan, current, onportal, ondone = () => {}, onclose = () => {} } = $props();
@@ -56,11 +56,12 @@
 		<dt>Vertrag</dt><dd data-testid="cancel-contract">{contract}</dd>
 		<dt>Art</dt><dd data-testid="cancel-kind">{CANCEL_KIND}, also zum {germanDate(endsAt)}</dd>
 		<dt>Konto</dt><dd class="mono">{address}</dd>
+		<dt>Anbieter</dt><dd data-testid="cancel-provider">{PROVIDER} · <a href={IMPRINT_URL} target="_blank" rel="noopener noreferrer">Impressum</a></dd>
 	</dl>
 	{#if done}
 		<p class="ok" role="status" data-testid="cancel-done">Kündigung eingegangen am {germanDateTime(done.receivedAt)}, wirksam zum {germanDate(done.effectiveAt)}.</p>
 		<p class="row">
-			<button type="button" onclick={save} data-testid="cancel-save">Bestätigung speichern</button>
+			<button type="button" class="primary" onclick={save} data-testid="cancel-save">Bestätigung speichern</button>
 			<button type="button" class="link" onclick={onclose}>Schließen</button>
 		</p>
 	{:else}
