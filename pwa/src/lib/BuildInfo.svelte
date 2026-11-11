@@ -18,6 +18,7 @@
 		<a href="/">Über Paperless anywhere</a>
 		<a href="https://le-space.de/#impressum">Impressum</a>
 		<a href="https://le-space.de/#datenschutz">Datenschutz</a>
+		<a href="/lizenzen/">Lizenzen</a>
 	</nav>
 	<span data-testid="build-version">{build.version}</span>
 	· <time datetime={build.time}>{time}</time>

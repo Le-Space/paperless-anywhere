@@ -168,6 +168,7 @@
 	<a href="https://le-space.de/">le-space.de</a>
 	<a href={t.footer.imprintUrl}>{t.footer.imprint}</a>
 	<a href={t.footer.privacyUrl}>{t.footer.privacy}</a>
+	<a href="/lizenzen/">{t.licences.link}</a>
 </footer>
 
 <style>

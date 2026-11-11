@@ -102,6 +102,36 @@ export const texts = {
 				{ q: 'Was kostet es, wenn Paperless anywhere nicht läuft?', a: 'Keine Rechenzeit. Die Sicherungen liegen verschlüsselt bei den Speicheranbietern; sie sind im Paket enthalten.' }
 			]
 		},
+		licences: {
+			link: 'Lizenzen',
+			title: 'Lizenzen – Paperless anywhere',
+			description: 'Welche Open-Source-Software Paperless anywhere einsetzt, in welcher Version, unter welcher Lizenz und wo ihr Quellcode liegt.',
+			h1: 'Lizenzen',
+			lead: 'Paperless anywhere ist ein Angebot von Le Space. Es setzt freie Software ein; hier steht welche, in welcher Version, unter welcher Lizenz und wo ihr Quellcode liegt. Die Angaben stammen aus dem Build dieser Seite.',
+			ngx: {
+				title: 'Paperless-ngx',
+				intro: 'In der VM läuft Paperless-ngx, ein unabhängiges Open-Source-Projekt unter der GNU General Public License, Version 3 (GPL-3.0).',
+				version: 'Version',
+				upstream: 'Offizielles Image',
+				copy: 'Unsere Kopie',
+				source: 'Quellcode dieser Version',
+				licence: 'Lizenz',
+				changes: 'Eigene Änderungen',
+				changesText: 'Keine am Inhalt. Le Space kopiert das offizielle Image unverändert in eine einzige Schicht, weil Docker in der vertraulichen VM jede Schicht als volle Kopie ablegt. Dabei gehen nur die Gesundheitsprüfung und das Stoppsignal des Images verloren. Eingestellt wird Paperless-ngx über Umgebungsvariablen beim Start.',
+				changesHow: 'So wird kopiert',
+				changesConfig: 'So wird es gestartet'
+			},
+			vm: { title: 'Weitere Software in der VM', lead: 'Ebenfalls unverändert eingesetzt; die Container-Images als einschichtige Kopien wie oben.', name: 'Software', version: 'Version', licence: 'Lizenz', source: 'Quellcode' },
+			app: {
+				title: 'Diese Web-App',
+				own: 'Der Code von Paperless anywhere (Web-App und VM-Image) steht unter der MIT-Lizenz.',
+				ownLink: 'Quellcode und Lizenz',
+				third: 'Die Web-App enthält Bibliotheken und Schriften anderer; ihre Namen, Versionen, Lizenzen und Lizenztexte stehen in einer eigenen Datei.',
+				thirdLink: 'Lizenzen der Bibliotheken und Schriften'
+			},
+			gpl: { title: 'Text der GPL-3.0', show: 'Lizenztext anzeigen (Englisch, wie veröffentlicht)' },
+			back: 'Zur Startseite'
+		},
 		cta: { title: 'Bereit?', lead: 'Tresor anlegen dauert eine Minute. Kein Konto, kein Passwort.' },
 		footer: { by: 'Ein Projekt von Le Space', belege: 'Le Space Belege', imprint: 'Impressum', imprintUrl: 'https://le-space.de/#impressum', privacy: 'Datenschutz', privacyUrl: 'https://le-space.de/#datenschutz', built: 'Paperless anywhere rechnet auf vertraulichen Knoten von Aleph Cloud und sichert auf Filecoin.', ngxLink: 'Paperless-ngx auf GitHub' }
 	},
@@ -181,6 +211,36 @@ export const texts = {
 				{ q: 'Do I need an account?', a: 'No. A passkey on your device opens your vault; the 24 words are the way back in if the device is missing. Le Space can neither open nor recover the vault.' },
 				{ q: 'What does it cost while Paperless anywhere is not running?', a: 'No compute time. The backups are stored encrypted with the storage providers; they are included in the package.' }
 			]
+		},
+		licences: {
+			link: 'Licences',
+			title: 'Licences – Paperless anywhere',
+			description: 'Which open source software Paperless anywhere uses, in which version, under which licence, and where its source code is.',
+			h1: 'Licences',
+			lead: 'Paperless anywhere is offered by Le Space. It uses free software; this page says which, in which version, under which licence and where its source code is. The details come from the build of this page.',
+			ngx: {
+				title: 'Paperless-ngx',
+				intro: 'The VM runs Paperless-ngx, an independent open source project under the GNU General Public License, version 3 (GPL-3.0).',
+				version: 'Version',
+				upstream: 'Official image',
+				copy: 'Our copy',
+				source: 'Source code of this version',
+				licence: 'Licence',
+				changes: 'Our changes',
+				changesText: 'None to its content. Le Space copies the official image unchanged into a single layer, because Docker in the confidential VM stores every layer as a full copy. Only the image’s health check and stop signal are lost on the way. Paperless-ngx is configured through environment variables at start.',
+				changesHow: 'How it is copied',
+				changesConfig: 'How it is started'
+			},
+			vm: { title: 'Other software in the VM', lead: 'Also used unchanged; the container images as one-layer copies as above.', name: 'Software', version: 'Version', licence: 'Licence', source: 'Source code' },
+			app: {
+				title: 'This web app',
+				own: 'The code of Paperless anywhere (web app and VM image) is under the MIT licence.',
+				ownLink: 'Source code and licence',
+				third: 'The web app contains libraries and fonts by others; their names, versions, licences and licence texts are in a file of their own.',
+				thirdLink: 'Licences of the libraries and fonts'
+			},
+			gpl: { title: 'Text of the GPL-3.0', show: 'Show the licence text (English, as published)' },
+			back: 'Back to the start page'
 		},
 		cta: { title: 'Ready?', lead: 'Creating a vault takes a minute. No account, no password.' },
 		footer: { by: 'A Le Space project', belege: 'Le Space Belege', imprint: 'Imprint', imprintUrl: 'https://le-space.de/#imprint', privacy: 'Privacy', privacyUrl: 'https://le-space.de/#privacy', built: 'Paperless anywhere computes on confidential nodes of Aleph Cloud and backs up to Filecoin.', ngxLink: 'Paperless-ngx on GitHub' }
