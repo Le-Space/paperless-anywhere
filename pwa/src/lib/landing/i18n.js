@@ -58,7 +58,7 @@ export const texts = {
 			lead: 'TEE heißt Trusted Execution Environment: ein abgeschirmter Bereich, den der Prozessor selbst schützt.',
 			items: [
 				{ t: 'Vom Prozessor verschlüsselt', d: 'Mit AMD SEV-SNP verschlüsselt die CPU den Arbeitsspeicher der VM mit einem Schlüssel, den nur sie kennt. Der Rechner, auf dem die VM läuft, sieht nur verschlüsselte Daten.' },
-				{ t: 'Der Betreiber liest nicht mit', d: 'Wer den Knoten betreibt, kann den Speicher und die Platte der VM nicht lesen. Die Platte ist zusätzlich mit LUKS verschlüsselt; den Schlüssel dafür hat nur deine App.' },
+				{ t: 'Der Betreiber liest nicht mit', d: 'Wer den Knoten betreibt, kann den Speicher und die Platte der VM nicht lesen. Was deine VM schreibt, liegt zusätzlich in einem Bereich, den sie bei jedem Start mit einem eigenen Schlüssel versiegelt. Diesen Schlüssel gibt es nur im Speicher der VM.' },
 				{ t: 'Erst prüfen, dann entsperren', d: 'Bevor die App einen Schlüssel herausgibt, lässt sie sich von der Hardware bestätigen, was gestartet wurde: Firmware, Kernel und Initrd. Passt der Nachweis nicht, bleibt die Platte zu.' }
 			]
 		},
@@ -168,7 +168,7 @@ export const texts = {
 			lead: 'TEE stands for Trusted Execution Environment: a shielded area that the processor itself protects.',
 			items: [
 				{ t: 'Encrypted by the processor', d: 'With AMD SEV-SNP the CPU encrypts the VM’s memory with a key only it knows. The machine the VM runs on sees encrypted data only.' },
-				{ t: 'The operator cannot read along', d: 'Whoever runs the node cannot read the VM’s memory or disk. The disk is also encrypted with LUKS; only your app has the key.' },
+				{ t: 'The operator cannot read along', d: 'Whoever runs the node cannot read the VM’s memory or disk. What your VM writes also goes into an area it seals at every start with a key of its own. That key exists only in the VM’s memory.' },
 				{ t: 'Check first, then unlock', d: 'Before the app hands over a key, it has the hardware confirm what was started: firmware, kernel and initrd. If the attestation does not match, the disk stays locked.' }
 			]
 		},
