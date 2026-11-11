@@ -62,6 +62,27 @@ export const texts = {
 				{ t: 'Erst prüfen, dann entsperren', d: 'Bevor die App einen Schlüssel herausgibt, lässt sie sich von der Hardware bestätigen, was gestartet wurde: Firmware, Kernel und Initrd. Passt der Nachweis nicht, bleibt die Platte zu.' }
 			]
 		},
+		ownImage: {
+			title: 'Ein Image nur für dich',
+			lead: 'Deine VM startet von einem verschlüsselten Image. Die Passphrase dafür kommt aus deinem Tresor, und sonst hat sie niemand: nicht Le Space, nicht der Knoten, nicht GitHub.',
+			steps: [
+				{ t: 'Öffentliches Image', d: 'Das System, in dem Paperless-ngx läuft, ist für alle gleich und enthält kein Geheimnis. Sein Hash steht in der App; jeder kann ihn nachrechnen.' },
+				{ t: 'Geprüfter Build-Dienst', d: 'Ein kleiner Dienst in einer vertraulichen VM. Die App lässt sich von der Hardware bestätigen, dass dort genau der veröffentlichte Code läuft.' },
+				{ t: 'Dein Image', d: 'Erst dann schickt die App die Passphrase aus deinem Tresor. Der Dienst versiegelt das Image damit und vergisst sie wieder.' },
+				{ t: 'Deine VM', d: 'Beim Start öffnet die VM die Platte mit deiner Passphrase. Eine Platte, die nicht damit versiegelt wurde, geht nicht auf, und es startet nichts.' }
+			],
+			knowsTitle: 'Wer kennt die Passphrase?',
+			answers: { yes: 'ja', brief: 'nur kurz', no: 'nein' },
+			knows: [
+				{ who: 'Dein Tresor', v: 'yes', d: 'leitet sie ab' },
+				{ who: 'Der Build-Dienst', v: 'brief', d: 'während des Baus, nur im Speicher' },
+				{ who: 'Deine VM', v: 'brief', d: 'beim Start, nur im Speicher' },
+				{ who: 'Le Space', v: 'no' },
+				{ who: 'Der Betreiber des Knotens', v: 'no' },
+				{ who: 'GitHub', v: 'no' }
+			],
+			compare: 'Öffentlich vergleichen lassen sich der Hash des Images und der Messwert des Build-Dienstes. Dein verschlüsseltes Image sieht bei jeder Person anders aus.'
+		},
 		nodes: {
 			title: 'Vertrauliche Rechenknoten, jetzt gerade',
 			lead: 'Auf diesen Knoten kann dein Paperless anywhere gerade starten. Die Liste ist live.',
@@ -98,6 +119,7 @@ export const texts = {
 			items: [
 				{ q: 'Gehört Paperless anywhere zum Projekt Paperless-ngx?', a: DISCLAIMER.de },
 				{ q: 'Was ist Paperless-ngx?', a: 'Paperless-ngx ist die Open-Source-Software, die in deiner VM läuft: Sie liest Dokumente ein, erkennt den Text und macht sie durchsuchbar. Paperless anywhere startet sie für dich auf Abruf in einer vertraulichen VM und sichert sie danach.' },
+				{ q: 'Bekommen alle dieselbe Software?', a: 'Ja. Das System ist für alle gleich, und sein Hash ist öffentlich. Versiegelt wird es für jede Person einzeln, mit einer Passphrase aus ihrem Tresor, von einem Build-Dienst, den die App vorher prüft.' },
 				{ q: 'Brauche ich ein Konto?', a: 'Nein. Ein Passkey auf deinem Gerät öffnet deinen Tresor; die 24 Wörter sind der Weg zurück, falls das Gerät fehlt. Le Space kann den Tresor weder öffnen noch wiederherstellen.' },
 				{ q: 'Was kostet es, wenn Paperless anywhere nicht läuft?', a: 'Keine Rechenzeit. Die Sicherungen liegen verschlüsselt bei den Speicheranbietern; sie sind im Paket enthalten.' }
 			]
@@ -172,6 +194,27 @@ export const texts = {
 				{ t: 'Check first, then unlock', d: 'Before the app hands over a key, it has the hardware confirm what was started: firmware, kernel and initrd. If the attestation does not match, the disk stays locked.' }
 			]
 		},
+		ownImage: {
+			title: 'An image of your own',
+			lead: 'Your VM boots from an encrypted image. Its passphrase comes from your vault, and nobody else has it: not Le Space, not the node, not GitHub.',
+			steps: [
+				{ t: 'Public image', d: 'The system Paperless-ngx runs in is the same for everyone and holds no secret. Its hash is in the app; anyone can recompute it.' },
+				{ t: 'Attested builder', d: 'A small service in a confidential VM. The app has the hardware confirm that exactly the published code runs there.' },
+				{ t: 'Your image', d: 'Only then the app sends the passphrase from your vault. The service seals the image with it and forgets it again.' },
+				{ t: 'Your VM', d: 'At the start the VM opens the disk with your passphrase. A disk that was not sealed with it does not open, and nothing starts.' }
+			],
+			knowsTitle: 'Who knows the passphrase?',
+			answers: { yes: 'yes', brief: 'briefly', no: 'no' },
+			knows: [
+				{ who: 'Your vault', v: 'yes', d: 'derives it' },
+				{ who: 'The builder', v: 'brief', d: 'during the build, in memory only' },
+				{ who: 'Your VM', v: 'brief', d: 'at the start, in memory only' },
+				{ who: 'Le Space', v: 'no' },
+				{ who: 'The node’s operator', v: 'no' },
+				{ who: 'GitHub', v: 'no' }
+			],
+			compare: 'What can be compared in public: the image’s hash and the builder’s measurement. Your encrypted image looks different for every person.'
+		},
 		nodes: {
 			title: 'Confidential compute nodes, right now',
 			lead: 'Your Paperless anywhere can start on these nodes right now. The list is live.',
@@ -208,6 +251,7 @@ export const texts = {
 			items: [
 				{ q: 'Is Paperless anywhere part of the Paperless-ngx project?', a: DISCLAIMER.en },
 				{ q: 'What is Paperless-ngx?', a: 'Paperless-ngx is the open source software that runs in your VM: it takes in documents, recognises their text and makes them searchable. Paperless anywhere starts it for you on demand in a confidential VM and backs it up afterwards.' },
+				{ q: 'Does everyone get the same software?', a: 'Yes. The system is the same for everyone, and its hash is public. It is sealed for each person separately, with a passphrase from their vault, by a builder the app checks first.' },
 				{ q: 'Do I need an account?', a: 'No. A passkey on your device opens your vault; the 24 words are the way back in if the device is missing. Le Space can neither open nor recover the vault.' },
 				{ q: 'What does it cost while Paperless anywhere is not running?', a: 'No compute time. The backups are stored encrypted with the storage providers; they are included in the package.' }
 			]

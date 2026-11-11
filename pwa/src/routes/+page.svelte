@@ -5,6 +5,7 @@
 	import NgxText, { NGX_URL } from '$lib/NgxText.svelte';
 	import TeeNodes from '$lib/landing/TeeNodes.svelte';
 	import StorageProviders from '$lib/landing/StorageProviders.svelte';
+	import OwnImage from '$lib/landing/OwnImage.svelte';
 	import { LANGS, initialLang, texts } from '$lib/landing/i18n.js';
 	import { CREDITS_URL, PLANS, creditsCatalog } from '$lib/credits.js';
 
@@ -113,6 +114,12 @@
 		<ul class="cards">
 			{#each t.tee.items as it}<li><h3>{it.t}</h3><p>{it.d}</p></li>{/each}
 		</ul>
+	</section>
+
+	<section id="image">
+		<h2>{t.ownImage.title}</h2>
+		<p class="lead">{t.ownImage.lead}</p>
+		<OwnImage t={t.ownImage} />
 	</section>
 
 	<section id="nodes">
