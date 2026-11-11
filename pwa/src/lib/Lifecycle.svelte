@@ -32,7 +32,7 @@
 			{ step: 'instance', label: 'VM anfordern und platzieren', typical: 20 },
 			{ step: 'network', label: 'Port 443 und Adresse', typical: 20 },
 			{ step: 'unlock', label: 'VM prüfen (AMD) und entsperren', typical: 10 },
-			{ step: 'ready', label: 'Paperless startet (Container, Zertifikat)', typical: 300 }
+			{ step: 'ready', label: 'Paperless-ngx startet (Container, Zertifikat)', typical: 300 }
 		],
 		stop: [
 			// With backups on, the stop waits for one: export, encryption, upload
@@ -56,7 +56,7 @@
 		{ key: 'images', label: 'Container-Images geladen' },
 		{ key: 'containers', label: 'Container laufen' },
 		{ key: 'cert', label: 'Zertifikat ausgestellt' },
-		{ key: 'paperless', label: 'Paperless antwortet' }
+		{ key: 'paperless', label: 'Paperless-ngx antwortet' }
 	];
 	let now = $state(Date.now());
 	let ticker = 0;
@@ -308,7 +308,7 @@
 		finishStop(await eraseStopped(master, $state.snapshot(profile), p.status, track('stop')));
 	});
 	const keepVm = () => answer(async () => {
-		progress = 'Paperless wieder starten';
+		progress = 'Paperless-ngx wieder starten';
 		await resumeAfterPartial(master, $state.snapshot(profile));
 	});
 	/** @param {any} status the VM's status page at the end of the stop */
@@ -360,10 +360,10 @@
 	const CHIPS = { loading: '…', off: 'aus', starting: 'startet', stopping: 'wird beendet', running: 'läuft', interrupted: 'Start unterbrochen' };
 	const TITLES = {
 		loading: 'Einen Moment …',
-		off: 'Paperless ist aus',
-		starting: 'Paperless startet',
-		stopping: 'Paperless wird gesichert und beendet',
-		running: 'Paperless läuft',
+		off: 'Paperless-ngx ist aus',
+		starting: 'Paperless-ngx startet',
+		stopping: 'Paperless-ngx wird gesichert und beendet',
+		running: 'Paperless-ngx läuft',
 		interrupted: 'Start unterbrochen'
 	};
 	const backupsPending = $derived(Boolean(profile.ageIdentity && backupListing(profile) && backups === null));
@@ -381,7 +381,7 @@
 			<div>
 				<h1>{TITLES[phase]}</h1>
 				{#if phase === 'off'}<p class="sub">Der Start dauert etwa {minutes(STEPS.start.reduce((a, s) => a + typicalOf(s), 0))}.</p>
-				{:else if phase === 'starting'}<p class="sub">Lass dieses Fenster offen, bis Paperless bereit ist.</p>
+				{:else if phase === 'starting'}<p class="sub">Lass dieses Fenster offen, bis Paperless-ngx bereit ist.</p>
 				{:else if phase === 'stopping'}<p class="sub">Erst die Sicherung, dann geht die Maschine aus. Lass dieses Fenster offen.</p>
 				{:else if phase === 'running'}<p class="sub data">{profile.running.host}</p>
 				{:else if phase === 'interrupted'}<p class="sub">Die Maschine läuft schon und kostet, bis sie fertig gestartet ist.</p>{/if}
@@ -396,10 +396,10 @@
 			<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(share * 100)} aria-label={TITLES[phase]}><span style="width: {Math.round(share * 100)}%"></span></div>
 			<p class="calm" data-testid="simple-progress">{stepLabel} · noch etwa {leftMinutes} min</p>
 		{:else if phase === 'running'}
-			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="simple-open">Paperless öffnen</a>
-			{#if profile.running.restore?.status === 'failed'}<p class="error">Die Sicherung ließ sich nicht wiederherstellen; Paperless läuft leer. Details unter „Erweitert“.</p>{/if}
+			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="simple-open">Paperless-ngx öffnen</a>
+			{#if profile.running.restore?.status === 'failed'}<p class="error">Die Sicherung ließ sich nicht wiederherstellen; Paperless-ngx läuft leer. Details unter „Erweitert“.</p>{/if}
 			<div class="login" data-testid="simple-login">
-				<p class="label">Anmeldung in Paperless</p>
+				<p class="label">Anmeldung in Paperless-ngx</p>
 				<p>Benutzer <code>admin</code></p>
 				<p>Passwort {#if showPassword}<code data-testid="simple-password">{adminPassword}</code>{:else}<code>••••••••</code>{/if}</p>
 				<div class="row">
@@ -415,10 +415,10 @@
 			<button class="cta" onclick={resume} disabled={busy}>Start fortsetzen</button>
 		{:else if phase === 'off'}
 			{#if missing.length}
-				<p class="hint">Paperless ist hier noch nicht fertig eingerichtet.</p>
+				<p class="hint">Paperless anywhere ist hier noch nicht fertig eingerichtet.</p>
 				<button class="secondary" onclick={onadvanced}>Einrichtung öffnen</button>
 			{:else}
-				<button class="cta" onclick={start} disabled={busy || backupsPending || Boolean(backupsError)}>Paperless starten</button>
+				<button class="cta" onclick={start} disabled={busy || backupsPending || Boolean(backupsError)}>Paperless anywhere starten</button>
 				{#if backupsPending}<p class="hint">Sicherungen werden gelesen …</p>
 				{:else if backupsError}<p class="warn">{backupsError} Bitte gleich noch einmal versuchen.</p>
 				{:else if profile.ageIdentity}<p class="hint" data-testid="simple-restore">{choice === 'latest' || choice === 'own' ? `Startet mit der neuesten Sicherung (${pick(choice === 'latest' ? backups ?? [] : split.own)?.pieceCid.slice(-12)}).` : 'Startet ohne Daten: es gibt noch keine eigene Sicherung.'}</p>{/if}
@@ -434,7 +434,7 @@
 				<p class="hint">Die angekommenen Kopien reichen zum Wiederherstellen. Wird die VM jetzt gelöscht, fehlt diese Sicherung bei {partial.requested - partial.copies === 1 ? 'einem Anbieter' : `${partial.requested - partial.copies} Anbietern`}. Bleibt sie, versucht die nächste Prüfung wieder alle.</p>
 				<div class="row">
 					<button onclick={eraseAnyway} disabled={busy} data-testid="stop-partial-erase">VM trotzdem löschen</button>
-					<button class="secondary" onclick={keepVm} disabled={busy} data-testid="stop-partial-keep">VM behalten, Paperless weiter</button>
+					<button class="secondary" onclick={keepVm} disabled={busy} data-testid="stop-partial-keep">VM behalten, Paperless-ngx weiter</button>
 				</div>
 			</div>
 		{/if}
@@ -448,14 +448,14 @@
 		{/if}
 	{:else}
 		<header class="head">
-			<h2>Paperless</h2>
+			<h2>Paperless-ngx</h2>
 			<span class="chip" class:on={phase === 'running'} data-testid="paperless-chip">{CHIPS[phase]}</span>
 		</header>
-		<p class="purpose">Deine Paperless-Maschine: starten, öffnen, sichern und beenden.</p>
+		<p class="purpose">Deine Paperless-ngx-Maschine: starten, öffnen, sichern und beenden.</p>
 		{#if profile.running}
-			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener">Paperless öffnen</a>
-			<p>Paperless läuft: <a href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="paperless-link">{profile.running.host}</a></p>
-			{#if profile.running.restore?.status === 'failed'}<p class="error" data-testid="restore-failed">Wiederherstellung fehlgeschlagen ({profile.running.restore.reason ?? 'ohne Grund'}{profile.running.restore.error ? `: ${profile.running.restore.error}` : ''}). Paperless läuft leer. Diese VM nicht sichern, sondern unter „Meine VMs“ löschen: sonst wird die leere Paperless zur neuesten Sicherung.</p>{/if}
+			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener">Paperless-ngx öffnen</a>
+			<p>Paperless-ngx läuft: <a href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="paperless-link">{profile.running.host}</a></p>
+			{#if profile.running.restore?.status === 'failed'}<p class="error" data-testid="restore-failed">Wiederherstellung fehlgeschlagen ({profile.running.restore.reason ?? 'ohne Grund'}{profile.running.restore.error ? `: ${profile.running.restore.error}` : ''}). Paperless-ngx läuft leer. Diese VM nicht sichern, sondern unter „Meine VMs“ löschen: sonst wird die leere Paperless zur neuesten Sicherung.</p>{/if}
 			{#if profile.running.dataDisk === 'encrypted'}<p class="hint" data-testid="data-disk">Was diese VM schreibt, liegt auf einer eigenen Platte, verschlüsselt mit einem Schlüssel, den nur die VM kennt.</p>
 			{:else if profile.running.dataDisk === 'plain'}<p class="warn" data-testid="data-disk">Diese VM schreibt auf die gemeinsame Image-Platte, ohne eigenen Schlüssel. Die eigene Datenplatte ist vorerst ausgeschaltet (zu wenig Platz, bis die Container-Images flach sind).</p>{/if}
 			<p data-testid="paperless-login">Anmeldung: <code>admin</code>,
@@ -485,7 +485,7 @@
 							<small>– nicht von diesem Tresor ({split.other.length}); nur wenn sie mit deinem Schlüssel verschlüsselt ist, z. B. vom Mac mit eingefügtem Schlüssel</small>
 						</label>
 					{/if}
-					<label><input type="radio" bind:group={choice} value="empty" /> Leeres Paperless</label>
+					<label><input type="radio" bind:group={choice} value="empty" /> Leeres Paperless-ngx</label>
 					{#if backupsError}<small class="hint">{backupsError}</small>{/if}
 				</fieldset>
 			{/if}
@@ -497,7 +497,7 @@
 				</div>
 			{:else}
 				<p class="role-line" data-testid="role-line">{profile.role === 'primary' ? 'Startet produktiv: Mail-Regeln an, Sicherungen auf Mainnet.' : 'Startet als Test: Mail-Regeln aus, Sicherungen ins Testnetz.'}</p>
-				<button class="cta" onclick={start} disabled={busy || missing.length > 0}>Paperless starten</button>
+				<button class="cta" onclick={start} disabled={busy || missing.length > 0}>Paperless anywhere starten</button>
 				{#if missing.length}<p class="hint">Es fehlt noch: {missing.join(', ')}</p>{/if}
 			{/if}
 		{/if}
@@ -543,7 +543,7 @@
 				<p class="hint">Die angekommenen Kopien reichen zum Wiederherstellen. Wird die VM jetzt gelöscht, fehlt diese Sicherung bei {partial.requested - partial.copies === 1 ? 'einem Anbieter' : `${partial.requested - partial.copies} Anbietern`}. Bleibt sie, versucht die nächste Prüfung wieder alle.</p>
 				<div class="row">
 					<button onclick={eraseAnyway} disabled={busy} data-testid="stop-partial-erase">VM trotzdem löschen</button>
-					<button class="secondary" onclick={keepVm} disabled={busy} data-testid="stop-partial-keep">VM behalten, Paperless weiter</button>
+					<button class="secondary" onclick={keepVm} disabled={busy} data-testid="stop-partial-keep">VM behalten, Paperless-ngx weiter</button>
 				</div>
 			</div>
 		{/if}

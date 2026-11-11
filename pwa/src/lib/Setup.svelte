@@ -131,7 +131,7 @@
 	// another one to that role while the first still runs would duplicate both.
 	/** @param {'test' | 'primary'} role @param {HTMLInputElement} [radio] */
 	const setRole = (role, radio) => run('role', async () => {
-		if (role === 'primary' && !confirm('Diese Paperless produktiv machen? Sie ruft dann die Mails ab und schreibt die Mainnet-Sicherungen. Nur eine Instanz darf das: eine andere (z. B. auf dem Mac) vorher anhalten.')) {
+		if (role === 'primary' && !confirm('Diese Instanz produktiv machen? Sie ruft dann die Mails ab und schreibt die Mainnet-Sicherungen. Nur eine Instanz darf das: eine andere (z. B. auf dem Mac) vorher anhalten.')) {
 			// The browser already moved the selection; put it back.
 			const test = radio?.closest('fieldset')?.querySelector('input[value="test"]');
 			if (test instanceof HTMLInputElement) test.checked = true;
@@ -159,7 +159,7 @@
 	async function authorizeKey() {
 		const want = wantNetwork();
 		const s = await backupAuthorize(master, backupKey);
-		if (s.network !== want) throw new Error(`Le Space Credits sichern gerade im ${s.network === 'mainnet' ? 'Produktivnetz' : 'Testnetz'}; diese Paperless sichert im ${want === 'mainnet' ? 'Produktivnetz' : 'Testnetz'}.`);
+		if (s.network !== want) throw new Error(`Le Space Credits sichern gerade im ${s.network === 'mainnet' ? 'Produktivnetz' : 'Testnetz'}; diese Instanz sichert im ${want === 'mainnet' ? 'Produktivnetz' : 'Testnetz'}.`);
 		await save({ backupSigner: { payer: s.payer, signer: s.signer, tag: s.tag, label: s.label, network: s.network } });
 	}
 	const payBackups = () => run('bycredits', async () => {
@@ -167,9 +167,9 @@
 		// Asked before paying: credits spent in the wrong network would be lost to this Paperless.
 		const offered = (await creditsCatalog().catch(() => null))?.network;
 		if (offered === null) throw new Error('Le Space Credits bezahlen gerade keine Sicherungen.');
-		if (offered && offered !== want) throw new Error(`Le Space Credits bezahlen Sicherungen gerade im ${offered === 'mainnet' ? 'Produktivnetz' : 'Testnetz'}; diese Paperless sichert im ${want === 'mainnet' ? 'Produktivnetz' : 'Testnetz'}. Nichts abgebucht.`);
+		if (offered && offered !== want) throw new Error(`Le Space Credits bezahlen Sicherungen gerade im ${offered === 'mainnet' ? 'Produktivnetz' : 'Testnetz'}; diese Instanz sichert im ${want === 'mainnet' ? 'Produktivnetz' : 'Testnetz'}. Nichts abgebucht.`);
 		const r = await fundBackups(master, 1);
-		if (r.network && r.network !== want) throw new Error(`Le Space Credits zahlen gerade im Netz ${r.network}, diese Paperless sichert in ${want}.`);
+		if (r.network && r.network !== want) throw new Error(`Le Space Credits zahlen gerade im Netz ${r.network}, diese Instanz sichert in ${want}.`);
 		await authorizeKey();
 		await refresh();
 	});
@@ -280,11 +280,11 @@
 		</label>
 
 		<fieldset class="role" disabled={busy === 'role'} data-testid="role">
-			<legend>Rolle dieser Paperless</legend>
+			<legend>Rolle dieser Instanz</legend>
 			<label><input type="radio" name="role" value="test" checked={profile.role !== 'primary'} onchange={() => setRole('test')} data-testid="role-test" /> Test: Mail-Regeln aus, Sicherungen ins Testnetz</label>
 			<label><input type="radio" name="role" value="primary" checked={profile.role === 'primary'} onchange={(e) => setRole('primary', e.currentTarget)} data-testid="role-primary" /> Produktiv: ruft die Mails ab und sichert auf Mainnet</label>
 			{#if profile.role === 'primary'}
-				<p class="warn" data-testid="role-warning">Nur eine Instanz darf produktiv sein. Läuft Paperless noch anderswo produktiv (z. B. auf dem Mac), dort zuerst die Mail-Regeln und die tägliche Sicherung ausschalten.{#if profile.network !== 'mainnet'} Produktiv braucht das Netz „Produktiv (Mainnet)“.{/if}</p>
+				<p class="warn" data-testid="role-warning">Nur eine Instanz darf produktiv sein. Läuft Paperless-ngx noch anderswo produktiv (z. B. auf dem Mac), dort zuerst die Mail-Regeln und die tägliche Sicherung ausschalten.{#if profile.network !== 'mainnet'} Produktiv braucht das Netz „Produktiv (Mainnet)“.{/if}</p>
 			{/if}
 		</fieldset>
 		{@render feedback('network')}{@render feedback('role')}
@@ -387,11 +387,11 @@
 			<BackupPlaces network={profile.network} payer={profile.backupOwner || (profile.backupsByCredits ? '' : profile.payer)} config={profile.backupConfig} busy={busy === 'places'} onsave={savePlaces} />
 		{/if}
 		{@render feedback('backups')}{@render feedback('places')}
-		{#if profile.network === 'mainnet' && profile.role !== 'primary'}<p class="hint" data-testid="mainnet-backup-hint">Auf Mainnet sichert nur eine produktive Paperless (Rolle oben). Als Test bleibt sie ohne Sicherung.</p>
+		{#if profile.network === 'mainnet' && profile.role !== 'primary'}<p class="hint" data-testid="mainnet-backup-hint">Auf Mainnet sichert nur eine produktive Instanz (Rolle oben). Als Test bleibt sie ohne Sicherung.</p>
 		{:else if profile.backupConfig && profile.backupsByCredits && (!profile.backupSigner?.payer || (backupState && !fundedUntil(backupState.fundedUntil)))}<p class="hint" data-testid="credits-backup-hint">Dafür braucht es bezahlte Sicherungsmonate und den freigegebenen VM-Schlüssel: „Einen Monat Sicherungen bezahlen“.</p>
 		{:else if profile.backupConfig && !profile.backupsByCredits && !until(sessionUntil)}<p class="hint">Dafür braucht die VM den Sitzungsschlüssel aus Schritt {step.filecoin}.</p>{/if}
 
-		<h3>{step.image}. Paperless-Image und Knoten</h3>
+		<h3>{step.image}. Paperless-anywhere-Image und Knoten</h3>
 		<label>Image (STORE-Hash, 64 Zeichen)<input bind:value={imageInput} placeholder="Image (STORE-Hash)" /></label>
 		<label>SEV-SNP-Knoten (Hash, 64 Zeichen)<input bind:value={crnInput} placeholder="SEV-SNP-Knoten (Hash)" /></label>
 		<label>Passphrase des Images<input bind:value={passInput} type="password" autocomplete="off" placeholder={profile.luksPassphrase ? `Passphrase hinterlegt, ${profile.luksPassphrase.length} Zeichen (leer lassen = behalten)` : 'Passphrase des Images'} /></label>
@@ -399,7 +399,7 @@
 		{@render feedback('image')}
 
 		<h3>{step.address}. Feste Adresse (optional)</h3>
-		<p class="hint">Mit einem Cloudflare-API-Token (Zone {FIXED_HOST_DOMAIN.split('.').slice(-2).join('.')}, Rechte: DNS bearbeiten, Zone lesen) bekommt Paperless bei jedem Start dieselbe Adresse, <code>{fixedHostLabel(master)}.{FIXED_HOST_DOMAIN}</code>: Die VM trägt sich selbst ein und holt das Zertifikat über DNS. Ohne Token gibt es bei jedem Start einen neuen <code>*.2n6.me</code>-Namen. Das Token kann alle DNS-Einträge der Zone ändern; es liegt verschlüsselt im Profil und geht nur an die VM.</p>
+		<p class="hint">Mit einem Cloudflare-API-Token (Zone {FIXED_HOST_DOMAIN.split('.').slice(-2).join('.')}, Rechte: DNS bearbeiten, Zone lesen) bekommt deine Instanz bei jedem Start dieselbe Adresse, <code>{fixedHostLabel(master)}.{FIXED_HOST_DOMAIN}</code>: Die VM trägt sich selbst ein und holt das Zertifikat über DNS. Ohne Token gibt es bei jedem Start einen neuen <code>*.2n6.me</code>-Namen. Das Token kann alle DNS-Einträge der Zone ändern; es liegt verschlüsselt im Profil und geht nur an die VM.</p>
 		<label>Cloudflare-API-Token<input bind:value={dnsInput} type="password" autocomplete="off" data-testid="dns-token" placeholder={profile.dnsToken ? 'Token hinterlegt (leer speichern = entfernen)' : 'Cloudflare-API-Token'} /></label>
 		<button onclick={saveDns} disabled={busy === 'dns'}>{profile.dnsToken && !dnsInput.trim() ? 'Token entfernen' : 'Token speichern'}</button>
 		{@render feedback('dns')}

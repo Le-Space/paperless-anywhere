@@ -80,7 +80,7 @@ test.describe('German', () => {
 		});
 
 		await open(page, phrase);
-		await expect(page.getByRole('heading', { name: 'Paperless läuft' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Paperless-ngx läuft' })).toBeVisible();
 		await expect(page.getByTestId('backup-last')).toContainText(`Letzte Sicherung: ${hhmm(last)} · alle 2 Kopien angekommen`);
 		// The check apart from the backup: most checks find nothing new.
 		await expect(page.getByTestId('backup-summary')).toHaveText(`Zuletzt geprüft ${hhmm(checked)}, keine Änderung · letzte Sicherung ${hhmm(last)} · nächste Prüfung ${hhmm(next)}`);
@@ -176,8 +176,8 @@ test.describe('German', () => {
 		await open(page, phrase);
 		await page.getByTestId('tab-advanced').click();
 		const glance = page.getByTestId('glance');
-		await expect(glance.locator('li a')).toHaveText(['Paperless', 'Sicherungen', 'Adresse', 'Zahlweg']);
-		await expect(page.getByTestId('glance-Paperless')).toHaveText('läuft');
+		await expect(glance.locator('li a')).toHaveText(['Paperless-ngx', 'Sicherungen', 'Adresse', 'Zahlweg']);
+		await expect(page.getByTestId('glance-Paperless-ngx')).toHaveText('läuft');
 		await expect(page.getByTestId('glance-Sicherungen')).toHaveText('noch keine');
 		await expect(page.getByTestId('glance-Adresse')).toHaveText(HOST);
 		await expect(page.getByTestId('glance-Zahlweg')).toHaveText('noch nicht gewählt');
@@ -185,7 +185,7 @@ test.describe('German', () => {
 		const top = async (l) => (await l.boundingBox()).y;
 		expect(await top(glance)).toBeLessThan(await top(page.getByTestId('lifecycle')));
 		await expect(page.getByTestId('paperless-chip')).toHaveText('läuft');
-		await expect(page.getByRole('link', { name: 'Paperless öffnen' })).toHaveAttribute('href', `https://${HOST}/`);
+		await expect(page.getByRole('link', { name: 'Paperless-ngx öffnen' })).toHaveAttribute('href', `https://${HOST}/`);
 		await glance.getByRole('link', { name: 'Zahlweg' }).click();
 		await expect(page).toHaveURL(/#technisch$/);
 		// The overview has none of it.

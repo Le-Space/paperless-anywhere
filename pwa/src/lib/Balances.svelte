@@ -108,7 +108,7 @@
 				{#if aleph}
 					{amount(aleph.credits, 0)} {#if inMoney(aleph.credits)}<span class="money" data-testid="balance-money">{inMoney(aleph.credits)}</span>{/if}
 					{#if vmUp && perHour}<small data-testid="balance-rate">· reicht noch ca. {duration(hoursOf(aleph.credits, perHour))} ({amount(perHour, 0)}/h{inMoney(perHour) ? `, ${inMoney(perHour)}/h` : ''}, was gerade läuft)</small>
-					{:else if vmPerHour}<small data-testid="balance-rate">· reicht für ca. {duration(hoursOf(aleph.credits, perHour))} Paperless ({amount(vmPerHour, 0)}/h{inMoney(vmPerHour) ? `, ${inMoney(vmPerHour)}/h` : ''}{runningPerHour ? ` + ${amount(runningPerHour, 0)}/h, was schon läuft` : ''})</small>{/if}
+					{:else if vmPerHour}<small data-testid="balance-rate">· reicht für ca. {duration(hoursOf(aleph.credits, perHour))} Laufzeit ({amount(vmPerHour, 0)}/h{inMoney(vmPerHour) ? `, ${inMoney(vmPerHour)}/h` : ''}{runningPerHour ? ` + ${amount(runningPerHour, 0)}/h, was schon läuft` : ''})</small>{/if}
 					{#if !vmUp && vmPerHour && aleph.credits < reserve}<br /><span class="warn" data-testid="balance-reserve">Unter der Tagesreserve von {amount(reserve, 0)}{inMoney(reserve) ? ` (${inMoney(reserve)})` : ''}: Aleph nimmt so keinen Start an.</span>{/if}
 				{:else if alephError}<span class="hint">nicht lesbar</span>{:else}…{/if}
 			</dd>

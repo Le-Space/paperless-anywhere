@@ -89,7 +89,7 @@
 	// signed (checked here), its address from 2n6, and it must answer as a
 	// paperless-anywhere guest.
 	async function adopt(vm) {
-		if (!confirm(`${vm.name} als laufendes Paperless übernehmen? Danach geht „Sichern und beenden“ wieder.`)) return;
+		if (!confirm(`${vm.name} als laufende Instanz übernehmen? Danach geht „Sichern und beenden“ wieder.`)) return;
 		busy = vm.itemHash;
 		error = '';
 		try {
@@ -103,9 +103,9 @@
 			const host = fixed ? `${fixedHostLabel(master)}.${FIXED_HOST_DOMAIN}:${fixed.port}` : await hostname(vm.itemHash);
 			if (!host) throw new Error('Die VM hat noch keine Adresse (2n6).');
 			const status = await vmStatus(host, statusToken(master));
-			if (!status?.phase) throw new Error('Die VM antwortet nicht als Paperless (noch kein Zertifikat oder nicht entsperrt).');
+			if (!status?.phase) throw new Error('Die VM antwortet nicht als Paperless-ngx (noch kein Zertifikat oder nicht entsperrt).');
 			profile = await updateProfile(master, (fresh) => {
-				if (fresh.running) throw new Error('Es ist schon ein Paperless als laufend bekannt.');
+				if (fresh.running) throw new Error('Es ist schon eine Instanz als laufend bekannt.');
 				// Adopting the VM of an interrupted start ends that start.
 				const { starting, ...rest } = fresh;
 				return { ...rest, ...(starting && starting.instanceHash !== vm.itemHash ? { starting } : {}), running: { instanceHash: vm.itemHash, crnHash, host, trustedExecution, payer: vm.payer } };
@@ -128,7 +128,7 @@
 		<p class="hint">Keine VM läuft.</p>
 	{:else}
 		{#if strays > 0}
-			<p class="warn" data-testid="vm-stray">Es laufen VMs, die nicht als gestartet bekannt sind (z. B. ein abgebrochener Start oder ein neu geladener Tab). Sie kosten Credits, bis sie gelöscht sind. Läuft Paperless darin, „Übernehmen“: dann sichert „Sichern und beenden“ sie wie gewohnt.</p>
+			<p class="warn" data-testid="vm-stray">Es laufen VMs, die nicht als gestartet bekannt sind (z. B. ein abgebrochener Start oder ein neu geladener Tab). Sie kosten Credits, bis sie gelöscht sind. Läuft Paperless-ngx darin, „Übernehmen“: dann sichert „Sichern und beenden“ sie wie gewohnt.</p>
 		{/if}
 		<ul>
 			{#each vms as vm (vm.itemHash)}

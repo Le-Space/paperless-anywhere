@@ -10,6 +10,8 @@
 	import { CREDITS_URL } from '$lib/credits.js';
 	import BuildInfo from '$lib/BuildInfo.svelte';
 	import Logo from '$lib/Logo.svelte';
+	import NgxText from '$lib/NgxText.svelte';
+	import { texts } from '$lib/landing/i18n.js';
 	import { HOME, sharedOrigin } from '$lib/shared-origin.js';
 
 	// On a path-style gateway the origin is shared: no vault, no passkey there.
@@ -19,7 +21,7 @@
 	let master = $state(null);
 	let phrase = $state('');
 	let shownPhrase = $state('');
-	let name = $state('Paperless');
+	let name = $state('Paperless anywhere');
 	// The key-loss notice must be ticked before a vault is created.
 	let understood = $state(false);
 	let error = $state('');
@@ -47,7 +49,7 @@
 		answers = [];
 	}
 	const newPasskey = () => run(async () => {
-		await addPasskey(/** @type {Uint8Array} */ (master), `${name.trim() || 'Paperless'} (${location.host})`);
+		await addPasskey(/** @type {Uint8Array} */ (master), `${name.trim() || 'Paperless anywhere'} (${location.host})`);
 		vault = loadVault();
 		added = location.host;
 	});
@@ -68,7 +70,7 @@
 	}
 
 	const create = () => run(async () => {
-		const result = await createVault(name.trim() || 'Paperless');
+		const result = await createVault(name.trim() || 'Paperless anywhere');
 		vault = loadVault();
 		master = result.master;
 		shownPhrase = result.phrase;
@@ -143,7 +145,7 @@
 	const glance = $derived([
 		...(CREDITS_URL && pkg ? [{ id: 'paket', label: 'Paket', state: !pkg.plan ? 'kein Paket' : pkg.pays === 'app' || pkg.pays === 'wallet' ? 'nicht in Gebrauch' : pkg.hoursLeft != null ? `${pkg.hoursLeft} h übrig` : 'aktiv', tone: !pkg.plan || pkg.low ? 'warn' : pkg.pays === 'app' || pkg.pays === 'wallet' ? '' : 'ok' }] : []),
 		...(life ? [
-			{ id: 'paperless', label: 'Paperless', state: { off: 'aus', running: 'läuft', starting: 'startet', stopping: 'wird beendet', interrupted: 'Start unterbrochen', loading: '…' }[life.phase] ?? life.phase, tone: life.phase === 'running' ? 'ok' : life.phase === 'interrupted' ? 'warn' : '' },
+			{ id: 'paperless', label: 'Paperless-ngx', state: { off: 'aus', running: 'läuft', starting: 'startet', stopping: 'wird beendet', interrupted: 'Start unterbrochen', loading: '…' }[life.phase] ?? life.phase, tone: life.phase === 'running' ? 'ok' : life.phase === 'interrupted' ? 'warn' : '' },
 			{ id: 'paperless', label: 'Sicherungen', state: !life.backupsOn ? 'aus' : life.lastGood ? `${when(life.lastGood.at)}${life.lastGood.copies ? ` · ${life.lastGood.copies} Kopien` : ''}` : 'noch keine', tone: !life.backupsOn || !life.lastGood ? 'warn' : 'ok' },
 			{ id: 'technisch', label: 'Adresse', state: life.host ?? (life.fixedHost ? 'feste Adresse' : 'neu bei jedem Start'), tone: '' },
 			{ id: 'technisch', label: 'Zahlweg', state: life.pays ? PAYS[life.pays] : 'noch nicht gewählt', tone: life.pays ? '' : 'warn' }
@@ -164,7 +166,7 @@
 
 <header class="top">
 	<div class="bar">
-		<Logo />
+		<Logo>{#snippet sub()}<NgxText text={texts.de.tagline} link />{/snippet}</Logo>
 		{#if state === 'unlocked'}<button class="ghost" onclick={lock}>Sperren</button>{/if}
 	</div>
 </header>
@@ -182,9 +184,9 @@
 		     one comes first, opening an existing one second. -->
 		<section class="card hero">
 			<h1>Neu hier? Tresor anlegen</h1>
-			<p class="lede">Deine Dokumente in Paperless, auf einer eigenen, verschlüsselten Maschine. Ein Passkey auf diesem Gerät öffnet deinen Tresor; dazu bekommst du 24 Wörter zum Aufschreiben.</p>
+			<p class="lede">Deine Dokumente in Paperless-ngx, auf einer eigenen, verschlüsselten Maschine. Ein Passkey auf diesem Gerät öffnet deinen Tresor; dazu bekommst du 24 Wörter zum Aufschreiben.</p>
 			<div class="risk" data-testid="key-loss">
-				<p><strong>Nur du hast den Schlüssel.</strong> Le Space kann deinen Tresor weder öffnen noch wiederherstellen. Sind Passkey und die 24 Wörter weg, sind Paperless und alle Sicherungen verloren.</p>
+				<p><strong>Nur du hast den Schlüssel.</strong> Le Space kann deinen Tresor weder öffnen noch wiederherstellen. Sind Passkey und die 24 Wörter weg, sind deine Dokumente und alle Sicherungen verloren.</p>
 				<label class="check"><input type="checkbox" bind:checked={understood} data-testid="key-loss-ok" /> Verstanden: Ich bewahre die 24 Wörter sicher auf, auf Papier und nicht auf diesem Gerät.</label>
 			</div>
 			<button class="primary" onclick={create} disabled={busy || !understood}>Passkey anlegen</button>
@@ -206,7 +208,7 @@
 	{:else if state === 'locked'}
 		<section class="card hero">
 			<h1>Willkommen zurück</h1>
-			<p class="lede">Entsperre mit deinem Passkey, dann siehst du, ob Paperless läuft.</p>
+			<p class="lede">Entsperre mit deinem Passkey, dann siehst du, ob Paperless-ngx läuft.</p>
 			<button class="primary" onclick={unlockPasskey} disabled={busy || passkeyWaiting}>Mit Passkey entsperren</button>
 			{#if passkeyWaiting}<p class="hint" data-testid="passkey-waiting">Warte auf den Passkey …</p>{/if}
 			<details class="fold">
