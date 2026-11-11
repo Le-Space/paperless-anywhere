@@ -27,21 +27,24 @@
 	/** @type {Record<string, any>} */
 	let profile = $state({});
 	let progress = $state('');
-	// The steps of a start and a stop, with what they took in our runs so far
-	// (start: 336-399 s from click to ready in the live tests of 2026-10-22).
+	// The steps of a start and a stop, with what they took in our runs so far.
+	// Start, live on mainnet 2026-11-11 (1 GB backup restored): measure 9-14 s,
+	// placing 108 s, port 23 s, attestation and unlock 199 s, then Paperless
+	// and the restore. The live tests of 2026-10-22 took 336-399 s in all
+	// without a restore; a restore of about 1 GB adds about 5 min.
 	const STEPS = {
 		start: [
-			{ step: 'measure', label: 'Messwerte berechnen', typical: 5 },
-			{ step: 'instance', label: 'VM anfordern und platzieren', typical: 20 },
-			{ step: 'network', label: 'Port 443 und Adresse', typical: 20 },
-			{ step: 'unlock', label: 'VM prüfen (AMD) und entsperren', typical: 10 },
-			{ step: 'ready', label: 'Paperless-ngx startet (Container, Zertifikat)', typical: 300 }
+			{ step: 'measure', label: 'Messwerte berechnen', typical: 10 },
+			{ step: 'instance', label: 'VM anfordern und platzieren', typical: 90 },
+			{ step: 'network', label: 'Port 443 und Adresse', typical: 25 },
+			{ step: 'unlock', label: 'VM prüfen (AMD) und entsperren', typical: 180 },
+			{ step: 'ready', label: 'Paperless-ngx startet (Container, Zertifikat)', typical: 300, typicalWithRestore: 600 }
 		],
 		stop: [
 			// With backups on, the stop waits for one: export, encryption, upload
 			// to two providers and their confirmation on chain (about 6-8 min,
 			// mostly fixed costs). Erasing waits for the node to confirm.
-			{ step: 'stop', label: 'Stopp anfordern (letzte Sicherung)', typical: 10, typicalWithBackup: 420 },
+			{ step: 'stop', label: 'Stopp anfordern (letzte Sicherung)', typical: 10, typicalWithBackup: 540 },
 			{ step: 'forget', label: 'VM löschen', typical: 60 }
 		]
 	};
@@ -82,7 +85,9 @@
 			}
 		};
 	};
-	const typicalOf = (s) => (profile.backupConfig && s.typicalWithBackup ? s.typicalWithBackup : s.typical);
+	// A start that restores a backup takes longer in its last step.
+	const typicalOf = (s) =>
+		profile.backupConfig && s.typicalWithBackup ? s.typicalWithBackup : choice !== 'empty' && s.typicalWithRestore ? s.typicalWithRestore : s.typical;
 	const seconds = (ms) => `${Math.max(0, Math.round(ms / 1000))} s`;
 	const minutes = (s) => (s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`);
 	let error = $state('');
