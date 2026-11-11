@@ -262,5 +262,5 @@ An existing key can be pasted instead, for example the one the Mac's backups wer
 
 ## Limits, for now
 
-- The image's disk passphrase is shared by every VM made from the same image. A passphrase per person, derived from the master secret, is planned before real documents move (security audit, #9).
+- The image's disk passphrase is shared by every VM made from the same image. A passphrase per person, derived from the master secret, is in preparation: [your own image](own-image.md).
 - Backups from the app go to Filecoin **Calibration** only. On mainnet the Mac stays the only writer until the app has been tested with real backups.

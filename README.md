@@ -57,6 +57,8 @@ What lives where, what holds money, and what to do when a passkey, a device or t
 
 What a VM gets and from whom, what the image contains, and why one vault's VM, balance and backups stay separate from another's: [docs/security-model.md](docs/security-model.md).
 
+In preparation, an image sealed with a passphrase only your vault knows, made by a measured builder: [docs/own-image.md](docs/own-image.md).
+
 ## What this does not protect against
 
 - A bug in the CPU's SEV-SNP or in the hypervisor that breaks confidentiality.
