@@ -63,9 +63,9 @@ bootloader, microcode and so on) is at or above the floor Aleph's network
 sets. A node does not say how current its firmware is; only an attestation
 shows it. So:
 
-- Name a node in `crn` (its hash or a unique start of it; the nodes with
-  SEV-SNP are the ones the landing page lists). Without it the scheduler
-  chooses, and it does not look at the firmware.
+- Name a node in `crn` (its hash or a unique start of it): one of Aleph's
+  compute nodes that reports `sev_snp` among its CPU features. Without it
+  the scheduler chooses, and it does not look at the firmware.
 - If the attested call fails, `publish` deletes the builder again and the
   summary says why. Try the next node.
 - `keep` leaves a builder that failed the call running, to look at it with
