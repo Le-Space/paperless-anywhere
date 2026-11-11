@@ -157,6 +157,8 @@ docker run --rm -v "$PWD/check-container.mjs:/opt/builder/check-container.mjs:ro
 - The app computes the **builder's measurement** (the V-PROGRAM boot line
   carries root hashes instead of an owner) and fixes it, as it fixes the
   runtime of a Paperless VM.
-- The app gets the step **"Mein Image bauen"**: derive the passphrase, attest,
-  build, sign, store the image's hash in the profile.
+- The builder and the plain image are **fixed in the app** (`BUILDER` in
+  `pwa/src/lib/own-image.js`). The step "Mein Image bauen" in the setup is
+  written and shows up once they are; how an attest relay reaches a
+  V-PROGRAM is still to be tried.
 - The landing page and the security model say so once all of this is true.

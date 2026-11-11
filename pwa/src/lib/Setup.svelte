@@ -9,6 +9,7 @@
 	import { findAttestRelays } from '$lib/relays.js';
 	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups } from '$lib/credits.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
+	import { BUILDER, buildOwnImage, hasOwnImage, openBuilder } from '$lib/own-image.js';
 	import {
 		connectPayer,
 		isAuthorized,
@@ -235,6 +236,28 @@
 		await save({ rootfsItemHash: image, crnHash: crn, ...bound });
 		passInput = '';
 	});
+	// "Mein Image bauen": this vault's own copy of the public image, sealed by
+	// the attested builder with a passphrase derived from the master secret
+	// (own-image.js). Shown only when a builder is fixed in the app.
+	let ownStep = $state('');
+	const buildImage = () => run('own-image', async () => {
+		if (!BUILDER) return;
+		ownStep = '';
+		try {
+			const built = await buildOwnImage({
+				master,
+				app: privateKeyToAccount(alephPrivateKey(master)),
+				builder: BUILDER,
+				open: () => openBuilder(BUILDER, profile),
+				onProgress: ({ detail }) => (ownStep = detail ?? '')
+			});
+			await save(built);
+			imageInput = built.rootfsItemHash;
+			passInput = '';
+		} finally {
+			ownStep = '';
+		}
+	});
 	const saveDns = () => run('dns', async () => {
 		const token = dnsInput.trim();
 		// Cloudflare API tokens are 40 characters of [A-Za-z0-9_-].
@@ -403,6 +426,16 @@
 		<label>Passphrase des Images<input bind:value={passInput} type="password" autocomplete="off" placeholder={profile.luksPassphrase ? `Passphrase hinterlegt, ${profile.luksPassphrase.length} Zeichen (leer lassen = behalten)` : 'Passphrase des Images'} /></label>
 		<button onclick={saveImage} disabled={busy === 'image'}>Image und Knoten speichern</button>
 		{@render feedback('image')}
+		{#if BUILDER}
+			<div class="own-image" data-testid="own-image">
+				<p class="hint">Oder ein Image nur für diesen Tresor: Ein geprüfter Build-Dienst versiegelt das öffentliche Image mit einer Passphrase, die aus deinem Tresor abgeleitet wird. Die App prüft den Hardware-Nachweis des Dienstes, bevor sie die Passphrase schickt. Das Image liegt danach bei Aleph auf der Adresse dieser App (<code>{pwaAddress}</code>), die auch den Speicher bezahlt.</p>
+				{#if hasOwnImage(profile, BUILDER.plain.sha256)}<p class="saved" data-testid="own-image-have">Du nutzt dein eigenes Image, gebaut am {new Date(profile.ownImage.builtAt).toLocaleDateString('de-DE')}.</p>{/if}
+				<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{hasOwnImage(profile, BUILDER.plain.sha256) ? 'Mein Image neu bauen' : 'Mein Image bauen'}</button>
+				{#if profile.running}<p class="hint">Erst wieder möglich, wenn Paperless gestoppt ist.</p>{/if}
+				{#if busy === 'own-image' && ownStep}<p class="hint" role="status" data-testid="own-image-step">{ownStep} …</p>{/if}
+				{@render feedback('own-image')}
+			</div>
+		{/if}
 
 		<h3>{step.address}. Feste Adresse (optional)</h3>
 		<p class="hint">Mit einem Cloudflare-API-Token (Zone {FIXED_HOST_DOMAIN.split('.').slice(-2).join('.')}, Rechte: DNS bearbeiten, Zone lesen) bekommt deine Instanz bei jedem Start dieselbe Adresse, <code>{fixedHostLabel(master)}.{FIXED_HOST_DOMAIN}</code>: Die VM trägt sich selbst ein und holt das Zertifikat über DNS. Ohne Token gibt es bei jedem Start einen neuen <code>*.2n6.me</code>-Namen. Das Token kann alle DNS-Einträge der Zone ändern; es liegt verschlüsselt im Profil und geht nur an die VM.</p>
@@ -419,6 +452,7 @@
 {/snippet}
 
 <style>
+	.own-image { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--line); }
 	.self-pay { margin: 0.25rem 0 0.75rem; font-size: 0.95rem; color: var(--text-2); }
 	.self-pay summary { cursor: pointer; }
 	.self-pay ul { padding-left: 1.2rem; }

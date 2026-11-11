@@ -196,6 +196,8 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await expect(page.getByRole('button', { name: 'Wallet für Sicherungen verbinden' })).toBeVisible();
 	// Steps are numbered as shown: no Aleph approval and no Filecoin key here, so no gap.
 	await expect(page.getByTestId('setup').locator('h3')).toHaveText(['1. Wer zahlt die VM?', '2. Attest-Relay', '3. Sicherungen', '4. Paperless-anywhere-Image und Knoten', '5. Feste Adresse (optional)']);
+	// No image builder is fixed in the app yet, so the setup offers no build.
+	await expect(page.getByTestId('own-image')).toHaveCount(0);
 	await open(page, 'tech-balances');
 	await expect(page.getByTestId('balances')).toContainText('Konto der App');
 	await expect(page.getByTestId('balance-credits')).toContainText('1.500.000');
