@@ -4,13 +4,19 @@
 #
 #   /tmp/secrets/restore_ledger_entry  one entry of paperless-backup-filecoin's
 #                                      ledger.json (name, pieceCid, sealedSha256,
-#                                      copies[].retrievalUrl); absent: nothing to do
+#                                      copies[].retrievalUrl; a backup in parts
+#                                      also parts[] and copies[].retrievalUrls[]);
+#                                      absent: nothing to do
 #   /tmp/secrets/age_identity          the age identity that decrypts it
 #   /tmp/secrets/paperless_role        "primary" keeps the imported mail rules on;
 #                                      anything else ("test") switches them off,
 #                                      since another instance reads that mailbox
 #
 # The piece is fetched from a provider, checked against the ledger's SHA-256,
+# or its piece CID. A backup above 1 GB comes in parts (each a piece of at
+# most 1,000,000,000 bytes): every part is fetched from the first copy that
+# delivers it, checked by its size, SHA-256 and piece CID, appended in order,
+# and the whole checked against the ledger's SHA-256 if it has one. Then it is
 # decrypted with age as a stream (no copy in memory), unpacked and imported
 # with document_importer. The identity is overwritten and removed afterwards,
 # and so is every plaintext copy, whether the restore worked or not. The
@@ -90,38 +96,106 @@ t0=$(date +%s)
 # The entry, read without a shell parser. It names the piece and where to get
 # it; it may carry the ledger's SHA-256 (backups made on the Mac) or not (an
 # entry the app found on chain): the piece CID is then the check.
-eval "$(python3 - "$secrets/restore_ledger_entry" <<'PY'
+# Read into a variable first: eval of an empty answer would succeed.
+vars="$(python3 - "$secrets/restore_ledger_entry" <<'PY'
 import json, re, shlex, sys
 e = json.load(open(sys.argv[1]))
+URL = r"https://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9/._-]*"
+CID = r"baga[a-z2-7]{20,}|bafk[a-z2-7]{20,}"
+SHA = r"[0-9a-f]{64}"
 sha = str(e.get("sealedSha256", "") or "")
 cid = str(e.get("pieceCid", "") or "")
-urls = [c.get("retrievalUrl", "") for c in e.get("copies", [])]
-urls = [u for u in urls if re.fullmatch(r"https://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9/._-]*", u)]
-if sha and not re.fullmatch(r"[0-9a-f]{64}", sha):
+copies = [c for c in e.get("copies", []) if isinstance(c, dict)]
+urls = [c.get("retrievalUrl", "") for c in copies]
+urls = [u for u in urls if isinstance(u, str) and re.fullmatch(URL, u)]
+if sha and not re.fullmatch(SHA, sha):
     sys.exit("the ledger entry's SHA-256 is malformed")
-if not re.fullmatch(r"baga[a-z2-7]{20,}|bafk[a-z2-7]{20,}", cid) and not sha:
-    sys.exit("the ledger entry names neither a piece CID nor a SHA-256")
-if not urls:
-    sys.exit("the ledger entry has no https retrieval URL")
+parts = e.get("parts") if isinstance(e.get("parts"), list) else []
+plan = []
+if len(parts) > 1:
+    # A backup in parts: each part by its piece CID (and, from the ledger, its
+    # SHA-256 and size), fetched from the URLs every copy has for that part.
+    if len(parts) > 512:
+        sys.exit("the ledger entry has too many parts")
+    for i, p in enumerate(parts):
+        p = p if isinstance(p, dict) else {}
+        pcid = str(p.get("pieceCid", "") or "")
+        psha = str(p.get("sha256", "") or "")
+        psize = p.get("size")
+        if not re.fullmatch(CID, pcid):
+            sys.exit(f"part {i + 1} names no piece CID")
+        if psha and not re.fullmatch(SHA, psha):
+            sys.exit(f"the SHA-256 of part {i + 1} is malformed")
+        if psize is not None and not (isinstance(psize, int) and 0 < psize <= 1_000_000_000):
+            sys.exit(f"the size of part {i + 1} is not a part size")
+        purls = []
+        for c in copies:
+            ru = c.get("retrievalUrls")
+            u = ru[i] if isinstance(ru, list) and len(ru) == len(parts) else None
+            if isinstance(u, str) and re.fullmatch(URL, u):
+                purls.append(u)
+        if not purls:
+            sys.exit(f"part {i + 1} has no https retrieval URL")
+        plan.append(" ".join([pcid, psha or "-", str(psize) if psize is not None else "-", *purls]))
+    if cid != parts[0].get("pieceCid"):
+        sys.exit("the pieceCid of the ledger entry is not its first part")
+else:
+    if not re.fullmatch(CID, cid) and not sha:
+        sys.exit("the ledger entry names neither a piece CID nor a SHA-256")
+    if not urls:
+        sys.exit("the ledger entry has no https retrieval URL")
 print("name=" + shlex.quote(str(e.get("name", "backup"))[:80]))
 print("sha=" + shlex.quote(sha))
 print("cid=" + shlex.quote(cid))
 print("urls=" + shlex.quote(" ".join(urls)))
+print("nparts=" + str(max(len(plan), 1)))
+print("plan=" + shlex.quote("\n".join(plan)))
 PY
 )" || fail "unusable restore_ledger_entry"
+eval "$vars"
 
 rm -rf "$work" && mkdir -p "$work" && chmod 700 "$work"
 t1=$(date +%s); got=""
-for u in $urls; do
-  if curl -fsSL --retry 2 --max-time 1800 -o "$work/sealed.age" "$u"; then got="${u#https://}"; got="${got%%/*}"; break; fi
-done
-[ -n "$got" ] || fail "no provider delivered the piece"
-if [ -n "$sha" ]; then
-  [ "$(sha256sum "$work/sealed.age" | cut -d' ' -f1)" = "$sha" ] || fail "the downloaded piece does not match the ledger's SHA-256"
-fi
-if [ -n "$cid" ]; then
-  got_cid="$(cd /opt/backup-filecoin && node piece-cid.mjs "$work/sealed.age" 2>>"$log")" || fail "could not compute the piece CID"
-  [ "$got_cid" = "$cid" ] || fail "the downloaded piece is not the piece that was asked for"
+if [ "$nparts" -gt 1 ]; then
+  : > "$work/sealed.age"
+  i=0
+  # Not in a pipe: fail must end this shell, not a subshell.
+  while read -r pcid psha psize purls; do
+    i=$((i + 1)); pgot=""
+    for u in $purls; do
+      if curl -fsSL --retry 2 --max-time 1800 -o "$work/part.age" "$u"; then pgot="${u#https://}"; pgot="${pgot%%/*}"; break; fi
+    done
+    [ -n "$pgot" ] || fail "no provider delivered part $i of $nparts"
+    [ -n "$got" ] || got="$pgot"
+    if [ "$psize" != - ]; then
+      [ "$(stat -c %s "$work/part.age")" = "$psize" ] || fail "part $i of $nparts has the wrong size"
+    fi
+    if [ "$psha" != - ]; then
+      [ "$(sha256sum "$work/part.age" | cut -d' ' -f1)" = "$psha" ] || fail "part $i of $nparts does not match the ledger's SHA-256"
+    fi
+    got_cid="$(cd /opt/backup-filecoin && node piece-cid.mjs "$work/part.age" 2>>"$log")" || fail "could not compute the piece CID of part $i"
+    [ "$got_cid" = "$pcid" ] || fail "part $i of $nparts is not the piece that was asked for"
+    cat "$work/part.age" >> "$work/sealed.age" || fail "could not join part $i of $nparts"
+    rm -f "$work/part.age"
+  done <<PLAN
+$plan
+PLAN
+  [ "$i" = "$nparts" ] || fail "only $i of $nparts parts were read"
+  if [ -n "$sha" ]; then
+    [ "$(sha256sum "$work/sealed.age" | cut -d' ' -f1)" = "$sha" ] || fail "the joined parts do not match the ledger's SHA-256"
+  fi
+else
+  for u in $urls; do
+    if curl -fsSL --retry 2 --max-time 1800 -o "$work/sealed.age" "$u"; then got="${u#https://}"; got="${got%%/*}"; break; fi
+  done
+  [ -n "$got" ] || fail "no provider delivered the piece"
+  if [ -n "$sha" ]; then
+    [ "$(sha256sum "$work/sealed.age" | cut -d' ' -f1)" = "$sha" ] || fail "the downloaded piece does not match the ledger's SHA-256"
+  fi
+  if [ -n "$cid" ]; then
+    got_cid="$(cd /opt/backup-filecoin && node piece-cid.mjs "$work/sealed.age" 2>>"$log")" || fail "could not compute the piece CID"
+    [ "$got_cid" = "$cid" ] || fail "the downloaded piece is not the piece that was asked for"
+  fi
 fi
 t2=$(date +%s)
 

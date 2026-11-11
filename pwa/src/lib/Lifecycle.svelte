@@ -9,7 +9,7 @@
 	import { alephBalance } from '$lib/balances.js';
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey } from '$lib/keys/derive.js';
-	import { listBackups, pieceCidOfStop, place, restoreEntry, splitOwn } from '$lib/backups.js';
+	import { backupSize, listBackups, pieceCidOfStop, place, restoreEntry, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
 	import BackupNow from '$lib/BackupNow.svelte';
@@ -149,6 +149,9 @@
 	const production = $derived(profile.role === 'primary' && profile.network === 'mainnet');
 	const defaultChoice = (list) => (production && list.length ? 'latest' : splitOwn(list, profile.ownBackups ?? []).own.length ? 'own' : 'empty');
 	const wherePlaces = (b) => b.copies.map((c) => c.place || `Anbieter ${c.providerId}`).join(' und ');
+	// Size, and the parts a large backup went up in: shown as one backup.
+	const sizeOf = (b) => [backupSize(b.size), b.parts?.length > 1 ? `in ${b.parts.length} Teilen` : ''].filter(Boolean).join(' ');
+	const sizePart = (b) => (sizeOf(b) ? `, ${sizeOf(b)}` : '');
 	// The admin password is derived from the master secret; it is shown only on request.
 	let showPassword = $state(false);
 	const adminPassword = $derived(paperlessSecrets(master).adminPassword);
@@ -468,17 +471,17 @@
 					{#if production && backups?.length}
 						<label><input type="radio" bind:group={choice} value="latest" data-testid="restore-latest" />
 							Neueste Sicherung wiederherstellen
-							<small data-testid="latest-backup">({pick(backups).pieceCid.slice(-12)}, {pick(backups).copies.length} Kopien: {wherePlaces(pick(backups))})</small>
+							<small data-testid="latest-backup">({pick(backups).pieceCid.slice(-12)}{sizePart(pick(backups))}, {pick(backups).copies.length} Kopien: {wherePlaces(pick(backups))})</small>
 						</label>
 					{/if}
 					<label><input type="radio" bind:group={choice} value="own" disabled={!split.own.length} />
 						Neueste eigene Sicherung wiederherstellen
-						{#if split.own.length}<small data-testid="newest-backup">({pick(split.own).pieceCid.slice(-12)}, {pick(split.own).copies.length} Kopien: {wherePlaces(pick(split.own))})</small>
+						{#if split.own.length}<small data-testid="newest-backup">({pick(split.own).pieceCid.slice(-12)}{sizePart(pick(split.own))}, {pick(split.own).copies.length} Kopien: {wherePlaces(pick(split.own))})</small>
 						{:else if backups}<small>(dieser Tresor hat noch keine gemacht)</small>{:else}<small>(lese …)</small>{/if}
 					</label>
 					{#if split.other.length}
 						<label><input type="radio" bind:group={choice} value="any" />
-							Neueste andere Sicherung des Kontos ({pick(split.other).pieceCid.slice(-12)}, {wherePlaces(pick(split.other))})
+							Neueste andere Sicherung des Kontos ({pick(split.other).pieceCid.slice(-12)}{sizePart(pick(split.other))}, {wherePlaces(pick(split.other))})
 							<small>– nicht von diesem Tresor ({split.other.length}); nur wenn sie mit deinem Schlüssel verschlüsselt ist, z. B. vom Mac mit eingefügtem Schlüssel</small>
 						</label>
 					{/if}
@@ -562,7 +565,7 @@
 					<dt>Netz</dt><dd>Filecoin {b.network === 'mainnet' ? 'Mainnet' : 'Calibration (Testnetz)'}</dd>
 					<dt>Bezahlt von</dt><dd><code>{b.payer}</code></dd>
 					<dt>Piece CID</dt><dd><code>{b.pieceCid}</code></dd>
-					{#if b.size}<dt>Größe</dt><dd>{(b.size / 1048576).toFixed(1)} MiB (verschlüsselt)</dd>{/if}
+					{#if b.size}<dt>Größe</dt><dd>{(b.size / 1048576).toFixed(1)} MiB (verschlüsselt){b.parts?.length > 1 ? `, in ${b.parts.length} Teilen` : ''}</dd>{/if}
 					{#if b.seconds}<dt>Dauer</dt><dd>{b.seconds} s</dd>{/if}
 				</dl>
 				<ul>
