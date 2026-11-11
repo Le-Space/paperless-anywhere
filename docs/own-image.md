@@ -132,6 +132,13 @@ the encrypted image (under 1 GiB) on your vault's address, as long as you
 use that version. An older image can be forgotten once the new one has
 started.
 
+## Publishing the plain image
+
+The image workflow (`rootfs.yml`) does it with the option **plain**: it
+converts the image as for an encrypted one, publishes it as a STORE of its
+own and prints the STORE's hash and the image's SHA-256 in the run's
+summary. These two values are what the app will name to the builder.
+
 ## Trying the builder
 
 ```sh
@@ -144,7 +151,6 @@ docker run --rm -v "$PWD/check-container.mjs:/opt/builder/check-container.mjs:ro
 
 ## Before it goes live
 
-- The build workflow publishes the **plain image** and prints its SHA-256.
 - The builder runs as a **V-PROGRAM** on Aleph. To try: outbound network
   from the workload, scratch space for one image (the root filesystem is
   read-only), and `cryptsetup` inside the runtime's container.
