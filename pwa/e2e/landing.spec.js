@@ -20,7 +20,8 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await page.goto('/');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Deine Dokumente. Nur wach, wenn du sie brauchst.');
 	await expect(page.locator('#nodes')).toContainText('2 TEE-Knoten, 1 davon mit Platz');
-	await expect(page.locator('#prices')).toContainText('4 €');
+	await expect(page.locator('#prices')).toContainText('4,90 €');
+	await expect(page.locator('#prices')).toContainText('Dauerbetrieb, rund um die Uhr');
 	await expect(page.getByTestId('prices-included')).toHaveText('In jedem Paket enthalten: bis 8 GB Dokumente und ihre verschlüsselten Sicherungen in drei Kopien.');
 
 	await expect(page.getByRole('link', { name: 'Impressum' })).toHaveAttribute('href', 'https://le-space.de/#impressum');
