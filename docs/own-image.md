@@ -151,12 +151,15 @@ docker run --rm -v "$PWD/check-container.mjs:/opt/builder/check-container.mjs:ro
 
 ## Before it goes live
 
-- The builder runs as a **V-PROGRAM** on Aleph. To try: outbound network
-  from the workload, scratch space for one image (the root filesystem is
-  read-only), and `cryptsetup` inside the runtime's container.
-- The app computes the **builder's measurement** (the V-PROGRAM boot line
-  carries root hashes instead of an owner) and fixes it, as it fixes the
-  runtime of a Paperless VM.
+- The builder runs as a **V-PROGRAM** on Aleph. Compose file, image archive
+  and the steps are prepared in
+  [`builder/vprogram/`](../builder/vprogram/README.md); the first run has to
+  show the outbound network, that one image fits into the VM's memory (the
+  root filesystem is read-only, the scratch space is memory), and the
+  upload.
+- The builder's **measurement** comes from that publication (the Aleph CLI
+  computes it and writes it into the V-PROGRAM message) and is then fixed
+  in the app, as the runtime of a Paperless VM is.
 - The app gets the step **"Mein Image bauen"**: derive the passphrase, attest,
   build, sign, store the image's hash in the profile.
 - The landing page and the security model say so once all of this is true.
