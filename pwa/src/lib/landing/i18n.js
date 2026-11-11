@@ -119,7 +119,7 @@ export const texts = {
 			items: [
 				{ q: 'Gehört Paperless anywhere zum Projekt Paperless-ngx?', a: DISCLAIMER.de },
 				{ q: 'Was ist Paperless-ngx?', a: 'Paperless-ngx ist die Open-Source-Software, die in deiner VM läuft: Sie liest Dokumente ein, erkennt den Text und macht sie durchsuchbar. Paperless anywhere startet sie für dich auf Abruf in einer vertraulichen VM und sichert sie danach.' },
-				{ q: 'Bekommen alle dieselbe Software?', a: 'Ja. Das System ist für alle gleich, und sein Hash ist öffentlich. Versiegelt wird es für jede Person einzeln, mit einer Passphrase aus ihrem Tresor, von einem Build-Dienst, den die App vorher prüft.' },
+				{ q: 'Bekommen alle dieselbe Software?', a: 'Ja. Das System ist für alle gleich, und sein Hash ist öffentlich. Versiegelt wird es für jede Person einzeln, mit einer Passphrase aus ihrem Tresor, von einem Build-Dienst, den die App vorher prüft. Welches Image und welcher Dienst das sind, zeigt die App mit Hash und Quelltext-Stand; die Dokumentation beschreibt, wie man beides nachprüft.' },
 				{ q: 'Brauche ich ein Konto?', a: 'Nein. Ein Passkey auf deinem Gerät öffnet deinen Tresor; die 24 Wörter sind der Weg zurück, falls das Gerät fehlt. Le Space kann den Tresor weder öffnen noch wiederherstellen.' },
 				{ q: 'Was kostet es, wenn Paperless anywhere nicht läuft?', a: 'Keine Rechenzeit. Die Sicherungen liegen verschlüsselt bei den Speicheranbietern; sie sind im Paket enthalten.' }
 			]
@@ -251,7 +251,7 @@ export const texts = {
 			items: [
 				{ q: 'Is Paperless anywhere part of the Paperless-ngx project?', a: DISCLAIMER.en },
 				{ q: 'What is Paperless-ngx?', a: 'Paperless-ngx is the open source software that runs in your VM: it takes in documents, recognises their text and makes them searchable. Paperless anywhere starts it for you on demand in a confidential VM and backs it up afterwards.' },
-				{ q: 'Does everyone get the same software?', a: 'Yes. The system is the same for everyone, and its hash is public. It is sealed for each person separately, with a passphrase from their vault, by a builder the app checks first.' },
+				{ q: 'Does everyone get the same software?', a: 'Yes. The system is the same for everyone, and its hash is public. It is sealed for each person separately, with a passphrase from their vault, by a builder the app checks first. Which image and which builder these are, the app shows with hash and source commit; the documentation says how to check both.' },
 				{ q: 'Do I need an account?', a: 'No. A passkey on your device opens your vault; the 24 words are the way back in if the device is missing. Le Space can neither open nor recover the vault.' },
 				{ q: 'What does it cost while Paperless anywhere is not running?', a: 'No compute time. The backups are stored encrypted with the storage providers; they are included in the package.' }
 			]
