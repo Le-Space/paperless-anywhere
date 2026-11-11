@@ -153,7 +153,8 @@ docker run --rm -v "$PWD/check-container.mjs:/opt/builder/check-container.mjs:ro
 
 - The builder runs as a **V-PROGRAM** on Aleph. Compose file, image archive
   and the steps are prepared in
-  [`builder/vprogram/`](../builder/vprogram/README.md); the first run has to
+  [`builder/vprogram/`](../builder/vprogram/README.md), with a workflow
+  that measures, publishes, checks and deletes it; the first run has to
   show the outbound network, that one image fits into the VM's memory (the
   root filesystem is read-only, the scratch space is memory), and the
   upload.
