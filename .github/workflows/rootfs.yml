@@ -59,6 +59,12 @@ concurrency:
 
 jobs:
   rootfs:
+    # For the provenance of the plain image (the step near the end): GitHub
+    # signs "this file was built by this workflow at this commit".
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     runs-on: ${{ inputs.runner == 'aleph' && fromJSON('["self-hosted","aleph"]') || 'ubuntu-24.04' }}
     timeout-minutes: 45
     steps:
@@ -171,6 +177,18 @@ jobs:
           done
           echo "::error::the STORE of the plain image was not processed within 20 minutes"; exit 1
 
+      # A signed statement by GitHub that the plain image with this SHA-256 was
+      # built by this workflow at this commit; `gh attestation verify` checks
+      # it (docs/own-image.md). GitHub offers this for public repositories, so
+      # the step waits until this one is public.
+      - name: Provenance of the plain image
+        id: provenance
+        if: inputs.plain && steps.plain.outputs.sha256 && !github.event.repository.private
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: paperless-plain.ext4
+          subject-digest: sha256:${{ steps.plain.outputs.sha256 }}
+
       - name: Summary
         if: always()
         env:
@@ -180,6 +198,7 @@ jobs:
           PLAIN_STORE: ${{ steps.plain.outputs.store }}
           PLAIN_SHA256: ${{ steps.plain.outputs.sha256 }}
           PLAIN_PUBLISHED_BYTES: ${{ steps.plain.outputs.bytes }}
+          PROVENANCE: ${{ steps.provenance.outputs.attestation-url }}
         run: |
           {
             echo "## Paperless rootfs"
@@ -190,6 +209,7 @@ jobs:
             echo "| Plain image | $(( ${PLAIN_BYTES:-0} / 1048576 )) MiB, built in ${BUILD_SECONDS:-?} s |"
             echo "| Encrypted image | ${SIZE_MIB:-?} MiB |"
             echo "| Purpose | ${PURPOSE} |"
+            echo "| Built from | commit \`${GITHUB_SHA}\` |"
             if [ -n "$PLAIN_STORE" ]; then
               echo
               echo "### Plain image, for the image builder"
@@ -201,6 +221,8 @@ jobs:
               echo "| Plain image (STORE) | \`${PLAIN_STORE}\` |"
               echo "| SHA-256 | \`${PLAIN_SHA256}\` |"
               echo "| Size | $(( ${PLAIN_PUBLISHED_BYTES:-0} / 1048576 )) MiB |"
+              echo "| Built from | commit \`${GITHUB_SHA}\` |"
+              echo "| Provenance | ${PROVENANCE:-none: GitHub signs it only for a public repository} |"
             fi
             if [ -s "$RUNNER_TEMP/image-key.age" ] && [ -n "$STORE" ]; then
               echo
