@@ -529,7 +529,7 @@
 				</div>
 			</div>
 			{#if profile.backupConfig}<BackupNow {master} {profile} disabled={busy} onbusy={(b) => (backingUp = b)} ongood={rememberGood} />{/if}
-			<button class="secondary" onclick={stop} disabled={busy || backingUp}>Sichern und beenden</button>
+			<button class="secondary stop" onclick={stop} disabled={busy || backingUp}>Sichern und beenden</button>
 			<Storage {master} {profile} />
 			{#if profile.ageIdentity && backupListing(profile)}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{:else if phase === 'interrupted'}
@@ -580,7 +580,7 @@
 				<button type="button" class="small" onclick={() => (showPassword = !showPassword)}>{showPassword ? 'Verbergen' : 'Passwort anzeigen'}</button>
 				<button type="button" class="small" onclick={copyPassword}>Kopieren</button>
 			</p>
-			<button class="secondary" onclick={stop} disabled={busy}>Sichern und beenden</button>
+			<button class="secondary stop" onclick={stop} disabled={busy}>Sichern und beenden</button>
 		{:else}
 			{#if profile.ageIdentity}
 				<fieldset class="restore">
@@ -714,6 +714,9 @@
 	.calm { color: var(--text-2); font-size: 0.9rem; margin: 0; }
 	.cta { display: block; width: 100%; margin: 1.25rem 0 0.75rem; padding: 0.85rem 1.25rem; text-align: center; font-weight: 600; font-size: 1.05rem; color: var(--cta-text); background: var(--cta-bg); border: 1px solid var(--cta-bg); border-radius: 999px; text-decoration: none; }
 	.secondary { display: block; width: 100%; margin: 0.75rem 0 0; background: transparent; color: var(--text); border-color: var(--line); }
+	/* Ends the paid VM: the style guide's warning colour (amber), so it stands out without competing with the one lime CTA. */
+	.secondary.stop { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); font-weight: 600; }
+	.secondary.stop:hover:not(:disabled) { background: color-mix(in srgb, var(--warn) 16%, var(--warn-bg)); }
 	.login { margin: 1rem 0 0; padding: 0.9rem 1rem; background: var(--surface-2); border-radius: var(--radius-sm); }
 	.login p { margin: 0.15rem 0; }
 	.login .label { color: var(--text-2); font-size: 0.85rem; margin-bottom: 0.35rem; }
