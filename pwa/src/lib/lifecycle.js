@@ -7,8 +7,9 @@
 // What a running VM needs to be stopped from another device goes into the
 // sealed profile.
 import { privateKeyToAccount } from 'viem/accounts';
-import { confidentialTrustedExecution, unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
+import { unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
 import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
+import { pinnedTrustedExecution } from './runtime-pin.js';
 import { alephPrivateKey, backupPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
 import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
@@ -196,7 +197,7 @@ export async function startPaperless(master, profile, onProgress, { onRequested 
 	const app = privateKeyToAccount(alephPrivateKey(master));
 	onProgress({ step: 'measure', detail: 'Messwerte für diesen Start berechnen' });
 	const wasm = await loadWasm();
-	const trustedExecution = await confidentialTrustedExecution({ wasm, owner: app.address, vcpus: PAPERLESS_VM.vcpus });
+	const trustedExecution = await pinnedTrustedExecution({ wasm, owner: app.address, vcpus: PAPERLESS_VM.vcpus });
 
 	onProgress({ step: 'instance', detail: 'VM anfordern' });
 	const payer = vmPayer(profile, app.address);
