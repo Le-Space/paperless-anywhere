@@ -104,7 +104,13 @@ jobs:
         # Usually about a minute; a stuck download on a node hung for 45 min.
         timeout-minutes: 15
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq debootstrap debian-archive-keyring >/dev/null
+          # A runner sometimes cannot resolve its package mirror for a moment
+          # (twice in a row on 2026-11-11); try again before giving up.
+          for try in 1 2 3 4 5; do
+            sudo apt-get update -qq && sudo apt-get install -y -qq debootstrap debian-archive-keyring >/dev/null && break
+            [ "$try" = 5 ] && { echo "::error::the packages for the build could not be installed"; exit 1; }
+            sleep 20
+          done
           start=$(date +%s)
           sudo ./rootfs/build-image.sh "$RUNNER_TEMP/paperless.ext4"
           sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/paperless.ext4"
@@ -146,7 +152,11 @@ jobs:
           # encryption adds (MAX_IMAGE_BYTES in builder/builder.mjs).
           MAX_BYTES: 1040187392
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq e2fsprogs jq qemu-utils rsync >/dev/null
+          for try in 1 2 3 4 5; do
+            sudo apt-get update -qq && sudo apt-get install -y -qq e2fsprogs jq qemu-utils rsync >/dev/null && break
+            [ "$try" = 5 ] && { echo "::error::the packages for the plain image could not be installed"; exit 1; }
+            sleep 20
+          done
           plain="$RUNNER_TEMP/paperless-plain.ext4"
           printf '%s\n' '# no key in the image: a test sends its own with the unlock' > "$RUNNER_TEMP/plain-authorized_keys"
           sudo MAX_PLAIN_MIB=3500 relay-button/packages/rootfs/reference/confidential/make-confidential-rootfs.sh \
