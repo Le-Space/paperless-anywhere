@@ -6,8 +6,10 @@ Aleph as a measured, confidential VM that anyone can attest.
 > **Status: prepared, not tried on Aleph.** The compose file and the image
 > archive are checked locally (the container starts under exactly these
 > settings and runs a whole job). The steps below follow `aleph vprogram`
-> of the Aleph CLI 0.20.0 and Aleph's runtime `compose-1.4`; none of them
-> has been run for this builder yet.
+> of the Aleph CLI 0.22.0 and Aleph's runtime `compose-1.4`. Of them, only
+> the start of a dry run was tried (the CLI accepts the compose file and
+> the options and resolves the runtime); none has run to its end for this
+> builder yet.
 
 ## What runs
 
@@ -27,9 +29,50 @@ the attested channel and is gone when the build ends.
 of up to 1 GiB in `/work`, and up to 1 GiB while `cryptsetup` derives the
 disk key all live in memory.
 
-## Steps
+## With the workflow
 
-All in this directory. `IMAGE` is the name in `docker-compose.yml`.
+The workflow **Image builder on Aleph** (`.github/workflows/builder-publish.yml`,
+started by hand under *Actions*) runs the steps below on a GitHub runner, with
+the pinned CLI and the secret `ALEPH_PRIVATE_KEY` as the account that signs
+and pays. Its summary holds what each action found.
+
+| Action | Does | Costs |
+|---|---|---|
+| `dry-run` | builds the archive and the workload, computes the launch measurements; uploads and publishes nothing | nothing |
+| `publish` | a dry run first, then uploads the workload and publishes the V-PROGRAM, and waits until it is reachable | credits of the account, from then on **until it is deleted** |
+| `check` | shows the V-PROGRAM with the given hash and makes one attested call to `/`; fails unless the builder answers | nothing |
+| `delete` | forgets the V-PROGRAM with the given hash; the scheduler then stops the VM | nothing; ends the cost |
+
+The usual order:
+
+1. `dry-run`. If it fails while it fetches Aleph's runtime bundle, start it
+   again; it tries three times by itself.
+2. `publish`. Note the item hash from the summary.
+3. `check` with that hash.
+4. Enter the values in the app ([below](#what-goes-into-the-app-afterwards)).
+5. `delete` with that hash when the builder is no longer wanted. A builder
+   that was published and forgotten keeps costing.
+
+`memory`, `vcpus` and `runtime` have the defaults this page explains; change
+them only with a reason, since each changes the measurement.
+
+A publication is not repeated automatically: if `publish` fails after the
+upload began, look at the account's V-PROGRAMs (`aleph vprogram list`)
+before starting it again, so that two builders do not run side by side.
+
+Updating the CLI: set `ALEPH_CLI_VERSION` and `ALEPH_CLI_SHA256` at the top
+of the workflow to a release of `aleph-im/aleph-rs` and the SHA-256 GitHub
+lists for `aleph-cli-linux-x86_64`.
+
+## By hand
+
+The same on a Linux machine with the Aleph CLI, `veritysetup`
+(`cryptsetup-bin`), `mkfs.ext4` (`e2fsprogs`) and docker. It does not work
+on macOS: the CLI needs `veritysetup` and `mkfs.ext4` to build the workload.
+
+
+All in this directory. `IMAGE` is the name in `docker-compose.yml`. With a
+key instead of a stored account, set `ALEPH_PRIVATE_KEY` and add `--chain eth`.
 
 ```sh
 IMAGE=localhost/paperless-anywhere-image-builder:1
