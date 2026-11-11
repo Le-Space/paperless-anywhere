@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { restoreEntry, backupConfigFor, backupDataSets, backupFacts, dataSetsByClientIds, vmBackupSecrets } from './backups.js';
+import { newerBackup, restoreEntry, backupConfigFor, backupDataSets, backupFacts, dataSetsByClientIds, vmBackupSecrets } from './backups.js';
 
 describe('restoreEntry', () => {
 	it('names the piece and its copies, without a SHA-256 (the piece CID is the check)', () => {
@@ -245,5 +245,21 @@ describe('backups in parts (above 1 GB)', async () => {
 			copies: [{ retrievalUrl: 'https://sp1.example.com/piece/F1', retrievalUrls: ['F1', 'F2', 's3'].map((c) => `https://sp1.example.com/piece/${c}`) }]
 		});
 		expect(restoreEntry(small)).toEqual({ name: 'backup-s4', pieceCid: 's4', copies: [{ retrievalUrl: 'https://sp1.example.com/piece/s4' }] });
+	});
+
+	it('newerBackup: a start carried on later restores what came after the chosen backup', () => {
+		const copy = [{ retrievalUrl: 'https://sp.example/piece/x' }];
+		const list = [
+			{ pieceCid: 'c9', copies: [], order: 9 },
+			{ pieceCid: 'c7', copies: copy, order: 7 },
+			{ pieceCid: 'c5', copies: copy, order: 5 },
+			{ pieceCid: 'c2', copies: copy, order: 2 }
+		];
+		// The newest one a provider can deliver; one without a copy is skipped.
+		expect(newerBackup(list, { pieceCid: 'c2' })?.pieceCid).toBe('c7');
+		expect(newerBackup(list, { pieceCid: 'c7' })).toBe(null);
+		// Nothing chosen, or a backup the list does not know: it stays as it is.
+		expect(newerBackup(list, null)).toBe(null);
+		expect(newerBackup(list, { pieceCid: 'elsewhere' })).toBe(null);
 	});
 });

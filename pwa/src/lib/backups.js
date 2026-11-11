@@ -213,6 +213,20 @@ export function restoreEntry(backup) {
 	};
 }
 
+/**
+ * The newest restorable backup that came after the one `entry` names, or null:
+ * what a start carried on later must restore instead, so that it does not go
+ * back behind backups the VM made in between. `backups` is newest first, as
+ * listBackups() returns it; an entry the list does not know stays as it is.
+ * @param {Array<{ pieceCid: string, copies: any[], order: number }>} backups
+ * @param {{ pieceCid?: string } | null | undefined} entry
+ */
+export function newerBackup(backups, entry) {
+	const chosen = entry?.pieceCid ? backups.find((b) => b.pieceCid === entry.pieceCid) : null;
+	if (!chosen) return null;
+	return backups.find((b) => b.order > chosen.order && b.copies.length > 0) ?? null;
+}
+
 /** "2,1 GB" for a backup's size, or "" when the chain did not tell it. @param {number | null | undefined} bytes */
 export const backupSize = (bytes) => (typeof bytes === 'number' ? gb(bytes) : '');
 

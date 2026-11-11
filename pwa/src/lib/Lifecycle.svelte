@@ -9,7 +9,7 @@
 	import { alephBalance } from '$lib/balances.js';
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey } from '$lib/keys/derive.js';
-	import { backupSize, listBackups, pieceCidOfStop, place, restoreEntry, splitOwn } from '$lib/backups.js';
+	import { backupSize, listBackups, newerBackup, pieceCidOfStop, place, restoreEntry, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
 	import BackupNow from '$lib/BackupNow.svelte';
@@ -160,6 +160,9 @@
 	let loaded = $state(false);
 	/** A revoke of the backup key retried in the background; a start waits for it. */
 	let revoking = Promise.resolve();
+	// Through Le Space Credits, the service lists this account's data sets;
+	// without its answer, the payer's are filtered by label and tag alone.
+	const listingNow = async () => backupListing(profile, profile.backupsByCredits && profile.backupSigner ? ((await creditsBalance(master).catch(() => null))?.backup ?? null) : null);
 	const reload = async () => {
 		profile = await loadProfile(master);
 		loaded = true;
@@ -170,9 +173,7 @@
 			vmStatus(profile.running.host, statusToken(master))
 				.then((s) => { if (s?.phase === 'stop-partial' && !busy) partial = new BackupPartialError(s); })
 				.catch(() => {});
-		// Through Le Space Credits, the service lists this account's data sets;
-		// without its answer, the payer's are filtered by label and tag alone.
-		const listing = backupListing(profile, profile.backupsByCredits && profile.backupSigner ? ((await creditsBalance(master).catch(() => null))?.backup ?? null) : null);
+		const listing = await listingNow();
 		if (listing && profile.ageIdentity) {
 			backupsError = '';
 			listBackups({ network: profile.network ?? 'calibration', ...listing })
@@ -268,6 +269,16 @@
 	});
 	const resume = () => run(async () => {
 		await reload();
+		// The VM may have made backups since this start was requested (it ran on
+		// while this page was closed). What it restores now is the newest one, not
+		// the one chosen then; if the backups cannot be read, the start waits.
+		const chosen = profile.starting?.restoreEntry;
+		const listing = chosen && profile.ageIdentity ? await listingNow() : null;
+		if (listing) {
+			progress = 'Sicherungen nachsehen';
+			const newer = newerBackup(await listBackups({ network: profile.network ?? 'calibration', ...listing }), chosen);
+			if (newer) profile = await updateProfile(master, (now) => (now.starting ? { ...now, starting: { ...now.starting, restoreEntry: restoreEntry(newer) } } : now));
+		}
 		await finishStart(() => resumeStart(master, $state.snapshot(profile), track('start')));
 	});
 	/** @param {() => Promise<any>} bringUp */
