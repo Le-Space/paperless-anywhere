@@ -110,6 +110,43 @@ impossible to craft content without the passphrase. It does not notice
 blocks that were damaged on purpose: such a VM fails or misbehaves, but it
 cannot be made to run a chosen program.
 
+## Checking what your image is made from
+
+The app shows, beside "Mein Image bauen", the values it has fixed: the
+plain image's SHA-256 and where it lies on Aleph, the commit it was built
+from, the builder's V-PROGRAM and its measurements. With them, anyone can
+check each link of the chain:
+
+1. **The plain image is the one the app names.** Download it and hash it:
+
+   ```sh
+   curl -fsS https://api2.aleph.im/api/v0/messages/<plain STORE hash> | jq -r '.message.content.item_hash'
+   curl -fL -o paperless-plain.ext4 https://api2.aleph.im/api/v0/storage/raw/<that hash>
+   sha256sum paperless-plain.ext4
+   ```
+
+2. **It was built from this repository.** The image workflow's summary names
+   the commit, and, once this repository is public, GitHub signs that the
+   file with this SHA-256 was built by that workflow at that commit:
+
+   ```sh
+   gh attestation verify paperless-plain.ext4 --repo Le-Space/paperless-anywhere
+   ```
+
+   The build is not reproducible bit for bit (Debian packages are fetched at
+   build time), so a rebuild gives the same content with another hash. What
+   it holds can be read: it is an ext4 image, `rootfs/build-image.sh` says
+   what goes in.
+
+3. **The builder is the one the app names.** Its V-PROGRAM message on Aleph
+   names the runtime, the workload volume and the measurements;
+   [`builder/vprogram/`](../builder/vprogram/README.md) says how to verify the
+   volume and call the builder attested.
+
+4. **Your image was sealed by that builder with your passphrase.** That is
+   what the app's attestation before the build and your VM's start show: a
+   disk not sealed with your passphrase does not open.
+
 ## The builder's interface
 
 It listens on `127.0.0.1:8080` in its VM; Aleph's attestation agent is the

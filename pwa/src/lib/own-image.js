@@ -14,8 +14,10 @@ import { sha256Hex } from './vm.js';
  * `measurements` and `policy` are what the attestation must show (computed
  * from the V-PROGRAM runtime and the builder's root hashes); `route` is how
  * an attest relay reaches the builder; `plain` names the public image by its
- * STORE hash and SHA-256, as the image workflow prints them.
- * @type {null | { route: string, measurements: string[], policy: number | string, plain: { store: string, sha256: string } }}
+ * STORE hash and SHA-256, as the image workflow prints them, and the commit
+ * it was built from; `vprogram` is the builder's V-PROGRAM message on Aleph.
+ * All of it is public, and the setup shows it (`sources`).
+ * @type {null | { route: string, measurements: string[], policy: number | string, vprogram?: string, plain: { store: string, sha256: string, commit?: string } }}
  */
 export const BUILDER = null;
 
@@ -29,6 +31,27 @@ export class BuilderError extends Error {
 		super(message);
 		this.name = 'BuilderError';
 	}
+}
+
+export const REPOSITORY = 'https://github.com/Le-Space/paperless-anywhere';
+export const ALEPH_MESSAGE = 'https://api2.aleph.im/api/v0/messages';
+
+/**
+ * What a person's image is made from and by, as rows to show: every value
+ * that is fixed in the app, with a link where there is something to open.
+ * @param {NonNullable<typeof BUILDER>} builder
+ * @returns {{ label: string, value: string, href?: string }[]}
+ */
+export function sources(builder) {
+	const { plain } = checkBuilder(builder);
+	const rows = [
+		{ label: 'Öffentliches Image, SHA-256', value: plain.sha256 },
+		{ label: 'Öffentliches Image bei Aleph', value: plain.store, href: `${ALEPH_MESSAGE}/${plain.store}` }
+	];
+	if (/^[0-9a-f]{40}$/.test(plain.commit ?? '')) rows.push({ label: 'Gebaut aus dem Quelltext-Stand', value: /** @type {string} */ (plain.commit), href: `${REPOSITORY}/tree/${plain.commit}` });
+	if (/^[0-9a-f]{64}$/.test(builder.vprogram ?? '')) rows.push({ label: 'Build-Dienst bei Aleph', value: /** @type {string} */ (builder.vprogram), href: `${ALEPH_MESSAGE}/${builder.vprogram}` });
+	for (const m of builder.measurements) rows.push({ label: 'Messwert des Build-Dienstes', value: m });
+	return rows;
 }
 
 /** A builder entry that is complete, or an error that says what is missing. */

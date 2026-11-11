@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { recoverMessageAddress } from 'viem';
 import { imagePassphrase } from './keys/derive.js';
-import { BUILDER, BuilderError, buildOwnImage, checkBuilder, hasOwnImage, storeMessage } from './own-image.js';
+import { BUILDER, BuilderError, buildOwnImage, checkBuilder, hasOwnImage, sources, storeMessage } from './own-image.js';
 import { sha256Hex } from './vm.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -40,6 +40,16 @@ describe('an image of one\'s own', () => {
 		expect(() => checkBuilder(BUILDER)).toThrow(BuilderError);
 		expect(() => checkBuilder({ ...builder, plain: { store: 'x', sha256: 'y' } })).toThrow(BuilderError);
 		expect(checkBuilder(builder)).toBe(builder);
+	});
+
+	it('names what an image is made from and by, with links only to what is known', () => {
+		expect(sources(builder).map((r) => r.label)).toEqual(['Öffentliches Image, SHA-256', 'Öffentliches Image bei Aleph', 'Messwert des Build-Dienstes']);
+		const full = sources({ ...builder, vprogram: '12'.repeat(32), plain: { ...builder.plain, commit: 'ab'.repeat(20) } });
+		expect(full.find((r) => r.label === 'Gebaut aus dem Quelltext-Stand')?.href).toBe(`https://github.com/Le-Space/paperless-anywhere/tree/${'ab'.repeat(20)}`);
+		expect(full.find((r) => r.label === 'Build-Dienst bei Aleph')?.href).toBe(`https://api2.aleph.im/api/v0/messages/${'12'.repeat(32)}`);
+		// A value that is no hash never becomes part of a link.
+		expect(sources({ ...builder, vprogram: 'x"onclick', plain: { ...builder.plain, commit: '../..' } })).toHaveLength(3);
+		expect(() => sources(null)).toThrow(BuilderError);
 	});
 
 	it('derives one passphrase per vault and plain image', () => {
