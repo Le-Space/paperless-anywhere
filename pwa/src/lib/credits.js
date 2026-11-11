@@ -234,11 +234,25 @@ export function stripeLink(url) {
  * what the app shows until it has asked.
  */
 export const PLANS = Object.freeze([
+	{ id: 'paperless-15', hours: 15, priceCredits: 490 },
+	{ id: 'paperless-100', hours: 100, priceCredits: 1490 },
+	{ id: 'paperless-always', hours: 730, priceCredits: 8900 }
+]);
+/**
+ * Packages no longer offered (le-space-credits#53): an account that has one
+ * keeps it and renews on it until it switches, so the app still names it.
+ */
+export const RETIRED_PLANS = Object.freeze([
 	{ id: 'paperless-10', hours: 10, priceCredits: 400 },
 	{ id: 'paperless-30', hours: 30, priceCredits: 600 },
 	{ id: 'paperless-80', hours: 80, priceCredits: 1000 }
 ]);
-export const planOf = (id, plans = PLANS) => plans.find((p) => p.id === id) ?? null;
+export const planOf = (id, plans = PLANS) => plans.find((p) => p.id === id) ?? RETIRED_PLANS.find((p) => p.id === id) ?? null;
+
+/** A month of round-the-clock running: a package this large is "Dauerbetrieb". */
+export const ALWAYS_HOURS = 720;
+/** How a package's hours read: "15 Stunden", or "Dauerbetrieb" for round the clock. @param {{ hours: number }} plan */
+export const planHours = (plan) => (plan.hours >= ALWAYS_HOURS ? 'Dauerbetrieb' : `${plan.hours} Stunden`);
 
 /**
  * Few hours left of a package: at most a fifth of it, and never less than two hours.
@@ -604,7 +618,7 @@ export async function cancelSubscription(master, options) {
 }
 
 /** The contract as the cancel page names it. @param {{ hours: number } | null} plan @param {string} [id] */
-export const contractName = (plan, id = '') => `Paperless anywhere, Paket ${plan ? `${plan.hours} Stunden` : id}, Monatsabo`;
+export const contractName = (plan, id = '') => `Paperless anywhere, Paket ${plan ? planHours(plan) : id}, Monatsabo`;
 export const CANCEL_KIND = 'Ordentliche Kündigung zum Ende des bezahlten Monats';
 /** Who the contract is with, as the cancel page and its confirmation name it. */
 export const PROVIDER = 'Le Space UG (haftungsbeschränkt), info@le-space.de';

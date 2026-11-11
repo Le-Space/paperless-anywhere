@@ -4,7 +4,7 @@
 	// credits, FIL and USDFC are under "Erweitert" (Balances).
 	import { loadProfile } from '$lib/profile.js';
 	import { amount } from '$lib/balances.js';
-	import { biggerPlan, creditsBalance, creditsCatalog, fewHoursLeft, hoursPerWeek, creditsPurchases, choosePlan, fundVm, planOf, PLANS, quoteVm, startSubscription, subscriptionPortal, waitForSubscription, creditsTerms, waiverOf, WaiverError } from '$lib/credits.js';
+	import { biggerPlan, planHours, creditsBalance, creditsCatalog, fewHoursLeft, hoursPerWeek, creditsPurchases, choosePlan, fundVm, planOf, PLANS, quoteVm, startSubscription, subscriptionPortal, waitForSubscription, creditsTerms, waiverOf, WaiverError } from '$lib/credits.js';
 	import StripeCheckout from '$lib/StripeCheckout.svelte';
 	import Cancel from '$lib/Cancel.svelte';
 	import Waiver from '$lib/Waiver.svelte';
@@ -194,12 +194,12 @@
 			{#if low}
 				<div class="low" role="status" data-testid="plan-low">
 					<p>Nur noch {hoursLeft} {hoursLeft === 1 ? 'Stunde' : 'Stunden'} in diesem Monat. Reicht das nicht, nimm ein größeres Paket{appPays ? ' oder kauf Stunden dazu' : ''}.</p>
-					{#if bigger}<button class="upgrade" onclick={() => (byStripe ? portal() : plan(bigger.id))} disabled={busy} data-testid="plan-upgrade">{bigger.hours} Stunden im Monat für {euro(bigger.priceCredits)}</button>{/if}
+					{#if bigger}<button class="upgrade" onclick={() => (byStripe ? portal() : plan(bigger.id))} disabled={busy} data-testid="plan-upgrade">{bigger.hours >= 720 ? 'Dauerbetrieb' : `${bigger.hours} Stunden im Monat`} für {euro(bigger.priceCredits)}</button>{/if}
 				</div>
 			{/if}
 			<p class="hint" data-testid="plan-current">
-				{#if current && byStripe}Dein Abo: {current.hours} Stunden für {euro(current.priceCredits)} im Monat, per Karte über Stripe. {balance.plan.cancelAtPeriodEnd ? `Gekündigt, endet am ${day(balance.plan.renewsAt ?? balance.plan.periodEnd)}.` : `Es verlängert sich am ${day(balance.plan.renewsAt ?? balance.plan.periodEnd)}; jede Abbuchung mit Rechnung.`}{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}
-				{:else if current}Dein Paket: {current.hours} Stunden für {euro(current.priceCredits)} im Monat. {balance.plan.periodEnd ? `Es verlängert sich am ${day(balance.plan.periodEnd)} und wird dann aus deinem Guthaben bezahlt, solange es reicht.` : 'Es verlängert sich monatlich und wird aus deinem Guthaben bezahlt, solange es reicht.'} Beenden kannst du es jederzeit zum Monatsende.{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}{:else}Paket {balance.plan.id}{/if}
+				{#if current && byStripe}Dein Abo: {planHours(current)} für {euro(current.priceCredits)} im Monat, per Karte über Stripe. {balance.plan.cancelAtPeriodEnd ? `Gekündigt, endet am ${day(balance.plan.renewsAt ?? balance.plan.periodEnd)}.` : `Es verlängert sich am ${day(balance.plan.renewsAt ?? balance.plan.periodEnd)}; jede Abbuchung mit Rechnung.`}{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}
+				{:else if current}Dein Paket: {planHours(current)} für {euro(current.priceCredits)} im Monat. {balance.plan.periodEnd ? `Es verlängert sich am ${day(balance.plan.periodEnd)} und wird dann aus deinem Guthaben bezahlt, solange es reicht.` : 'Es verlängert sich monatlich und wird aus deinem Guthaben bezahlt, solange es reicht.'} Beenden kannst du es jederzeit zum Monatsende.{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}{:else}Paket {balance.plan.id}{/if}
 			</p>
 			{#if byStripe && !cancelling}
 				<!-- The cancel button (§ 312k BGB): always in sight, no fold, no portal. -->
@@ -224,7 +224,7 @@
 				{#each plans as p (p.id)}
 					<button class="plan-choice" class:current={balance.plan?.id === p.id} onclick={() => (balance?.plan ? plan(p.id) : subscribe(p.id))} disabled={busy || balance.plan?.id === p.id || (!balance.plan && planBlocked)} data-testid={`plan-${p.id}`}>
 						{#if recommended === p.id}<em class="badge">Empfehlung</em>{/if}
-						<span>{p.hours} Stunden im Monat</span><strong>{euro(p.priceCredits)}</strong><small class="hint">{perWeek(p.hours)}</small>
+						<span>{p.hours >= 720 ? 'Dauerbetrieb, rund um die Uhr' : `${p.hours} Stunden im Monat`}</span><strong>{euro(p.priceCredits)}</strong><small class="hint">{perWeek(p.hours)}</small>
 					</button>
 				{/each}
 			</div>

@@ -364,8 +364,8 @@ describe('package hints', () => {
 	});
 	it('recommends the next larger package, none after the largest', async () => {
 		const { biggerPlan, PLANS } = await import('./credits.js');
-		expect(biggerPlan(PLANS[0])?.hours).toBe(30);
-		expect(biggerPlan(PLANS[1])?.hours).toBe(80);
+		expect(biggerPlan(PLANS[0])?.hours).toBe(100);
+		expect(biggerPlan(PLANS[1])?.hours).toBe(730);
 		expect(biggerPlan(PLANS[2])).toBe(null);
 		expect(biggerPlan(null)).toBe(null);
 	});
@@ -539,5 +539,16 @@ describe('the cancel page (§ 312k BGB)', () => {
 		expect(text).toContain('Anbieter: Le Space UG (haftungsbeschränkt), info@le-space.de');
 		expect(text).toContain('Impressum: https://le-space.de/#impressum');
 		expect(contractName(null, 'paperless-x')).toBe('Paperless anywhere, Paket paperless-x, Monatsabo');
+	});
+});
+
+describe('package ladder (le-space-credits#53)', () => {
+	it('names a retired package an account still has, and always-on as Dauerbetrieb', async () => {
+		const { planOf, planHours, contractName } = await import('./credits.js');
+		expect(planOf('paperless-30')?.hours).toBe(30);
+		expect(planOf('paperless-always')?.hours).toBe(730);
+		expect(planHours({ hours: 15 })).toBe('15 Stunden');
+		expect(planHours({ hours: 730 })).toBe('Dauerbetrieb');
+		expect(contractName(planOf('paperless-always'))).toBe('Paperless anywhere, Paket Dauerbetrieb, Monatsabo');
 	});
 });
