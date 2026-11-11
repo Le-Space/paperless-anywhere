@@ -279,7 +279,7 @@ jobs:
             echo "VM1_SERIAL=$serial" >> "$GITHUB_ENV"
           fi
           # What paperless-restore takes, as the PWA sends it: the piece CID and the copies.
-          jq '{name, pieceCid, copies: [.copies[] | {retrievalUrl}]}' "$RUNNER_TEMP/entry.full.json" > "$RUNNER_TEMP/entry.json"
+          jq '{name, pieceCid} + (if ((.parts // []) | length) > 1 then {size, parts: [.parts[] | {pieceCid, size}]} else {} end) + {copies: [.copies[] | {retrievalUrl} + (if .retrievalUrls then {retrievalUrls} else {} end)]}' "$RUNNER_TEMP/entry.full.json" > "$RUNNER_TEMP/entry.json"
 
       - name: VM 1 - forget
         if: always() && steps.vm1.outputs.hash != ''

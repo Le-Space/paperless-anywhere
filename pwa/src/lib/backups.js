@@ -6,10 +6,28 @@ import { createPublicClient, http } from 'viem';
 import { getAllDataSetMetadata, getClientDataSets, getPdpDataSets } from '@filoz/synapse-core/warm-storage';
 import { dataSetLive, getActivePiecesByCursor } from '@filoz/synapse-core/pdp-verifier';
 import { getPDPProvidersByIds } from '@filoz/synapse-core/sp-registry';
+import { tryFrom as pieceFrom } from '@filoz/synapse-core/piece';
 import { filecoinChain } from './permissions.js';
 
 /** The data-set label paperless-backup-filecoin writes, per network. */
 export const BACKUP_LABEL = { mainnet: 'paperless-backup', calibration: 'paperless-backup-test' };
+
+/**
+ * paperless-backup-filecoin uploads a sealed export above this many bytes in
+ * parts (its parts.mjs): every part but the last is exactly this long, and
+ * all parts go into one data set in one AddPieces, in order.
+ */
+export const PART_BYTES = 1_000_000_000;
+
+/** A piece's payload size, which its CID (v2) carries; null when it does not. @param {any} cid */
+export function pieceSize(cid) {
+	try {
+		const size = pieceFrom(cid)?.size;
+		return Number.isSafeInteger(size) ? size : null;
+	} catch {
+		return null;
+	}
+}
 
 const cidText = (cid) => (typeof cid === 'string' ? cid : (cid?.toString?.() ?? cid?.['/'] ?? ''));
 
@@ -61,12 +79,89 @@ export async function dataSetsByClientIds(readPage, ids, { maxPages = MAX_DATA_S
 }
 
 /**
- * Newest first. A backup is complete when every labelled data set holds it.
+ * One data set's pieces as backups: in piece-id order, a run of full parts
+ * (exactly PART_BYTES each) and the piece that ends it are one backup in
+ * parts; any other piece is a backup of its own.
+ * @param {Array<{ cid: any, id: any }>} pieces
+ * @param {(cid: string) => number | null} [sizeOf] a piece's payload size (from its CID)
+ * @returns {Array<{ parts: Array<{ pieceCid: string, size: number | null }>, order: number }>}
+ */
+export function groupPieces(pieces, sizeOf = pieceSize) {
+	const sorted = [...pieces].sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0));
+	const groups = [];
+	let run = [];
+	let order = 0;
+	for (const p of sorted) {
+		const pieceCid = cidText(p.cid);
+		const size = sizeOf(pieceCid);
+		run.push({ pieceCid, size });
+		order = Number(p.id);
+		if (size !== PART_BYTES) {
+			groups.push({ parts: run, order });
+			run = [];
+		}
+	}
+	if (run.length) groups.push({ parts: run, order });
+	return groups;
+}
+
+/**
+ * The backups on chain, from each data set's pieces: a backup in parts is
+ * one backup, whose size is the sum of its parts, and a data set holds a copy
+ * of it only with every part. A data set that holds just some of a backup's
+ * parts (one an older tool pruned, or a provider lost) holds no copy of it.
+ * Newest first; complete when every data set holds it.
+ * @param {Array<{ providerId: any, pieces: Array<{ cid: any, id: any }> }>} sets
+ * @param {{ urlOf: (providerId: any) => string | undefined, placeOf?: (providerId: any) => string, sizeOf?: (cid: string) => number | null }} where
+ */
+export function backupsFromPieces(sets, { urlOf, placeOf = () => '', sizeOf = pieceSize }) {
+	const byKey = new Map();
+	for (const ds of sets) {
+		for (const g of groupPieces(ds.pieces, sizeOf)) {
+			const key = g.parts.map((p) => p.pieceCid).join(' ');
+			const entry = byKey.get(key) ?? { parts: g.parts, order: 0, holders: [] };
+			entry.order = Math.max(entry.order, g.order);
+			entry.holders.push(ds.providerId);
+			byKey.set(key, entry);
+		}
+	}
+	const all = [...byKey.values()];
+	const cids = all.map((b) => new Set(b.parts.map((p) => p.pieceCid)));
+	// A fragment: some parts of a longer backup, never a backup of its own
+	// (a lone piece below PART_BYTES is one, also when another set glued it on).
+	const fragment = (i) =>
+		(all[i].parts.length > 1 || all[i].parts[0].size === PART_BYTES) &&
+		cids.some((other, j) => j !== i && other.size > cids[i].size && [...cids[i]].every((c) => other.has(c)));
+	return all
+		.filter((_, i) => !fragment(i))
+		.map((b) => {
+			const copies = b.holders.flatMap((providerId) => {
+				const base = urlOf(providerId);
+				if (!base) return [];
+				const urls = b.parts.map((p) => `${base}/piece/${p.pieceCid}`);
+				return [{ providerId: String(providerId), retrievalUrl: urls[0], ...(b.parts.length > 1 ? { retrievalUrls: urls } : {}), place: placeOf(providerId) }];
+			});
+			const sizes = b.parts.map((p) => p.size);
+			return {
+				pieceCid: b.parts[0].pieceCid,
+				...(b.parts.length > 1 ? { parts: b.parts } : {}),
+				size: sizes.every((n) => n != null) ? sizes.reduce((a, n) => a + n, 0) : null,
+				copies,
+				complete: copies.length >= sets.length,
+				order: b.order
+			};
+		})
+		.sort((a, b) => b.order - a.order);
+}
+
+/**
+ * Newest first. A backup is complete when every labelled data set holds it
+ * (all its parts, for a backup in parts).
  * `customer`: only data sets with this tag (the owner is Le Space's payer).
  * `dataSetIds`: the client data set ids Le Space Credits list for this
  * account; the data sets are picked by them, then checked by label and tag.
  * @param {{ network: string, owner: string, label?: string, customer?: string | null, dataSetIds?: string[] | null }} a
- * @returns {Promise<Array<{ pieceCid: string, copies: Array<{ providerId: string, retrievalUrl: string, place: string }>, complete: boolean, order: number }>>}
+ * @returns {Promise<Array<{ pieceCid: string, parts?: Array<{ pieceCid: string, size: number | null }>, size: number | null, copies: Array<{ providerId: string, retrievalUrl: string, retrievalUrls?: string[], place: string }>, complete: boolean, order: number }>>}
  */
 export async function listBackups({ network, owner, label, customer = null, dataSetIds = null }) {
 	const want = label ?? BACKUP_LABEL[network === 'mainnet' ? 'mainnet' : 'calibration'];
@@ -89,29 +184,37 @@ export async function listBackups({ network, owner, label, customer = null, data
 	if (!sets.length) return [];
 	const providers = await getPDPProvidersByIds(client, { providerIds: [...new Set(sets.map((ds) => BigInt(ds.providerId)))] });
 	const byId = (id) => providers.find((p) => String(p.id) === String(id));
-	const urlOf = (id) => byId(id)?.pdp?.serviceURL?.replace(/\/+$/, '');
-	const byCid = new Map();
+	const withPieces = [];
 	for (const ds of sets) {
 		const { items: pieces } = await getActivePiecesByCursor(client, { dataSetId: BigInt(ds.dataSetId ?? ds.id) });
-		for (const p of pieces) {
-			const cid = cidText(p.cid);
-			const entry = byCid.get(cid) ?? { pieceCid: cid, copies: [], order: 0 };
-			const base = urlOf(ds.providerId);
-			if (base) entry.copies.push({ providerId: String(ds.providerId), retrievalUrl: `${base}/piece/${cid}`, place: place(byId(ds.providerId)?.pdp?.location) });
-			// Piece ids only grow within a data set: the highest is the newest.
-			entry.order = Math.max(entry.order, Number(p.id));
-			byCid.set(cid, entry);
-		}
+		withPieces.push({ providerId: ds.providerId, pieces });
 	}
-	return [...byCid.values()]
-		.map((b) => ({ ...b, complete: b.copies.length >= sets.length }))
-		.sort((a, b) => b.order - a.order);
+	return backupsFromPieces(withPieces, {
+		urlOf: (id) => byId(id)?.pdp?.serviceURL?.replace(/\/+$/, ''),
+		placeOf: (id) => place(byId(id)?.pdp?.location)
+	});
 }
 
-/** What paperless-restore takes for a chain-listed backup: no SHA-256, the piece CID is the check. */
+/**
+ * What paperless-restore takes for a chain-listed backup: no SHA-256, the
+ * piece CID is the check. A backup in parts adds, as the backup tool's ledger
+ * does, `parts` (piece CID and size, in order) and per copy `retrievalUrls`,
+ * one per part; images before parts read only `pieceCid`, the first part, and
+ * fail on it ("age could not decrypt the piece").
+ */
 export function restoreEntry(backup) {
-	return { name: `backup-${backup.pieceCid.slice(-12)}`, pieceCid: backup.pieceCid, copies: backup.copies.map((c) => ({ retrievalUrl: c.retrievalUrl })) };
+	const entry = { name: `backup-${backup.pieceCid.slice(-12)}`, pieceCid: backup.pieceCid, copies: backup.copies.map((c) => ({ retrievalUrl: c.retrievalUrl })) };
+	if (!(backup.parts?.length > 1)) return entry;
+	return {
+		...entry,
+		...(backup.size != null ? { size: backup.size } : {}),
+		parts: backup.parts.map((p) => ({ pieceCid: p.pieceCid, ...(p.size != null ? { size: p.size } : {}) })),
+		copies: backup.copies.map((c) => ({ retrievalUrl: c.retrievalUrl, retrievalUrls: c.retrievalUrls ?? backup.parts.map((p) => c.retrievalUrl.replace(/[^/]+$/, p.pieceCid)) }))
+	};
 }
+
+/** "2,1 GB" for a backup's size, or "" when the chain did not tell it. @param {number | null | undefined} bytes */
+export const backupSize = (bytes) => (typeof bytes === 'number' ? gb(bytes) : '');
 
 /**
  * Where backups go until the person chooses: the two Calibration providers

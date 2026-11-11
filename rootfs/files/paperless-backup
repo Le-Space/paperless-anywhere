@@ -204,8 +204,11 @@ fi
 entry="$(python3 -c '
 import json, sys
 e = json.load(open(sys.argv[1]))[-1]
-keep = ("providerId", "dataSetId", "pieceId", "retrievalUrl", "location", "isNewDataSet")
+keep = ("providerId", "dataSetId", "pieceId", "pieceIds", "retrievalUrl", "location", "isNewDataSet")
+# A backup in parts (above 1 GB): its parts in order; pieceCid is the first.
+parts = [{"pieceCid": p.get("pieceCid"), "size": p.get("size")} for p in (e.get("parts") or [])]
 print(json.dumps({"name": e.get("name"), "date": e.get("date"), "pieceCid": e.get("pieceCid"), "size": e.get("size"),
+  **({"parts": parts} if len(parts) > 1 else {}),
   "complete": e.get("complete"), "requestedCopies": e.get("requestedCopies"),
   "copies": [{k: c.get(k) for k in keep} for c in e.get("copies", [])],
   "failedAttempts": len(e.get("failedAttempts", []))}))' \

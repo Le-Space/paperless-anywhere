@@ -160,3 +160,90 @@ describe('dataSetsByClientIds', () => {
 		expect(backupDataSets(picked, { label: 'paperless-backup-test', customer: 'aa'.repeat(16) }).map((d) => d.clientDataSetId)).toEqual([1n]);
 	});
 });
+
+describe('backups in parts (above 1 GB)', async () => {
+	const { PART_BYTES, backupSize, backupsFromPieces, groupPieces, pieceSize } = await import('./backups.js');
+	const { calculate } = await import('@filoz/synapse-core/piece');
+	// Made-up pieces: full parts (F…), last parts and whole small backups (s…).
+	const sizes = { F1: PART_BYTES, F2: PART_BYTES, s3: 65_000_000, s4: 300_000_000, F5: PART_BYTES, s6: 12, s7: 40_000_000 };
+	const sizeOf = (cid) => sizes[cid] ?? null;
+	const piece = (cid, id) => ({ cid, id: BigInt(id) });
+	const urlOf = (id) => `https://sp${id}.example.com`;
+	const placeOf = (id) => `Land ${id}`;
+
+	it('reads a piece\'s payload size from its CID: a full part is exactly PART_BYTES', async () => {
+		expect(PART_BYTES).toBe(1_000_000_000);
+		// The piece CID of 1,000,000,000 bytes of 0x05 (computed once; too slow for every run).
+		expect(pieceSize('bafkzcibfqdwjihyz242msui7yy6cdap4trmogluxbhyy6rtsiqirm3hwamjxs3y4g4oa')).toBe(PART_BYTES);
+		for (const n of [127, 4096, 99_999]) expect(pieceSize((await calculate(new Uint8Array(n).fill(7))).toString())).toBe(n);
+		expect(pieceSize('not a cid')).toBeNull();
+	});
+
+	it('groups a data set\'s pieces: full parts and the piece that ends them are one backup', () => {
+		const groups = groupPieces([piece('s7', 9), piece('F1', 3), piece('s3', 5), piece('F2', 4), piece('s4', 6), piece('s6', 2)], sizeOf);
+		expect(groups.map((g) => g.parts.map((p) => p.pieceCid))).toEqual([['s6'], ['F1', 'F2', 's3'], ['s4'], ['s7']]);
+		expect(groups.map((g) => g.order)).toEqual([2, 5, 6, 9]);
+	});
+
+	it('lists a backup in parts as ONE backup with its total size, complete only where every part is', () => {
+		const sets = [
+			{ providerId: 1, pieces: [piece('s4', 1), piece('F1', 2), piece('F2', 3), piece('s3', 4)] },
+			{ providerId: 2, pieces: [piece('s4', 7), piece('F1', 8), piece('F2', 9), piece('s3', 10)] }
+		];
+		const list = backupsFromPieces(sets, { urlOf, placeOf, sizeOf });
+		expect(list).toHaveLength(2);
+		const [big, small] = list;
+		expect(big).toEqual({
+			pieceCid: 'F1',
+			parts: [{ pieceCid: 'F1', size: PART_BYTES }, { pieceCid: 'F2', size: PART_BYTES }, { pieceCid: 's3', size: 65_000_000 }],
+			size: 2_065_000_000,
+			copies: [1, 2].map((id) => ({
+				providerId: String(id),
+				retrievalUrl: `https://sp${id}.example.com/piece/F1`,
+				retrievalUrls: ['F1', 'F2', 's3'].map((c) => `https://sp${id}.example.com/piece/${c}`),
+				place: `Land ${id}`
+			})),
+			complete: true,
+			order: 10
+		});
+		expect(backupSize(big.size)).toBe('2,1 GB');
+		// A single-piece backup keeps its old shape (no parts, no retrievalUrls).
+		expect(small).toEqual({ pieceCid: 's4', size: 300_000_000, copies: [1, 2].map((id) => ({ providerId: String(id), retrievalUrl: `https://sp${id}.example.com/piece/s4`, place: `Land ${id}` })), complete: true, order: 7 });
+	});
+
+	it('a data set that lacks a part holds no copy of it, and its rest is no backup of its own', () => {
+		const sets = [
+			{ providerId: 1, pieces: [piece('F1', 2), piece('F2', 3), piece('s3', 4)] },
+			{ providerId: 2, pieces: [piece('F1', 8), piece('s3', 10)] }, // part 2 gone
+			{ providerId: 3, pieces: [piece('F2', 9), piece('s3', 10)] } // part 1 gone (an older tool pruned only the first)
+		];
+		const list = backupsFromPieces(sets, { urlOf, sizeOf });
+		expect(list).toHaveLength(1);
+		expect(list[0].copies.map((c) => c.providerId)).toEqual(['1']);
+		expect(list[0].complete).toBe(false);
+	});
+
+	it('a set whose last part is gone keeps the next backup as a backup of its own', () => {
+		const sets = [
+			{ providerId: 1, pieces: [piece('F1', 2), piece('F5', 3), piece('s3', 4), piece('s6', 5)] },
+			{ providerId: 2, pieces: [piece('F1', 2), piece('F5', 3), piece('s6', 5)] }
+		];
+		const list = backupsFromPieces(sets, { urlOf, sizeOf });
+		const byFirst = Object.fromEntries(list.map((b) => [b.parts?.map((p) => p.pieceCid).join('+') ?? b.pieceCid, b.copies.map((c) => c.providerId)]));
+		expect(byFirst['F1+F5+s3']).toEqual(['1']);
+		expect(byFirst.s6).toEqual(['1']);
+	});
+
+	it('the restore entry carries the parts and each copy\'s URL per part; a single piece stays as before', async () => {
+		const { restoreEntry } = await import('./backups.js');
+		const [big, small] = backupsFromPieces([{ providerId: 1, pieces: [piece('s4', 1), piece('F1', 2), piece('F2', 3), piece('s3', 4)] }], { urlOf, sizeOf });
+		expect(restoreEntry(big)).toEqual({
+			name: 'backup-F1',
+			pieceCid: 'F1',
+			size: 2_065_000_000,
+			parts: [{ pieceCid: 'F1', size: PART_BYTES }, { pieceCid: 'F2', size: PART_BYTES }, { pieceCid: 's3', size: 65_000_000 }],
+			copies: [{ retrievalUrl: 'https://sp1.example.com/piece/F1', retrievalUrls: ['F1', 'F2', 's3'].map((c) => `https://sp1.example.com/piece/${c}`) }]
+		});
+		expect(restoreEntry(small)).toEqual({ name: 'backup-s4', pieceCid: 's4', copies: [{ retrievalUrl: 'https://sp1.example.com/piece/s4' }] });
+	});
+});

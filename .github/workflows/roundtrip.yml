@@ -219,9 +219,10 @@ jobs:
           fi
           jq '{name, pieceCid, complete, copies: (.copies | length)}' "$RUNNER_TEMP/entry.json"
           [ "$(jq -r .complete "$RUNNER_TEMP/entry.json")" = true ] || { echo "::error::the backup is not complete"; exit 1; }
-          # Then, as the PWA sends it: the piece CID and the copies, no SHA-256.
+          # Then, as the PWA sends it: the piece CID and the copies, no SHA-256
+          # (a backup in parts: also its parts and each copy's URLs for them).
           if [ "${{ inputs.check_by || 'piece-cid' }}" = piece-cid ]; then
-            jq '{name, pieceCid, copies: [.copies[] | {retrievalUrl}]}' "$RUNNER_TEMP/entry.json" > "$RUNNER_TEMP/entry.tmp" && mv "$RUNNER_TEMP/entry.tmp" "$RUNNER_TEMP/entry.json"
+            jq '{name, pieceCid} + (if ((.parts // []) | length) > 1 then {size, parts: [.parts[] | {pieceCid, size}]} else {} end) + {copies: [.copies[] | {retrievalUrl} + (if .retrievalUrls then {retrievalUrls} else {} end)]}' "$RUNNER_TEMP/entry.json" > "$RUNNER_TEMP/entry.tmp" && mv "$RUNNER_TEMP/entry.tmp" "$RUNNER_TEMP/entry.json"
           fi
 
       - name: VM 1 - forget
