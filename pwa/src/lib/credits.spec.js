@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { recoverMessageAddress } from 'viem';
-import { backupAuthorize, backupKeyAddress, backupOf, backupRevoke, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
+import { backupAuthorize, backupKeyAddress, backupOf, backupRevoke, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, quoteVm, QuoteUnsupportedError, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
 
 // A made-up vault: the ledger knows it by the address its Aleph key has.
 const master = new Uint8Array(32).fill(7);
@@ -387,5 +387,67 @@ describe('nextStamp', () => {
 		expect(nextStamp('0x00000000000000000000000000000000000000bb', 1_000_000)).toBe(1_000_000);
 		// The clock moving past the last stamp wins.
 		expect(nextStamp(a, 1_000_100)).toBe(1_000_100);
+	});
+});
+
+describe('quoting VM hours before buying them (le-space-credits#47)', () => {
+	const baseUrl = 'https://credits.example.com';
+	const sub = '0x00000000000000000000000000000000000000c1';
+	// Made-up figures in the shape the service answers.
+	const quote = { quote: true, aleph_credits: 570000, charged_credits: 77, expiration: '2026-12-08T00:00:00.000Z', to: sub, credits_before: 2000, credits_after: 1923, hours_before: 0, hours_after: 10 };
+
+	it('asks with quote: true and reads what a purchase would cost and leave', async () => {
+		const svc = jsonService(() => [200, quote]);
+		expect(await quoteVm(master, 10, { baseUrl, fetch: svc.fetch })).toEqual({ hours: 10, alephCredits: 570000, chargedCredits: 77, expiration: '2026-12-08T00:00:00.000Z', to: sub, creditsBefore: 2000, creditsAfter: 1923, hoursBefore: 0, hoursAfter: 10 });
+		expect(svc.seen.last?.method).toBe('POST');
+		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, hours: 10, quote: true });
+		expect(svc.seen.last?.line.startsWith('ls-credits/v1\nPOST\n/v1/vm/fund\npaperless-anywhere\n')).toBe(true);
+	});
+
+	it('takes no purchase for a quote: an older service ignores quote and buys', async () => {
+		const bought = jsonService(() => [200, { transfer_id: 't9', aleph_credits: 570000, charged_credits: 77, expiration: '2026-12-08T00:00:00Z', to: sub }]);
+		const err = await quoteVm(master, 10, { baseUrl, fetch: bought.fetch }).catch((e) => e);
+		expect(err).toBeInstanceOf(QuoteUnsupportedError);
+		expect(err.bought).toBe(true);
+		expect(err.charged).toBe(77);
+		expect(err.message).toMatch(/womöglich schon gekauft \(77 Credits\)/);
+		expect(err.message).toMatch(/nicht noch einmal kaufen/);
+		for (const odd of [{ ...quote, quote: 'true' }, { ...quote, quote: 1 }, { ...quote, quote: undefined }, null, {}]) {
+			const svc = jsonService(() => [200, odd]);
+			await expect(quoteVm(master, 10, { baseUrl, fetch: svc.fetch })).rejects.toBeInstanceOf(QuoteUnsupportedError);
+		}
+		const silent = await quoteVm(master, 10, { baseUrl, fetch: jsonService(() => [200, {}]).fetch }).catch((e) => e);
+		expect(silent.bought).toBe(false);
+		expect(silent.message).toMatch(/erst kaufen, wenn der Dienst bestätigte Käufe kann/);
+	});
+
+	it('refuses a quote without a price, and keeps unknown figures empty', async () => {
+		await expect(quoteVm(master, 10, { baseUrl, fetch: jsonService(() => [200, { ...quote, charged_credits: 'viel' }]).fetch })).rejects.toThrow(/keinen gültigen Preis/);
+		await expect(quoteVm(master, 10, { baseUrl, fetch: jsonService(() => [200, { ...quote, charged_credits: -1 }]).fetch })).rejects.toThrow(/keinen gültigen Preis/);
+		const q = await quoteVm(master, 5, { baseUrl, fetch: jsonService(() => [200, { quote: true, charged_credits: 40, to: 'not an address' }]).fetch });
+		expect(q).toEqual({ hours: 5, alephCredits: null, chargedCredits: 40, expiration: null, to: null, creditsBefore: null, creditsAfter: null, hoursBefore: null, hoursAfter: null });
+	});
+
+	it('says when the balance does not cover the quote (402 INSUFFICIENT)', async () => {
+		const svc = jsonService(() => [402, { error: 'not enough credits', code: 'INSUFFICIENT' }]);
+		const err = await quoteVm(master, 30, { baseUrl, fetch: svc.fetch }).catch((e) => e);
+		expect(err).toBeInstanceOf(CreditsShortError);
+		expect(err.message).toMatch(/Erst aufladen/);
+	});
+
+	it('explains TOO_SOON on a purchase: the hours are on the way', async () => {
+		const svc = jsonService(() => [409, { error: 'hours were bought a moment ago and are there; wait a few minutes before buying more', code: 'TOO_SOON' }]);
+		await expect(fundVm(master, 5, { baseUrl, fetch: svc.fetch })).rejects.toThrow('Stunden sind schon unterwegs, bitte kurz warten.');
+	});
+
+	it('keeps the backups’ own TOO_SOON message', async () => {
+		const svc = jsonService(() => [409, { error: 'too soon', code: 'TOO_SOON' }]);
+		await expect(fundBackups(master, 1, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/Sicherungen wurden gerade erst bezahlt/);
+	});
+
+	it('leaves fundVm as it was: one purchase without quote, the same answer', async () => {
+		const svc = jsonService(() => [200, { transfer_id: 't1', aleph_credits: 570000, charged_credits: 77, expiration: '2026-12-08T00:00:00Z', to: sub, credits_before: 2000, credits_after: 1923, hours_before: 0, hours_after: 10 }]);
+		expect(await fundVm(master, 10, { baseUrl, fetch: svc.fetch })).toEqual({ transferId: 't1', alephCredits: 570000, chargedCredits: 77, expiration: '2026-12-08T00:00:00Z', to: sub });
+		expect(svc.seen.last?.body).not.toHaveProperty('quote');
 	});
 });
