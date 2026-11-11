@@ -272,6 +272,12 @@ const MESSAGES = {
 };
 
 /** The same codes where a backup key is meant (POST /v1/backup/authorize). */
+// Buying VM hours: TOO_SOON means the last purchase is younger than 10
+// minutes and its hours are on the way (not the backups' TOO_SOON).
+const VM_FUND_MESSAGES = {
+	TOO_SOON: 'Stunden sind schon unterwegs, bitte kurz warten.'
+};
+
 const BACKUP_KEY_MESSAGES = {
 	DELEGATES: 'Für dieses Konto sind schon 5 VM-Schlüssel für Sicherungen freigegeben, mehr nimmt der Dienst nicht an.'
 };
@@ -323,11 +329,63 @@ export async function choosePlan(master, planId, options) {
  * @returns {Promise<{ transferId: string, alephCredits: number, chargedCredits: number, expiration: string | null }>}
  */
 export async function fundVm(master, hours, options) {
-	const r = await send(master, 'POST', '/v1/vm/fund', { hours }, options);
+	const r = await send(master, 'POST', '/v1/vm/fund', { hours }, options, VM_FUND_MESSAGES);
 	// `to`: the account the service granted to (the app's address, or the
 	// customer's Le Space sub-account under model A); null from an older service.
 	const to = /^0x[0-9a-fA-F]{40}$/.test(String(r?.to ?? '')) ? String(r.to) : null;
 	return { transferId: String(r?.transfer_id ?? ''), alephCredits: Number(r?.aleph_credits ?? 0), chargedCredits: Number(r?.charged_credits ?? 0), expiration: r?.expiration ?? null, to };
+}
+
+/**
+ * The service answered a quote request like a purchase: it does not know
+ * `quote` yet, and may have charged. `charged` is what its answer says it
+ * charged (null when it says nothing).
+ */
+export class QuoteUnsupportedError extends Error {
+	/** @param {any} answer */
+	constructor(answer) {
+		const charged = answer && typeof answer === 'object' && Number.isFinite(Number(answer.charged_credits)) && answer.charged_credits !== null ? Number(answer.charged_credits) : null;
+		const bought = charged != null || Boolean(answer?.transfer_id);
+		super(
+			bought
+				? `Le Space Credits können noch keinen Preis vorab nennen und haben die Stunden womöglich schon gekauft${charged != null ? ` (${charged} Credits)` : ''}. Bitte das Guthaben prüfen und nicht noch einmal kaufen: bestätigte Käufe gehen erst, wenn der Dienst sie kann.`
+				: 'Le Space Credits können noch keinen Preis vorab nennen. Stunden lassen sich hier erst kaufen, wenn der Dienst bestätigte Käufe kann.'
+		);
+		this.name = 'QuoteUnsupportedError';
+		this.charged = charged;
+		this.bought = bought;
+	}
+}
+
+/** @param {unknown} v */
+const numberOrNull = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+
+/**
+ * What buying `hours` would cost, without buying: the service answers with
+ * `quote: true` and charges nothing. It includes Aleph's start reserve when
+ * the receiving account lacks it. An older service ignores `quote` and buys;
+ * any answer without `quote === true` is therefore no quote, and throws a
+ * QuoteUnsupportedError – the caller must not buy after it.
+ * @param {Uint8Array} master @param {number} hours
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<{ hours: number, alephCredits: number | null, chargedCredits: number, expiration: string | null, to: string | null, creditsBefore: number | null, creditsAfter: number | null, hoursBefore: number | null, hoursAfter: number | null }>}
+ */
+export async function quoteVm(master, hours, options) {
+	const r = await send(master, 'POST', '/v1/vm/fund', { hours, quote: true }, options, VM_FUND_MESSAGES);
+	if (r?.quote !== true) throw new QuoteUnsupportedError(r);
+	const chargedCredits = numberOrNull(r.charged_credits);
+	if (chargedCredits == null || chargedCredits < 0) throw new Error('Le Space Credits nennen keinen gültigen Preis. Bitte später noch einmal.');
+	return {
+		hours,
+		alephCredits: numberOrNull(r.aleph_credits),
+		chargedCredits,
+		expiration: typeof r.expiration === 'string' && r.expiration ? r.expiration : null,
+		to: /^0x[0-9a-fA-F]{40}$/.test(String(r.to ?? '')) ? String(r.to) : null,
+		creditsBefore: numberOrNull(r.credits_before),
+		creditsAfter: numberOrNull(r.credits_after),
+		hoursBefore: numberOrNull(r.hours_before),
+		hoursAfter: numberOrNull(r.hours_after)
+	};
 }
 
 /**

@@ -4,7 +4,10 @@
 	import { vmStatus } from '$lib/vm.js';
 	import Storage from '$lib/Storage.svelte';
 	import { statusToken } from '$lib/keys/derive.js';
-	import { CREDITS_URL, creditsBalance, fundVm, vmAuthorize } from '$lib/credits.js';
+	import { CREDITS_URL, creditsBalance, fundVm, quoteVm, vmAuthorize } from '$lib/credits.js';
+	import { hourPurchase, purchaseLocked } from '$lib/purchase.js';
+	import HourQuote from '$lib/HourQuote.svelte';
+	import { amount } from '$lib/balances.js';
 	import { isAuthorized, readAuthorizations } from '$lib/permissions.js';
 	import { alephBalance } from '$lib/balances.js';
 	import { privateKeyToAccount } from 'viem/accounts';
@@ -203,7 +206,22 @@
 	/** @type {AlephShortError | null} */
 	let short = $state(null);
 	let fundHours = $state(10);
+	// The confirmation before hours are bought: quote first, then one purchase.
+	/** @type {import('$lib/purchase.js').PurchaseState} */
+	let buying = $state({ phase: 'idle', hours: null, quote: null, error: '' });
+	let bought = $state('');
+	const purchase = hourPurchase({
+		quote: (hours) => quoteVm(master, hours),
+		buy: (hours, quote) => fundAndStart(hours, quote),
+		onchange: (s) => (buying = s)
+	});
+	const askToBuy = () => {
+		bought = '';
+		purchase.ask(fundHours);
+	};
 	async function run(fn) {
+		// Another action closes an open confirmation; it buys nothing.
+		purchase.cancel();
 		error = '';
 		errorLog = [];
 		short = null;
@@ -265,14 +283,19 @@
 	// start. Under model A the service grants to the customer's Le Space
 	// sub-account, never to the app's own address: if the hours land there
 	// while the app's address was to pay, the VM is paid from the package.
-	const fundAndStart = () => {
+	// Only after the person confirmed the quote, and once per confirmation:
+	// nothing here retries the purchase (see purchase.js).
+	const fundAndStart = (/** @type {number} */ hours, /** @type {any} */ quote) => {
 		// Read before run() clears `short`.
 		const need = short?.reserve ?? 0;
 		return run(async () => {
-			progress = 'Le Space Credits: Stunden für Aleph holen';
+			progress = 'Le Space Credits: Stunden kaufen';
 			const app = privateKeyToAccount(alephPrivateKey(master)).address;
 			const before = profile.leSpacePays ? null : (await alephBalance(app).catch(() => null))?.credits ?? null;
-			const funded = await fundVm(master, fundHours);
+			const funded = await fundVm(master, hours);
+			// What the account holds now, from the service itself.
+			const now = await creditsBalance(master).catch(() => null);
+			bought = `${hours} Stunden gekauft für ${amount(funded.chargedCredits / 100)} €.${now ? ` Guthaben jetzt ${amount(now.credits / 100)} €.` : ''}${quote?.hoursAfter != null ? ` VM-Stunden: ${amount(quote.hoursAfter, 1)} h.` : ''}`;
 			let payer = profile.leSpacePays ? (profile.vmOwner ?? app) : app;
 			if (funded.to && funded.to.toLowerCase() !== app.toLowerCase()) payer = funded.to;
 			progress = 'Warte, bis Aleph die Gutschrift zeigt';
@@ -287,7 +310,7 @@
 					const owner = await vmAuthorize(master).then((a) => a.owner).catch(() => null);
 					if (owner) payer = owner;
 				}
-				if (i === 35) throw new Error('Die Gutschrift ist bei Aleph noch nicht zu sehen. In ein paar Minuten noch einmal starten – nicht noch einmal holen, sonst werden die Stunden doppelt gekauft.');
+				if (i === 35) throw new Error('Die Gutschrift ist bei Aleph noch nicht zu sehen. In ein paar Minuten noch einmal starten – nicht noch einmal kaufen, sonst werden die Stunden doppelt gekauft.');
 				await new Promise((res) => setTimeout(res, 5000));
 			}
 			if (payer.toLowerCase() !== app.toLowerCase() && !profile.leSpacePays) {
@@ -417,6 +440,17 @@
 	const stepLabel = $derived(action ? (STEPS[action].find((s) => s.step === current)?.label ?? 'Vorbereiten') : '');
 </script>
 
+{#snippet fundOffer()}
+	{@const locked = busy || purchaseLocked(buying)}
+	<div class="fund" data-testid="fund-offer">
+		<label>Stunden aus Le Space Credits kaufen
+			<select bind:value={fundHours} disabled={locked} data-testid="fund-hours">{#each [5, 10, 30] as h (h)}<option value={h}>{h} h</option>{/each}</select></label>
+		<button onclick={askToBuy} disabled={locked} data-testid="fund-start">{buying.phase === 'quoting' ? 'Preis wird abgefragt …' : 'Kaufen und starten'}</button>
+	</div>
+	<HourQuote quote={buying.phase === 'open' ? buying.quote : null} short={buying.phase === 'short'} hoursAsked={buying.hours} topUpHint="Erst Guthaben aufladen, unter „Aufladen, Stunden dazukaufen, Paket ändern“, dann noch einmal kaufen." confirmLabel="Kaufen und starten" disabled={busy || buying.phase === 'buying'} onconfirm={() => purchase.confirm()} oncancel={() => purchase.cancel()} />
+	{#if buying.error}<p class="error" role="alert" data-testid="fund-error">{buying.error}</p>{/if}
+{/snippet}
+
 {#snippet gapWarning()}
 	{#if gap}
 		<div class="warn gap" data-testid="restore-gap">
@@ -496,13 +530,8 @@
 			</div>
 		{/if}
 		{#if errorLog.length}<details class="log" data-testid="simple-backup-log"><summary>Details aus der VM</summary><pre>{errorLog.join('\n')}</pre><ProviderHealth network={profile.network ?? 'calibration'} ids={healthIds} /></details>{/if}
-		{#if short && CREDITS_URL && (profile.appPays || profile.leSpacePays)}
-			<div class="fund" data-testid="fund-offer">
-				<label>Stunden aus Le Space Credits holen
-					<select bind:value={fundHours} data-testid="fund-hours">{#each [5, 10, 30] as h (h)}<option value={h}>{h} h</option>{/each}</select></label>
-				<button onclick={fundAndStart} disabled={busy} data-testid="fund-start">Holen und starten</button>
-			</div>
-		{/if}
+		{#if short && CREDITS_URL && (profile.appPays || profile.leSpacePays)}{@render fundOffer()}{/if}
+		{#if bought}<p class="hint" role="status" data-testid="fund-bought">{bought}</p>{/if}
 	{:else}
 		<header class="head">
 			<h2>Paperless-ngx</h2>
@@ -605,13 +634,8 @@
 				</div>
 			</div>
 		{/if}
-		{#if short && CREDITS_URL && profile.appPays}
-			<div class="fund" data-testid="fund-offer">
-				<label>Stunden aus Le Space Credits holen
-					<select bind:value={fundHours} data-testid="fund-hours">{#each [5, 10, 30] as h (h)}<option value={h}>{h} h</option>{/each}</select></label>
-				<button onclick={fundAndStart} disabled={busy} data-testid="fund-start">Holen und starten</button>
-			</div>
-		{/if}
+		{#if short && CREDITS_URL && profile.appPays}{@render fundOffer()}{/if}
+		{#if bought}<p class="hint" role="status" data-testid="fund-bought">{bought}</p>{/if}
 		{#if errorLog.length}
 			<details open class="log"><summary>Was die VM zur Sicherung meldet</summary><pre data-testid="backup-log">{errorLog.join('\n')}</pre><ProviderHealth network={profile.network ?? 'calibration'} ids={healthIds} /></details>
 		{/if}

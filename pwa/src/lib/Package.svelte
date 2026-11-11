@@ -4,10 +4,12 @@
 	// credits, FIL and USDFC are under "Erweitert" (Balances).
 	import { loadProfile } from '$lib/profile.js';
 	import { amount } from '$lib/balances.js';
-	import { biggerPlan, creditsBalance, creditsCatalog, fewHoursLeft, hoursPerWeek, creditsPurchases, choosePlan, fundVm, planOf, PLANS, startSubscription, subscriptionPortal, waitForSubscription } from '$lib/credits.js';
+	import { biggerPlan, creditsBalance, creditsCatalog, fewHoursLeft, hoursPerWeek, creditsPurchases, choosePlan, fundVm, planOf, PLANS, quoteVm, startSubscription, subscriptionPortal, waitForSubscription } from '$lib/credits.js';
 	import StripeCheckout from '$lib/StripeCheckout.svelte';
 	import TopUp from '$lib/TopUp.svelte';
 	import Terms from '$lib/Terms.svelte';
+	import HourQuote from '$lib/HourQuote.svelte';
+	import { hourPurchase, purchaseLocked } from '$lib/purchase.js';
 
 	/** @type {{ master: Uint8Array, version?: number, onglance?: (g: { plan: boolean, hoursLeft: number | null, pays: string | null, low: boolean } | null) => void }} */
 	let { master, version = 0, onglance = () => {} } = $props();
@@ -52,8 +54,10 @@
 		]);
 	}
 
+	let justBought = $state(false);
 	async function act(/** @type {() => Promise<string>} */ fn) {
 		busy = true;
+		justBought = false;
 		error = note = '';
 		try {
 			note = await fn();
@@ -102,11 +106,29 @@
 			return 'Stripe öffnet …';
 		});
 	const byStripe = $derived(balance?.plan?.billing === 'stripe');
-	const buyHours = (/** @type {number} */ hours) =>
-		act(async () => {
-			const r = await fundVm(master, hours);
-			return `${hours} Stunden dazugekauft für ${euro(r.chargedCredits)}${r.expiration ? `, nutzbar bis ${day(r.expiration)}` : ''}.`;
-		});
+	// Extra hours: a quote first, the confirmation shows it, and only its
+	// button buys – once (purchase.js). act() then re-reads the balance.
+	/** @type {import('$lib/purchase.js').PurchaseState} */
+	let buying = $state({ phase: 'idle', hours: null, quote: null, error: '' });
+	const purchase = hourPurchase({
+		quote: (hours) => quoteVm(master, hours),
+		buy: async (hours) => {
+			await act(async () => {
+				const r = await fundVm(master, hours);
+				return `${hours} Stunden dazugekauft für ${euro(r.chargedCredits)}${r.expiration ? `, nutzbar bis ${day(r.expiration)}` : ''}.`;
+			});
+			justBought = !error;
+		},
+		onchange: (s) => (buying = s),
+		// An older service may have bought on the quote: show what the balance is now.
+		onquotefailed: () => read()
+	});
+	const buyHours = (/** @type {number} */ hours) => {
+		error = note = '';
+		purchase.ask(hours);
+	};
+	// What the balance and the package's hours are after a purchase.
+	const after = $derived(balance ? `Guthaben jetzt ${euro(balance.credits)}${hoursLeft != null ? `, ${hoursLeft} ${hoursLeft === 1 ? 'Stunde' : 'Stunden'} im Paket` : ''}.` : '');
 
 	// Again whenever the profile changed (setup, start, stop).
 	$effect(() => {
@@ -181,7 +203,9 @@
 			{#if balance.plan && appPays}
 				<div class="group">
 					<p class="label">Mehr Stunden für diesen Monat, aus dem Guthaben</p>
-					<p class="row">{#each [5, 10, 30] as h (h)}<button class="chip" onclick={() => buyHours(h)} disabled={busy} data-testid={`buy-${h}`}>+{h} Stunden</button>{/each}</p>
+					<p class="row">{#each [5, 10, 30] as h (h)}<button class="chip" onclick={() => buyHours(h)} disabled={busy || purchaseLocked(buying)} data-testid={`buy-${h}`}>{buying.phase === 'quoting' && buying.hours === h ? 'Preis …' : `+${h} Stunden`}</button>{/each}</p>
+					<HourQuote quote={buying.phase === 'open' ? buying.quote : null} short={buying.phase === 'short'} hoursAsked={buying.hours} topUpHint="Erst Guthaben aufladen (oben, per Karte), dann noch einmal kaufen." confirmLabel="Kaufen" disabled={busy || buying.phase === 'buying'} onconfirm={() => purchase.confirm()} oncancel={() => purchase.cancel()} />
+					{#if buying.error}<p class="warn" role="alert" data-testid="buy-error">{buying.error}</p>{/if}
 				</div>
 			{/if}
 			{#if balance.plan}
@@ -214,6 +238,7 @@
 			{#if byStripe}<p><button class="link" onclick={portal} disabled={busy} data-testid="purchases-portal">Rechnungen des Abos bei Stripe</button></p>{/if}
 		</details>
 		{#if note}<p class="hint" role="status" data-testid="plan-note">{note}</p>{/if}
+		{#if justBought && after}<p class="hint" data-testid="buy-after">{after}</p>{/if}
 		{#if error}<p class="warn" role="alert" data-testid="plan-error">{error}</p>{/if}
 	{:else if balanceError}
 		<p class="warn">{balanceError}</p>
