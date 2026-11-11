@@ -21,8 +21,12 @@ new="$(mktemp)"
 # certificate is there, Caddy serves nothing for it: an ACME attempt of its
 # own for the name would fail (its A record is the node's) and count against
 # the name at Let's Encrypt.
+# Whether this VM has one: the token says so while it is there, and
+# fixed-address.wanted after paperless-fixed-address removed it.
 fixed="" port=""
-if [ -s /tmp/secrets/dns_cloudflare_token ]; then
+wanted=/run/paperless-anywhere/fixed-address.wanted
+if [ -s /tmp/secrets/dns_cloudflare_token ]; then mkdir -p /run/paperless-anywhere; : > "$wanted"; fi
+if [ -e "$wanted" ]; then
   fixed=1
   port="$(head -c 5 /tmp/secrets/https_port 2>/dev/null | tr -d '\r\n')"
   case "$port" in *[!0-9]*|"") echo "paperless-https: no port for the fixed address" >&2; exit 1 ;; esac

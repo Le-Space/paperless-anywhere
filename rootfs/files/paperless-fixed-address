@@ -7,16 +7,31 @@
 # from IPv4 and from IPv6. An existing certificate (from the backup) is
 # renewed only when it has less than 30 days left. Without the token, nothing
 # happens here: paperless-https serves the 2n6 name with Caddy's own ACME.
+#
+# The token is needed for the records and the certificate only. When this
+# ends, with the address ready or given up, the token is zeroed and removed;
+# fixed-address.wanted tells paperless-https that this VM has a fixed address
+# (it used to read that from the token), and fixed-address.done tells
+# paperless-forget-passphrase to remove a token handed over again.
 set -eu
 s=/tmp/secrets
 [ -s "$s/dns_cloudflare_token" ] || exit 0
+state=/run/paperless-anywhere
+mkdir -p "$state"
+: > "$state/fixed-address.wanted"
+forget_token() {
+  f="$s/dns_cloudflare_token"
+  size="$(stat -c %s "$f" 2>/dev/null || echo 0)"
+  [ "$size" -gt 0 ] && dd if=/dev/zero of="$f" bs=1 count="$size" conv=notrunc 2>/dev/null
+  rm -f "$f" "$state/cf-token"
+  : > "$state/fixed-address.done"
+}
+trap forget_token EXIT
 host="$(head -c 253 "$s/https_hostname" | tr -d '\r\n')"
 ipv4="$(head -c 15 "$s/https_ipv4" | tr -d '\r\n')"
 port="$(head -c 5 "$s/https_port" | tr -d '\r\n')"
 case "$host" in *[!a-z0-9.-]*|"") echo "paperless-fixed-address: not a hostname" >&2; exit 1 ;; esac
 case "$port" in *[!0-9]*|"") echo "paperless-fixed-address: not a port" >&2; exit 1 ;; esac
-state=/run/paperless-anywhere
-mkdir -p "$state"
 # The certificate goes into the sealed area: set it up first (it runs once).
 /usr/local/sbin/paperless-data-disk
 started=$(date +%s)

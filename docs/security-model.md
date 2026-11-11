@@ -81,6 +81,9 @@ database, so only inside that person's running VM and their encrypted backups.
 
 ## On the VM
 
+- The DNS token for the fixed address is needed for the records and the
+  certificate only. The VM zeroes and removes it once the address is ready
+  or given up, and again if a later hand-over brings it back.
 - What Paperless writes goes onto a disk area encrypted with a key the VM
   makes at boot and keeps in memory only. If that area cannot be made, Paperless
   does not start.
