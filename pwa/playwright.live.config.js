@@ -5,6 +5,8 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
 	testDir: 'e2e-live',
 	timeout: 75 * 60_000,
-	use: { baseURL: 'http://localhost:4441', trace: 'retain-on-failure' },
+	// No trace, screenshot or video: the test types the recovery words and the
+	// image's passphrase, and the workflow uploads test-results when it fails.
+	use: { baseURL: 'http://localhost:4441', trace: 'off', screenshot: 'off', video: 'off' },
 	webServer: { command: 'npx vite preview --port 4441 --strictPort', url: 'http://localhost:4441', reuseExistingServer: false }
 });

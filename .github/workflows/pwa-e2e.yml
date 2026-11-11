@@ -70,12 +70,9 @@ jobs:
         if: always()
         run: tail -40 "$RUNNER_TEMP/attest-relay.log" || true
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: failure()
-        with:
-          name: pwa-e2e-trace-${{ github.run_id }}
-          path: pwa/test-results
-          retention-days: 7
+      # No artifact from this run: test-results would hold what the test typed
+      # (recovery words, the image's passphrase). The line reporter and the
+      # relay log above are what a failed run leaves.
 
   # Runs even when the test was cancelled or timed out: forget every
   # Paperless VM of the test wallet started since this run began, and take
