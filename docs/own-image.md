@@ -160,6 +160,8 @@ docker run --rm -v "$PWD/check-container.mjs:/opt/builder/check-container.mjs:ro
 - The builder's **measurement** comes from that publication (the Aleph CLI
   computes it and writes it into the V-PROGRAM message) and is then fixed
   in the app, as the runtime of a Paperless VM is.
-- The app gets the step **"Mein Image bauen"**: derive the passphrase, attest,
-  build, sign, store the image's hash in the profile.
+- The builder and the plain image are **fixed in the app** (`BUILDER` in
+  `pwa/src/lib/own-image.js`). The step "Mein Image bauen" in the setup is
+  written and shows up once they are; how an attest relay reaches a
+  V-PROGRAM is still to be tried.
 - The landing page and the security model say so once all of this is true.
