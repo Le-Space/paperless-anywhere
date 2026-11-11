@@ -10,6 +10,10 @@
 # The same for what only the restore reads (the age identity, which opens
 # every backup, and the ledger entry), once restore.json is final: a re-unlock
 # hands them over again, and paperless-restore runs only once.
+#
+# And for the DNS token, once paperless-fixed-address is through with it
+# (fixed-address.done): it removes the token itself, this removes one that a
+# re-unlock hands over afterwards.
 set -u
 f=/tmp/secrets/luks_passphrase
 wipe() {
@@ -28,6 +32,10 @@ while :; do
     for r in /tmp/secrets/age_identity /tmp/secrets/restore_ledger_entry; do
       [ -e "$r" ] && { wipe "$r"; echo "paperless-forget-passphrase: removed $(basename "$r") after the restore"; }
     done
+  fi
+  r=/tmp/secrets/dns_cloudflare_token
+  if [ -e /run/paperless-anywhere/fixed-address.done ] && [ -e "$r" ]; then
+    wipe "$r"; echo "paperless-forget-passphrase: removed the DNS token handed over again"
   fi
   sleep 2
 done
