@@ -30,7 +30,11 @@ export const LABELS = Object.freeze({
 	fixedHost: 'paperless-anywhere/fixed-host/v1',
 	// The path of the VM's detailed status page: only the app that started it
 	// knows it; the public page says no more than the phase.
-	statusToken: 'paperless-anywhere/status-token/v1'
+	statusToken: 'paperless-anywhere/status-token/v1',
+	// The passphrase of this vault's own image (docs/own-image.md), one per
+	// plain image (`/<its SHA-256>` after the label): the 24 words alone open
+	// every image that was ever built for the vault.
+	imagePassphrase: 'paperless-anywhere/image-passphrase/v1'
 });
 
 // The order of secp256k1: a private key must be in [1, n).
@@ -102,6 +106,16 @@ export function paperlessSecrets(master) {
 		dbPassword: base64url(deriveBytes(master, LABELS.paperlessDbPassword, 24)),
 		secretKey: base64url(deriveBytes(master, LABELS.paperlessSecretKey, 48))
 	};
+}
+
+/**
+ * The passphrase that seals this vault's copy of the plain image with
+ * `plainSha256`: 43 characters, the same on every device.
+ * @param {Uint8Array} master @param {string} plainSha256
+ */
+export function imagePassphrase(master, plainSha256) {
+	if (!/^[0-9a-f]{64}$/.test(plainSha256)) throw new Error('the plain image is named by its SHA-256');
+	return base64url(deriveBytes(master, `${LABELS.imagePassphrase}/${plainSha256}`));
 }
 
 /** A fresh master secret. */
