@@ -25,12 +25,23 @@ test('the landing page at / speaks German and English and leads to the app at /a
 
 	await expect(page.getByRole('link', { name: 'Impressum' })).toHaveAttribute('href', 'https://le-space.de/#impressum');
 	await expect(page.getByRole('link', { name: 'Datenschutz' })).toHaveAttribute('href', 'https://le-space.de/#datenschutz');
-	await expect(page.locator('footer')).toContainText('nicht mit ihm verbunden');
+	// Brand: the product is "Paperless anywhere"; Paperless-ngx is the software,
+	// linked at its first mention (the line under the name), with the notice in
+	// the footer, the FAQ and under the start button.
+	await expect(page.getByTestId('brand')).toContainText('Paperless anywhere');
+	await expect(page.getByTestId('brand').getByRole('link', { name: 'Paperless-ngx' })).toHaveAttribute('href', 'https://github.com/paperless-ngx/paperless-ngx');
+	const notice = 'Paperless-ngx ist ein unabhängiges Open-Source-Projekt (GPL-3.0). Paperless anywhere ist ein Angebot von Le Space, nicht mit dem Projekt verbunden und wird von ihm weder unterstützt noch gesponsert.';
+	await expect(page.getByTestId('hero-disclaimer')).toHaveText(notice);
+	await expect(page.getByTestId('footer-disclaimer')).toContainText(notice);
+	await expect(page.locator('#faq details').first()).toContainText(notice);
+	await expect(page.getByRole('link', { name: 'Paperless anywhere starten' }).first()).toHaveAttribute('href', '/app/');
 
 	await page.getByRole('button', { name: 'EN' }).click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Your documents. Awake only when you need them.');
 	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 	await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', 'https://le-space.de/#privacy');
+	await expect(page.getByTestId('hero-disclaimer')).toHaveText('Paperless-ngx is an independent open source project (GPL-3.0). Paperless anywhere is offered by Le Space, is not affiliated with the project and is neither endorsed nor sponsored by it.');
+	await expect(page.getByTestId('brand')).toContainText('Paperless-ngx on demand, run by Le Space');
 	await page.reload();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Your documents. Awake only when you need them.');
 
@@ -44,9 +55,16 @@ test('link previews find title, description and image in the HTML itself, withou
 	const html = await (await request.get('/')).text();
 	expect(html).toContain('<title>Paperless anywhere – Paperless-ngx auf Abruf, vertraulich</title>');
 	for (const tag of ['og:title', 'og:description', 'og:url', 'og:image', 'og:image:alt', 'twitter:card', 'twitter:image']) expect(html).toMatch(new RegExp(`(property|name)="${tag}"`));
-	expect(html).toContain('content="https://paperless.le-space.de/og.png?v=2"');
+	expect(html).toContain('content="https://paperless.le-space.de/og.png?v=3"');
+	expect(html).toContain('rel="manifest"');
+	expect(html).toContain('rel="apple-touch-icon"');
 	expect(html).toContain('Deine Dokumente. Nur wach, wenn du sie brauchst.');
 	const image = await request.get('/og.png');
 	expect(image.ok()).toBe(true);
 	expect(image.headers()['content-type']).toContain('image/png');
+
+	const manifest = await (await request.get('/manifest.webmanifest')).json();
+	expect(manifest.name).toBe('Paperless anywhere');
+	expect(manifest.short_name).toBe('Paperless anywhere');
+	for (const icon of manifest.icons) expect((await request.get(icon.src)).ok()).toBe(true);
 });

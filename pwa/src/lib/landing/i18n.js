@@ -1,4 +1,6 @@
-// The landing page's texts in German and English (same keys). The app itself
+// The landing page's texts in German and English (same keys). The product is
+// "Paperless anywhere"; "Paperless-ngx" names only the software it runs, spelled
+// exactly so; "Paperless" alone or lowercase is neither. The app itself
 // stays German for now; this page is the one people find first.
 
 export const LANGS = ['de', 'en'];
@@ -14,13 +16,23 @@ export function initialLang() {
 	return /^de\b/i.test(globalThis.navigator?.language ?? 'de') ? 'de' : 'en';
 }
 
+// Legal text: how Paperless anywhere stands to the Paperless-ngx project. Worded
+// by Le Space (the English one translated from it); never rephrase it here.
+// Footer, FAQ and the line under the start button use it as it is.
+export const DISCLAIMER = {
+	de: 'Paperless-ngx ist ein unabhängiges Open-Source-Projekt (GPL-3.0). Paperless anywhere ist ein Angebot von Le Space, nicht mit dem Projekt verbunden und wird von ihm weder unterstützt noch gesponsert.',
+	en: 'Paperless-ngx is an independent open source project (GPL-3.0). Paperless anywhere is offered by Le Space, is not affiliated with the project and is neither endorsed nor sponsored by it.'
+};
+
 export const texts = {
 	de: {
 		title: 'Paperless anywhere – Paperless-ngx auf Abruf, vertraulich',
 		description: 'Paperless-ngx auf Abruf in einer vertraulichen VM. Kostet nur, solange es läuft; danach verschlüsselt gesichert und aus.',
-		ogImageAlt: 'Paperless anywhere: Paperless-ngx auf Abruf, in einer vertraulichen VM',
-		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Knoten', storage: 'Backups', prices: 'Preise' },
-		open: 'Paperless starten',
+		ogImageAlt: 'Paperless anywhere, Paperless-ngx auf Abruf, betrieben von Le Space: Deine Dokumente. Nur wach, wenn du sie brauchst.',
+		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Knoten', storage: 'Backups', prices: 'Preise', faq: 'FAQ' },
+		tagline: 'Paperless-ngx auf Abruf, betrieben von Le Space',
+		disclaimer: DISCLAIMER.de,
+		open: 'Paperless anywhere starten',
 		openHint: 'Mit Passkey, ohne Konto.',
 		hero: {
 			kicker: 'Paperless-ngx · auf Abruf · vertraulich',
@@ -52,10 +64,10 @@ export const texts = {
 		},
 		nodes: {
 			title: 'Vertrauliche Rechenknoten, jetzt gerade',
-			lead: 'Auf diesen Knoten kann dein Paperless gerade starten. Die Liste ist live.',
+			lead: 'Auf diesen Knoten kann dein Paperless anywhere gerade starten. Die Liste ist live.',
 			loading: 'Knotenliste wird geladen …',
 			error: 'Die Knotenliste ist gerade nicht erreichbar.',
-			count: (n, fit) => `${n} TEE-Knoten, ${fit} davon mit Platz für eine Paperless-VM (2 vCPU, 4 GiB, 40 GiB)`,
+			count: (n, fit) => `${n} TEE-Knoten, ${fit} davon mit Platz für eine Paperless-anywhere-VM (2 vCPU, 4 GiB, 40 GiB)`,
 			fits: 'hat Platz',
 			full: 'gerade voll',
 			free: (n) => `${n.freeVcpus} vCPU · ${n.freeMemoryGiB} GiB RAM frei`,
@@ -75,20 +87,31 @@ export const texts = {
 		},
 		prices: {
 			title: 'Preise',
-			lead: 'Monatspakete mit Rechenstunden. Du zahlst nur Stunden, in denen Paperless läuft.',
+			lead: 'Monatspakete mit Rechenstunden. Du zahlst nur Stunden, in denen Paperless-ngx läuft.',
 			perMonth: 'pro Monat',
 			hours: (h) => `${h} Stunden`,
 			example: 'Beispiel: zwei Stunden pro Woche sind rund 8,7 Stunden im Monat und passen in das kleinste Paket.',
 			included: 'In jedem Paket enthalten: bis 8 GB Dokumente und ihre verschlüsselten Sicherungen in drei Kopien.',
 		},
+		faq: {
+			title: 'Häufige Fragen',
+			items: [
+				{ q: 'Gehört Paperless anywhere zum Projekt Paperless-ngx?', a: DISCLAIMER.de },
+				{ q: 'Was ist Paperless-ngx?', a: 'Paperless-ngx ist die Open-Source-Software, die in deiner VM läuft: Sie liest Dokumente ein, erkennt den Text und macht sie durchsuchbar. Paperless anywhere startet sie für dich auf Abruf in einer vertraulichen VM und sichert sie danach.' },
+				{ q: 'Brauche ich ein Konto?', a: 'Nein. Ein Passkey auf deinem Gerät öffnet deinen Tresor; die 24 Wörter sind der Weg zurück, falls das Gerät fehlt. Le Space kann den Tresor weder öffnen noch wiederherstellen.' },
+				{ q: 'Was kostet es, wenn Paperless anywhere nicht läuft?', a: 'Keine Rechenzeit. Die Sicherungen liegen verschlüsselt bei den Speicheranbietern; sie sind im Paket enthalten.' }
+			]
+		},
 		cta: { title: 'Bereit?', lead: 'Tresor anlegen dauert eine Minute. Kein Konto, kein Passwort.' },
-		footer: { by: 'Ein Projekt von Le Space', belege: 'Le Space Belege', imprint: 'Impressum', imprintUrl: 'https://le-space.de/#impressum', privacy: 'Datenschutz', privacyUrl: 'https://le-space.de/#datenschutz', built: 'Paperless anywhere rechnet auf vertraulichen Knoten von Aleph Cloud und sichert auf Filecoin.', ngx: 'Paperless-ngx ist ein unabhängiges Open-Source-Projekt (GPL-3.0). Paperless anywhere ist nicht mit ihm verbunden.', ngxLink: 'Paperless-ngx auf GitHub' }
+		footer: { by: 'Ein Projekt von Le Space', belege: 'Le Space Belege', imprint: 'Impressum', imprintUrl: 'https://le-space.de/#impressum', privacy: 'Datenschutz', privacyUrl: 'https://le-space.de/#datenschutz', built: 'Paperless anywhere rechnet auf vertraulichen Knoten von Aleph Cloud und sichert auf Filecoin.', ngxLink: 'Paperless-ngx auf GitHub' }
 	},
 	en: {
 		title: 'Paperless anywhere – Paperless-ngx on demand, confidential',
 		description: 'Paperless-ngx on demand in a confidential VM. Costs only while it runs; then backed up, encrypted, and shut down.',
-		ogImageAlt: 'Paperless anywhere: Paperless-ngx on demand, in a confidential VM',
-		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Nodes', storage: 'Backups', prices: 'Prices' },
+		ogImageAlt: 'Paperless anywhere, Paperless-ngx on demand, run by Le Space: Your documents. Awake only when you need them.',
+		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Nodes', storage: 'Backups', prices: 'Prices', faq: 'FAQ' },
+		tagline: 'Paperless-ngx on demand, run by Le Space',
+		disclaimer: DISCLAIMER.en,
 		open: 'Open the app',
 		openHint: 'With a passkey, no account.',
 		hero: {
@@ -121,10 +144,10 @@ export const texts = {
 		},
 		nodes: {
 			title: 'Confidential compute nodes, right now',
-			lead: 'Your Paperless can start on these nodes right now. The list is live.',
+			lead: 'Your Paperless anywhere can start on these nodes right now. The list is live.',
 			loading: 'Loading the node list …',
 			error: 'The node list cannot be reached right now.',
-			count: (n, fit) => `${n} TEE nodes, ${fit} of them with room for a Paperless VM (2 vCPU, 4 GiB, 40 GiB)`,
+			count: (n, fit) => `${n} TEE nodes, ${fit} of them with room for a Paperless anywhere VM (2 vCPU, 4 GiB, 40 GiB)`,
 			fits: 'has room',
 			full: 'full right now',
 			free: (n) => `${n.freeVcpus} vCPU · ${n.freeMemoryGiB} GiB RAM free`,
@@ -144,13 +167,22 @@ export const texts = {
 		},
 		prices: {
 			title: 'Prices',
-			lead: 'Monthly packages of compute hours. You only use hours while Paperless runs.',
+			lead: 'Monthly packages of compute hours. You only use hours while Paperless-ngx runs.',
 			perMonth: 'per month',
 			hours: (h) => `${h} hours`,
 			example: 'Example: two hours a week are about 8.7 hours a month and fit in the smallest package.',
 			included: 'Included in every package: up to 8 GB of documents and their encrypted backups in three copies.',
 		},
+		faq: {
+			title: 'Frequently asked questions',
+			items: [
+				{ q: 'Is Paperless anywhere part of the Paperless-ngx project?', a: DISCLAIMER.en },
+				{ q: 'What is Paperless-ngx?', a: 'Paperless-ngx is the open source software that runs in your VM: it takes in documents, recognises their text and makes them searchable. Paperless anywhere starts it for you on demand in a confidential VM and backs it up afterwards.' },
+				{ q: 'Do I need an account?', a: 'No. A passkey on your device opens your vault; the 24 words are the way back in if the device is missing. Le Space can neither open nor recover the vault.' },
+				{ q: 'What does it cost while Paperless anywhere is not running?', a: 'No compute time. The backups are stored encrypted with the storage providers; they are included in the package.' }
+			]
+		},
 		cta: { title: 'Ready?', lead: 'Creating a vault takes a minute. No account, no password.' },
-		footer: { by: 'A Le Space project', belege: 'Le Space Belege', imprint: 'Imprint', imprintUrl: 'https://le-space.de/#imprint', privacy: 'Privacy', privacyUrl: 'https://le-space.de/#privacy', built: 'Paperless anywhere computes on confidential nodes of Aleph Cloud and backs up to Filecoin.', ngx: 'Paperless-ngx is an independent open source project (GPL-3.0). Paperless anywhere is not affiliated with it.', ngxLink: 'Paperless-ngx on GitHub' }
+		footer: { by: 'A Le Space project', belege: 'Le Space Belege', imprint: 'Imprint', imprintUrl: 'https://le-space.de/#imprint', privacy: 'Privacy', privacyUrl: 'https://le-space.de/#privacy', built: 'Paperless anywhere computes on confidential nodes of Aleph Cloud and backs up to Filecoin.', ngxLink: 'Paperless-ngx on GitHub' }
 	}
 };
