@@ -146,9 +146,17 @@ describe('packages and hours (belege#591 draft 2)', () => {
 		expect(svc.seen.last?.body.package).toBeNull();
 	});
 
+	it('says where the service granted the hours, when it tells', async () => {
+		const sub = '0x00000000000000000000000000000000000000c1';
+		const svc = jsonService(() => [200, { transfer_id: 't2', aleph_credits: 1, charged_credits: 1, expiration: null, to: sub }]);
+		expect((await fundVm(master, 5, { baseUrl, fetch: svc.fetch })).to).toBe(sub);
+		const odd = jsonService(() => [200, { transfer_id: 't3', aleph_credits: 1, charged_credits: 1, to: 'not an address' }]);
+		expect((await fundVm(master, 5, { baseUrl, fetch: odd.fetch })).to).toBeNull();
+	});
+
 	it('buys hours, keeping the Aleph amount and the charged credits apart', async () => {
 		const svc = jsonService((b) => [200, { transfer_id: 't1', aleph_credits: 570000, charged_credits: 77, expiration: '2026-12-08T00:00:00Z', hours: b.hours }]);
-		expect(await fundVm(master, 10, { baseUrl, fetch: svc.fetch })).toEqual({ transferId: 't1', alephCredits: 570000, chargedCredits: 77, expiration: '2026-12-08T00:00:00Z' });
+		expect(await fundVm(master, 10, { baseUrl, fetch: svc.fetch })).toEqual({ transferId: 't1', alephCredits: 570000, chargedCredits: 77, expiration: '2026-12-08T00:00:00Z', to: null });
 		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, hours: 10 });
 	});
 
