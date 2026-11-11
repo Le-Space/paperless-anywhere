@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { newerBackup, restoreEntry, backupConfigFor, backupDataSets, backupFacts, dataSetsByClientIds, vmBackupSecrets } from './backups.js';
+import { newerBackup, restoreEntry, backupConfigFor, backupDataSets, backupFacts, dataSetsByClientIds, vmBackupSecrets, knownBackup, restoreGap } from './backups.js';
 
 describe('restoreEntry', () => {
 	it('names the piece and its copies, without a SHA-256 (the piece CID is the check)', () => {
@@ -261,5 +261,39 @@ describe('backups in parts (above 1 GB)', async () => {
 		// Nothing chosen, or a backup the list does not know: it stays as it is.
 		expect(newerBackup(list, null)).toBe(null);
 		expect(newerBackup(list, { pieceCid: 'elsewhere' })).toBe(null);
+	});
+});
+
+describe('a start checked against the last backup the profile knows', () => {
+	const list = [
+		{ pieceCid: 'c', order: 30, copies: [{}] },
+		{ pieceCid: 'b', order: 20, copies: [{}] },
+		{ pieceCid: 'a', order: 10, copies: [{}] }
+	];
+
+	it('is fine with the known backup or a newer one', () => {
+		expect(restoreGap(list, list[1], 'b')).toBeNull();
+		expect(restoreGap(list, list[0], 'b')).toBeNull();
+		expect(restoreGap(list, list[0], null)).toBeNull();
+	});
+
+	it('says so when the chosen backup came before the known one', () => {
+		expect(restoreGap(list, list[2], 'b')).toBe('older');
+	});
+
+	it('says so when the list does not hold the known backup', () => {
+		expect(restoreGap(list.slice(1), list[1], 'x')).toBe('missing');
+		expect(restoreGap([], null, 'b')).toBe('missing');
+	});
+
+	it('leaves a start chosen to be empty alone while the known backup is listed', () => {
+		expect(restoreGap(list, null, 'b')).toBeNull();
+	});
+
+	it('takes the known backup from the profile, in its network only', () => {
+		expect(knownBackup({ network: 'mainnet', lastBackup: { pieceCid: 'a', network: 'mainnet' }, lastGoodBackup: { at: '2026-01-01', pieceCid: 'b' } })).toBe('b');
+		expect(knownBackup({ network: 'mainnet', lastBackup: { pieceCid: 'a', network: 'mainnet' }, lastGoodBackup: { at: '2026-01-01' } })).toBe('a');
+		expect(knownBackup({ network: 'mainnet', lastBackup: { pieceCid: 'a', network: 'calibration' } })).toBeNull();
+		expect(knownBackup({})).toBeNull();
 	});
 });

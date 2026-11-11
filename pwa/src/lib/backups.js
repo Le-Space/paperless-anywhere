@@ -227,6 +227,36 @@ export function newerBackup(backups, entry) {
 	return backups.find((b) => b.order > chosen.order && b.copies.length > 0) ?? null;
 }
 
+/**
+ * The piece CID of the last backup the sealed profile knows (the one the last
+ * stop made), or null: what a start must not silently go back behind. Null
+ * when that backup was made in another network than the profile's now.
+ * @param {Record<string, any>} profile
+ */
+export function knownBackup(profile) {
+	const network = profile?.network ?? 'calibration';
+	if (profile?.lastBackup?.network && profile.lastBackup.network !== network) return null;
+	return profile?.lastGoodBackup?.pieceCid ?? profile?.lastBackup?.pieceCid ?? null;
+}
+
+/**
+ * How a start with `chosen` (or with nothing) falls short of the backup the
+ * profile knows: 'missing' when the list read from the chain does not hold
+ * that backup at all, 'older' when `chosen` came before it, null when all is
+ * well (also without a known backup, and for a start chosen to be empty while
+ * the known backup is listed).
+ * @param {Array<{ pieceCid: string, order: number }>} backups as listBackups() returns them
+ * @param {{ pieceCid: string, order: number } | null | undefined} chosen
+ * @param {string | null | undefined} known
+ * @returns {'missing' | 'older' | null}
+ */
+export function restoreGap(backups, chosen, known) {
+	if (!known) return null;
+	const last = backups.find((b) => b.pieceCid === known);
+	if (!last) return 'missing';
+	return chosen && chosen.order < last.order ? 'older' : null;
+}
+
 /** "2,1 GB" for a backup's size, or "" when the chain did not tell it. @param {number | null | undefined} bytes */
 export const backupSize = (bytes) => (typeof bytes === 'number' ? gb(bytes) : '');
 

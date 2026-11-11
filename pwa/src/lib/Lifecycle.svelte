@@ -9,7 +9,7 @@
 	import { alephBalance } from '$lib/balances.js';
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey } from '$lib/keys/derive.js';
-	import { backupSize, listBackups, newerBackup, pieceCidOfStop, place, restoreEntry, splitOwn } from '$lib/backups.js';
+	import { backupSize, knownBackup, listBackups, newerBackup, pieceCidOfStop, place, restoreEntry, restoreGap, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
 	import BackupNow from '$lib/BackupNow.svelte';
@@ -148,6 +148,17 @@
 	// keeps to this vault's own (the test data sets hold other keys' backups).
 	const production = $derived(profile.role === 'primary' && profile.network === 'mainnet');
 	const defaultChoice = (list) => (production && list.length ? 'latest' : splitOwn(list, profile.ownBackups ?? []).own.length ? 'own' : 'empty');
+	const chosenBackup = $derived(choice === 'latest' ? pick(backups ?? []) : choice === 'own' ? pick(split.own) : choice === 'any' ? pick(split.other) : null);
+	// The chain's answer against what the sealed profile knows: a start that
+	// would go back behind the last known backup (the list lacks it, or the
+	// choice is older) waits for the person to say so.
+	const known = $derived(knownBackup(profile));
+	const gap = $derived(backups && !backupsError ? restoreGap(backups, chosenBackup, known) : null);
+	const gapKey = $derived(`${gap}:${choice}:${chosenBackup?.pieceCid ?? ''}`);
+	let gapAccepted = $state('');
+	const gapOpen = $derived(Boolean(gap) && gapAccepted !== gapKey);
+	// The date of a backup, where the profile knows it (the chain has none).
+	const whenOf = (b) => (b && lastGood?.pieceCid === b.pieceCid && lastGood.at ? `, vom ${new Date(lastGood.at).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })}` : '');
 	const wherePlaces = (b) => b.copies.map((c) => c.place || `Anbieter ${c.providerId}`).join(' und ');
 	// Size, and the parts a large backup went up in: shown as one backup.
 	const sizeOf = (b) => [backupSize(b.size), b.parts?.length > 1 ? `in ${b.parts.length} Teilen` : ''].filter(Boolean).join(' ');
@@ -239,7 +250,8 @@
 		await reload();
 		await revoking;
 		if (profile.leSpacePays) await leSpaceOwner();
-		const chosen = choice === 'latest' ? pick(backups ?? []) : choice === 'own' ? pick(split.own) : choice === 'any' ? pick(split.other) : null;
+		const chosen = chosenBackup;
+		if (gapOpen) throw new Error('Der Start wartet auf deine Bestätigung: die letzte bekannte Sicherung würde nicht eingespielt.');
 		const forStart = { ...$state.snapshot(profile), restoreEntry: chosen ? restoreEntry(chosen) : null };
 		// Once Aleph has the VM, the profile knows it: a reload carries on from there.
 		const onRequested = async (starting) => {
@@ -385,6 +397,19 @@
 	const stepLabel = $derived(action ? (STEPS[action].find((s) => s.step === current)?.label ?? 'Vorbereiten') : '');
 </script>
 
+{#snippet gapWarning()}
+	{#if gap}
+		<div class="warn gap" data-testid="restore-gap">
+			<p>
+				{#if gap === 'missing'}Die letzte Sicherung, die diese App kennt ({known?.slice(-12)}{lastGood?.pieceCid === known && lastGood?.at ? `, vom ${new Date(lastGood.at).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}), steht gerade nicht in der Liste der Sicherungen. Ein Start jetzt beginnt {chosenBackup ? 'mit einem anderen Stand' : 'ohne Daten'}.
+				{:else}Die gewählte Sicherung ist älter als die letzte, die diese App kennt ({known?.slice(-12)}). Was danach dazukam, fehlt nach dem Start.{/if}
+				Wenn du das nicht erwartest, versuche es später noch einmal.
+			</p>
+			<label><input type="checkbox" data-testid="restore-gap-accept" checked={!gapOpen} onchange={(e) => (gapAccepted = e.currentTarget.checked ? gapKey : '')} /> Trotzdem so starten</label>
+		</div>
+	{/if}
+{/snippet}
+
 <section class="lifecycle" class:simple data-testid="lifecycle">
 	{#if simple}
 		<div class="status is-{phase}" data-testid="simple-status">
@@ -429,10 +454,11 @@
 				<p class="hint">Paperless anywhere ist hier noch nicht fertig eingerichtet.</p>
 				<button class="secondary" onclick={onadvanced}>Einrichtung öffnen</button>
 			{:else}
-				<button class="cta" onclick={start} disabled={busy || backupsPending || Boolean(backupsError)}>Paperless anywhere starten</button>
+				<button class="cta" onclick={start} disabled={busy || backupsPending || Boolean(backupsError) || gapOpen}>Paperless anywhere starten</button>
 				{#if backupsPending}<p class="hint">Sicherungen werden gelesen …</p>
 				{:else if backupsError}<p class="warn">{backupsError} Bitte gleich noch einmal versuchen.</p>
-				{:else if profile.ageIdentity}<p class="hint" data-testid="simple-restore">{choice === 'latest' || choice === 'own' ? `Startet mit der neuesten Sicherung (${pick(choice === 'latest' ? backups ?? [] : split.own)?.pieceCid.slice(-12)}).` : 'Startet ohne Daten: es gibt noch keine eigene Sicherung.'}</p>{/if}
+				{:else if profile.ageIdentity}<p class="hint" data-testid="simple-restore">{choice === 'latest' || choice === 'own' ? `Startet mit der neuesten Sicherung (${pick(choice === 'latest' ? backups ?? [] : split.own)?.pieceCid.slice(-12)}${whenOf(chosenBackup)}).` : 'Startet ohne Daten: es gibt noch keine eigene Sicherung.'}</p>{/if}
+				{@render gapWarning()}
 				<Storage {master} {profile} />
 			{/if}
 		{/if}
@@ -482,12 +508,12 @@
 					{#if production && backups?.length}
 						<label><input type="radio" bind:group={choice} value="latest" data-testid="restore-latest" />
 							Neueste Sicherung wiederherstellen
-							<small data-testid="latest-backup">({pick(backups).pieceCid.slice(-12)}{sizePart(pick(backups))}, {pick(backups).copies.length} Kopien: {wherePlaces(pick(backups))})</small>
+							<small data-testid="latest-backup">({pick(backups).pieceCid.slice(-12)}{whenOf(pick(backups))}{sizePart(pick(backups))}, {pick(backups).copies.length} Kopien: {wherePlaces(pick(backups))})</small>
 						</label>
 					{/if}
 					<label><input type="radio" bind:group={choice} value="own" disabled={!split.own.length} />
 						Neueste eigene Sicherung wiederherstellen
-						{#if split.own.length}<small data-testid="newest-backup">({pick(split.own).pieceCid.slice(-12)}{sizePart(pick(split.own))}, {pick(split.own).copies.length} Kopien: {wherePlaces(pick(split.own))})</small>
+						{#if split.own.length}<small data-testid="newest-backup">({pick(split.own).pieceCid.slice(-12)}{whenOf(pick(split.own))}{sizePart(pick(split.own))}, {pick(split.own).copies.length} Kopien: {wherePlaces(pick(split.own))})</small>
 						{:else if backups}<small>(dieser Tresor hat noch keine gemacht)</small>{:else}<small>(lese …)</small>{/if}
 					</label>
 					{#if split.other.length}
@@ -499,6 +525,7 @@
 					<label><input type="radio" bind:group={choice} value="empty" /> Leeres Paperless-ngx</label>
 					{#if backupsError}<small class="hint">{backupsError}</small>{/if}
 				</fieldset>
+				{@render gapWarning()}
 			{/if}
 			{#if profile.starting && !busy}
 				<div class="interrupted" data-testid="start-interrupted">
@@ -508,7 +535,7 @@
 				</div>
 			{:else}
 				<p class="role-line" data-testid="role-line">{profile.role === 'primary' ? 'Startet produktiv: Mail-Regeln an, Sicherungen auf Mainnet.' : 'Startet als Test: Mail-Regeln aus, Sicherungen ins Testnetz.'}</p>
-				<button class="cta" onclick={start} disabled={busy || missing.length > 0}>Paperless anywhere starten</button>
+				<button class="cta" onclick={start} disabled={busy || missing.length > 0 || gapOpen}>Paperless anywhere starten</button>
 				{#if missing.length}<p class="hint">Es fehlt noch: {missing.join(', ')}</p>{/if}
 			{/if}
 		{/if}
@@ -623,6 +650,8 @@
 	.simple .warn { background: var(--warn-bg); }
 	.simple .error { background: var(--danger-bg); }
 	.warn { color: var(--warn); }
+	.gap { margin: 0.75rem 0 0; padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); background: var(--warn-bg); font-size: 0.9rem; }
+	.gap p { margin: 0 0 0.4rem; }
 	.log pre { white-space: pre-wrap; font-size: 0.8rem; background: var(--surface-2); padding: 0.5rem; }
 	.backup-card { margin-top: 1rem; }
 	.backup-card dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 0.8rem; }
