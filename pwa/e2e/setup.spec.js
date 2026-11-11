@@ -89,12 +89,12 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await expect(page.getByTestId('age-recipient')).not.toHaveText(ageRecipient(AGE));
 
 	// With image, node and passphrase, the start button comes alive (it reads the saved profile).
-	await expect(page.getByRole('button', { name: 'Paperless starten' })).toBeDisabled();
+	await expect(page.getByRole('button', { name: 'Paperless anywhere starten' })).toBeDisabled();
 	await page.getByPlaceholder('Image (STORE-Hash)').fill('a'.repeat(64));
 	await page.getByPlaceholder('SEV-SNP-Knoten (Hash)').fill('b'.repeat(64));
 	await page.getByPlaceholder('Passphrase des Images').fill('made-up passphrase');
 	await page.getByRole('button', { name: 'Image und Knoten speichern' }).click();
-	await expect(page.getByRole('button', { name: 'Paperless starten' })).toBeEnabled();
+	await expect(page.getByRole('button', { name: 'Paperless anywhere starten' })).toBeEnabled();
 
 	// Aleph holds the profile as a sealed box only.
 	const profile = aggregates.get(appAddress)['paperless-anywhere-profile'];
@@ -159,8 +159,8 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await page.getByRole('button', { name: 'Stimmt' }).click();
 
 	// The simple view: Paperless is off and not set up yet; the way leads to "Erweitert".
-	await expect(page.getByTestId('simple-status')).toContainText('Paperless ist aus');
-	await expect(page.getByRole('button', { name: 'Paperless starten' })).toHaveCount(0);
+	await expect(page.getByTestId('simple-status')).toContainText('Paperless-ngx ist aus');
+	await expect(page.getByRole('button', { name: 'Paperless anywhere starten' })).toHaveCount(0);
 	await page.getByRole('button', { name: 'Einrichtung öffnen' }).click();
 	await expect(page.getByTestId('tab-advanced')).toHaveAttribute('aria-selected', 'true');
 	// Under "Technisch" only the setup is open, because something is missing; the rest stays folded.
@@ -187,7 +187,7 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await expect(page.getByTestId('aleph-status')).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Wallet für Sicherungen verbinden' })).toBeVisible();
 	// Steps are numbered as shown: no Aleph approval and no Filecoin key here, so no gap.
-	await expect(page.getByTestId('setup').locator('h3')).toHaveText(['1. Wer zahlt die VM?', '2. Attest-Relay', '3. Sicherungen', '4. Paperless-Image und Knoten', '5. Feste Adresse (optional)']);
+	await expect(page.getByTestId('setup').locator('h3')).toHaveText(['1. Wer zahlt die VM?', '2. Attest-Relay', '3. Sicherungen', '4. Paperless-anywhere-Image und Knoten', '5. Feste Adresse (optional)']);
 	await open(page, 'tech-balances');
 	await expect(page.getByTestId('balances')).toContainText('Konto der App');
 	await expect(page.getByTestId('balance-credits')).toContainText('1.500.000');

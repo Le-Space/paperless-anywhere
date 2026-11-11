@@ -1,7 +1,10 @@
 <script>
 	// The Belege signet (coin and receipt, style guide 02) with "LE SPACE" and the
-	// app's name beside it. Colours come from the tokens; never tinted apart.
-	let { size = 36, name = 'paperless' } = $props();
+	// product's name beside it. Colours come from the tokens; never tinted apart.
+	// The name is always "Paperless anywhere", never "paperless" alone: that is
+	// the Paperless-ngx project's word, not ours. `sub` is an optional line below.
+	/** @type {{ size?: number, name?: string, sub?: import('svelte').Snippet }} */
+	let { size = 36, name = 'Paperless anywhere', sub } = $props();
 </script>
 
 <span class="logo" style="--size: {size}px">
@@ -17,6 +20,7 @@
 	<span class="words">
 		<span class="prefix">LE SPACE</span>
 		<span class="name">{name}</span>
+		{#if sub}<span class="sub">{@render sub()}</span>{/if}
 	</span>
 </span>
 
@@ -28,4 +32,5 @@
 	.words { display: flex; flex-direction: column; line-height: 1; }
 	.prefix { font-family: var(--mono); font-size: calc(var(--size) * 0.24); letter-spacing: 0.32em; color: var(--text-2); margin-bottom: calc(var(--size) * 0.1); }
 	.name { font-weight: 700; font-size: calc(var(--size) * 0.62); letter-spacing: -0.03em; color: var(--text); }
+	.sub { font-size: calc(var(--size) * 0.3); color: var(--text-2); margin-top: calc(var(--size) * 0.12); line-height: 1.3; }
 </style>

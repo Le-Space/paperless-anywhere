@@ -55,10 +55,10 @@ test('start and stop a confidential Paperless from the PWA', async ({ page }) =>
 	await page.getByPlaceholder('SEV-SNP-Knoten (Hash)').fill(env('CRN_HASH'));
 	await page.getByPlaceholder('Passphrase des Images').fill(env('LUKS_PASSPHRASE'));
 	await page.getByRole('button', { name: 'Image und Knoten speichern' }).click();
-	await expect(page.getByRole('button', { name: 'Paperless starten' })).toBeEnabled({ timeout: 60_000 });
+	await expect(page.getByRole('button', { name: 'Paperless anywhere starten' })).toBeEnabled({ timeout: 60_000 });
 
 	const started = Date.now();
-	await page.getByRole('button', { name: 'Paperless starten' }).click();
+	await page.getByRole('button', { name: 'Paperless anywhere starten' }).click();
 	const progress = page.getByTestId('progress');
 	const link = page.getByTestId('paperless-link');
 	// Print the steps as they come.
@@ -81,7 +81,7 @@ test('start and stop a confidential Paperless from the PWA', async ({ page }) =>
 
 	const stopping = Date.now();
 	await page.getByRole('button', { name: 'Sichern und stoppen' }).click();
-	await expect(page.getByRole('button', { name: 'Paperless starten' })).toBeVisible({ timeout: 30 * 60_000 });
+	await expect(page.getByRole('button', { name: 'Paperless anywhere starten' })).toBeVisible({ timeout: 30 * 60_000 });
 	await expect(page.getByRole('alert')).toHaveCount(0);
 	console.log(`[stop ${Math.round((Date.now() - stopping) / 1000)} s] stopped and forgotten`);
 

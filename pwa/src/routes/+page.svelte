@@ -2,6 +2,7 @@
 	// The landing page at /; the app is at /app/ on the same origin.
 	import { onMount } from 'svelte';
 	import Logo from '$lib/Logo.svelte';
+	import NgxText, { NGX_URL } from '$lib/NgxText.svelte';
 	import TeeNodes from '$lib/landing/TeeNodes.svelte';
 	import StorageProviders from '$lib/landing/StorageProviders.svelte';
 	import { LANGS, initialLang, texts } from '$lib/landing/i18n.js';
@@ -11,7 +12,7 @@
 	// Link previews need absolute addresses.
 	const SITE = 'https://paperless.le-space.de/';
 	// Bump ?v= when the image changes: platforms cache previews by URL.
-	const OG_IMAGE = `${SITE}og.png?v=2`;
+	const OG_IMAGE = `${SITE}og.png?v=3`;
 	// German in the prerendered HTML (what link previews read); the visitor's
 	// language is picked once the page runs.
 	let lang = $state(/** @type {'de' | 'en'} */ ('de'));
@@ -67,13 +68,18 @@
 </svelte:head>
 
 <header class="top">
-	<a class="brand" href="/" aria-label="Paperless anywhere"><Logo size={34} name="paperless" /></a>
+	<!-- Not a link: this is the home page, and the line below links to Paperless-ngx,
+	     its first mention on the page. -->
+	<div class="brand" data-testid="brand">
+		<Logo size={34}>{#snippet sub()}<NgxText text={t.tagline} link />{/snippet}</Logo>
+	</div>
 	<nav aria-label="Sections">
 		<a href="#how">{t.nav.how}</a>
 		<a href="#tee">{t.nav.tee}</a>
 		<a href="#nodes">{t.nav.nodes}</a>
 		<a href="#storage">{t.nav.storage}</a>
 		<a href="#prices">{t.nav.prices}</a>
+		<a href="#faq">{t.nav.faq}</a>
 	</nav>
 	<div class="langs" role="group" aria-label="Language">
 		{#each LANGS as l}
@@ -88,6 +94,7 @@
 		<h1>{t.hero.title}</h1>
 		<p class="lead">{t.hero.lead}</p>
 		<p class="actions"><a class="cta" href={APP}>{t.open} →</a><span class="hint">{t.openHint}</span></p>
+		<p class="disclaimer" data-testid="hero-disclaimer">{t.disclaimer}</p>
 		<ul class="points">
 			{#each t.points as p}<li><h3>{p.t}</h3><p>{p.d}</p></li>{/each}
 		</ul>
@@ -137,6 +144,15 @@
 		<p>{t.prices.example}</p>
 	</section>
 
+	<section id="faq">
+		<h2>{t.faq.title}</h2>
+		<div class="faq">
+			{#each t.faq.items as item, i}
+				<details open={i === 0}><summary>{item.q}</summary><p>{item.a}</p></details>
+			{/each}
+		</div>
+	</section>
+
 	<section class="closing">
 		<h2>{t.cta.title}</h2>
 		<p>{t.cta.lead}</p>
@@ -146,7 +162,7 @@
 
 <footer>
 	<p class="built">{t.footer.built}</p>
-	<p class="built">{t.footer.ngx} <a href="https://github.com/paperless-ngx/paperless-ngx">{t.footer.ngxLink}</a></p>
+	<p class="built" data-testid="footer-disclaimer">{t.disclaimer} <a href={NGX_URL}>{t.footer.ngxLink}</a></p>
 	<span>{t.footer.by}</span>
 	<a href="https://www.belege.le-space.de">{t.footer.belege}</a>
 	<a href="https://le-space.de/">le-space.de</a>
@@ -157,7 +173,7 @@
 <style>
 	.top, main, footer { max-width: 1040px; margin: 0 auto; padding: 0 var(--gutter); }
 	.top { display: flex; align-items: center; gap: 1.25rem; padding-top: 1.25rem; padding-bottom: 1.25rem; }
-	.brand { text-decoration: none; }
+	.brand { min-width: 0; }
 	nav { display: flex; gap: 1.1rem; margin-left: auto; font-size: 0.9rem; }
 	nav a { color: var(--text-2); text-decoration: none; }
 	nav a:hover { color: var(--text); }
@@ -177,6 +193,12 @@
 	.cta { display: inline-block; padding: 0.85rem 1.5rem; border-radius: 999px; background: var(--cta-bg); color: var(--cta-text); font-weight: 600; text-decoration: none; }
 	.cta:hover { filter: brightness(1.08); }
 	.hint { color: var(--text-2); font-size: 0.9rem; }
+	.disclaimer { color: var(--text-2); font-size: 0.8rem; max-width: 46rem; margin: -1.25rem 0 2rem; }
+
+	.faq { display: grid; gap: 0.6rem; max-width: 46rem; }
+	.faq details { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.9rem 1.1rem; }
+	.faq summary { font-weight: 600; cursor: pointer; }
+	.faq p { margin: 0.6rem 0 0; color: var(--text-2); }
 
 	.points, .cards, .steps, .plans { list-style: none; padding: 0; margin: 1.5rem 0 0; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
 	.points li, .cards li, .steps li { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; box-shadow: var(--shadow); }

@@ -19,7 +19,7 @@
 	let showPassword = $state(false);
 
 	async function start() {
-		if (!confirm('Eine zweite Paperless mit der neuesten Sicherung starten? Sie läuft neben der jetzigen, ohne Mails und ohne eigene Sicherungen, und kostet Rechenzeit wie Paperless, bis du sie beendest.')) return;
+		if (!confirm('Eine zweite Paperless-ngx-Instanz mit der neuesten Sicherung starten? Sie läuft neben der jetzigen, ohne Mails und ohne eigene Sicherungen, und kostet Rechenzeit wie die laufende Instanz, bis du sie beendest.')) return;
 		busy = true;
 		error = '';
 		step = 'Sicherungen lesen';
@@ -48,7 +48,7 @@
 	}
 
 	async function end() {
-		if (!confirm('Die Probe beenden? Die zweite VM wird ohne Sicherung gelöscht; was du dort geändert hast, ist dann weg. Die laufende Paperless bleibt.')) return;
+		if (!confirm('Die Probe beenden? Die zweite VM wird ohne Sicherung gelöscht; was du dort geändert hast, ist dann weg. Die laufende Instanz bleibt.')) return;
 		busy = true;
 		error = '';
 		step = 'Probe-VM löschen';
@@ -69,7 +69,7 @@
 <div class="trial" data-testid="trial">
 	<p class="label">Sicherung prüfen</p>
 	{#if !trial}
-		<p class="hint">Startet eine zweite Paperless aus der neuesten Sicherung, neben der laufenden: ohne Mail-Abruf, ohne eigene Sicherungen, mit eigener Adresse. Dort siehst du nach, ob alles da ist, und beendest sie dann.</p>
+		<p class="hint">Startet eine zweite Paperless-ngx-Instanz aus der neuesten Sicherung, neben der laufenden: ohne Mail-Abruf, ohne eigene Sicherungen, mit eigener Adresse. Dort siehst du nach, ob alles da ist, und beendest sie dann.</p>
 		<button type="button" class="small" onclick={start} disabled={busy} data-testid="trial-start">Probe aus der neuesten Sicherung starten</button>
 	{:else if !trial.host}
 		<p class="hint">Die Probe-VM wurde angefordert, ist aber nicht fertig gestartet{busy ? '' : ' (Start unterbrochen)'}.</p>
@@ -77,7 +77,7 @@
 	{:else}
 		<p>Probe läuft, aus Sicherung <code>…{String(trial.backup ?? '').slice(-12)}</code>{#if trial.restore?.status === 'done'}: <strong class="ok">wiederhergestellt{docs != null ? `, ${docs} Dokumente` : ''}</strong>{:else if trial.restore?.status === 'failed'}: <strong class="bad">Wiederherstellung fehlgeschlagen{trial.restore.reason ? ` (${trial.restore.reason})` : ''}</strong>{/if}</p>
 		<a class="open" href={`https://${trial.host}/`} target="_blank" rel="noopener" data-testid="trial-open">Probe öffnen</a>
-		<p class="hint">Anmeldung wie bei deiner Paperless: <code>admin</code>, Passwort {#if showPassword}<code>{adminPassword}</code>{:else}<button type="button" class="link" onclick={() => (showPassword = true)}>anzeigen</button>{/if}</p>
+		<p class="hint">Anmeldung wie bei deiner Paperless-ngx-Instanz: <code>admin</code>, Passwort {#if showPassword}<code>{adminPassword}</code>{:else}<button type="button" class="link" onclick={() => (showPassword = true)}>anzeigen</button>{/if}</p>
 		<button type="button" class="small" onclick={end} disabled={busy} data-testid="trial-end">Probe beenden (ohne Sicherung)</button>
 	{/if}
 	{#if busy && step}<p class="hint" role="status">{step} …</p>{/if}

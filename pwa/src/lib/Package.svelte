@@ -130,11 +130,11 @@
 			<!-- One answer first: how long Paperless can run. Money and changes below. -->
 			{#if pays === 'app' || pays === 'wallet'}
 				<!-- The VM is not paid from the package: say what pays it, so 0 hours do not alarm. -->
-				<p class="big" data-testid="plan-left"><strong>Paperless läuft über {pays === 'app' ? 'das Konto der App' : 'deine Wallet'}</strong></p>
+				<p class="big" data-testid="plan-left"><strong>Paperless anywhere läuft über {pays === 'app' ? 'das Konto der App' : 'deine Wallet'}</strong></p>
 				<p class="hint" data-testid="plan-source">Das Paket wird dafür nicht verbraucht{hoursLeft != null ? ` (darin ${hoursLeft} ${hoursLeft === 1 ? 'Stunde' : 'Stunden'})` : ''}. Es zählt erst, wenn du beim Start „Le Space, aus meinem Paket“ wählst. Was {pays === 'app' ? 'das Konto der App' : 'deine Wallet'} hält, steht unter „Erweitert“.</p>
 			{:else}
 				<p class="big" data-testid="plan-left">
-					{#if hoursLeft != null}<strong>{hoursLeft} {hoursLeft === 1 ? 'Stunde' : 'Stunden'}</strong> Paperless übrig{balance.plan.periodEnd ? `, bis ${day(balance.plan.periodEnd)}` : ''}{:else}Paket aktiv{/if}
+					{#if hoursLeft != null}<strong>{hoursLeft} {hoursLeft === 1 ? 'Stunde' : 'Stunden'}</strong> Laufzeit übrig{balance.plan.periodEnd ? `, bis ${day(balance.plan.periodEnd)}` : ''}{:else}Paket aktiv{/if}
 				</p>
 			{/if}
 			{#if pays !== 'app' && pays !== 'wallet' && hoursLeft != null && current && hoursLeft <= current.hours}
@@ -154,11 +154,11 @@
 			</p>
 		{:else}
 			<p class="big" data-testid="plan-none"><strong>Noch kein Paket</strong></p>
-			<p class="hint">Ein Paket gibt dir jeden Monat Stunden für dein Paperless. Bezahlt wird aus deinem Guthaben.</p>
+			<p class="hint">Ein Paket gibt dir jeden Monat Stunden für dein Paperless anywhere. Bezahlt wird aus deinem Guthaben.</p>
 		{/if}
 
 		<p class="line"><span class="label">Guthaben</span> <strong data-testid="balance-euro">{euro(balance.credits)}</strong>
-			<span class="hint">{#if balance.reserved}davon {euro(balance.reserved)} für das laufende Paperless vorgemerkt · {/if}daraus werden Paket und Zusatzstunden bezahlt</span></p>
+			<span class="hint">{#if balance.reserved}davon {euro(balance.reserved)} für die laufende Instanz vorgemerkt · {/if}daraus werden Paket und Zusatzstunden bezahlt</span></p>
 
 		{#if !balance.plan || choosing}
 			<p class="hint">{balance.plan ? 'Neues Paket wählen:' : 'Paket als Monatsabo per Karte wählen (Stripe, jederzeit zum Monatsende kündbar):'}</p>
