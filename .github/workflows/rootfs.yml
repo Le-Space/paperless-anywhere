@@ -14,6 +14,11 @@ name: Paperless rootfs
 # - purpose "test": the passphrase is the secret PAPERLESS_LUKS_PASSPHRASE,
 #   which the live tests also use. Such an image is for tests only.
 #
+# With "plain", the job also publishes the image without encryption, as a
+# second STORE, and prints its SHA-256. That is what the image builder
+# (builder/, docs/own-image.md) encrypts for one person, and what anyone can
+# download and hash. It holds no secret: no key, no passphrase, no account.
+#
 # Secrets: ALEPH_PRIVATE_KEY (pays), PAPERLESS_LUKS_PASSPHRASE (test images).
 #
 # The image carries no SSH key: root's authorized_keys holds a comment only.
@@ -31,6 +36,11 @@ on:
         options:
           - test
           - release
+      plain:
+        description: Also publish the image without encryption and print its SHA-256 (for the image builder, docs/own-image.md). Costs the storage of a second file.
+        required: true
+        default: false
+        type: boolean
       runner:
         description: Where the job runs. "aleph" needs a runner started with `pnpm relay-button gh-runner up --repo Le-Space/paperless-anywhere`; it uses no hosted minutes.
         required: true
@@ -105,12 +115,71 @@ jobs:
           luks_passphrase: ${{ inputs.purpose == 'release' && steps.key.outputs.passphrase || secrets.PAPERLESS_LUKS_PASSPHRASE }}
           aleph_private_key: ${{ secrets.ALEPH_PRIVATE_KEY }}
 
+      # The same conversion the action above runs (the same script at the same
+      # commit), kept this time: the action removes its plain copy.
+      - name: Get the conversion script
+        if: inputs.plain
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: NiKrause/relay-button
+          ref: 28e4e09c2e988a8cd903d457d734be0d0982be62 # v0.12.1
+          path: relay-button
+          persist-credentials: false
+          sparse-checkout: |
+            packages/rootfs/reference/confidential
+            .github/actions/aleph-confidential-rootfs
+
+      - name: Publish the plain image
+        id: plain
+        if: inputs.plain
+        env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+          ALEPH_API: https://api2.aleph.im
+          CHANNEL: ALEPH-CLOUDSOLUTIONS
+          # What the builder takes: Aleph's 1 GiB upload, less the 32 MiB the
+          # encryption adds (MAX_IMAGE_BYTES in builder/builder.mjs).
+          MAX_BYTES: 1040187392
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq e2fsprogs jq qemu-utils rsync >/dev/null
+          plain="$RUNNER_TEMP/paperless-plain.ext4"
+          printf '%s\n' '# no key in the image: a test sends its own with the unlock' > "$RUNNER_TEMP/plain-authorized_keys"
+          sudo MAX_PLAIN_MIB=3500 relay-button/packages/rootfs/reference/confidential/make-confidential-rootfs.sh \
+            "$RUNNER_TEMP/paperless.ext4" "$plain" "$RUNNER_TEMP/plain-authorized_keys"
+          sudo chown "$(id -u):$(id -g)" "$plain"
+          bytes="$(stat -c %s "$plain")"
+          [ "$bytes" -le "$MAX_BYTES" ] || { echo "::error::the plain image has $bytes bytes; the builder takes at most $MAX_BYTES"; exit 1; }
+          sha="$(sha256sum "$plain" | cut -d' ' -f1)"
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          echo "bytes=$bytes" >> "$GITHUB_OUTPUT"
+
+          dir="$RUNNER_TEMP/plain-store"
+          mkdir -p "$dir"
+          cp relay-button/.github/actions/aleph-confidential-rootfs/publish-store.mjs "$dir/"
+          cd "$dir"
+          npm init -y >/dev/null && npm install --silent ethers@6.13.4 ipfs-unixfs-importer@17.1.1 >/dev/null
+          node publish-store.mjs "$plain" > store.json
+          rm -f "$plain"
+          store="$(jq -r .item_hash store.json)"
+          [[ "$store" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::no STORE hash for the plain image"; exit 1; }
+          echo "store=$store" >> "$GITHUB_OUTPUT"
+          for i in $(seq 1 60); do
+            status="$(curl -fsS "$ALEPH_API/api/v0/messages/$store" | jq -r .status || true)"
+            echo "[$i] STORE $store: $status"
+            [ "$status" = processed ] && exit 0
+            [ "$status" = rejected ] && { echo "::error::the STORE of the plain image was rejected"; exit 1; }
+            sleep 20
+          done
+          echo "::error::the STORE of the plain image was not processed within 20 minutes"; exit 1
+
       - name: Summary
         if: always()
         env:
           STORE: ${{ steps.rootfs.outputs.rootfs_item_hash }}
           SIZE_MIB: ${{ steps.rootfs.outputs.rootfs_size_mib }}
           PURPOSE: ${{ inputs.purpose }}
+          PLAIN_STORE: ${{ steps.plain.outputs.store }}
+          PLAIN_SHA256: ${{ steps.plain.outputs.sha256 }}
+          PLAIN_PUBLISHED_BYTES: ${{ steps.plain.outputs.bytes }}
         run: |
           {
             echo "## Paperless rootfs"
@@ -121,6 +190,18 @@ jobs:
             echo "| Plain image | $(( ${PLAIN_BYTES:-0} / 1048576 )) MiB, built in ${BUILD_SECONDS:-?} s |"
             echo "| Encrypted image | ${SIZE_MIB:-?} MiB |"
             echo "| Purpose | ${PURPOSE} |"
+            if [ -n "$PLAIN_STORE" ]; then
+              echo
+              echo "### Plain image, for the image builder"
+              echo
+              echo "Public and without a secret. The builder is asked for it by these two values; anyone can download it and compare the hash."
+              echo
+              echo "| | |"
+              echo "|---|---|"
+              echo "| Plain image (STORE) | \`${PLAIN_STORE}\` |"
+              echo "| SHA-256 | \`${PLAIN_SHA256}\` |"
+              echo "| Size | $(( ${PLAIN_PUBLISHED_BYTES:-0} / 1048576 )) MiB |"
+            fi
             if [ -s "$RUNNER_TEMP/image-key.age" ] && [ -n "$STORE" ]; then
               echo
               echo "### Passphrase of this image"
