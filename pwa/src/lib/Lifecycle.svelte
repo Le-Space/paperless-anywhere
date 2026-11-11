@@ -206,6 +206,25 @@
 	/** @type {AlephShortError | null} */
 	let short = $state(null);
 	let fundHours = $state(10);
+	// Usable hours in the package (on the Le Space sub-account). When the
+	// app's own address is short but the package holds hours, the start is
+	// offered from the package instead of a purchase.
+	/** @type {number | null} */
+	let packageHours = $state(null);
+	$effect(() => {
+		if (!(short && CREDITS_URL && profile.appPays && !profile.leSpacePays)) return;
+		creditsBalance(master)
+			.then((b) => (packageHours = b?.plan?.hoursLeft == null ? null : Math.floor(b.plan.hoursLeft)))
+			.catch(() => (packageHours = null));
+	});
+	const fromPackage = $derived(Boolean(short && CREDITS_URL && profile.appPays && !profile.leSpacePays && packageHours != null && packageHours >= 1));
+	// Le Space pays the VM from the package from now on (model A), then start.
+	const startFromPackage = () => run(async () => {
+		progress = 'Le Space bezahlt die VM jetzt aus deinem Paket';
+		profile = await updateProfile(master, (now) => ({ ...now, appPays: false, leSpacePays: true }));
+		onchange();
+		await startNow();
+	});
 	// The confirmation before hours are bought: quote first, then one purchase.
 	/** @type {import('$lib/purchase.js').PurchaseState} */
 	let buying = $state({ phase: 'idle', hours: null, quote: null, error: '' });
@@ -442,6 +461,12 @@
 
 {#snippet fundOffer()}
 	{@const locked = busy || purchaseLocked(buying)}
+	{#if fromPackage}
+		<div class="fund" data-testid="package-offer">
+			<p class="hint">In deinem Paket liegen noch {packageHours} {packageHours === 1 ? 'Stunde' : 'Stunden'}. Le Space bezahlt die VM dann daraus; die Zahlweise wechselt auf „Le Space, aus meinem Paket“. Nichts wird gekauft.</p>
+			<button onclick={startFromPackage} disabled={locked} data-testid="start-from-package">Aus dem Paket starten ({packageHours} h)</button>
+		</div>
+	{:else}
 	<div class="fund" data-testid="fund-offer">
 		<label>Stunden aus Le Space Credits kaufen
 			<select bind:value={fundHours} disabled={locked} data-testid="fund-hours">{#each [5, 10, 30] as h (h)}<option value={h}>{h} h</option>{/each}</select></label>
@@ -449,6 +474,7 @@
 	</div>
 	<HourQuote quote={buying.phase === 'open' ? buying.quote : null} short={buying.phase === 'short'} hoursAsked={buying.hours} topUpHint="Erst Guthaben aufladen, unter „Aufladen, Stunden dazukaufen, Paket ändern“, dann noch einmal kaufen." confirmLabel="Kaufen und starten" disabled={busy || buying.phase === 'buying'} onconfirm={() => purchase.confirm()} oncancel={() => purchase.cancel()} />
 	{#if buying.error}<p class="error" role="alert" data-testid="fund-error">{buying.error}</p>{/if}
+	{/if}
 {/snippet}
 
 {#snippet gapWarning()}
