@@ -3,10 +3,16 @@
 	// Checkout on the credits service's /pay page, framed here: Stripe.js never
 	// runs in this app's origin, which holds the unlocked vault.
 	import { amount } from '$lib/balances.js';
-	import { CREDITS_URL, PACKAGES, payMessage, payUrl, startCheckout, waitForTopUp } from '$lib/credits.js';
+	import { CREDITS_URL, PACKAGES, WaiverError, payMessage, payUrl, startCheckout, waitForTopUp, waiverOf } from '$lib/credits.js';
+	import Waiver from '$lib/Waiver.svelte';
 
-	/** @type {{ master: Uint8Array, credits: number, onbooked?: () => void }} */
-	let { master, credits, onbooked = () => {} } = $props();
+	// `withdrawal`: the declaration before a payment, null from an older
+	// service; `ready` once the service's terms were read (or failed to be).
+	/** @type {{ master: Uint8Array, credits: number, withdrawal?: { version: string, de: string, en: string } | null, ready?: boolean, onbooked?: () => void, onwaiver?: () => void }} */
+	let { master, credits, withdrawal = null, ready = true, onbooked = () => {}, onwaiver = () => {} } = $props();
+	// Unticked for every payment: it is the declaration for this one.
+	let waived = $state(false);
+	const blocked = $derived(!ready || (Boolean(withdrawal) && !waived));
 
 	/** @type {string | null} */
 	let frame = $state(null);
@@ -19,12 +25,14 @@
 		busy = true;
 		status = 'Bezahlung wird vorbereitet …';
 		try {
-			const clientSecret = await startCheckout(master, packageId);
+			const clientSecret = await startCheckout(master, packageId, waiverOf(withdrawal, waived));
+			waived = false;
 			frame = payUrl(CREDITS_URL, { clientSecret, origin: location.origin });
 			status = '';
 			dialog?.showModal();
 		} catch (e) {
 			status = /** @type {Error} */ (e).message;
+			if (e instanceof WaiverError) ((waived = false), onwaiver());
 		} finally {
 			busy = false;
 		}
@@ -59,8 +67,9 @@
 </script>
 
 <div class="topup" data-testid="topup">
+	<Waiver {withdrawal} bind:checked={waived} testid="topup-waiver" />
 	{#each PACKAGES as p (p.id)}
-		<button class="small" onclick={() => buy(p.id)} disabled={busy} data-testid={`topup-${p.id}`}>{p.name} aufladen</button>
+		<button class="small" onclick={() => buy(p.id)} disabled={busy || blocked} data-testid={`topup-${p.id}`}>{p.name} aufladen</button>
 	{/each}
 	{#if status}<p class="hint" data-testid="topup-status">{status}</p>{/if}
 </div>

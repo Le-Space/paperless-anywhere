@@ -1,0 +1,64 @@
+// A local stand-in for le-space-credits, on 127.0.0.1 only: the routes the
+// package card uses, with made-up answers. It checks no signature; the unit
+// tests do. GET /__requests lists what it received, POST /__state sets
+// whether a Stripe-billed plan runs. Never the real service.
+import { createServer } from 'node:http';
+
+const PORT = Number(process.env.MOCK_CREDITS_PORT ?? 4422);
+const ORIGIN = process.env.MOCK_CREDITS_ORIGIN ?? 'http://localhost:4421';
+
+const WITHDRAWAL = {
+	version: '1',
+	de: 'Beispieltext zum Widerruf: Ich verlange ausdrücklich, dass vor Ablauf der Widerrufsfrist begonnen wird.',
+	en: 'Example withdrawal text: I expressly request an early start.'
+};
+const RENEWS_AT = '2026-12-01T00:00:00.000Z';
+const RECEIVED_AT = '2026-11-11T10:15:00.000Z';
+
+let state = { plan: true, cancelled: false };
+/** @type {{ method: string, path: string, body: any }[]} */
+let requests = [];
+
+const plan = () => ({ id: 'paperless-30', period_start: '2026-11-01T00:00:00.000Z', period_end: RENEWS_AT, hours_left: 20, billing: 'stripe', renews_at: RENEWS_AT, cancel_at_period_end: state.cancelled });
+
+/** @type {Record<string, (body: any) => [number, any]>} */
+const routes = {
+	'GET /v1/terms': () => [200, { current: null, pending: null, withdrawal: WITHDRAWAL }],
+	'GET /v1/packages': () => [200, { network: null, packages: [{ id: 'paperless-10', hours: 10, price_credits: 400 }, { id: 'paperless-30', hours: 30, price_credits: 600 }, { id: 'paperless-80', hours: 80, price_credits: 1000 }], topups: [] }],
+	'GET /v1/balance': () => [200, { credits: 1234, reserved: 0, lines_this_month: {}, package: state.plan ? plan() : null, terms: {} }],
+	'GET /v1/purchases': () => [200, { purchases: [] }],
+	'POST /v1/checkout': () => [200, { client_secret: 'cs_test_mock_secret', session_id: 'cs_test_mock' }],
+	'POST /v1/subscribe': () => [200, { client_secret: 'cs_test_mock_secret' }],
+	'POST /v1/portal': () => [200, { url: 'https://billing.stripe.com/p/session/test_mock' }],
+	'POST /v1/subscription/cancel': () => {
+		if (!state.plan || state.cancelled) return [409, { error: 'no running subscription to cancel', code: 'NO_SUBSCRIPTION' }];
+		state.cancelled = true;
+		return [200, { kind: 'ordinary', received_at: RECEIVED_AT, effective_at: RENEWS_AT }];
+	}
+};
+
+const server = createServer(async (req, res) => {
+	const url = new URL(req.url ?? '/', `http://127.0.0.1:${PORT}`);
+	res.setHeader('access-control-allow-origin', ORIGIN);
+	res.setHeader('access-control-allow-methods', 'GET, POST, PUT, DELETE, OPTIONS');
+	res.setHeader('access-control-allow-headers', 'content-type, x-ls-address, x-ls-timestamp, x-ls-signature');
+	if (req.method === 'OPTIONS') return res.writeHead(204).end();
+	let raw = '';
+	for await (const chunk of req) raw += chunk;
+	const body = raw ? JSON.parse(raw) : null;
+	const send = (status, json) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(json));
+	if (url.pathname === '/__requests') return send(200, requests);
+	if (url.pathname === '/__state' && req.method === 'POST') {
+		state = { plan: Boolean(body?.plan), cancelled: false };
+		requests = [];
+		return send(200, state);
+	}
+	// The embedded Checkout's page: empty here, nothing is paid.
+	if (url.pathname === '/pay') return res.writeHead(200, { 'content-type': 'text/html' }).end('<!doctype html><title>pay</title><p>Mock checkout</p>');
+	const route = routes[`${req.method} ${url.pathname}`];
+	if (!route) return send(404, { error: 'not found' });
+	requests.push({ method: req.method ?? 'GET', path: url.pathname, body });
+	const [status, json] = route(body);
+	send(status, json);
+});
+server.listen(PORT, '127.0.0.1', () => console.log(`mock credits on http://127.0.0.1:${PORT}`));

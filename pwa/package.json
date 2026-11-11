@@ -9,7 +9,8 @@
 		"build": "vite build",
 		"preview": "vite preview",
 		"test": "vitest run",
-		"e2e": "playwright test"
+		"e2e": "playwright test",
+		"e2e:credits": "playwright test -c playwright.credits.config.js"
 	},
 	"dependencies": {
 		"@chainsafe/libp2p-noise": "17.0.0",
