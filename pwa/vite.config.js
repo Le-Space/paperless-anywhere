@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
+import { licences } from './scripts/licences.js';
 
 // What the footer shows: the release (PAPERLESS_VERSION, set by the deploy
 // workflow), the commit and when this build was made.
@@ -14,7 +15,7 @@ function commit() {
 }
 
 export default defineConfig({
-	plugins: [sveltekit()],
+	plugins: [sveltekit(), licences()],
 	define: {
 		__BUILD__: JSON.stringify({ version: process.env.PAPERLESS_VERSION || 'dev', commit: commit().slice(0, 7), time: new Date().toISOString() })
 	},
