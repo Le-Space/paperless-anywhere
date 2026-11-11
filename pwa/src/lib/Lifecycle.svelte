@@ -261,24 +261,44 @@
 		await finishStart(() => startPaperless(master, forStart, track('start'), { onRequested }));
 	}
 	// Buy hours from Le Space Credits: the service grants them (with Aleph's
-	// start reserve) to the app's address; once Aleph shows them, start.
-	const fundAndStart = () => run(async () => {
+	// start reserve) to the account that pays the VM; once Aleph shows them,
+	// start. Under model A the service grants to the customer's Le Space
+	// sub-account, never to the app's own address: if the hours land there
+	// while the app's address was to pay, the VM is paid from the package.
+	const fundAndStart = () => {
+		// Read before run() clears `short`.
 		const need = short?.reserve ?? 0;
-		progress = 'Le Space Credits: Stunden für Aleph holen';
-		await fundVm(master, fundHours);
-		progress = 'Warte, bis Aleph die Gutschrift zeigt';
-		const app = privateKeyToAccount(alephPrivateKey(master)).address;
-		// The account that pays: the app's own, or Le Space's for this customer (model A).
-		const payerAccount = profile.leSpacePays ? (profile.vmOwner ?? app) : app;
-		for (let i = 0; i < 36; i++) {
-			const b = await alephBalance(payerAccount).catch(() => null);
-			if (b && b.credits >= need) break;
-			if (i === 35) throw new Error('Die Gutschrift ist bei Aleph noch nicht zu sehen. In ein paar Minuten noch einmal starten.');
-			await new Promise((res) => setTimeout(res, 5000));
-		}
-		onchange();
-		await startNow();
-	});
+		return run(async () => {
+			progress = 'Le Space Credits: Stunden für Aleph holen';
+			const app = privateKeyToAccount(alephPrivateKey(master)).address;
+			const before = profile.leSpacePays ? null : (await alephBalance(app).catch(() => null))?.credits ?? null;
+			const funded = await fundVm(master, fundHours);
+			let payer = profile.leSpacePays ? (profile.vmOwner ?? app) : app;
+			if (funded.to && funded.to.toLowerCase() !== app.toLowerCase()) payer = funded.to;
+			progress = 'Warte, bis Aleph die Gutschrift zeigt';
+			const enough = (/** @type {number} */ c) => c >= need && (before == null || payer !== app || c > before);
+			for (let i = 0; i < 36; i++) {
+				const b = await alephBalance(payer).catch(() => null);
+				if (b && enough(b.credits)) break;
+				// The app's address did not get them after half a minute: ask
+				// the service whether it pays this customer's VMs from a
+				// sub-account (model A) and look there.
+				if (i === 6 && payer === app && !profile.leSpacePays) {
+					const owner = await vmAuthorize(master).then((a) => a.owner).catch(() => null);
+					if (owner) payer = owner;
+				}
+				if (i === 35) throw new Error('Die Gutschrift ist bei Aleph noch nicht zu sehen. In ein paar Minuten noch einmal starten – nicht noch einmal holen, sonst werden die Stunden doppelt gekauft.');
+				await new Promise((res) => setTimeout(res, 5000));
+			}
+			if (payer.toLowerCase() !== app.toLowerCase() && !profile.leSpacePays) {
+				// The hours are on the sub-account: from now on Le Space pays the VM from the package.
+				progress = 'Le Space bezahlt die VM jetzt aus deinem Paket';
+				profile = await updateProfile(master, (now) => ({ ...now, appPays: false, leSpacePays: true, vmOwner: payer }));
+			}
+			onchange();
+			await startNow();
+		});
+	};
 	const resume = () => run(async () => {
 		await reload();
 		// The VM may have made backups since this start was requested (it ran on

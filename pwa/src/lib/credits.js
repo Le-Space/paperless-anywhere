@@ -324,7 +324,10 @@ export async function choosePlan(master, planId, options) {
  */
 export async function fundVm(master, hours, options) {
 	const r = await send(master, 'POST', '/v1/vm/fund', { hours }, options);
-	return { transferId: String(r?.transfer_id ?? ''), alephCredits: Number(r?.aleph_credits ?? 0), chargedCredits: Number(r?.charged_credits ?? 0), expiration: r?.expiration ?? null };
+	// `to`: the account the service granted to (the app's address, or the
+	// customer's Le Space sub-account under model A); null from an older service.
+	const to = /^0x[0-9a-fA-F]{40}$/.test(String(r?.to ?? '')) ? String(r.to) : null;
+	return { transferId: String(r?.transfer_id ?? ''), alephCredits: Number(r?.aleph_credits ?? 0), chargedCredits: Number(r?.charged_credits ?? 0), expiration: r?.expiration ?? null, to };
 }
 
 /**
