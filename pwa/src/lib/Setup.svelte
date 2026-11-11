@@ -226,7 +226,13 @@
 		// A pasted passphrase may carry a stray space or line break; the guest only
 		// finds out when it opens the disk, and then waits without a word.
 		const pass = passInput.trim();
-		await save({ rootfsItemHash: image, crnHash: crn, ...(pass ? { luksPassphrase: pass } : {}) });
+		// Every image has a passphrase of its own: another image needs its
+		// passphrase entered with it, and the profile records which image the
+		// passphrase belongs to.
+		const other = Boolean(profile.rootfsItemHash) && image !== profile.rootfsItemHash;
+		if (other && !pass) throw new Error('Ein anderes Image hat eine eigene Passphrase. Bitte die Passphrase dieses Images mit eingeben.');
+		const bound = pass ? { luksPassphrase: pass, luksFor: image } : profile.luksPassphrase && !profile.luksFor ? { luksFor: image } : {};
+		await save({ rootfsItemHash: image, crnHash: crn, ...bound });
 		passInput = '';
 	});
 	const saveDns = () => run('dns', async () => {
