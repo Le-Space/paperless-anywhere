@@ -3,13 +3,14 @@
 How the builder ([docs/own-image.md](../../docs/own-image.md)) gets onto
 Aleph as a measured, confidential VM that anyone can attest.
 
-> **Status: prepared, not tried on Aleph.** The compose file and the image
+> **Status: published once, not verified yet.** The compose file and the image
 > archive are checked locally (the container starts under exactly these
 > settings and runs a whole job). The steps below follow `aleph vprogram`
 > of the Aleph CLI 0.22.0 and Aleph's runtime `compose-1.4`. Of them, only
 > the start of a dry run was tried (the CLI accepts the compose file and
-> the options and resolves the runtime); none has run to its end for this
-> builder yet.
+> the options and resolves the runtime). Through the workflow below, a dry
+> run and a publication have run; an attested call has not verified yet
+> (see "Choosing the node"), so no job has run on Aleph.
 
 ## What runs
 
@@ -39,7 +40,7 @@ and pays. Its summary holds what each action found.
 | Action | Does | Costs |
 |---|---|---|
 | `dry-run` | builds the archive and the workload, computes the launch measurements; uploads and publishes nothing | nothing |
-| `publish` | a dry run first, then uploads the workload and publishes the V-PROGRAM, and waits until it is reachable | credits of the account, from then on **until it is deleted** |
+| `publish` | a dry run first, then uploads the workload and publishes the V-PROGRAM, waits until it is reachable and makes an attested call to it; if that call does not verify, the builder is deleted again | credits of the account, from then on **until it is deleted** |
 | `check` | shows the V-PROGRAM with the given hash and makes one attested call to `/`; fails unless the builder answers | nothing |
 | `delete` | forgets the V-PROGRAM with the given hash; the scheduler then stops the VM | nothing; ends the cost |
 
@@ -47,11 +48,32 @@ The usual order:
 
 1. `dry-run`. If it fails while it fetches Aleph's runtime bundle, start it
    again; it tries three times by itself.
-2. `publish`. Note the item hash from the summary.
-3. `check` with that hash.
+2. `publish`, with a node in `crn` (see below). Note the item hash from the
+   summary. A green run means the attested call verified.
+3. `check` with that hash, whenever you want to know whether it still
+   answers.
 4. Enter the values in the app ([below](#what-goes-into-the-app-afterwards)).
 5. `delete` with that hash when the builder is no longer wanted. A builder
    that was published and forgotten keeps costing.
+
+### Choosing the node
+
+An attested call verifies only on a node whose SEV-SNP firmware (its TCB:
+bootloader, microcode and so on) is at or above the floor Aleph's network
+sets. A node does not say how current its firmware is; only an attestation
+shows it. So:
+
+- Name a node in `crn` (its hash or a unique start of it): one of Aleph's
+  compute nodes that reports `sev_snp` among its CPU features. Without it
+  the scheduler chooses, and it does not look at the firmware.
+- If the attested call fails, `publish` deletes the builder again and the
+  summary says why. Try the next node.
+- `keep` leaves a builder that failed the call running, to look at it with
+  `aleph vprogram logs`. It keeps costing; delete it afterwards.
+
+The first publication (2026-11-11, node chosen by the scheduler) ended this
+way: the VM ran, and the attestation was refused because that node's
+bootloader and microcode were below the floor.
 
 `memory`, `vcpus` and `runtime` have the defaults this page explains; change
 them only with a reason, since each changes the measurement.
