@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { recoverMessageAddress } from 'viem';
-import { backupAuthorize, backupKeyAddress, backupOf, backupRevoke, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, quoteVm, QuoteUnsupportedError, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp } from './credits.js';
+import { backupAuthorize, backupKeyAddress, backupOf, backupRevoke, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, quoteVm, QuoteUnsupportedError, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp, creditsTerms, withdrawalOf, withdrawalText, waiverOf, WaiverError, cancelSubscription, CancelUnsupportedError, cancellationRecord, contractName } from './credits.js';
 
 // A made-up vault: the ledger knows it by the address its Aleph key has.
 const master = new Uint8Array(32).fill(7);
@@ -449,5 +449,94 @@ describe('quoting VM hours before buying them (le-space-credits#47)', () => {
 		const svc = jsonService(() => [200, { transfer_id: 't1', aleph_credits: 570000, charged_credits: 77, expiration: '2026-12-08T00:00:00Z', to: sub, credits_before: 2000, credits_after: 1923, hours_before: 0, hours_after: 10 }]);
 		expect(await fundVm(master, 10, { baseUrl, fetch: svc.fetch })).toEqual({ transferId: 't1', alephCredits: 570000, chargedCredits: 77, expiration: '2026-12-08T00:00:00Z', to: sub });
 		expect(svc.seen.last?.body).not.toHaveProperty('quote');
+	});
+});
+
+describe('the declaration on withdrawal before a payment (le-space-credits#51)', () => {
+	const baseUrl = 'https://credits.example.com';
+	const withdrawal = { version: '1', de: 'Ich verlange ausdrücklich, dass es vor Ablauf der Widerrufsfrist losgeht (Beispieltext).', en: 'I expressly request an early start (example text).' };
+	const termsService = (body) => async () => new Response(JSON.stringify(body));
+
+	it('reads the declaration from the terms, and none from an older service', async () => {
+		expect((await creditsTerms({ baseUrl, fetch: termsService({ current: null, pending: null, withdrawal }) }))?.withdrawal).toEqual(withdrawal);
+		expect((await creditsTerms({ baseUrl, fetch: termsService({ current: null, pending: null }) }))?.withdrawal).toBeNull();
+		expect(withdrawalOf({ version: '1' })).toBeNull();
+		expect(withdrawalOf({ de: 'Text' })).toBeNull();
+		expect(withdrawalText(withdrawal)).toBe(withdrawal.de);
+		expect(withdrawalText(withdrawal, 'en')).toBe(withdrawal.en);
+	});
+
+	it('sends the waiver only when the box is ticked', async () => {
+		expect(waiverOf(withdrawal, true)).toEqual({ waiver: '1' });
+		expect(waiverOf(withdrawal, false)).toEqual({});
+		expect(waiverOf(null, true)).toEqual({});
+
+		const sub = jsonService(() => [200, { client_secret: 'cs_test_x' }]);
+		await startSubscription(master, 'paperless-30', { baseUrl, fetch: sub.fetch, ...waiverOf(withdrawal, true) });
+		expect(sub.seen.last?.body.waiver).toBe('1');
+		await startSubscription(master, 'paperless-30', { baseUrl, fetch: sub.fetch, ...waiverOf(withdrawal, false) });
+		expect(sub.seen.last?.body).not.toHaveProperty('waiver');
+		await startSubscription(master, 'paperless-30', { baseUrl, fetch: sub.fetch, ...waiverOf(null, true) });
+		expect(sub.seen.last?.body).not.toHaveProperty('waiver');
+
+		const top = jsonService(() => [200, { client_secret: 'cs_test_y' }]);
+		await startCheckout(master, 'topup-20', { baseUrl, fetch: top.fetch, ...waiverOf(withdrawal, true) });
+		expect(top.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, package: 'topup-20', locale: 'de', waiver: '1' });
+		await startCheckout(master, 'topup-20', { baseUrl, fetch: top.fetch, ...waiverOf(withdrawal, false) });
+		expect(top.seen.last?.body).not.toHaveProperty('waiver');
+	});
+
+	it('turns 412 WAIVER into a WaiverError, and 412 TERMS still into a TermsError', async () => {
+		const waiver = jsonService(() => [412, { error: 'the declaration on withdrawal (version 1) is missing', code: 'WAIVER' }]);
+		await expect(startSubscription(master, 'paperless-10', { baseUrl, fetch: waiver.fetch })).rejects.toBeInstanceOf(WaiverError);
+		await expect(startCheckout(master, 'topup-20', { baseUrl, fetch: waiver.fetch })).rejects.toThrow(/Erklärung zum Widerrufsrecht/);
+		const terms = jsonService(() => [412, { error: 'terms', code: 'TERMS' }]);
+		await expect(startCheckout(master, 'topup-20', { baseUrl, fetch: terms.fetch })).rejects.toBeInstanceOf(TermsError);
+	});
+});
+
+describe('the cancel page (§ 312k BGB)', () => {
+	const baseUrl = 'https://credits.example.com';
+
+	it('signs the cancel request and reads when it was received and takes effect', async () => {
+		const svc = jsonService(() => [200, { kind: 'ordinary', received_at: '2026-11-11T10:15:00.000Z', effective_at: '2026-12-01T00:00:00.000Z' }]);
+		expect(await cancelSubscription(master, { baseUrl, fetch: svc.fetch })).toEqual({ kind: 'ordinary', receivedAt: '2026-11-11T10:15:00.000Z', effectiveAt: '2026-12-01T00:00:00.000Z' });
+		expect(svc.seen.last?.method).toBe('POST');
+		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address });
+		expect(svc.seen.last?.line.startsWith(`ls-credits/v1\nPOST\n/v1/subscription/cancel\n${CREDITS_PRODUCT}\n${account.address}\n`)).toBe(true);
+		expect(await recoverMessageAddress({ message: svc.seen.last?.line ?? '', signature: svc.seen.last?.signature })).toBe(account.address);
+	});
+
+	it('keeps an unknown effective date as null, and refuses an answer without a receipt time', async () => {
+		const noEnd = jsonService(() => [200, { kind: 'ordinary', received_at: '2026-11-11T10:15:00.000Z', effective_at: null }]);
+		expect((await cancelSubscription(master, { baseUrl, fetch: noEnd.fetch })).effectiveAt).toBeNull();
+		const empty = jsonService(() => [200, {}]);
+		await expect(cancelSubscription(master, { baseUrl, fetch: empty.fetch })).rejects.toThrow(/nicht bestätigt/);
+	});
+
+	it('says when no subscription runs (409 NO_SUBSCRIPTION)', async () => {
+		const svc = jsonService(() => [409, { error: 'no running subscription to cancel', code: 'NO_SUBSCRIPTION' }]);
+		await expect(cancelSubscription(master, { baseUrl, fetch: svc.fetch })).rejects.toThrow('Es läuft kein Abo, das gekündigt werden könnte.');
+		// The portal keeps its own wording for the same code.
+		await expect(subscriptionPortal(master, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/zum Verwalten/);
+	});
+
+	it('falls back to the portal on an older service (404)', async () => {
+		const old = async () => new Response('Not Found', { status: 404 });
+		const e = await cancelSubscription(master, { baseUrl, fetch: old }).catch((x) => x);
+		expect(e).toBeInstanceOf(CancelUnsupportedError);
+		expect(e.message).toMatch(/Kundenportal von Stripe/);
+	});
+
+	it('builds the confirmation file', () => {
+		const { filename, text } = cancellationRecord({ contract: contractName({ hours: 30 }), receivedAt: '2026-11-11T10:15:00.000Z', effectiveAt: '2026-12-01T00:00:00.000Z', address: '0x' + 'ab'.repeat(20), timeZone: 'UTC' });
+		expect(filename).toBe('kuendigung-paperless-anywhere-2026-11-11.txt');
+		expect(text).toContain('Vertrag: Paperless anywhere, Paket 30 Stunden, Monatsabo');
+		expect(text).toContain('Art: Ordentliche Kündigung zum Ende des bezahlten Monats');
+		expect(text).toMatch(/Kündigung eingegangen am: 11\.11\.2026, 10:15 UTC \(2026-11-11T10:15:00\.000Z\)/);
+		expect(text).toContain('Wirksam zum: 01.12.2026 (2026-12-01T00:00:00.000Z)');
+		expect(text).toContain(`Konto (Adresse): 0x${'ab'.repeat(20)}`);
+		expect(text).toContain('info@le-space.de');
+		expect(contractName(null, 'paperless-x')).toBe('Paperless anywhere, Paket paperless-x, Monatsabo');
 	});
 });
