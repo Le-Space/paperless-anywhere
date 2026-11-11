@@ -74,6 +74,9 @@ shows it. So:
 The first publication (2026-11-11, node chosen by the scheduler) ended this
 way: the VM ran, and the attestation was refused because that node's
 bootloader and microcode were below the floor.
+The second, on a named node, verified (bootloader 10, microcode 88), but
+the builder did not answer yet at the first call and the workflow of that
+day deleted it too early; it now waits for the builder to come up.
 
 `memory`, `vcpus` and `runtime` have the defaults this page explains; change
 them only with a reason, since each changes the measurement.

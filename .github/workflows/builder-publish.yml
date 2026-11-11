@@ -156,14 +156,17 @@ jobs:
 
           # The attested call: only a builder that verifies is worth keeping.
           # The workload needs a moment to load its image, so a refused
-          # connection or a 503 is tried again; a verdict on the node's
-          # firmware or the measurement is final.
+          # connection or an answer that is not the builder's yet is tried
+          # again for ten minutes; a refused attestation is final.
           verified=
           for try in $(seq 1 20); do
             if aleph vprogram call "$hash" / --verbose > "$RUNNER_TEMP/call.txt" 2> "$RUNNER_TEMP/call.log" \
               && grep -q 'paperless-anywhere image builder' "$RUNNER_TEMP/call.txt"; then verified=1; break; fi
-            tail -3 "$RUNNER_TEMP/call.log"
-            grep -qiE 'TCB|measurement|policy|certificate chain|key binding' "$RUNNER_TEMP/call.log" && break
+            echo "--- try $try"; cat "$RUNNER_TEMP/call.log" "$RUNNER_TEMP/call.txt"
+            # Only a refused attestation ends the waiting. With --verbose a
+            # call that verified also prints its policy and TCB, so those
+            # words alone say nothing.
+            grep -qiE 'attestation (challenge )?failed|below the required floor' "$RUNNER_TEMP/call.log" && break
             sleep 30
           done
           if [ -n "$verified" ]; then
