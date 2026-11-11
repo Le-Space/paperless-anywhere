@@ -84,4 +84,9 @@ MIT — by [Le Space](https://github.com/Le-Space).
 - `paperless-https <hostname>` writes the Caddyfile for `https://<hostname>`, restarts Caddy and recreates the Paperless container with `PAPERLESS_URL`. Without it, Django refuses logins from that origin (CSRF).
 - `paperless-manage <args>` runs a Paperless management command (`document_importer`, `document_thumbnails`, `shell`, …) in a one-off container. `docker exec` does not work in the confidential guest, because Docker runs inside the measured init's chroot. For the same reason the image's healthcheck is turned off.
 
-The workflow needs the `ALEPH_PRIVATE_KEY` and `PAPERLESS_LUKS_PASSPHRASE` secrets. The image carries no SSH key: a test that needs SSH sends its own public key with the unlock, as the secret `authorized_keys`, which the confidential init adds for root. The app never sends one. `pwa/scripts/live-debug-start.mjs` starts a VM the way the app does, with such a key, for diagnosis.
+Every image has a passphrase of its own, and the app keeps it together with the image's hash: another image is saved only with its passphrase, and a start refuses a passphrase entered for another image.
+
+- **A release image** (purpose `release`) is built on a GitHub-hosted runner. The job makes a random passphrase and prints it in the run's summary, encrypted with [age](https://age-encryption.org) to the recipient in the repository variable `IMAGE_KEY_RECIPIENT`. Make the key pair once with `age-keygen -o image-key.txt`, set the variable to its public key (`age1…`), and read a passphrase with `age -d -i image-key.txt`. It is no GitHub secret, and no test gets it.
+- **A test image** (purpose `test`, the default) uses the secret `PAPERLESS_LUKS_PASSPHRASE`, as the live tests do. It is for tests only.
+
+The workflow needs the `ALEPH_PRIVATE_KEY` secret, and `PAPERLESS_LUKS_PASSPHRASE` for test images. The image carries no SSH key: a test that needs SSH sends its own public key with the unlock, as the secret `authorized_keys`, which the confidential init adds for root. The app never sends one. `pwa/scripts/live-debug-start.mjs` starts a VM the way the app does, with such a key, for diagnosis.

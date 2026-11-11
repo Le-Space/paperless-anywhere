@@ -158,6 +158,15 @@ export async function retryBackupRevoke(master, profile, deps) {
 	return revokeBackupKey(master, profile, null, deps);
 }
 
+/**
+ * Whether the stored passphrase belongs to the stored image. Every image has
+ * a passphrase of its own, and the setup records which image a passphrase
+ * was entered for (`luksFor`); a profile from before that has no record and
+ * passes.
+ * @param {Record<string, any>} profile
+ */
+export const passphraseFitsImage = (profile) => !profile?.luksFor || profile.luksFor === profile.rootfsItemHash;
+
 /** What a start needs from the profile; throws with a reason a person can act on. */
 export function startRequirements(profile) {
 	const missing = [];
@@ -170,6 +179,7 @@ export function startRequirements(profile) {
 	if (profile.backupConfig && profile.backupsByCredits && (!profile.backupSigner?.payer || profile.backupSigner.network !== signerNetwork)) missing.push('Sicherungen über Le Space Credits freigeben');
 	if (!profile.rootfsItemHash) missing.push('Paperless-Image');
 	if (!profile.luksPassphrase) missing.push('Image-Passphrase');
+	else if (!passphraseFitsImage(profile)) missing.push('Passphrase für dieses Image (die hinterlegte gehört zu einem anderen)');
 	if (!profile.crnHash) missing.push('Knoten');
 	// The guest backs up a primary to mainnet only and refuses any other network.
 	if (profile.role === 'primary' && profile.network !== 'mainnet') missing.push('Netz Mainnet für die Rolle „Produktiv“');

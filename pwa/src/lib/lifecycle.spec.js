@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BackupFailedError, BackupPartialError, requestBackup, resumeAfterPartial, stopPaperless } from './lifecycle.js';
+import { BackupFailedError, BackupPartialError, passphraseFitsImage, requestBackup, resumeAfterPartial, startRequirements, stopPaperless } from './lifecycle.js';
 import { newMasterSecret, statusToken } from './keys/derive.js';
 
 const master = newMasterSecret();
@@ -132,5 +132,22 @@ describe('requestBackup, partial', () => {
 		const g = guest([{ ...base, backupRequest: null }, { ...base, backupRequest: { status: 'partial', mode: 'run', at: 't1', backup: { status: 'partial', backup: entry(1, 2) } } }]);
 		const done = await requestBackup(master, profile, () => {}, { ...fast, send: g.send, status: g.status });
 		expect(done.backupRequest.status).toBe('partial');
+	});
+});
+
+describe('the image passphrase belongs to one image', () => {
+	const base = { appPays: true, rootfsItemHash: 'a'.repeat(64), luksPassphrase: 'made-up', crnHash: 'c'.repeat(64) };
+
+	it('starts with the passphrase entered for this image', () => {
+		expect(startRequirements({ ...base, luksFor: 'a'.repeat(64) })).toEqual([]);
+	});
+
+	it('does not start with a passphrase entered for another image', () => {
+		expect(passphraseFitsImage({ ...base, luksFor: 'b'.repeat(64) })).toBe(false);
+		expect(startRequirements({ ...base, luksFor: 'b'.repeat(64) })).toEqual(['Passphrase für dieses Image (die hinterlegte gehört zu einem anderen)']);
+	});
+
+	it('lets a profile from before the record start', () => {
+		expect(startRequirements(base)).toEqual([]);
 	});
 });

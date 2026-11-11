@@ -5,7 +5,16 @@ name: Paperless rootfs
 # publishes it as an Aleph STORE (paid in credits by ALEPH_PRIVATE_KEY).
 # The STORE hash in the summary is what an instance boots from.
 #
-# Secrets: ALEPH_PRIVATE_KEY (pays), PAPERLESS_LUKS_PASSPHRASE (the disk key).
+# Every image a person uses has a passphrase of its own:
+# - purpose "release": the job makes a random passphrase, runs on a
+#   GitHub-hosted runner only, and prints the passphrase encrypted with age to
+#   the recipient in the repository variable IMAGE_KEY_RECIPIENT (age1…). Only
+#   the holder of that age identity can read it; it is no GitHub secret and no
+#   test ever gets it.
+# - purpose "test": the passphrase is the secret PAPERLESS_LUKS_PASSPHRASE,
+#   which the live tests also use. Such an image is for tests only.
+#
+# Secrets: ALEPH_PRIVATE_KEY (pays), PAPERLESS_LUKS_PASSPHRASE (test images).
 #
 # The image carries no SSH key: root's authorized_keys holds a comment only.
 # A test that needs SSH sends its own key with the unlock (the secret
@@ -14,6 +23,14 @@ name: Paperless rootfs
 on:
   workflow_dispatch:
     inputs:
+      purpose:
+        description: '"test": an image for the live tests, with the tests'' passphrase. "release": an image for people, with a passphrase of its own (GitHub-hosted runner only).'
+        required: true
+        default: test
+        type: choice
+        options:
+          - test
+          - release
       runner:
         description: Where the job runs. "aleph" needs a runner started with `pnpm relay-button gh-runner up --repo Le-Space/paperless-anywhere`; it uses no hosted minutes.
         required: true
@@ -40,9 +57,32 @@ jobs:
         env:
           ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
           LUKS: ${{ secrets.PAPERLESS_LUKS_PASSPHRASE }}
+          PURPOSE: ${{ inputs.purpose }}
+          RUNNER_CHOICE: ${{ inputs.runner }}
+          RECIPIENT: ${{ vars.IMAGE_KEY_RECIPIENT }}
         run: |
           [ -n "$ALEPH_PRIVATE_KEY" ] || { echo "::error::set the ALEPH_PRIVATE_KEY secret"; exit 1; }
-          [ -n "$LUKS" ] || { echo "::error::set the PAPERLESS_LUKS_PASSPHRASE secret"; exit 1; }
+          if [ "$PURPOSE" = release ]; then
+            [ "$RUNNER_CHOICE" = github-hosted ] || { echo "::error::a release image is built on a GitHub-hosted runner only"; exit 1; }
+            [[ "$RECIPIENT" =~ ^age1[0-9a-z]{58}$ ]] || { echo "::error::set the repository variable IMAGE_KEY_RECIPIENT to an age recipient (age1…)"; exit 1; }
+          else
+            [ -n "$LUKS" ] || { echo "::error::set the PAPERLESS_LUKS_PASSPHRASE secret"; exit 1; }
+          fi
+
+      - name: A passphrase for this image only
+        id: key
+        if: inputs.purpose == 'release'
+        env:
+          RECIPIENT: ${{ vars.IMAGE_KEY_RECIPIENT }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq age >/dev/null
+          pass="$(openssl rand -base64 32 | tr -d '\r\n')"
+          echo "::add-mask::$pass"
+          # Encrypted before anything is built: an image whose passphrase
+          # nobody can read is never published.
+          printf '%s' "$pass" | age -a -r "$RECIPIENT" > "$RUNNER_TEMP/image-key.age"
+          grep -q 'BEGIN AGE ENCRYPTED FILE' "$RUNNER_TEMP/image-key.age"
+          echo "passphrase=$pass" >> "$GITHUB_OUTPUT"
 
       - name: Build the plain image
         # Usually about a minute; a stuck download on a node hung for 45 min.
@@ -62,7 +102,7 @@ jobs:
           image_path: ${{ runner.temp }}/paperless.ext4
           # The action wants a non-empty file; sshd ignores a comment line.
           ssh_public_key: '# no key in the image: a test sends its own with the unlock'
-          luks_passphrase: ${{ secrets.PAPERLESS_LUKS_PASSPHRASE }}
+          luks_passphrase: ${{ inputs.purpose == 'release' && steps.key.outputs.passphrase || secrets.PAPERLESS_LUKS_PASSPHRASE }}
           aleph_private_key: ${{ secrets.ALEPH_PRIVATE_KEY }}
 
       - name: Summary
@@ -70,6 +110,7 @@ jobs:
         env:
           STORE: ${{ steps.rootfs.outputs.rootfs_item_hash }}
           SIZE_MIB: ${{ steps.rootfs.outputs.rootfs_size_mib }}
+          PURPOSE: ${{ inputs.purpose }}
         run: |
           {
             echo "## Paperless rootfs"
@@ -79,4 +120,15 @@ jobs:
             echo "| Encrypted rootfs (STORE) | \`${STORE:-none}\` |"
             echo "| Plain image | $(( ${PLAIN_BYTES:-0} / 1048576 )) MiB, built in ${BUILD_SECONDS:-?} s |"
             echo "| Encrypted image | ${SIZE_MIB:-?} MiB |"
+            echo "| Purpose | ${PURPOSE} |"
+            if [ -s "$RUNNER_TEMP/image-key.age" ] && [ -n "$STORE" ]; then
+              echo
+              echo "### Passphrase of this image"
+              echo
+              echo "Encrypted to IMAGE_KEY_RECIPIENT. Read it with \`age -d -i <identity file>\` and enter it in the app together with the STORE hash above."
+              echo
+              echo '```'
+              cat "$RUNNER_TEMP/image-key.age"
+              echo '```'
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

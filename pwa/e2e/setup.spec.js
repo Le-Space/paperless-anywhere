@@ -96,6 +96,14 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await page.getByRole('button', { name: 'Image und Knoten speichern' }).click();
 	await expect(page.getByRole('button', { name: 'Paperless anywhere starten' })).toBeEnabled();
 
+	// Another image has a passphrase of its own: it is not saved without one.
+	await page.getByPlaceholder('Image (STORE-Hash)').fill('c'.repeat(64));
+	await page.getByRole('button', { name: 'Image und Knoten speichern' }).click();
+	await expect(page.getByText('Ein anderes Image hat eine eigene Passphrase.')).toBeVisible();
+	await page.getByPlaceholder('Image (STORE-Hash)').fill('a'.repeat(64));
+	await page.getByRole('button', { name: 'Image und Knoten speichern' }).click();
+	await expect(page.getByText('Ein anderes Image hat eine eigene Passphrase.')).toBeHidden();
+
 	// Aleph holds the profile as a sealed box only.
 	const profile = aggregates.get(appAddress)['paperless-anywhere-profile'];
 	expect(Object.keys(profile.box).sort()).toEqual(['ct', 'iv', 'purpose', 'v']);
