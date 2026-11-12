@@ -1,9 +1,11 @@
 # The image builder as an Aleph V-PROGRAM (aleph.compose/1), docs/own-image.md.
 #
 # Everything here is measured: this file and the image archive lie on the
-# workload volume, whose dm-verity root hash is on the boot line. Aleph's
-# attestation agent is the only way in (TLS on 8443) and forwards to
-# 127.0.0.1:8080, where the builder listens.
+# workload volume, and the plain image on a verified volume (/volumes/0),
+# whose dm-verity root hashes are on the boot line. Aleph's attestation agent
+# is the only way in (TLS on 8443) and forwards to 127.0.0.1:8080, where the
+# builder listens. Nothing goes out: the guest's firewall drops the replies
+# to outbound connections, so the builder neither fetches nor uploads.
 #
 # The root filesystem is read-only; the one image being built lies in memory
 # (/work), so the VM needs memory for it: see the README beside this file.
@@ -13,5 +15,8 @@ services:
     network_mode: host
     environment:
       BUILDER_WORK: /work
+      BUILDER_PLAIN: /plain/paperless-plain.ext4.gz
+    volumes:
+      - /volumes/0:/plain:ro
     tmpfs:
       - /work:size=1200m,mode=0700

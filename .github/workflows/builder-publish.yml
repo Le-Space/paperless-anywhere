@@ -13,7 +13,16 @@ name: Image builder on Aleph
 #            floor, the builder is deleted again, unless "keep" is set. A
 #            builder that verifies costs credits until it is deleted.
 #   check    shows a published V-PROGRAM and makes one attested call to it
+#   trial    has a published builder seal the image once, with a passphrase
+#            made for this run and thrown away, and fetches the first and the
+#            last piece back: it shows that a whole image fits into the VM's
+#            memory and that the result is a LUKS2 disk
 #   delete   forgets a published V-PROGRAM (the scheduler then stops the VM)
+#
+# The plain image the builder seals is part of what is published: it goes
+# onto a verified volume, so "plain_store" and "plain_sha256" (both from the
+# image workflow's summary, option "plain") decide which image this builder
+# is for, and a new image needs a new builder.
 #
 # Secret: ALEPH_PRIVATE_KEY signs and pays (publish, delete); a dry run also
 # signs with it, since the CLI builds the whole message. GitHub-hosted runner
@@ -24,7 +33,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: '"dry-run": measure only. "publish": start the builder (costs credits until deleted). "check": show a builder and call it, attested. "delete": stop one.'
+        description: '"dry-run": measure only. "publish": start the builder (costs credits until deleted). "check": show a builder and call it, attested. "trial": have it seal the image once. "delete": stop one.'
         required: true
         default: dry-run
         type: choice
@@ -32,9 +41,18 @@ on:
           - dry-run
           - publish
           - check
+          - trial
           - delete
       hash:
-        description: The V-PROGRAM's item hash (64 hex), for "check" and "delete".
+        description: The V-PROGRAM's item hash (64 hex), for "check", "trial" and "delete".
+        required: false
+        default: ''
+      plain_store:
+        description: 'For "dry-run" and "publish": the plain image on Aleph (its STORE hash, 64 hex), from the image workflow.'
+        required: false
+        default: ''
+      plain_sha256:
+        description: 'For "dry-run", "publish" and "trial": the SHA-256 of the plain image, unpacked (64 hex), from the image workflow.'
         required: false
         default: ''
       crn:
@@ -86,14 +104,22 @@ jobs:
           VCPUS: ${{ inputs.vcpus }}
           RUNTIME: ${{ inputs.runtime }}
           CRN: ${{ inputs.crn }}
+          PLAIN_STORE: ${{ inputs.plain_store }}
+          PLAIN_SHA256: ${{ inputs.plain_sha256 }}
           ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: |
+          case "$ACTION" in
+            dry-run|publish) [[ "$PLAIN_STORE" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::\"$ACTION\" needs plain_store, the plain image's STORE hash (64 hex)"; exit 1; } ;;
+          esac
+          case "$ACTION" in
+            dry-run|publish|trial) [[ "$PLAIN_SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::\"$ACTION\" needs plain_sha256, the SHA-256 of the plain image (64 hex)"; exit 1; } ;;
+          esac
           [[ -z "$CRN" || "$CRN" =~ ^[0-9a-f]{6,64}$ ]] || { echo "::error::crn: a node's hash or the start of it (hex)"; exit 1; }
           [[ "$MEMORY" =~ ^[0-9]{4,6}$ ]] || { echo "::error::memory: MiB, a number"; exit 1; }
           [[ "$VCPUS" =~ ^[1-9][0-9]?$ ]] || { echo "::error::vcpus: a number"; exit 1; }
           [[ "$RUNTIME" =~ ^[a-z0-9.-]{3,40}$ ]] || { echo "::error::runtime: a name such as compose-1.4"; exit 1; }
           case "$ACTION" in
-            check|delete) [[ "$HASH" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::\"$ACTION\" needs the V-PROGRAM's item hash (64 hex)"; exit 1; } ;;
+            check|trial|delete) [[ "$HASH" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::\"$ACTION\" needs the V-PROGRAM's item hash (64 hex)"; exit 1; } ;;
           esac
           case "$ACTION" in
             dry-run|publish|delete) [ -n "$ALEPH_PRIVATE_KEY" ] || { echo "::error::set the ALEPH_PRIVATE_KEY secret"; exit 1; } ;;
@@ -113,6 +139,34 @@ jobs:
         working-directory: builder/vprogram
         run: ./build-archive.sh "$RUNNER_TEMP/image-builder.tar" | tee "$RUNNER_TEMP/archive.txt"
 
+      # The plain image as the builder gets it: gzipped, as it lies on Aleph,
+      # in a small ext4 filesystem that Aleph's CLI turns into a verified
+      # volume. Checked first: what goes in is the image the inputs name.
+      - name: The plain image, as a volume
+        if: inputs.action == 'dry-run' || inputs.action == 'publish'
+        env:
+          PLAIN_STORE: ${{ inputs.plain_store }}
+          PLAIN_SHA256: ${{ inputs.plain_sha256 }}
+          ALEPH_API: https://api2.aleph.im
+        run: |
+          dir="$RUNNER_TEMP/plain-volume"
+          mkdir -p "$dir"
+          file="$(curl -fsS --retry 3 "$ALEPH_API/api/v0/messages/$PLAIN_STORE" | jq -r '(.message.content // .content).item_hash')"
+          [[ "$file" =~ ^[A-Za-z0-9]{40,64}$ ]] || { echo "::error::$PLAIN_STORE is no STORE message with a file"; exit 1; }
+          curl -fsSL --retry 3 -o "$dir/paperless-plain.ext4.gz" "$ALEPH_API/api/v0/storage/raw/$file"
+          got="$(gunzip -c "$dir/paperless-plain.ext4.gz" | sha256sum | cut -d' ' -f1)"
+          [ "$got" = "$PLAIN_SHA256" ] || { echo "::error::the plain image on Aleph has SHA-256 $got, not the one given"; exit 1; }
+          chmod 644 "$dir/paperless-plain.ext4.gz"
+          size_mib=$(( $(stat -c %s "$dir/paperless-plain.ext4.gz") / 1048576 + 24 ))
+          truncate -s "${size_mib}M" "$RUNNER_TEMP/plain-volume.ext4"
+          mkfs.ext4 -q -b 4096 -O ^has_journal -L plain -d "$dir" "$RUNNER_TEMP/plain-volume.ext4"
+          rm -rf "$dir"
+          {
+            echo "plain image (STORE): $PLAIN_STORE"
+            echo "plain image SHA-256: $PLAIN_SHA256"
+            echo "volume:              ${size_mib} MiB"
+          } | tee "$RUNNER_TEMP/plain.txt"
+
       - name: Build and measure; publish if asked
         if: inputs.action == 'dry-run' || inputs.action == 'publish'
         working-directory: builder/vprogram
@@ -128,6 +182,7 @@ jobs:
           image="$(sed -n 's/^ *image: *//p' docker-compose.yml)"
           create=(aleph vprogram create paperless-image-builder --compose docker-compose.yml
             --image-archive "$image=$RUNNER_TEMP/image-builder.tar" --runtime "$RUNTIME"
+            --volume "$RUNNER_TEMP/plain-volume.ext4"
             --vcpus "$VCPUS" --memory "$MEMORY" --chain eth --json)
           # First without publishing, up to three times: fetching Aleph's
           # runtime bundle (about 270 MB) sometimes runs into the CLI's timeout.
@@ -171,10 +226,6 @@ jobs:
           done
           if [ -n "$verified" ]; then
             cat "$RUNNER_TEMP/call.log" "$RUNNER_TEMP/call.txt"
-            # What the builder reaches from inside the guest (Aleph's API,
-            # name resolution). Reported, not judged: it is there to be read.
-            aleph vprogram call "$hash" /health > "$RUNNER_TEMP/health.json" 2>/dev/null || true
-            cat "$RUNNER_TEMP/health.json"
             exit 0
           fi
           if [ "$KEEP" = true ]; then
@@ -197,8 +248,55 @@ jobs:
           aleph vprogram call "$HASH" / --verbose > "$RUNNER_TEMP/call.txt" 2> "$RUNNER_TEMP/call.log" || { cat "$RUNNER_TEMP/call.log"; echo "::error::the attested call failed"; exit 1; }
           cat "$RUNNER_TEMP/call.log" "$RUNNER_TEMP/call.txt"
           grep -q 'paperless-anywhere image builder' "$RUNNER_TEMP/call.txt" || { echo "::error::the builder did not answer as the image builder"; exit 1; }
-          aleph vprogram call "$HASH" /health > "$RUNNER_TEMP/health.json" 2>/dev/null || true
-          cat "$RUNNER_TEMP/health.json"
+
+      # One whole build on Aleph, with a passphrase nobody keeps. Each call is
+      # attested like the one in "check".
+      - name: Have it seal the image once
+        if: inputs.action == 'trial'
+        env:
+          HASH: ${{ inputs.hash }}
+          PLAIN_SHA256: ${{ inputs.plain_sha256 }}
+        run: |
+          call() { aleph vprogram call "$HASH" "$@" 2>> "$RUNNER_TEMP/trial.log"; }
+          pass="$(openssl rand -base64 32 | tr -d '\r\n')"
+          echo "::add-mask::$pass"
+          started=$(date +%s)
+          job="$(call /build -X POST -H 'Content-Type: application/json' -d "{\"sha256\":\"$PLAIN_SHA256\",\"passphrase\":\"$pass\"}" | jq -r '.job // empty')"
+          unset pass
+          [[ "$job" =~ ^[0-9a-f]{48}$ ]] || { tail -5 "$RUNNER_TEMP/trial.log"; echo "::error::the builder did not accept the build"; exit 1; }
+          state=building
+          for try in $(seq 1 60); do
+            sleep 15
+            answer="$(call "/job/$job" || true)"
+            state="$(jq -r '.state // empty' <<<"$answer")"
+            echo "[$try] ${answer:-no answer}"
+            [ "$state" = building ] || [ -z "$state" ] || break
+          done
+          built_after=$(( $(date +%s) - started ))
+          [ "$state" = built ] || { echo "::error::the build ended as \"${state:-unknown}\": $(jq -r '.error // empty' <<<"$answer")"; call "/job/$job" -X DELETE >/dev/null || true; exit 1; }
+          size="$(jq -r .size <<<"$answer")"
+          cid="$(jq -r .cid <<<"$answer")"
+
+          # The first piece must begin as a LUKS2 header does, the last must
+          # be as long as asked for, and a piece of 4 MiB tells the pace.
+          call "/job/$job/image" -H 'Range: bytes=0-4095' > "$RUNNER_TEMP/first.bin"
+          magic="$(head -c 6 "$RUNNER_TEMP/first.bin" | od -An -tx1 | tr -d ' \n')"
+          call "/job/$job/image" -H "Range: bytes=$(( size - 4096 ))-$(( size - 1 ))" > "$RUNNER_TEMP/last.bin"
+          piece_started=$(date +%s%N)
+          call "/job/$job/image" -H 'Range: bytes=4194304-8388607' > "$RUNNER_TEMP/piece.bin"
+          piece_ms=$(( ( $(date +%s%N) - piece_started ) / 1000000 ))
+          call "/job/$job" -X DELETE > "$RUNNER_TEMP/removed.json" || true
+          {
+            echo "built after:        ${built_after} s"
+            echo "sealed image:       $(( size / 1048576 )) MiB, $cid"
+            echo "first bytes:        $magic (a LUKS2 header begins 4c554b53babe)"
+            echo "last piece:         $(stat -c %s "$RUNNER_TEMP/last.bin") bytes of 4096"
+            echo "a piece of 4 MiB:   $(stat -c %s "$RUNNER_TEMP/piece.bin") bytes in ${piece_ms} ms, attestation included"
+            echo "removed afterwards: $(cat "$RUNNER_TEMP/removed.json")"
+          } | tee "$RUNNER_TEMP/trial.txt"
+          [ "$magic" = 4c554b53babe ] || { echo "::error::what came back is no LUKS2 disk"; exit 1; }
+          [ "$(stat -c %s "$RUNNER_TEMP/last.bin")" = 4096 ] || { echo "::error::the last piece is not whole"; exit 1; }
+          [ "$(stat -c %s "$RUNNER_TEMP/piece.bin")" = 4194304 ] || { echo "::error::a piece of 4 MiB did not come back whole"; exit 1; }
 
       - name: Delete it
         if: inputs.action == 'delete'
@@ -237,6 +335,7 @@ jobs:
           block "V-PROGRAM ${HASH:-$(cat "$RUNNER_TEMP/hash.txt" 2>/dev/null)}" "$RUNNER_TEMP/show.json"
           block "Attested call" "$RUNNER_TEMP/call.log"
           block "Answer" "$RUNNER_TEMP/call.txt"
-          block "What the builder reaches" "$RUNNER_TEMP/health.json"
+          block "Plain image" "$RUNNER_TEMP/plain.txt"
+          block "Trial build" "$RUNNER_TEMP/trial.txt"
           block "Deleted" "$RUNNER_TEMP/delete.json"
           exit 0

@@ -1,10 +1,11 @@
 # Your own image
 
-> **Status: in preparation.** The image builder exists and is tested in a
-> container ([`builder/`](../builder/)). It does not run on Aleph yet, and the
-> app does not use it yet; the list at the end says what is missing. Until
-> then every image version has one passphrase, as
-> [keys and recovery](keys-and-recovery.md) describes.
+> **Status: in preparation.** The image builder exists
+> ([`builder/`](../builder/)), has been published on Aleph and verified by
+> attestation there, and the app's step is written. No build has run on
+> Aleph yet in the form described here, and the app names no builder; the
+> list at the end says what is missing. Until then every image version has
+> one passphrase, as [keys and recovery](keys-and-recovery.md) describes.
 
 A VM of Paperless anywhere boots from an encrypted image. The measured part
 of the boot (firmware, kernel, initrd) opens that image with a passphrase the
@@ -20,9 +21,14 @@ not open, and the VM does not start.
 | Piece | What it is | Who can check it |
 |---|---|---|
 | The plain image | Debian, Docker, Caddy, the scripts: what `rootfs/build-image.sh` builds. It holds no secret and is public on Aleph. | Everyone: its SHA-256 is fixed in the app and printed by the build. |
-| The image builder | A small service that encrypts the plain image with a passphrase it is given. It runs in a confidential VM whose whole content is measured (an Aleph V-PROGRAM). | Everyone: its launch measurement is fixed in the app and can be recomputed from this repository. |
-| Your app | Derives the passphrase from your vault, checks the builder's attestation, signs for the storage. | You. |
+| The image builder | A small service that encrypts the plain image with a passphrase it is given. It runs in a confidential VM whose whole content is measured (an Aleph V-PROGRAM), the plain image included: it lies on a verified volume. | Everyone: its launch measurement is fixed in the app and can be recomputed from this repository and the plain image. |
+| Your app | Derives the passphrase from your vault, checks the builder's attestation, fetches the sealed image and stores it on Aleph. | You. |
 | Your image | The plain image, encrypted with your passphrase, stored on Aleph under your vault's address. | Only your vault can open it. |
+
+A V-PROGRAM is a closed box: its guest firewall lets nothing in but the
+attested port, the replies to outbound connections included. The builder
+therefore fetches nothing and uploads nothing. What it seals is measured,
+and what it made leaves only through the attested channel.
 
 ## How an image is made
 
@@ -30,34 +36,55 @@ not open, and the VM does not start.
 sequenceDiagram
     autonumber
     participant V as Your vault (app)
-    participant B as Image builder (measured VM)
+    participant B as Image builder (measured VM, with the plain image)
     participant A as Aleph storage
     V->>V: derive the image passphrase from the vault's master secret
     V->>B: attestation request with a fresh nonce
     B-->>V: SEV-SNP report, bound to the builder's TLS key
     V->>V: check the report against AMD's keys and the measurement fixed in the app
-    V->>B: which plain image (hash), and the passphrase, over the attested channel
-    B->>A: fetch the plain image
-    B->>B: check its SHA-256, encrypt it, forget the passphrase
-    B-->>V: the content address of the encrypted image
-    V->>V: sign a STORE message for exactly that address
-    V->>B: the signed message
-    B->>A: upload the encrypted image beside the message
-    B->>B: remove the image
+    V->>B: which plain image it expects (SHA-256), and the passphrase, over the attested channel
+    B->>B: unpack the plain image from its volume, check its SHA-256, encrypt it, forget the passphrase
+    B-->>V: the content address and size of the sealed image
+    loop in pieces
+        V->>B: the next piece of the sealed image
+        B-->>V: the bytes, over the attested channel
+    end
+    V->>B: remove the image
+    V->>V: sign a STORE message for exactly that content address
+    V->>A: upload the sealed image beside the message
     V->>V: note the new image in the sealed profile
 ```
 
 Steps 2 to 4 are the same check the app makes before it unlocks a Paperless
 VM ([workflow, section 3](workflow.md#3-attestation-and-unlock-in-detail)):
 no passphrase leaves the app before the hardware has confirmed what runs on
-the other side.
+the other side. The sealed image holds nothing readable without the
+passphrase, so it may pass through a relay and lie on public storage.
+
+## The step in the app
+
+In the setup, beside the image's hash and passphrase: **Mein Image bauen**
+(`pwa/src/lib/own-image.js`). The app
+
+1. derives the passphrase from the master secret, under its own label and
+   the plain image's SHA-256, so the 24 words alone give it back;
+2. opens an attested channel to the builder and sends the build request;
+3. fetches the sealed image back in pieces over that channel and has the
+   builder remove it;
+4. signs a STORE message for the image's content address, as the app's own
+   address, which also pays the storage, and uploads the image to Aleph;
+5. waits until Aleph has processed it, and saves the image's hash and the
+   passphrase in the sealed profile.
+
+While Paperless runs, the step is disabled: a running VM belongs to the
+image it started from.
 
 ## Why the VM can only start your image
 
 ```mermaid
 flowchart LR
     subgraph build["Once per image version"]
-        P["Plain image<br/>public, SHA-256 fixed in the app"] --> B["Image builder<br/>measured, attested by your app"]
+        P["Plain image<br/>public, measured with the builder"] --> B["Image builder<br/>measured, attested by your app"]
         K["Passphrase<br/>from your vault"] --> B
         B --> I["Your image<br/>encrypted, on Aleph"]
     end
@@ -156,28 +183,34 @@ only way in and forwards from the attested TLS port.
 
 | Call | Does |
 |---|---|
-| `POST /build` `{store, sha256, passphrase}` | Fetches the plain image named by `store` from Aleph and unpacks it on the way, refuses it unless the SHA-256 of the unpacked image is `sha256`, encrypts it. Answers `{job}` at once. |
-| `GET /health` | What the builder reaches from inside its VM: the name servers it was given, what the API's name resolves to, whether the API answers. No job, no secret. |
-| `GET /job/<job>` | `{state}`: `building`, `built` (with the content address and size), `failed`, `published`. |
-| `POST /job/<job>/publish` `{message}` | Uploads the image beside the signed STORE message, only if the message names exactly the built file. Then removes the image. |
+| `GET /` | Says what it is and, after the first build, the SHA-256 and size of the plain image it holds. |
+| `POST /build` `{sha256, passphrase}` | Unpacks the plain image from its volume, refuses unless its SHA-256 is `sha256`, encrypts it. Answers `{job}` at once. |
+| `GET /job/<job>` | `{state}`: `building`, `built` (with the content address and size), `failed` (with the reason). |
+| `GET /job/<job>/image` | The sealed image; with `Range: bytes=a-b` one piece of at most 16 MiB. |
+| `DELETE /job/<job>` | Removes the image. |
 
-It builds one image at a time, takes the plain image from Aleph only, holds
-no key of its own (your app signs and your vault's address pays the
-storage), and removes an image nobody fetched after 20 minutes.
+It builds one image at a time, reaches nothing outside itself, holds no key
+of its own, and removes an image nobody touched for 30 minutes.
 
 ## What it costs
 
-One build per image version and person: a few minutes, and the storage of
-the encrypted image (under 1 GiB) on your vault's address, as long as you
-use that version. An older image can be forgotten once the new one has
-started.
+One build per image version and person: a few minutes of building, then
+fetching the sealed image from the builder and uploading it to Aleph, a
+little under 900 MiB each way, and the storage of that image on your
+vault's address as long as you use that version. An older image can be
+forgotten once the new one has started.
+
+The builder itself is one VM for everyone, paid by Le Space while it runs.
+A new plain image needs a new builder, since the image is part of what is
+measured.
 
 ## Publishing the plain image
 
 The image workflow (`rootfs.yml`) does it with the option **plain**: it
 converts the image as for an encrypted one, publishes it as a STORE of its
 own and prints the STORE's hash and the image's SHA-256 in the run's
-summary. These two values are what the app will name to the builder.
+summary. The builder is published for exactly that image (the workflow
+*Image builder on Aleph* takes the two values), and the app shows them.
 
 ## Trying the builder
 
@@ -185,24 +218,22 @@ summary. These two values are what the app will name to the builder.
 cd builder
 npm test                                  # the rules above, without a container
 docker build -f Containerfile -t image-builder .
-docker run --rm -v "$PWD/check-container.mjs:/opt/builder/check-container.mjs:ro" \
-  image-builder node check-container.mjs  # one whole job against a stand-in for Aleph
+docker run --rm --network none -v "$PWD/check-container.mjs:/opt/builder/check-container.mjs:ro" \
+  image-builder node check-container.mjs  # one whole job, without any network, as on Aleph
 ```
 
 ## Before it goes live
 
-- The builder runs as a **V-PROGRAM** on Aleph. Compose file, image archive
-  and the steps are prepared in
-  [`builder/vprogram/`](../builder/vprogram/README.md), with a workflow
-  that measures, publishes, checks and deletes it; the first run has to
-  show the outbound network, that one image fits into the VM's memory (the
-  root filesystem is read-only, the scratch space is memory), and the
-  upload.
-- The builder's **measurement** comes from that publication (the Aleph CLI
-  computes it and writes it into the V-PROGRAM message) and is then fixed
-  in the app, as the runtime of a Paperless VM is.
-- The builder and the plain image are **fixed in the app** (`BUILDER` in
-  `pwa/src/lib/own-image.js`). The step "Mein Image bauen" in the setup is
-  written and shows up once they are; how an attest relay reaches a
-  V-PROGRAM is still to be tried.
+- A **whole build on Aleph**: the builder was published and attested there
+  with an earlier design that fetched the plain image itself, which a
+  V-PROGRAM cannot do. In the form described here (image on a verified
+  volume, result handed back) it runs locally without any network; on Aleph
+  the workflow's action `trial` shows it
+  ([`builder/vprogram/`](../builder/vprogram/README.md)).
+- **Fetching through a relay**: the app gets the sealed image in pieces over
+  the attested channel. How long nearly 900 MiB take that way, and how the
+  attest relay reaches a V-PROGRAM, is not measured yet.
+- The builder's **measurement**, its V-PROGRAM and the plain image are
+  **fixed in the app** (`BUILDER` in `pwa/src/lib/own-image.js`). The step
+  "Mein Image bauen" in the setup is written and shows up once they are.
 - The landing page and the security model say so once all of this is true.

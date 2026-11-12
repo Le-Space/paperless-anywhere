@@ -1,7 +1,7 @@
 name: Image builder
 
 # The image builder (builder/, docs/own-image.md): its tests, its container,
-# and one whole job in that container against a stand-in for Aleph. Run by
+# and one whole job in that container, without any network, as on Aleph. Run by
 # hand, it also keeps the container image as an archive for
 # `aleph vprogram … --image-archive` (builder/vprogram/README.md).
 #
@@ -47,7 +47,8 @@ jobs:
         env:
           IMAGE: ${{ steps.archive.outputs.image }}
         run: |
-          docker run --rm -v "$PWD/check-container.mjs:/opt/builder/check-container.mjs:ro" "$IMAGE" \
+          # Without any network, as on Aleph.
+          docker run --rm --network none -v "$PWD/check-container.mjs:/opt/builder/check-container.mjs:ro" "$IMAGE" \
             node check-container.mjs | tee "$RUNNER_TEMP/check.txt"
           ! grep -q '^FAIL' "$RUNNER_TEMP/check.txt"
 
@@ -62,7 +63,8 @@ jobs:
           done
           echo "$answer"
           docker compose down
-          [ "$answer" = '{"service":"paperless-anywhere image builder"}' ]
+          # Beside its name the builder says which plain image it holds; none yet.
+          [ "$(jq -r .service <<<"$answer")" = 'paperless-anywhere image builder' ]
 
       - name: Summary
         run: |
