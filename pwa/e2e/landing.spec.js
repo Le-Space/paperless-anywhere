@@ -37,6 +37,9 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.locator('#faq details').first()).toContainText(notice);
 	await expect(page.getByRole('link', { name: 'Paperless anywhere starten' }).first()).toHaveAttribute('href', '/app/');
 	// An image of one's own: four steps, and who knows the passphrase.
+	// Not running yet: the section says so, and comes after what is true today.
+	await expect(page.getByTestId('own-image-status')).toHaveText('In Vorbereitung');
+	expect(await page.evaluate(() => document.querySelector('#trust').compareDocumentPosition(document.querySelector('#image')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
 	await expect(page.getByTestId('own-image-flow').getByRole('listitem')).toHaveCount(4);
 	await expect(page.getByTestId('own-image-knows').getByRole('listitem')).toHaveText([/Dein Tresor: ja/, /Der Build-Dienst: nur kurz/, /Deine VM: nur kurz/, /Le Space: nein/, /Der Betreiber des Knotens: nein/, /GitHub: nein/]);
 

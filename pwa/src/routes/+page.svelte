@@ -118,12 +118,6 @@
 		</ul>
 	</section>
 
-	<section id="image">
-		<h2>{t.ownImage.title}</h2>
-		<p class="lead">{t.ownImage.lead}</p>
-		<OwnImage t={t.ownImage} />
-	</section>
-
 	<section id="nodes">
 		<h2>{t.nodes.title}</h2>
 		<p class="lead">{t.nodes.lead}</p>
@@ -141,6 +135,12 @@
 		<h2>{t.trust.title}</h2>
 		<p class="lead">{t.trust.lead}</p>
 		<Trust t={t.trust} />
+	</section>
+
+	<section id="image">
+		<h2>{t.ownImage.title}</h2>
+		<p class="lead">{t.ownImage.lead}</p>
+		<OwnImage t={t.ownImage} />
 	</section>
 
 	<section id="prices">

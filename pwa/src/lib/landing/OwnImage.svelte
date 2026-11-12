@@ -6,6 +6,8 @@
 	const MARK = { yes: '✓', brief: '◔', no: '✕' };
 </script>
 
+<p class="status" data-testid="own-image-status">{t.status}</p>
+
 <ol class="flow" data-testid="own-image-flow">
 	{#each t.steps as s, i}
 		<li>
@@ -49,6 +51,7 @@
 </div>
 
 <style>
+	.status { display: inline-block; margin: 0.25rem 0 0; padding: 0.2rem 0.7rem; border-radius: 999px; background: var(--warn-bg); color: var(--warn); font-family: var(--mono); font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 	.flow { list-style: none; padding: 0; margin: 1.5rem 0 0; display: grid; gap: 1.75rem; grid-template-columns: repeat(4, 1fr); }
 	.flow li { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; box-shadow: var(--shadow); }
 	/* The arrow to the next step: to the right in a row, downwards in a column. */
