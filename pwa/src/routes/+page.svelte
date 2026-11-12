@@ -5,9 +5,9 @@
 	import NgxText, { NGX_URL } from '$lib/NgxText.svelte';
 	import TeeNodes from '$lib/landing/TeeNodes.svelte';
 	import StorageProviders from '$lib/landing/StorageProviders.svelte';
-	import Trust from '$lib/landing/Trust.svelte';
 	import { LANGS, initialLang, texts } from '$lib/landing/i18n.js';
 	import { CREDITS_URL, PLANS, creditsCatalog } from '$lib/credits.js';
+	import Trust from '$lib/landing/Trust.svelte';
 
 	const APP = '/app/';
 	// Link previews need absolute addresses.
