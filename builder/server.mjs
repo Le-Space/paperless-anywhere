@@ -6,7 +6,10 @@ import { createReadStream, createWriteStream, openAsBlob } from 'node:fs';
 import { mkdir, rm, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
+import { Readable, Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
+import { createGunzip } from 'node:zlib';
 import { importer } from 'ipfs-unixfs-importer';
 import { createBuilder, handler } from './builder.mjs';
 
@@ -15,23 +18,35 @@ const api = (process.env.ALEPH_API || 'https://api2.aleph.im').replace(/\/+$/, '
 const work = process.env.BUILDER_WORK || '/work';
 await mkdir(work, { recursive: true, mode: 0o700 });
 
-/** Streams `url` into `path`, at most `max` bytes, and says what arrived. */
+/**
+ * Streams `url` into `path` and says what arrived. The plain image is stored
+ * gzipped on Aleph (the image workflow says why); it is unpacked on the way,
+ * and both the limit and the SHA-256 are those of the unpacked image, which is
+ * what gets sealed. A file that is not gzipped is taken as it is.
+ */
 async function download(url, path, max) {
 	const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(15 * 60_000) });
 	if (!response.ok || !response.body) throw new Error(`the download answered ${response.status}`);
-	const hash = createHash('sha256');
-	const out = createWriteStream(path, { mode: 0o600 });
-	let size = 0;
-	try {
-		for await (const part of response.body) {
-			size += part.length;
-			if (size > max) throw new Error('the plain image is larger than Aleph takes in one upload');
-			hash.update(part);
-			if (!out.write(part)) await new Promise((resolve) => out.once('drain', resolve));
-		}
-	} finally {
-		await new Promise((resolve) => out.end(resolve));
+	const parts = Readable.fromWeb(response.body)[Symbol.asyncIterator]();
+	const first = await parts.next();
+	const head = first.done ? Buffer.alloc(0) : Buffer.from(first.value);
+	const gzipped = head.length >= 2 && head[0] === 0x1f && head[1] === 0x8b;
+	async function* all() {
+		if (head.length) yield head;
+		for (let next = await parts.next(); !next.done; next = await parts.next()) yield next.value;
 	}
+	const hash = createHash('sha256');
+	let size = 0;
+	const measure = new Transform({
+		transform(part, _encoding, done) {
+			size += part.length;
+			// Checked on the unpacked bytes, so a small file cannot unpack into a huge one.
+			if (size > max) return done(new Error('the plain image is larger than Aleph takes in one upload'));
+			hash.update(part);
+			done(null, part);
+		}
+	});
+	await pipeline([Readable.from(all()), ...(gzipped ? [createGunzip()] : []), measure, createWriteStream(path, { mode: 0o600 })]);
 	return { sha256: hash.digest('hex'), size };
 }
 

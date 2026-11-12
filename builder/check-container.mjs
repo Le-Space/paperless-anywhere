@@ -6,8 +6,11 @@ import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { gzipSync } from 'node:zlib';
 
-const plain = randomBytes(8 * 1024 * 1024);
+// Half noise, half zeros, as a filesystem image is; stored gzipped, as on Aleph.
+const plain = Buffer.concat([randomBytes(4 * 1024 * 1024), Buffer.alloc(4 * 1024 * 1024)]);
+const stored = gzipSync(plain);
 const sha256 = createHash('sha256').update(plain).digest('hex');
 const store = 'ab'.repeat(32);
 const passphrase = randomBytes(32).toString('base64');
@@ -15,7 +18,7 @@ let uploaded;
 
 createServer(async (req, res) => {
 	if (req.url === `/api/v0/messages/${store}`) return res.end(JSON.stringify({ type: 'STORE', content: { item_hash: 'cd'.repeat(32) } }));
-	if (req.url === `/api/v0/storage/raw/${'cd'.repeat(32)}`) return res.end(plain);
+	if (req.url === `/api/v0/storage/raw/${'cd'.repeat(32)}`) return res.end(stored);
 	if (req.url === '/api/v0/ipfs/add_file') {
 		const form = await new Request('http://x', { method: 'POST', headers: req.headers, body: req, duplex: 'half' }).formData();
 		uploaded = { file: Buffer.from(await form.get('file').arrayBuffer()), metadata: JSON.parse(form.get('metadata')) };

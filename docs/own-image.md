@@ -121,9 +121,11 @@ check each link of the chain:
 
    ```sh
    curl -fsS https://api2.aleph.im/api/v0/messages/<plain STORE hash> | jq -r '.message.content.item_hash'
-   curl -fL -o paperless-plain.ext4 https://api2.aleph.im/api/v0/storage/raw/<that hash>
+   curl -fL https://api2.aleph.im/api/v0/storage/raw/<that hash> | gunzip > paperless-plain.ext4
    sha256sum paperless-plain.ext4
    ```
+
+   The image lies on Aleph gzipped; the SHA-256 is that of the image itself.
 
 2. **It was built from this repository.** The image workflow's summary names
    the commit, and, once this repository is public, GitHub signs that the
@@ -154,7 +156,7 @@ only way in and forwards from the attested TLS port.
 
 | Call | Does |
 |---|---|
-| `POST /build` `{store, sha256, passphrase}` | Fetches the plain image named by `store` from Aleph, refuses it unless its SHA-256 is `sha256`, encrypts it. Answers `{job}` at once. |
+| `POST /build` `{store, sha256, passphrase}` | Fetches the plain image named by `store` from Aleph and unpacks it on the way, refuses it unless the SHA-256 of the unpacked image is `sha256`, encrypts it. Answers `{job}` at once. |
 | `GET /job/<job>` | `{state}`: `building`, `built` (with the content address and size), `failed`, `published`. |
 | `POST /job/<job>/publish` `{message}` | Uploads the image beside the signed STORE message, only if the message names exactly the built file. Then removes the image. |
 
