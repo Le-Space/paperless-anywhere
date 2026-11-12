@@ -1,0 +1,20 @@
+#!/bin/sh
+# paperless-ssh-allowed: decides whether sshd may start (ExecStartPre of
+# ssh.service, see ssh.service.d/paperless-anywhere.conf).
+#
+# The image carries no SSH key, so nobody can log in to a VM the app started,
+# and then sshd has no business listening on the VM's public address. It
+# starts only when a public key came with the unlock (a test's, which the
+# confidential init has put into root's authorized_keys by now), and never on
+# a productive instance, whatever was handed over.
+keys=/root/.ssh/authorized_keys
+role="$(cat /tmp/secrets/paperless_role 2>/dev/null || echo test)"
+if [ "$role" = primary ]; then
+  echo "paperless-ssh-allowed: a productive instance runs no sshd" >&2
+  exit 1
+fi
+if grep -Eq '^(ssh-(rsa|ed25519)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh\.com) ' "$keys" 2>/dev/null; then
+  exit 0
+fi
+echo "paperless-ssh-allowed: no key came with the unlock, sshd stays off" >&2
+exit 1
