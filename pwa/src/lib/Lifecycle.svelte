@@ -528,7 +528,7 @@
 					<button type="button" class="small" onclick={copyPassword}>Kopieren</button>
 				</div>
 			</div>
-			{#if profile.backupConfig}<BackupNow {master} {profile} disabled={busy} onbusy={(b) => (backingUp = b)} ongood={rememberGood} />{/if}
+			{#if profile.backupConfig}<BackupNow {master} {profile} known={lastGood} disabled={busy} onbusy={(b) => (backingUp = b)} ongood={rememberGood} />{/if}
 			<button class="secondary stop" onclick={stop} disabled={busy || backingUp}>Sichern und beenden</button>
 			<Storage {master} {profile} />
 			{#if profile.ageIdentity && backupListing(profile)}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
