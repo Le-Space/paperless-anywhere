@@ -5,6 +5,7 @@
 	import NgxText, { NGX_URL } from '$lib/NgxText.svelte';
 	import TeeNodes from '$lib/landing/TeeNodes.svelte';
 	import StorageProviders from '$lib/landing/StorageProviders.svelte';
+	import OwnImage from '$lib/landing/OwnImage.svelte';
 	import { LANGS, initialLang, texts } from '$lib/landing/i18n.js';
 	import { CREDITS_URL, PLANS, creditsCatalog } from '$lib/credits.js';
 	import Trust from '$lib/landing/Trust.svelte';
@@ -134,6 +135,12 @@
 		<h2>{t.trust.title}</h2>
 		<p class="lead">{t.trust.lead}</p>
 		<Trust t={t.trust} />
+	</section>
+
+	<section id="image">
+		<h2>{t.ownImage.title}</h2>
+		<p class="lead">{t.ownImage.lead}</p>
+		<OwnImage t={t.ownImage} />
 	</section>
 
 	<section id="prices">
