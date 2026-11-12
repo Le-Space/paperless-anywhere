@@ -20,8 +20,8 @@
 	import ProviderHealth from '$lib/ProviderHealth.svelte';
 	import { providerIdsIn } from '$lib/providers.js';
 
-	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void, onmissing?: (missing: string[]) => void, onglance?: (g: Glance) => void }} */
-	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {}, onmissing = () => {}, onglance = () => {} } = $props();
+	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void, onmissing?: (missing: string[]) => void, onglance?: (g: Glance) => void, onbusy?: (busy: boolean) => void }} */
+	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {}, onmissing = () => {}, onglance = () => {}, onbusy = () => {} } = $props();
 	/** @typedef {{ phase: string, host: string | null, lastGood: { at: string, copies: number | null } | null, backupsOn: boolean, pays: 'lespace' | 'app' | 'wallet' | null, fixedHost: boolean }} Glance */
 
 	/** @type {Record<string, any>} */
@@ -135,6 +135,8 @@
 	/** @type {BackupPartialError | null} */
 	let partial = $state(null);
 	let busy = $state(false);
+	// The page asks before it is left while a start, a backup or a stop is under way.
+	$effect(() => onbusy(busy));
 	// A backup requested from the overview runs: no stop meanwhile.
 	let backingUp = $state(false);
 	/** @type {any[] | null} */
