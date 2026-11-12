@@ -428,7 +428,7 @@
 		{@render feedback('image')}
 		{#if BUILDER}
 			<div class="own-image" data-testid="own-image">
-				<p class="hint">Oder ein Image nur für diesen Tresor: Ein geprüfter Build-Dienst versiegelt das öffentliche Image mit einer Passphrase, die aus deinem Tresor abgeleitet wird. Die App prüft den Hardware-Nachweis des Dienstes, bevor sie die Passphrase schickt. Das Image liegt danach bei Aleph auf der Adresse dieser App (<code>{pwaAddress}</code>), die auch den Speicher bezahlt.</p>
+				<p class="hint">Oder ein Image nur für diesen Tresor: Ein geprüfter Build-Dienst versiegelt das öffentliche Image mit einer Passphrase, die aus deinem Tresor abgeleitet wird. Die App prüft den Hardware-Nachweis des Dienstes, bevor sie die Passphrase schickt, holt das versiegelte Image über denselben geprüften Kanal und lädt es selbst zu Aleph hoch (knapp 900 MiB; das dauert und braucht eine stabile Verbindung). Das Image liegt danach bei Aleph auf der Adresse dieser App (<code>{pwaAddress}</code>), die auch den Speicher bezahlt.</p>
 				<details class="sources" data-testid="own-image-sources">
 					<summary>Woraus und womit wird gebaut?</summary>
 					<p class="hint">Diese Werte sind in der App festgelegt und für alle gleich. Das öffentliche Image kann jeder laden und den Hash vergleichen; den Messwert bestätigt die Hardware, bevor die App die Passphrase schickt.</p>

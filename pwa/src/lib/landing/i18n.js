@@ -68,8 +68,8 @@ export const texts = {
 			lead: 'Noch nicht in Betrieb. Heute teilen alle VMs eines Images dessen Passphrase, und Le Space kennt sie (siehe „Nachprüfbar“). So soll es werden: Die Passphrase kommt aus deinem Tresor, und sonst hat sie niemand: nicht Le Space, nicht der Knoten, nicht GitHub.',
 			steps: [
 				{ t: 'Öffentliches Image', d: 'Das System, in dem Paperless-ngx läuft, ist für alle gleich und enthält kein Geheimnis. Der Image-Workflow veröffentlicht es auf Wunsch schon unverschlüsselt, mit seinem Hash; jeder kann ihn nachrechnen.' },
-				{ t: 'Geprüfter Build-Dienst', d: 'Ein kleiner Dienst in einer vertraulichen VM, ganz gemessen. Die App wird sich von der Hardware bestätigen lassen, dass dort genau der veröffentlichte Code läuft.' },
-				{ t: 'Dein Image', d: 'Erst dann schickt die App die Passphrase aus deinem Tresor. Der Dienst versiegelt das Image damit und vergisst sie wieder.' },
+				{ t: 'Geprüfter Build-Dienst', d: 'Ein kleiner Dienst in einer vertraulichen VM, ganz gemessen, samt dem Image, das er versiegelt. Die App wird sich von der Hardware bestätigen lassen, dass dort genau der veröffentlichte Code mit genau diesem Image läuft.' },
+				{ t: 'Dein Image', d: 'Erst dann schickt die App die Passphrase aus deinem Tresor. Der Dienst versiegelt das Image damit und vergisst sie wieder. Die App holt das versiegelte Image über denselben geprüften Kanal und legt es selbst bei Aleph ab.' },
 				{ t: 'Deine VM', d: 'Beim Start öffnet die VM die Platte mit deiner Passphrase. Eine Platte, die nicht damit versiegelt wurde, geht nicht auf, und es startet nichts.' }
 			],
 			knowsTitle: 'Wer die Passphrase dann kennt',
@@ -253,8 +253,8 @@ export const texts = {
 			lead: 'Not in operation yet. Today every VM of an image shares its passphrase, and Le Space knows it (see “Checkable”). This is where it is going: the passphrase comes from your vault, and nobody else has it: not Le Space, not the node, not GitHub.',
 			steps: [
 				{ t: 'Public image', d: 'The system Paperless-ngx runs in is the same for everyone and holds no secret. The image workflow can already publish it unencrypted, with its hash; anyone can recompute it.' },
-				{ t: 'Attested builder', d: 'A small service in a confidential VM, measured as a whole. The app will have the hardware confirm that exactly the published code runs there.' },
-				{ t: 'Your image', d: 'Only then the app sends the passphrase from your vault. The service seals the image with it and forgets it again.' },
+				{ t: 'Attested builder', d: 'A small service in a confidential VM, measured as a whole, together with the image it seals. The app will have the hardware confirm that exactly the published code runs there with exactly that image.' },
+				{ t: 'Your image', d: 'Only then the app sends the passphrase from your vault. The service seals the image with it and forgets it again. The app fetches the sealed image over the same attested channel and stores it on Aleph itself.' },
 				{ t: 'Your VM', d: 'At the start the VM opens the disk with your passphrase. A disk that was not sealed with it does not open, and nothing starts.' }
 			],
 			knowsTitle: 'Who will know the passphrase',

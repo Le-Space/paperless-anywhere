@@ -3,14 +3,11 @@
 How the builder ([docs/own-image.md](../../docs/own-image.md)) gets onto
 Aleph as a measured, confidential VM that anyone can attest.
 
-> **Status: published once, not verified yet.** The compose file and the image
-> archive are checked locally (the container starts under exactly these
-> settings and runs a whole job). The steps below follow `aleph vprogram`
-> of the Aleph CLI 0.22.0 and Aleph's runtime `compose-1.4`. Of them, only
-> the start of a dry run was tried (the CLI accepts the compose file and
-> the options and resolves the runtime). Through the workflow below, a dry
-> run and a publication have run; an attested call has not verified yet
-> (see "Choosing the node"), so no job has run on Aleph.
+> **Status: published and attested, no build on Aleph yet.** Through the
+> workflow below the builder has been published on Aleph several times and
+> an attested call to it verifies. The design of those runs fetched the
+> plain image itself, which a V-PROGRAM cannot do; the design described
+> here has run only locally, without any network.
 
 ## What runs
 
@@ -18,13 +15,17 @@ Aleph as a measured, confidential VM that anyone can attest.
 |---|---|
 | Runtime | `compose-1.4` (aleph-snp-compose 2.2.0): firmware, kernel, initrd and a read-only root with podman, all from Aleph's published bundle |
 | Workload | one volume with `docker-compose.yml` and the builder's image archive; its dm-verity root hash is on the measured boot line |
+| Plain image | a verified volume (`/volumes/0`, in the container `/plain`) with the plain image, gzipped; its root hash is on the boot line too |
 | Way in | Aleph's attestation agent, TLS on 8443, forwarding to `127.0.0.1:8080` |
-| Way out | the builder fetches the plain image from Aleph's API and uploads the encrypted one there |
+| Way out | none: the guest's firewall accepts only the attested port and drops the replies to outbound connections. The sealed image leaves through the attested channel, fetched by the caller |
 | Scratch | none on disk: the image being built lies in memory (`/work`, a tmpfs of 1.2 GiB) |
 
 A V-PROGRAM has no owner and takes no secret at start: what the builder
-knows is what is in this repository. The passphrase of a build arrives over
-the attested channel and is gone when the build ends.
+knows is what is in this repository, and the plain image. The passphrase of
+a build arrives over the attested channel and is gone when the build ends.
+
+Which image a builder seals is fixed when it is published, and is part of
+its measurement. A new plain image needs a new builder.
 
 **Memory:** 6144 MiB. The loaded container image (about 250 MiB), one image
 of up to 1 GiB in `/work`, and up to 1 GiB while `cryptsetup` derives the
@@ -42,15 +43,20 @@ and pays. Its summary holds what each action found.
 | `dry-run` | builds the archive and the workload, computes the launch measurements; uploads and publishes nothing | nothing |
 | `publish` | a dry run first, then uploads the workload and publishes the V-PROGRAM, waits until it is reachable and makes an attested call to it; if that call does not verify, the builder is deleted again | credits of the account, from then on **until it is deleted** |
 | `check` | shows the V-PROGRAM with the given hash and makes one attested call to `/`; fails unless the builder answers | nothing |
+| `trial` | has the builder with the given hash seal the image once, with a passphrase made for the run and thrown away, and fetches three pieces back; fails unless the result is a LUKS2 disk | nothing beyond the running builder |
 | `delete` | forgets the V-PROGRAM with the given hash; the scheduler then stops the VM | nothing; ends the cost |
 
 The usual order:
 
+0. An image run with the option *plain* (`rootfs.yml`); its summary names
+   the plain image's STORE hash and SHA-256. Every action below that builds
+   takes them as `plain_store` and `plain_sha256`.
 1. `dry-run`. If it fails while it fetches Aleph's runtime bundle, start it
    again; it tries three times by itself.
 2. `publish`, with a node in `crn` (see below). Note the item hash from the
    summary. A green run means the attested call verified.
-3. `check` with that hash, whenever you want to know whether it still
+3. `trial` with that hash and `plain_sha256`: one whole build on Aleph.
+   `check` with the hash, whenever you want to know whether it still
    answers.
 4. Enter the values in the app ([below](#what-goes-into-the-app-afterwards)).
 5. `delete` with that hash when the builder is no longer wanted. A builder
@@ -111,6 +117,14 @@ IMAGE=localhost/paperless-anywhere-image-builder:1
    ./build-archive.sh
    ```
 
+   **The plain image as a volume:** a small ext4 filesystem holding the
+   gzipped plain image under the name the compose file expects.
+
+   ```sh
+   mkdir vol && cp paperless-plain.ext4.gz vol/
+   truncate -s 280M plain-volume.ext4 && mkfs.ext4 -q -O ^has_journal -d vol plain-volume.ext4
+   ```
+
 2. **A local boot, nothing uploaded.** On a Linux machine with
    `qemu-system-x86_64`, `/dev/kvm` and `veritysetup`: boots Aleph's
    runtime with this workload in plain QEMU and asks the builder for `/`.
@@ -120,7 +134,7 @@ IMAGE=localhost/paperless-anywhere-image-builder:1
 
    ```sh
    aleph vprogram run --compose docker-compose.yml --image-archive "$IMAGE=image-builder.tar" \
-     --runtime compose-1.4 --vcpus 2 --memory 6144 --check
+     --volume plain-volume.ext4 --runtime compose-1.4 --vcpus 2 --memory 6144 --check
    ```
 
 3. **What would be published.** Builds and measures, signs and uploads
@@ -128,8 +142,8 @@ IMAGE=localhost/paperless-anywhere-image-builder:1
 
    ```sh
    aleph vprogram create paperless-image-builder --compose docker-compose.yml \
-     --image-archive "$IMAGE=image-builder.tar" --runtime compose-1.4 \
-     --vcpus 2 --memory 6144 --dry-run --json
+     --image-archive "$IMAGE=image-builder.tar" --volume plain-volume.ext4 \
+     --runtime compose-1.4 --vcpus 2 --memory 6144 --dry-run --json
    ```
 
 4. **Publish.** The same without `--dry-run`, with `--wait`. From here on
@@ -137,8 +151,8 @@ IMAGE=localhost/paperless-anywhere-image-builder:1
 
    ```sh
    aleph vprogram create paperless-image-builder --compose docker-compose.yml \
-     --image-archive "$IMAGE=image-builder.tar" --runtime compose-1.4 \
-     --vcpus 2 --memory 6144 --wait 600
+     --image-archive "$IMAGE=image-builder.tar" --volume plain-volume.ext4 \
+     --runtime compose-1.4 --vcpus 2 --memory 6144 --wait 600
    ```
 
 5. **An attested call.** Answers only if the AMD chain, the key binding,
@@ -155,16 +169,15 @@ IMAGE=localhost/paperless-anywhere-image-builder:1
    aleph vprogram delete <hash>
    ```
 
-## What the first run has to show
+## What a trial has to show
 
-- The builder reaches Aleph's API from inside the guest (the fetch of the
-  plain image is the first thing a job does; `aleph vprogram logs <hash>`
-  shows the builder's line and any failure).
-- A whole job with a real plain image fits into the memory above.
+- A whole job with the real plain image fits into the memory above, and
+  how long it takes.
 - `cryptsetup` encrypts inside the runtime's container. Locally it does so
   without device-mapper and without the kernel's crypto socket, which the
   guest kernel does not have.
-- An upload of several hundred MiB from the guest to Aleph goes through.
+- The sealed image comes back in pieces over the attested channel, and at
+  which pace.
 
 ## What the runs showed so far
 
@@ -176,9 +189,12 @@ IMAGE=localhost/paperless-anywhere-image-builder:1
   the attested channel, and failed at its first step with "fetch failed".
   The builder did not reach Aleph's API from inside the guest. Why is not
   known yet: the builder of that day did not say what lay behind the error.
-  It does now, and `GET /health` reports the name servers the guest was
-  given, what the API's name resolves to, and whether the API answers; the
-  workflow prints it after `publish` and `check`.
+- 2026-11-12, the same with a builder that reports what it reaches: name
+  servers are set, no lookup and no connection gets an answer. The cause
+  is the guest's firewall, by design: it accepts the attested port only, so
+  no reply to an outbound connection comes back. A V-PROGRAM cannot fetch
+  or upload; the builder was rebuilt around that (image on a verified
+  volume, result handed back).
 
 ## What goes into the app afterwards
 
@@ -186,7 +202,7 @@ IMAGE=localhost/paperless-anywhere-image-builder:1
 
 - `measurements`, `policy`: from the V-PROGRAM message (`aleph vprogram show <hash>`);
 - `route`: how the attest relay reaches the builder's attested endpoint;
-- `plain`: the STORE hash and SHA-256 the image workflow prints with the option *plain*.
+- `plain`: the SHA-256 (and, to show it, the STORE hash and the commit) of the plain image this builder was published with.
 
 All of these are public values.
 
