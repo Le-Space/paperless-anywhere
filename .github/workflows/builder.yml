@@ -63,7 +63,8 @@ jobs:
           done
           echo "$answer"
           docker compose down
-          [ "$answer" = '{"service":"paperless-anywhere image builder"}' ]
+          # Beside its name the builder says which plain image it holds; none yet.
+          [ "$(jq -r .service <<<"$answer")" = 'paperless-anywhere image builder' ]
 
       - name: Summary
         run: |
