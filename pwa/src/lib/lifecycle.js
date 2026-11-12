@@ -163,7 +163,9 @@ export async function retryBackupRevoke(master, profile, deps) {
  * the VM (the confidential init adds it to root's authorized_keys, and sshd
  * starts only then). The app's UI never sets it, the image carries no key of
  * its own, and a productive instance gets none: nobody logs in where the
- * real documents are. The VM refuses the same on its side.
+ * real documents are. The VM, on its side, starts sshd on a productive
+ * instance only when the unlock asks for it explicitly, which this app
+ * never does.
  * @param {Record<string, any>} profile
  * @returns {string | null}
  */
