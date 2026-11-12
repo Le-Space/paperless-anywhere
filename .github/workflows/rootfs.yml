@@ -165,13 +165,15 @@ jobs:
           mkdir -p "$dir"
           cp relay-button/.github/actions/aleph-confidential-rootfs/publish-store.mjs "$dir/"
           cd "$dir"
-          npm init -y >/dev/null && npm install --silent ethers@6.13.4 ipfs-unixfs-importer@17.1.1 >/dev/null
-          # Stored gzipped. Aleph's node answered every upload of the image
-          # as it is with a 500 (2026-11-12, six tries in two runs), while it
-          # took the encrypted image of the same size each time; what differs
-          # is the content, so the plain image goes up packed, and smaller.
+          # The exact packages of the lockfile, and none of their install
+          # scripts: this step holds the key that signs and pays.
+          cp "$GITHUB_WORKSPACE/.github/publish-store/package.json" "$GITHUB_WORKSPACE/.github/publish-store/package-lock.json" .
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error >/dev/null
+          # Stored gzipped: a third of the size. Aleph's node refused uploads
+          # of the full size several times (2026-11-12), the encrypted image
+          # too, and took the ones of a few hundred MiB every time.
           # The SHA-256 above stays that of the image itself: the builder
-          # unpacks while it downloads and checks what it unpacked.
+          # unpacks it and checks what it unpacked.
           gzip -6 -c "$plain" > "$plain.gz"
           echo "stored_bytes=$(stat -c %s "$plain.gz")" >> "$GITHUB_OUTPUT"
           # A failed upload stores nothing, so trying again repeats nothing.
