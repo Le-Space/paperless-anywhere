@@ -5,6 +5,7 @@
 	import NgxText, { NGX_URL } from '$lib/NgxText.svelte';
 	import TeeNodes from '$lib/landing/TeeNodes.svelte';
 	import StorageProviders from '$lib/landing/StorageProviders.svelte';
+	import Trust from '$lib/landing/Trust.svelte';
 	import { LANGS, initialLang, texts } from '$lib/landing/i18n.js';
 	import { CREDITS_URL, PLANS, creditsCatalog } from '$lib/credits.js';
 
@@ -78,6 +79,7 @@
 		<a href="#tee">{t.nav.tee}</a>
 		<a href="#nodes">{t.nav.nodes}</a>
 		<a href="#storage">{t.nav.storage}</a>
+		<a href="#trust">{t.nav.trust}</a>
 		<a href="#prices">{t.nav.prices}</a>
 		<a href="#faq">{t.nav.faq}</a>
 	</nav>
@@ -126,6 +128,12 @@
 		<p class="lead">{t.storage.lead}</p>
 		<p>{t.storage.choose}</p>
 		<StorageProviders t={t.storage} {lang} />
+	</section>
+
+	<section id="trust">
+		<h2>{t.trust.title}</h2>
+		<p class="lead">{t.trust.lead}</p>
+		<Trust t={t.trust} />
 	</section>
 
 	<section id="prices">

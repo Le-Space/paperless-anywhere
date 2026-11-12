@@ -29,7 +29,7 @@ export const texts = {
 		title: 'Paperless anywhere – Paperless-ngx auf Abruf, vertraulich',
 		description: 'Paperless-ngx auf Abruf in einer vertraulichen VM. Kostet nur, solange es läuft; danach verschlüsselt gesichert und aus.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx auf Abruf, betrieben von Le Space: Deine Dokumente. Nur wach, wenn du sie brauchst.',
-		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Knoten', storage: 'Backups', prices: 'Preise', faq: 'FAQ' },
+		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Knoten', storage: 'Backups', trust: 'Nachprüfbar', prices: 'Preise', faq: 'FAQ' },
 		tagline: 'Paperless-ngx auf Abruf, betrieben von Le Space',
 		disclaimer: DISCLAIMER.de,
 		open: 'Paperless anywhere starten',
@@ -85,6 +85,58 @@ export const texts = {
 			count: (n, c) => `${n} zugelassene Anbieter in ${c} Ländern`,
 			endorsed: 'empfohlen',
 		},
+		trust: {
+			title: 'Nachprüfbar: wer welchen Schlüssel hat',
+			lead: 'Wo das Image entsteht, wie seine Platte verschlüsselt ist, wer welches Geheimnis kennt und was die Hardware bestätigt. Mit den Punkten, die noch offen sind, und wo du jede Aussage selbst prüfen kannst.',
+			diagramLabel: 'Schaubild: Ein GitHub-Runner baut das Image und verschlüsselt es mit LUKS; es liegt bei Aleph. Es läuft in einer vertraulichen VM (AMD SEV-SNP): gemessen werden Firmware, Kernel, Initrd und Besitzer, nicht das Image; was die VM schreibt, liegt in einem Datenbereich mit einem Zufallsschlüssel, den nur sie hat. Sicherungen werden in der VM mit age verschlüsselt und bei Filecoin abgelegt. Dein Browser prüft den Nachweis der VM und schickt erst dann Passphrase und Geheimnisse.',
+			diagram: {
+				build: { kicker: '1 · Gebaut', title: 'GitHub-Runner', lines: ['rootfs.yml baut Debian,', 'Docker, Caddy, Skripte', 'und verschlüsselt (LUKS)'] },
+				store: { kicker: '2 · Abgelegt', title: 'Aleph-Speicher', lines: ['das Image, verschlüsselt,', 'benannt durch seinen', 'STORE-Hash'] },
+				vm: { kicker: '3 · Läuft', title: 'Vertrauliche VM', sub: 'AMD SEV-SNP, auf einem Aleph-Knoten' },
+				measured: { title: 'Gemessen ✓', lines: ['Firmware · Kernel · Initrd · Besitzer'] },
+				image: { title: 'Image (LUKS): nicht gemessen', lines: ['öffnet sich nur mit', 'der Image-Passphrase'] },
+				data: { title: 'Datenbereich (dm-crypt)', lines: ['Zufallsschlüssel bei jedem Start,', 'nur im Speicher der VM'] },
+				backup: { kicker: '4 · Gesichert', title: 'Filecoin', lines: ['in der VM mit age', 'verschlüsselt, an', 'deinen Schlüssel'] },
+				you: { kicker: 'Du', title: 'Dein Browser, dein Tresor', lines: ['① prüft den AMD-Nachweis der VM', '② erst dann: Passphrase, Geheimnisse', 'über einen Relay, der nur weiterleitet'] },
+				legend: 'Schlüssel',
+				keys: { image: 'Image-Passphrase: eine je Image', data: 'Datenbereich: je Start, nur in der VM', vault: 'Tresor: nur bei dir' }
+			},
+			secretsTitle: 'Wer welches Geheimnis kennt',
+			cols: { what: 'Geheimnis', has: 'Wer es kennt', not: 'Wer nicht' },
+			secrets: [
+				{ key: 'image', what: 'Image-Passphrase', d: 'öffnet die LUKS-Platte des Images. Für alle VMs eines Images gleich; das Image enthält nichts Persönliches.', has: 'Le Space: Ein Release-Image bekommt beim Bau auf einem GitHub-gehosteten Runner eine zufällige Passphrase, die der Lauf nur verschlüsselt (age) an Le Space ausgibt. Dazu deine App (versiegelt in deinem Profil) und die VM beim Start.', not: 'der Betreiber des Knotens' },
+				{ key: 'data', what: 'Schlüssel des Datenbereichs', d: 'versiegelt alles, was die VM schreibt: Dokumente, Datenbank, Zertifikat.', has: 'nur die VM, nur im Speicher, bei jedem Start neu und zufällig. Nach dem Stopp gibt es ihn nicht mehr.', not: 'du, die App, Le Space, der Knoten' },
+				{ key: 'vault', what: 'Hauptgeheimnis des Tresors', d: '32 zufällige Bytes; alle Schlüssel darunter werden daraus abgeleitet.', has: 'du: versiegelt mit deinem Passkey (PRF) und mit den 24 Wörtern, offen nur im Speicher deines Browsers.', not: 'Le Space, Aleph (dort liegt es nur versiegelt), die VM' },
+				{ key: 'vault', what: 'Paperless-Passwörter, Sitzungsschlüssel', d: 'aus dem Tresor abgeleitet.', has: 'dein Browser; die VM bekommt sie nach der Prüfung, für diesen Start.', not: 'Le Space, der Knoten' },
+				{ key: 'vault', what: 'Sicherungsschlüssel (age)', d: 'öffnet deine Sicherungen; aus dem Tresor abgeleitet oder selbst eingefügt.', has: 'dein Browser. Die VM verschlüsselt nur an den öffentlichen Teil; den Schlüssel selbst bekommt sie nur für eine Wiederherstellung und löscht ihn danach.', not: 'Le Space, die Speicheranbieter: Sie haben nur Chiffrat.' }
+			],
+			attestTitle: 'Was die Hardware bestätigt',
+			proves: [
+				'Deine App prüft im Browser einen Bericht des AMD-Prozessors: von AMD signiert (mit Zertifikaten aus AMDs Schlüsseldienst), nicht widerrufen, mit ausreichendem Firmware-Stand.',
+				'Der Messwert im Bericht passt zu Firmware, Kernel und Initrd der Laufzeit, die in der App fest eingetragen ist, und zu einer Startzeile, die deinen App-Schlüssel als Besitzer nennt. Die App rechnet ihn selbst aus.',
+				'Im Bericht stehen ein frischer Zufallswert und der TLS-Schlüssel der VM: Die Verbindung endet in genau dieser VM. Erst dann gehen Passphrase und Geheimnisse hinaus, signiert von deinem App-Schlüssel; die VM nimmt sie nur mit dieser Unterschrift an.',
+				'Der Relay dazwischen trägt nur verschlüsselte Bytes. Geprüft wird in deinem Browser, nicht dort.'
+			],
+			gapsTitle: 'Noch nicht bestätigt',
+			gaps: [
+				'Der Inhalt des Images wird nicht mitgemessen. Dass in der VM das veröffentlichte Image läuft, stützt sich bisher darauf, dass sich seine Platte nur mit der Image-Passphrase öffnet, nicht auf einen Messwert der Hardware.',
+				'Die Image-Passphrase ist für alle VMs eines Images gleich, und Le Space kennt sie. Darum liegt alles, was deine VM schreibt, im eigenen Datenbereich. Ein Image, dessen Passphrase nur dein Tresor kennt, ist in Vorbereitung.',
+				'Der Bau ist nicht Bit für Bit wiederholbar, weil Debian-Pakete beim Bau geladen werden. Nachlesen lässt sich, was hineinkommt.',
+				'Weitere Punkte aus dem laufenden Sicherheits-Audit sind noch offen.'
+			],
+			verifyTitle: 'Selbst nachprüfen',
+			verify: {
+				runtime: { t: 'Die Laufzeit der VM', d: 'Firmware, Kernel und Initrd: die Aleph-Nachricht, deren Hash in der App steht. Liefert Aleph etwas anderes, startet die App nichts.', links: ['Aleph-Nachricht'] },
+				vm: { t: 'Deine VM und ihre Messwerte', d: 'Die INSTANCE-Nachricht deiner App-Adresse nennt die Messwerte, die die App eingetragen hat; die App zeigt Instanz und Knoten.', links: ['Aleph-Explorer'] },
+				amd: { t: 'AMD SEV-SNP', d: 'Wie der Bericht aufgebaut ist und gegen welche Zertifikate er geprüft wird.', links: ['AMD SEV'] },
+				image: { t: 'Das Image', d: 'Den STORE-Hash zeigt die App in der Einrichtung. Gebaut wird es vom Workflow rootfs.yml aus rootfs/build-image.sh; die Zusammenfassung jedes Laufs nennt den Hash und den Quelltext-Stand.', links: ['build-image.sh', 'rootfs.yml', 'Läufe'] },
+				data: { t: 'Der Datenbereich', d: 'Die App zeigt, ob eine laufende VM ihren Datenbereich versiegelt hat. Gelingt das nicht, startet Paperless-ngx nicht.', links: ['paperless-data-disk'] },
+				backups: { t: 'Die Sicherungen', d: 'Datensätze und Stücke sind bei Filecoin öffentlich einsehbar, ihr Inhalt verschlüsselt. Beim Wiederherstellen prüft die VM jedes Stück gegen seine Inhaltsadresse (Piece-CID).', links: ['Filfox'] },
+				app: { t: 'Diese Web-App', d: 'Sie liegt auf IPFS. Welche Version die Domain ausliefert, zeigt ihr DNSLink-Eintrag (dig TXT _dnslink.paperless.le-space.de); jedes Release nennt seine CID.', links: ['Releases'] },
+				docs: { t: 'Im Detail', d: 'Die Beschreibung, nach der diese Seite geschrieben ist.', links: ['Sicherheitsmodell', 'Schlüssel und Wiederherstellung', 'Eigenes Image', 'Ablauf'] }
+			},
+			repoNote: 'Der Quelltext liegt bei GitHub. Das Repository ist noch nicht öffentlich; bis dahin öffnen die GitHub-Links nur für Berechtigte.'
+		},
 		prices: {
 			title: 'Preise',
 			lead: 'Monatspakete mit Rechenstunden. Du zahlst nur Stunden, in denen Paperless-ngx läuft.',
@@ -139,7 +191,7 @@ export const texts = {
 		title: 'Paperless anywhere – Paperless-ngx on demand, confidential',
 		description: 'Paperless-ngx on demand in a confidential VM. Costs only while it runs; then backed up, encrypted, and shut down.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx on demand, run by Le Space: Your documents. Awake only when you need them.',
-		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Nodes', storage: 'Backups', prices: 'Prices', faq: 'FAQ' },
+		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Nodes', storage: 'Backups', trust: 'Verify', prices: 'Prices', faq: 'FAQ' },
 		tagline: 'Paperless-ngx on demand, run by Le Space',
 		disclaimer: DISCLAIMER.en,
 		open: 'Open the app',
@@ -194,6 +246,58 @@ export const texts = {
 			error: 'The provider list cannot be reached right now.',
 			count: (n, c) => `${n} approved providers in ${c} countries`,
 			endorsed: 'endorsed',
+		},
+		trust: {
+			title: 'Checkable: who holds which key',
+			lead: 'Where the image is built, how its disk is encrypted, who knows which secret and what the hardware confirms. With the points that are still open, and where you can check each claim yourself.',
+			diagramLabel: 'Diagram: a GitHub runner builds the image and encrypts it with LUKS; it is stored on Aleph. It runs in a confidential VM (AMD SEV-SNP): firmware, kernel, initrd and owner are measured, the image is not; what the VM writes goes into a data area with a random key only the VM has. Backups are encrypted with age inside the VM and stored on Filecoin. Your browser checks the VM’s attestation and only then sends the passphrase and secrets.',
+			diagram: {
+				build: { kicker: '1 · Built', title: 'GitHub runner', lines: ['rootfs.yml builds Debian,', 'Docker, Caddy, scripts', 'and encrypts (LUKS)'] },
+				store: { kicker: '2 · Stored', title: 'Aleph storage', lines: ['the image, encrypted,', 'named by its', 'STORE hash'] },
+				vm: { kicker: '3 · Runs', title: 'Confidential VM', sub: 'AMD SEV-SNP, on an Aleph node' },
+				measured: { title: 'Measured ✓', lines: ['firmware · kernel · initrd · owner'] },
+				image: { title: 'Image (LUKS): not measured', lines: ['opens only with', 'the image passphrase'] },
+				data: { title: 'Data area (dm-crypt)', lines: ['random key at every start,', 'in the VM’s memory only'] },
+				backup: { kicker: '4 · Backed up', title: 'Filecoin', lines: ['encrypted with age', 'inside the VM,', 'to your key'] },
+				you: { kicker: 'You', title: 'Your browser, your vault', lines: ['① checks the VM’s AMD attestation', '② only then: passphrase, secrets', 'via a relay that only forwards'] },
+				legend: 'Keys',
+				keys: { image: 'Image passphrase: one per image', data: 'Data area: per start, in the VM only', vault: 'Vault: with you only' }
+			},
+			secretsTitle: 'Who knows which secret',
+			cols: { what: 'Secret', has: 'Who knows it', not: 'Who does not' },
+			secrets: [
+				{ key: 'image', what: 'Image passphrase', d: 'opens the image’s LUKS disk. The same for every VM of an image; the image holds nothing personal.', has: 'Le Space: a release image gets a random passphrase while it is built on a GitHub-hosted runner, and the run puts it out only encrypted (age) to Le Space. Also your app (sealed in your profile) and the VM at its start.', not: 'the node’s operator' },
+				{ key: 'data', what: 'Data area key', d: 'seals everything the VM writes: documents, database, certificate.', has: 'the VM only, in memory only, new and random at every start. After the stop it no longer exists.', not: 'you, the app, Le Space, the node' },
+				{ key: 'vault', what: 'Vault master secret', d: '32 random bytes; every key below is derived from it.', has: 'you: sealed by your passkey (PRF) and by the 24 words, open only in your browser’s memory.', not: 'Le Space, Aleph (it holds it sealed only), the VM' },
+				{ key: 'vault', what: 'Paperless passwords, session keys', d: 'derived from the vault.', has: 'your browser; the VM gets them after the check, for this start.', not: 'Le Space, the node' },
+				{ key: 'vault', what: 'Backup key (age)', d: 'opens your backups; derived from the vault, or pasted in by you.', has: 'your browser. The VM encrypts to its public part only; it gets the key itself only for a restore and deletes it afterwards.', not: 'Le Space, the storage providers: they hold ciphertext only.' }
+			],
+			attestTitle: 'What the hardware confirms',
+			proves: [
+				'Your app checks a report from the AMD processor in the browser: signed by AMD (with certificates from AMD’s key service), not revoked, with a firmware level high enough.',
+				'The measurement in the report matches the firmware, kernel and initrd of the runtime fixed in the app, and a boot line naming your app key as the owner. The app computes it itself.',
+				'The report carries a fresh random value and the VM’s TLS key: the connection ends in exactly this VM. Only then do the passphrase and secrets go out, signed by your app key; the VM accepts them only with that signature.',
+				'The relay in between carries encrypted bytes only. The checking happens in your browser, not there.'
+			],
+			gapsTitle: 'Not confirmed yet',
+			gaps: [
+				'The image’s content is not measured. That the VM runs the published image rests, for now, on its disk opening only with the image passphrase, not on a measurement by the hardware.',
+				'The image passphrase is the same for every VM of an image, and Le Space knows it. That is why everything your VM writes goes into its own data area. An image whose passphrase only your vault knows is in preparation.',
+				'The build cannot be repeated bit for bit, because Debian packages are fetched while it runs. What goes in can be read.',
+				'Further points from the ongoing security audit are still open.'
+			],
+			verifyTitle: 'Check it yourself',
+			verify: {
+				runtime: { t: 'The VM’s runtime', d: 'Firmware, kernel and initrd: the Aleph message whose hash is fixed in the app. If Aleph delivers anything else, the app starts nothing.', links: ['Aleph message'] },
+				vm: { t: 'Your VM and its measurements', d: 'The INSTANCE message of your app address names the measurements the app put in; the app shows instance and node.', links: ['Aleph explorer'] },
+				amd: { t: 'AMD SEV-SNP', d: 'How the report is built and which certificates it is checked against.', links: ['AMD SEV'] },
+				image: { t: 'The image', d: 'The app shows the STORE hash in the setup. The workflow rootfs.yml builds it from rootfs/build-image.sh; every run’s summary names the hash and the source commit.', links: ['build-image.sh', 'rootfs.yml', 'Runs'] },
+				data: { t: 'The data area', d: 'The app shows whether a running VM sealed its data area. If that fails, Paperless-ngx does not start.', links: ['paperless-data-disk'] },
+				backups: { t: 'The backups', d: 'Data sets and pieces are public on Filecoin, their content encrypted. At a restore the VM checks every piece against its content address (piece CID).', links: ['Filfox'] },
+				app: { t: 'This web app', d: 'It is served from IPFS. Which version the domain serves, its DNSLink record shows (dig TXT _dnslink.paperless.le-space.de); every release names its CID.', links: ['Releases'] },
+				docs: { t: 'In detail', d: 'The description this page is written from.', links: ['Security model', 'Keys and recovery', 'Your own image', 'Workflow'] }
+			},
+			repoNote: 'The source code is on GitHub. The repository is not public yet; until then the GitHub links open for authorised people only.'
 		},
 		prices: {
 			title: 'Prices',

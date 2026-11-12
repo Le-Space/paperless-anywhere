@@ -69,3 +69,31 @@ test('link previews find title, description and image in the HTML itself, withou
 	expect(manifest.short_name).toBe('Paperless anywhere');
 	for (const icon of manifest.icons) expect((await request.get(icon.src)).ok()).toBe(true);
 });
+
+test('the landing page shows who holds which key, what is attested and where to check it', async ({ page }) => {
+	await page.context().route(/https:\/\/crns-list\.aleph\.sh\/.*/, (route) => route.fulfill({ json: { crns: [] } }));
+	await page.context().route(/filecoin|glif|chain\.love/, (route) => route.abort());
+	await page.addInitScript(() => Object.defineProperty(navigator, 'language', { get: () => 'de-DE' }));
+
+	await page.goto('/');
+	const trust = page.locator('#trust');
+	await expect(trust.getByRole('heading', { level: 2 })).toHaveText('Nachprüfbar: wer welchen Schlüssel hat');
+	// The diagram, wide on a desktop, tall on a phone, with a text for screen readers.
+	await expect(page.getByTestId('trust-diagram').getByRole('img')).toHaveCount(1);
+	await expect(page.getByTestId('trust-diagram').locator('svg:visible')).toHaveAttribute('class', /trust-wide/);
+	await expect(page.getByTestId('trust-diagram').locator('svg:visible text').getByText('Image (LUKS): nicht gemessen')).toBeVisible();
+	await expect(page.getByTestId('trust-secrets').getByRole('row')).toHaveCount(6);
+	await expect(page.getByTestId('trust-gaps')).toContainText('Der Inhalt des Images wird nicht mitgemessen.');
+	await expect(page.getByTestId('trust-proves')).toContainText('Der Relay dazwischen trägt nur verschlüsselte Bytes.');
+	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Aleph-Nachricht' })).toHaveAttribute('href', /api2\.aleph\.im\/api\/v0\/messages\/[0-9a-f]{64}$/);
+	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Sicherheitsmodell' })).toHaveAttribute('href', /docs\/security-model\.md$/);
+
+	await page.getByRole('button', { name: 'EN' }).click();
+	await expect(trust.getByRole('heading', { level: 2 })).toHaveText('Checkable: who holds which key');
+	await expect(page.getByTestId('trust-gaps')).toContainText('The image’s content is not measured.');
+
+	await page.setViewportSize({ width: 375, height: 812 });
+	await expect(page.getByTestId('trust-diagram').locator('svg:visible')).toHaveAttribute('class', /trust-tall/);
+	// Nothing wider than the phone.
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+});
