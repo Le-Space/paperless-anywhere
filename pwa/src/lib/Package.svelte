@@ -7,6 +7,8 @@
 	import { biggerPlan, planHours, creditsBalance, creditsCatalog, fewHoursLeft, hoursPerWeek, creditsPurchases, choosePlan, fundVm, planOf, PLANS, quoteVm, startSubscription, subscriptionPortal, waitForSubscription, creditsTerms, waiverOf, WaiverError } from '$lib/credits.js';
 	import StripeCheckout from '$lib/StripeCheckout.svelte';
 	import Cancel from '$lib/Cancel.svelte';
+	import Withdraw from '$lib/Withdraw.svelte';
+	import { withdrawalQuote } from '$lib/credits.js';
 	import Waiver from '$lib/Waiver.svelte';
 	import TopUp from '$lib/TopUp.svelte';
 	import Terms from '$lib/Terms.svelte';
@@ -55,6 +57,12 @@
 	/** @type {{ plan: NonNullable<NonNullable<typeof balance>['plan']>, current: typeof current } | null} */
 	let cancelling = $state(null);
 
+	// The withdrawal function (§ 356a BGB): what the service lists as
+	// withdrawable right now. Empty, or a service without the route: no button.
+	/** @type {Awaited<ReturnType<typeof withdrawalQuote>>} */
+	let withdrawable = $state([]);
+	let withdrawing = $state(false);
+
 	const euro = (/** @type {number} */ credits) => `${amount(credits / 100)} €`;
 	const day = (/** @type {string | null} */ iso) => (iso ? new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : '');
 	const current = $derived(balance?.plan ? planOf(balance.plan.id, plans) : null);
@@ -71,7 +79,9 @@
 	async function read() {
 		await Promise.all([
 			creditsBalance(master).then((b) => ((balance = b), (balanceError = ''))).catch((e) => ((balance = null), (balanceError = e.message))),
-			creditsPurchases(master).then((p) => ((purchases = p), (purchasesError = ''))).catch((e) => ((purchases = null), (purchasesError = e instanceof Error ? e.message : String(e))))
+			creditsPurchases(master).then((p) => ((purchases = p), (purchasesError = ''))).catch((e) => ((purchases = null), (purchasesError = e instanceof Error ? e.message : String(e)))),
+			// While the withdrawal view is open its list stays as it was opened.
+			withdrawing ? null : withdrawalQuote(master).then((w) => (withdrawable = w)).catch(() => (withdrawable = []))
 		]);
 	}
 
@@ -212,6 +222,14 @@
 
 		{#if cancelling}
 			<Cancel {master} plan={cancelling.plan} current={cancelling.current} onportal={portal} ondone={read} onclose={() => (cancelling = null)} />
+		{/if}
+
+		{#if withdrawable.length && !withdrawing}
+			<!-- The withdrawal button (§ 356a BGB): in sight for as long as something can be withdrawn. -->
+			<p class="row"><button class="small" onclick={() => (withdrawing = true)} disabled={busy} data-testid="withdraw-open">Vertrag widerrufen</button></p>
+		{/if}
+		{#if withdrawing}
+			<Withdraw {master} {withdrawable} ondone={read} onclose={() => { withdrawing = false; read(); }} />
 		{/if}
 
 		<p class="line"><span class="label">Guthaben</span> <strong data-testid="balance-euro">{euro(balance.credits)}</strong>

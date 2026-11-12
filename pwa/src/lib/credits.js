@@ -653,6 +653,113 @@ export function cancellationRecord({ contract, receivedAt, effectiveAt, address,
 }
 
 /**
+ * The way to cancel without the vault's key (§ 312k BGB): someone who cannot
+ * unlock the app cannot sign a cancellation, so this opens a mail to Le Space
+ * that says what is cancelled and asks for what identifies the contract. The
+ * app fills in nothing about the person.
+ */
+export const CANCEL_MAIL = 'info@le-space.de';
+export const cancelMailto = () =>
+	`mailto:${CANCEL_MAIL}?${new URLSearchParams({
+		subject: 'Kündigung Paperless anywhere',
+		body: [
+			'Ich kündige mein Abo von Paperless anywhere zum nächstmöglichen Zeitpunkt.',
+			'',
+			'E-Mail-Adresse, die bei der Zahlung angegeben wurde: ',
+			'Rechnungsnummer (falls zur Hand): ',
+			'',
+			'Bitte bestätigt mir den Eingang der Kündigung und den Zeitpunkt, zu dem sie wirksam wird.',
+			''
+		].join('\n')
+	})
+		.toString()
+		.replaceAll('+', '%20')}`;
+
+/** An older service has no withdrawal route (404): the app then offers none. */
+export class WithdrawalUnsupportedError extends Error {}
+
+const WITHDRAWAL_MESSAGES = {
+	NOTHING_TO_WITHDRAW: 'Es gibt nichts mehr, das sich widerrufen ließe: Die 14 Tage sind vorbei.'
+};
+
+const isoOrNull = (/** @type {unknown} */ v) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : null);
+
+/**
+ * One contract the service lists as withdrawable (or withdrawn), as the app
+ * shows it. `what` is the service's own naming of it and is shown as text.
+ * @param {any} w
+ * @returns {{ subject: 'subscription' | 'credits', what: string, concludedAt: string | null, until: string | null } | null}
+ */
+export function withdrawableOf(w) {
+	if (w?.subject !== 'subscription' && w?.subject !== 'credits') return null;
+	return { subject: w.subject, what: typeof w.what === 'string' ? w.what.trim().slice(0, 200) : '', concludedAt: isoOrNull(w.concluded_at), until: isoOrNull(w.until) };
+}
+
+/** What a withdrawable contract is called when the service names none. */
+export const WITHDRAWAL_SUBJECTS = Object.freeze({ subscription: 'Paket im Monatsabo', credits: 'Guthaben-Kauf' });
+export const withdrawableName = (/** @type {{ subject: 'subscription' | 'credits', what: string }} */ w) => w.what || WITHDRAWAL_SUBJECTS[w.subject];
+
+/**
+ * What can be withdrawn right now (§ 356a BGB), without withdrawing: the
+ * service answers with `quote: true`. An empty list means nothing can be
+ * withdrawn any more, and the app shows no button. An older service ignores
+ * `quote`; any answer without `quote === true` is therefore no quote, and the
+ * caller must not go on: it throws a WithdrawalUnsupportedError, as a 404 does.
+ * @param {Uint8Array} master
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<NonNullable<ReturnType<typeof withdrawableOf>>[]>}
+ */
+export async function withdrawalQuote(master, options) {
+	let r;
+	try {
+		r = await send(master, 'POST', '/v1/withdrawal', { quote: true }, options, WITHDRAWAL_MESSAGES);
+	} catch (e) {
+		if (/** @type {any} */ (e)?.status === 404) throw new WithdrawalUnsupportedError('Der Credits-Dienst kann den Widerruf noch nicht hier in der App annehmen.');
+		throw e;
+	}
+	if (r?.quote !== true) throw new WithdrawalUnsupportedError('Der Credits-Dienst kann den Widerruf noch nicht hier in der App annehmen.');
+	return (Array.isArray(r.withdrawable) ? r.withdrawable : []).map(withdrawableOf).filter((w) => w !== null);
+}
+
+/**
+ * Withdraw from everything that can still be withdrawn (§ 356a BGB). The
+ * subscription ends at once and the unused balance goes into the refund
+ * request; the service records when it received the declaration.
+ * @param {Uint8Array} master
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<{ receivedAt: string, withdrawn: NonNullable<ReturnType<typeof withdrawableOf>>[], refund: { id: string, state: string } | null }>}
+ */
+export async function withdraw(master, options) {
+	const r = await send(master, 'POST', '/v1/withdrawal', {}, options, WITHDRAWAL_MESSAGES);
+	const receivedAt = isoOrNull(r?.received_at);
+	if (!receivedAt) throw new Error('Le Space Credits haben den Eingang des Widerrufs nicht bestätigt. Bitte „Aktualisieren“ und den Stand prüfen.');
+	const refund = r?.refund && typeof r.refund === 'object' ? { id: String(r.refund.refund_id ?? '').slice(0, 100), state: String(r.refund.state ?? '').slice(0, 40) } : null;
+	return { receivedAt, withdrawn: (Array.isArray(r.withdrawn) ? r.withdrawn : []).map(withdrawableOf).filter((w) => w !== null), refund };
+}
+
+/**
+ * The confirmation of a withdrawal as a small text file: what the person
+ * keeps as the durable record. Plain text, no remote resources.
+ * @param {{ withdrawn: { subject: 'subscription' | 'credits', what: string, concludedAt: string | null }[], receivedAt: string, refundId?: string | null, address: string, timeZone?: string }} c
+ * @returns {{ filename: string, text: string }}
+ */
+export function withdrawalRecord({ withdrawn, receivedAt, refundId = null, address, timeZone }) {
+	const text = [
+		'Bestätigung des Widerrufs',
+		'',
+		...withdrawn.map((w) => `Widerrufen: ${withdrawableName(w)}${w.concludedAt ? `, geschlossen am ${germanDate(w.concludedAt, timeZone)}` : ''}`),
+		`Widerruf eingegangen am: ${germanDateTime(receivedAt, timeZone)} (${receivedAt})`,
+		...(refundId ? [`Erstattung: ${refundId}`] : []),
+		`Konto (Adresse): ${address}`,
+		'',
+		`Anbieter: ${PROVIDER}`,
+		`Impressum: ${IMPRINT_URL}`,
+		''
+	].join('\n');
+	return { filename: `widerruf-paperless-anywhere-${receivedAt.slice(0, 10)}.txt`, text };
+}
+
+/**
  * Read the balance until the package is billed by Stripe (the webhook opens
  * it a moment after the payment), or give up and return the last one.
  * @param {Uint8Array} master

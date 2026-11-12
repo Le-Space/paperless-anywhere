@@ -3,6 +3,8 @@
 	// IPFS CID the gateway serves it from (Aleph's x-ipfs-roots header, asked
 	// of this page's own origin; absent when not served from IPFS).
 	/* global __BUILD__ */
+	import { CREDITS_URL, cancelMailto } from '$lib/credits.js';
+
 	const build = __BUILD__;
 	const time = new Date(build.time).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
 	let cid = $state('');
@@ -19,6 +21,9 @@
 		<a href="https://le-space.de/#impressum">Impressum</a>
 		<a href="https://le-space.de/#datenschutz">Datenschutz</a>
 		<a href="/lizenzen/">Lizenzen</a>
+		<!-- Reachable at any time, also with the vault locked or lost (§ 312k BGB):
+		     with an open vault the package card cancels in place and at once. -->
+		{#if CREDITS_URL}<a href={cancelMailto()} data-testid="cancel-by-mail" title="Auch ohne geöffneten Tresor: per E-Mail an Le Space. Mit geöffnetem Tresor geht es direkt bei „Dein Paket“.">Verträge hier kündigen</a>{/if}
 	</nav>
 	<span data-testid="build-version">{build.version}</span>
 	· <time datetime={build.time}>{time}</time>
