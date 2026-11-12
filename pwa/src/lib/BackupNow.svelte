@@ -9,8 +9,8 @@
 	import { BackupFailedError, requestBackup } from '$lib/lifecycle.js';
 	import { BACKUP_TEXTS, backupLang, backupOverview, when } from '$lib/backup-overview.js';
 
-	/** @type {{ master: Uint8Array, profile: Record<string, any>, disabled?: boolean, onbusy?: (busy: boolean) => void, ongood?: (good: { at: string, copies: number, requested: number }) => void }} */
-	let { master, profile, disabled = false, onbusy = () => {}, ongood = () => {} } = $props();
+	/** @type {{ master: Uint8Array, profile: Record<string, any>, known?: { at: string, copies?: number | null } | null, disabled?: boolean, onbusy?: (busy: boolean) => void, ongood?: (good: { at: string, copies: number, requested: number }) => void }} */
+	let { master, profile, known = null, disabled = false, onbusy = () => {}, ongood = () => {} } = $props();
 
 	const lang = backupLang();
 	const t = BACKUP_TEXTS[lang];
@@ -27,6 +27,10 @@
 	/** @type {string[]} */
 	let details = $state([]);
 	const view = $derived(backupOverview(status));
+	// No backup in this VM yet: the last one the app knows (an earlier VM's, or
+	// the backup this one was restored from), said as such, so the overview's
+	// first line and this box never disagree.
+	const earlier = $derived(!view.last && known?.at ? { at: new Date(known.at), copies: known.copies ?? null } : null);
 	// A backup that reached providers is handed up, so the overview keeps it.
 	$effect(() => {
 		const last = view.last;
@@ -87,7 +91,7 @@
 		<!-- The check and the backup apart: most checks find nothing new and back up nothing. -->
 		<p class="summary" data-testid="backup-summary">
 			{#if view.check?.at}<span data-testid="backup-check">{t.checked} {when(view.check.at, lang)}, {t.checkOutcome(view.check.status)}</span>{#if view.last?.at || view.nextCheck}{' · '}{/if}{/if}
-			{#if view.last?.at}<span>{t.lastShort} {when(view.last.at, lang)}</span>{#if view.nextCheck}{' · '}{/if}{/if}
+			{#if view.last?.at}<span>{t.lastShort} {when(view.last.at, lang)}</span>{#if view.nextCheck}{' · '}{/if}{:else if earlier}<span>{t.lastShort} {when(earlier.at, lang)}</span>{#if view.nextCheck}{' · '}{/if}{/if}
 			{#if view.nextCheck}<span data-testid="backup-next">{t.nextShort} {when(view.nextCheck, lang)}</span>{/if}
 		</p>
 		<p class="hint">{t.nextHint}</p>
@@ -98,6 +102,7 @@
 				{#if view.last.ok && view.last.copies >= view.last.requested}<span class="ok"> · {t.ok(view.last.copies, view.last.requested)}</span>
 				{:else if view.last.ok}<span class="warn" data-testid="backup-short"> · {t.short(view.last.copies, view.last.requested)}</span>
 				{:else}<span class="bad"> · {t.failed}{view.last.reason ? ` (${view.last.reason})` : ''}</span>{/if}
+			{:else if earlier}<strong>{when(earlier.at, lang)}</strong>{earlier.copies ? ` · ${t.copies(earlier.copies)}` : ''}<span class="quiet" data-testid="backup-before-start">{' · '}{t.beforeStart}</span>
 			{:else}{t.none}{/if}
 		</p>
 		{#if busy || view.running}
@@ -120,6 +125,7 @@
 	.ok { color: var(--ok); }
 	.bad { color: var(--danger); }
 	.warn { color: var(--warn); }
+	.quiet { color: var(--text-2); }
 	.progress { color: var(--text-2); font-size: 0.9rem; word-break: break-word; }
 	.small { margin-top: 0.6rem; padding: 0.35rem 0.85rem; font-size: 0.875rem; background: var(--surface); color: var(--text); border-color: var(--line); }
 	.log pre { white-space: pre-wrap; font-size: 0.8rem; }

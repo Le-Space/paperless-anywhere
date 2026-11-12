@@ -4,8 +4,10 @@
 	// credits, FIL and USDFC are under "Erweitert" (Balances).
 	import { loadProfile } from '$lib/profile.js';
 	import { amount } from '$lib/balances.js';
-	import { biggerPlan, creditsBalance, creditsCatalog, fewHoursLeft, hoursPerWeek, creditsPurchases, choosePlan, fundVm, planOf, PLANS, quoteVm, startSubscription, subscriptionPortal, waitForSubscription } from '$lib/credits.js';
+	import { biggerPlan, planHours, creditsBalance, creditsCatalog, fewHoursLeft, hoursPerWeek, creditsPurchases, choosePlan, fundVm, planOf, PLANS, quoteVm, startSubscription, subscriptionPortal, waitForSubscription, creditsTerms, waiverOf, WaiverError } from '$lib/credits.js';
 	import StripeCheckout from '$lib/StripeCheckout.svelte';
+	import Cancel from '$lib/Cancel.svelte';
+	import Waiver from '$lib/Waiver.svelte';
 	import TopUp from '$lib/TopUp.svelte';
 	import Terms from '$lib/Terms.svelte';
 	import HourQuote from '$lib/HourQuote.svelte';
@@ -33,6 +35,25 @@
 	// The service's own list once it answered; until then the known one.
 	let plans = $state(/** @type {{ id: string, hours: number, priceCredits: number }[]} */ ([...PLANS]));
 	creditsCatalog().then((c) => c?.plans.length && (plans = c.plans)).catch(() => {});
+	// The declaration on withdrawal before a payment (le-space-credits#51):
+	// null from an older service, which then gets no checkbox and no waiver.
+	// The pay buttons wait until the terms were read.
+	/** @type {{ version: string, de: string, en: string } | null} */
+	let withdrawal = $state(null);
+	let termsRead = $state(false);
+	const readWithdrawal = () =>
+		creditsTerms()
+			.then((t) => (withdrawal = t?.withdrawal ?? null))
+			.catch(() => (withdrawal = null))
+			.finally(() => (termsRead = true));
+	readWithdrawal();
+	// Unticked for every subscription: it is the declaration for this one.
+	let waivedPlan = $state(false);
+	const planBlocked = $derived(!termsRead || (Boolean(withdrawal) && !waivedPlan));
+	// The app's own cancel page, open in place (§ 312k BGB). It keeps the plan
+	// it was opened for, so the confirmation stays when the balance changes.
+	/** @type {{ plan: NonNullable<NonNullable<typeof balance>['plan']>, current: typeof current } | null} */
+	let cancelling = $state(null);
 
 	const euro = (/** @type {number} */ credits) => `${amount(credits / 100)} €`;
 	const day = (/** @type {string | null} */ iso) => (iso ? new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : '');
@@ -84,9 +105,15 @@
 	const subscribe = (/** @type {string} */ id) =>
 		act(async () => {
 			let secret;
+			const waiver = waiverOf(withdrawal, waivedPlan);
+			waivedPlan = false;
 			try {
-				secret = await startSubscription(master, id);
+				secret = await startSubscription(master, id, waiver);
 			} catch (e) {
+				if (e instanceof WaiverError) {
+					readWithdrawal();
+					throw e;
+				}
 				const msg = e instanceof Error ? e.message : String(e);
 				if (!/noch nicht fertig eingerichtet|gerade abgeschaltet|antwortet 404/.test(msg)) throw e;
 				if (!confirm(`Das Abo per Karte geht gerade noch nicht (${msg}). Das Paket stattdessen aus deinem Guthaben bezahlen?`)) return '';
@@ -167,16 +194,24 @@
 			{#if low}
 				<div class="low" role="status" data-testid="plan-low">
 					<p>Nur noch {hoursLeft} {hoursLeft === 1 ? 'Stunde' : 'Stunden'} in diesem Monat. Reicht das nicht, nimm ein größeres Paket{appPays ? ' oder kauf Stunden dazu' : ''}.</p>
-					{#if bigger}<button class="upgrade" onclick={() => (byStripe ? portal() : plan(bigger.id))} disabled={busy} data-testid="plan-upgrade">{bigger.hours} Stunden im Monat für {euro(bigger.priceCredits)}</button>{/if}
+					{#if bigger}<button class="upgrade" onclick={() => (byStripe ? portal() : plan(bigger.id))} disabled={busy} data-testid="plan-upgrade">{bigger.hours >= 720 ? 'Dauerbetrieb' : `${bigger.hours} Stunden im Monat`} für {euro(bigger.priceCredits)}</button>{/if}
 				</div>
 			{/if}
 			<p class="hint" data-testid="plan-current">
-				{#if current && byStripe}Dein Abo: {current.hours} Stunden für {euro(current.priceCredits)} im Monat, per Karte über Stripe. {balance.plan.cancelAtPeriodEnd ? `Gekündigt, endet am ${day(balance.plan.renewsAt ?? balance.plan.periodEnd)}.` : `Es verlängert sich am ${day(balance.plan.renewsAt ?? balance.plan.periodEnd)}; jede Abbuchung mit Rechnung.`}{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}
-				{:else if current}Dein Paket: {current.hours} Stunden für {euro(current.priceCredits)} im Monat. {balance.plan.periodEnd ? `Es verlängert sich am ${day(balance.plan.periodEnd)} und wird dann aus deinem Guthaben bezahlt, solange es reicht.` : 'Es verlängert sich monatlich und wird aus deinem Guthaben bezahlt, solange es reicht.'} Beenden kannst du es jederzeit zum Monatsende.{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}{:else}Paket {balance.plan.id}{/if}
+				{#if current && byStripe}Dein Abo: {planHours(current)} für {euro(current.priceCredits)} im Monat, per Karte über Stripe. {balance.plan.cancelAtPeriodEnd ? `Gekündigt, endet am ${day(balance.plan.renewsAt ?? balance.plan.periodEnd)}.` : `Es verlängert sich am ${day(balance.plan.renewsAt ?? balance.plan.periodEnd)}; jede Abbuchung mit Rechnung.`}{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}
+				{:else if current}Dein Paket: {planHours(current)} für {euro(current.priceCredits)} im Monat. {balance.plan.periodEnd ? `Es verlängert sich am ${day(balance.plan.periodEnd)} und wird dann aus deinem Guthaben bezahlt, solange es reicht.` : 'Es verlängert sich monatlich und wird aus deinem Guthaben bezahlt, solange es reicht.'} Beenden kannst du es jederzeit zum Monatsende.{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}{:else}Paket {balance.plan.id}{/if}
 			</p>
+			{#if byStripe && !cancelling}
+				<!-- The cancel button (§ 312k BGB): always in sight, no fold, no portal. -->
+				<p class="row"><button class="small" onclick={() => balance?.plan && (cancelling = { plan: balance.plan, current })} disabled={busy} data-testid="plan-cancel">Verträge hier kündigen</button></p>
+			{/if}
 		{:else}
 			<p class="big" data-testid="plan-none"><strong>Noch kein Paket</strong></p>
 			<p class="hint">Ein Paket gibt dir jeden Monat Stunden für dein Paperless anywhere. Bezahlt wird aus deinem Guthaben.</p>
+		{/if}
+
+		{#if cancelling}
+			<Cancel {master} plan={cancelling.plan} current={cancelling.current} onportal={portal} ondone={read} onclose={() => (cancelling = null)} />
 		{/if}
 
 		<p class="line"><span class="label">Guthaben</span> <strong data-testid="balance-euro">{euro(balance.credits)}</strong>
@@ -184,11 +219,12 @@
 
 		{#if !balance.plan || choosing}
 			<p class="hint">{balance.plan ? 'Neues Paket wählen:' : 'Paket als Monatsabo per Karte wählen (Stripe, jederzeit zum Monatsende kündbar):'}</p>
+			{#if !balance.plan}<Waiver {withdrawal} bind:checked={waivedPlan} testid="plan-waiver" />{/if}
 			<div class="plans">
 				{#each plans as p (p.id)}
-					<button class="plan-choice" class:current={balance.plan?.id === p.id} onclick={() => (balance?.plan ? plan(p.id) : subscribe(p.id))} disabled={busy || balance.plan?.id === p.id} data-testid={`plan-${p.id}`}>
+					<button class="plan-choice" class:current={balance.plan?.id === p.id} onclick={() => (balance?.plan ? plan(p.id) : subscribe(p.id))} disabled={busy || balance.plan?.id === p.id || (!balance.plan && planBlocked)} data-testid={`plan-${p.id}`}>
 						{#if recommended === p.id}<em class="badge">Empfehlung</em>{/if}
-						<span>{p.hours} Stunden im Monat</span><strong>{euro(p.priceCredits)}</strong><small class="hint">{perWeek(p.hours)}</small>
+						<span>{p.hours >= 720 ? 'Dauerbetrieb, rund um die Uhr' : `${p.hours} Stunden im Monat`}</span><strong>{euro(p.priceCredits)}</strong><small class="hint">{perWeek(p.hours)}</small>
 					</button>
 				{/each}
 			</div>
@@ -198,7 +234,7 @@
 			<summary>Aufladen, Stunden dazukaufen, Paket ändern</summary>
 			<div class="group">
 				<p class="label">Guthaben aufladen (per Karte)</p>
-				<TopUp {master} credits={balance.credits} onbooked={read} />
+				<TopUp {master} credits={balance.credits} {withdrawal} ready={termsRead} onbooked={read} onwaiver={readWithdrawal} />
 			</div>
 			{#if balance.plan && appPays}
 				<div class="group">
@@ -212,7 +248,6 @@
 				<p class="row">
 					{#if byStripe}
 						<button class="link" onclick={portal} disabled={busy} data-testid="plan-portal">Abo verwalten (wechseln, Karte, Rechnungen)</button>
-						<button class="link" onclick={portal} disabled={busy} data-testid="plan-cancel">Verträge hier kündigen</button>
 					{:else}
 						<button class="link" onclick={() => (choosing = !choosing)} data-testid="plan-change">{choosing ? 'Doch nicht wechseln' : 'Paket wechseln'}</button>
 						<button class="link" onclick={() => plan(null)} disabled={busy} data-testid="plan-end">Paket beenden</button>

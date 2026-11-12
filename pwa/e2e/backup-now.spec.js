@@ -14,7 +14,7 @@ import { PROFILE_KEY } from '../src/lib/profile.js';
 const HOST = 'vm.example.test:24000';
 
 /** A vault with a running Paperless (backups on), in the Aleph mock's aggregates. */
-async function runningVault(aggregates) {
+async function runningVault(aggregates, extra = {}) {
 	const master = newMasterSecret();
 	const phrase = newSeedPhrase();
 	const box = await seal(master, sealingKeyFromSeedPhrase(phrase), 'master/seed');
@@ -23,7 +23,8 @@ async function runningVault(aggregates) {
 		network: 'calibration',
 		role: 'test',
 		backupConfig: { providers: 2 },
-		running: { instanceHash: 'c'.repeat(64), crnHash: 'd'.repeat(64), host: HOST, payer: '0x00000000000000000000000000000000000000bb', trustedExecution: {} }
+		running: { instanceHash: 'c'.repeat(64), crnHash: 'd'.repeat(64), host: HOST, payer: '0x00000000000000000000000000000000000000bb', trustedExecution: {} },
+		...extra
 	};
 	const sealed = await seal(new TextEncoder().encode(JSON.stringify(profile)), deriveBytes(master, LABELS.profileKey), 'profile');
 	aggregates.set(privateKeyToAccount(alephPrivateKey(master)).address, { [PROFILE_KEY]: { v: 1, box: sealed } });
@@ -38,10 +39,10 @@ async function open(page, phrase) {
 }
 
 /** Aleph mock, the vault, nothing else on the network, and the VM's status page. */
-async function setUp(page, status) {
+async function setUp(page, status, extra = {}) {
 	const install = alephMock();
 	const aggregates = await install(page.context());
-	const vault = await runningVault(aggregates);
+	const vault = await runningVault(aggregates, extra);
 	await page.context().route(/^https?:\/\/(?!localhost|api2\.aleph\.im)/, (route) => route.abort());
 	await page.context().route(`https://${HOST}/anywhere/**`, (route) => route.fulfill({ json: status, headers: { 'access-control-allow-origin': '*' } }));
 	return vault;
@@ -92,6 +93,31 @@ test.describe('German', () => {
 		expect(asked).toContain(`/anywhere/s/${statusToken(master)}.json`);
 		expect(asked).not.toContain('/anywhere/status.json');
 
+	});
+
+	test('a VM without a backup of its own shows the last known one, said as before this start', async ({ page }) => {
+		test.setTimeout(60_000);
+		const earlier = new Date(Date.now() - 2 * 3600_000);
+		earlier.setSeconds(0, 0);
+		const checked = new Date(Date.now() - 600_000);
+		const next = new Date(Date.now() + 6600_000);
+		const { phrase } = await setUp(
+			page,
+			{
+				v: 2,
+				phase: 'ready',
+				paperless: true,
+				backup: { status: 'unchanged', at: checked.toISOString() },
+				lastBackup: null,
+				backupSchedule: { nextCheck: next.toISOString(), everySeconds: 7200 },
+				backupRequest: null
+			},
+			{ lastGoodBackup: { at: earlier.toISOString(), copies: 2, requested: 2 } }
+		);
+		await open(page, phrase);
+		await expect(page.getByTestId('last-good-backup')).toContainText(`Letzte erfolgreiche Sicherung: ${hhmm(earlier)}`);
+		await expect(page.getByTestId('backup-last')).toHaveText(`Letzte Sicherung: ${hhmm(earlier)} · 2 Kopien · vor diesem Start`);
+		await expect(page.getByTestId('backup-summary')).toHaveText(`Zuletzt geprüft ${hhmm(checked)}, keine Änderung · letzte Sicherung ${hhmm(earlier)} · nächste Prüfung ${hhmm(next)}`);
 	});
 
 	test('while the VM backs up, the overview shows its progress; "Jetzt sichern" waits', async ({ page }) => {

@@ -1,0 +1,83 @@
+name: Image builder
+
+# The image builder (builder/, docs/own-image.md): its tests, its container,
+# and one whole job in that container against a stand-in for Aleph. Run by
+# hand, it also keeps the container image as an archive for
+# `aleph vprogram … --image-archive` (builder/vprogram/README.md).
+#
+# No secrets, nothing published, nothing started on Aleph.
+
+on:
+  pull_request:
+    paths:
+      - builder/**
+      - .github/workflows/builder.yml
+  push:
+    branches: [main]
+    paths:
+      - builder/**
+      - .github/workflows/builder.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  builder:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+      - name: Tests
+        working-directory: builder
+        run: npm test
+
+      - name: The container image, as an archive
+        id: archive
+        working-directory: builder/vprogram
+        run: |
+          ./build-archive.sh "$RUNNER_TEMP/image-builder.tar" | tee "$RUNNER_TEMP/archive.txt"
+          echo "image=$(sed -n 's/^image: *//p' "$RUNNER_TEMP/archive.txt")" >> "$GITHUB_OUTPUT"
+
+      - name: One whole job in the container
+        working-directory: builder
+        env:
+          IMAGE: ${{ steps.archive.outputs.image }}
+        run: |
+          docker run --rm -v "$PWD/check-container.mjs:/opt/builder/check-container.mjs:ro" "$IMAGE" \
+            node check-container.mjs | tee "$RUNNER_TEMP/check.txt"
+          ! grep -q '^FAIL' "$RUNNER_TEMP/check.txt"
+
+      - name: It starts under the compose file
+        working-directory: builder/vprogram
+        run: |
+          docker compose up -d
+          for i in $(seq 1 20); do
+            answer="$(docker compose exec -T builder node -e 'fetch("http://127.0.0.1:8080/").then(r=>r.text()).then(console.log)' 2>/dev/null || true)"
+            [ -n "$answer" ] && break
+            sleep 1
+          done
+          echo "$answer"
+          docker compose down
+          [ "$answer" = '{"service":"paperless-anywhere image builder"}' ]
+
+      - name: Summary
+        run: |
+          {
+            echo "## Image builder"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/archive.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the archive
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: image-builder
+          path: ${{ runner.temp }}/image-builder.tar
+          retention-days: 14

@@ -20,7 +20,8 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await page.goto('/');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Deine Dokumente. Nur wach, wenn du sie brauchst.');
 	await expect(page.locator('#nodes')).toContainText('2 TEE-Knoten, 1 davon mit Platz');
-	await expect(page.locator('#prices')).toContainText('4 €');
+	await expect(page.locator('#prices')).toContainText('4,90 €');
+	await expect(page.locator('#prices')).toContainText('Dauerbetrieb, rund um die Uhr');
 	await expect(page.getByTestId('prices-included')).toHaveText('In jedem Paket enthalten: bis 8 GB Dokumente und ihre verschlüsselten Sicherungen in drei Kopien.');
 
 	await expect(page.getByRole('link', { name: 'Impressum' })).toHaveAttribute('href', 'https://le-space.de/#impressum');
@@ -70,4 +71,32 @@ test('link previews find title, description and image in the HTML itself, withou
 	expect(manifest.name).toBe('Paperless anywhere');
 	expect(manifest.short_name).toBe('Paperless anywhere');
 	for (const icon of manifest.icons) expect((await request.get(icon.src)).ok()).toBe(true);
+});
+
+test('the landing page shows who holds which key, what is attested and where to check it', async ({ page }) => {
+	await page.context().route(/https:\/\/crns-list\.aleph\.sh\/.*/, (route) => route.fulfill({ json: { crns: [] } }));
+	await page.context().route(/filecoin|glif|chain\.love/, (route) => route.abort());
+	await page.addInitScript(() => Object.defineProperty(navigator, 'language', { get: () => 'de-DE' }));
+
+	await page.goto('/');
+	const trust = page.locator('#trust');
+	await expect(trust.getByRole('heading', { level: 2 })).toHaveText('Nachprüfbar: wer welchen Schlüssel hat');
+	// The diagram, wide on a desktop, tall on a phone, with a text for screen readers.
+	await expect(page.getByTestId('trust-diagram').getByRole('img')).toHaveCount(1);
+	await expect(page.getByTestId('trust-diagram').locator('svg:visible')).toHaveAttribute('class', /trust-wide/);
+	await expect(page.getByTestId('trust-diagram').locator('svg:visible text').getByText('Image (LUKS): nicht gemessen')).toBeVisible();
+	await expect(page.getByTestId('trust-secrets').getByRole('row')).toHaveCount(6);
+	await expect(page.getByTestId('trust-gaps')).toContainText('Der Inhalt des Images wird nicht mitgemessen.');
+	await expect(page.getByTestId('trust-proves')).toContainText('Der Relay dazwischen trägt nur verschlüsselte Bytes.');
+	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Aleph-Nachricht' })).toHaveAttribute('href', /api2\.aleph\.im\/api\/v0\/messages\/[0-9a-f]{64}$/);
+	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Sicherheitsmodell' })).toHaveAttribute('href', /docs\/security-model\.md$/);
+
+	await page.getByRole('button', { name: 'EN' }).click();
+	await expect(trust.getByRole('heading', { level: 2 })).toHaveText('Checkable: who holds which key');
+	await expect(page.getByTestId('trust-gaps')).toContainText('The image’s content is not measured.');
+
+	await page.setViewportSize({ width: 375, height: 812 });
+	await expect(page.getByTestId('trust-diagram').locator('svg:visible')).toHaveAttribute('class', /trust-tall/);
+	// Nothing wider than the phone.
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });

@@ -142,8 +142,39 @@ export async function creditsTerms({ baseUrl = CREDITS_URL, fetch: fetchImpl = f
 	if (!res.ok) throw new Error(`Le Space Credits antwortet ${res.status}`);
 	const body = await res.json();
 	const one = (v) => (v?.version ? { version: String(v.version), date: v.date ?? null, url: safeUrl(v.url), sha256: String(v.sha256 ?? ''), changes: Array.isArray(v.changes) ? v.changes.map(String) : v.changes ? [String(v.changes)] : [], effectiveAt: v.effectiveAt ?? null } : null);
-	return { current: one(body?.current), pending: one(body?.pending) };
+	return { current: one(body?.current), pending: one(body?.pending), withdrawal: withdrawalOf(body?.withdrawal) };
 }
+
+/**
+ * The declaration on withdrawal the service asks for before a purchase
+ * (§ 356 Abs. 4 and 5 BGB, le-space-credits#51): its version and its text in
+ * German and English. Null from an older service that sends none: then the
+ * app shows no checkbox and sends no waiver. The text is shown as text only.
+ * @param {any} w
+ * @returns {{ version: string, de: string, en: string } | null}
+ */
+export function withdrawalOf(w) {
+	const version = typeof w?.version === 'string' || typeof w?.version === 'number' ? String(w.version) : '';
+	const de = typeof w?.de === 'string' ? w.de.trim() : '';
+	const en = typeof w?.en === 'string' ? w.en.trim() : '';
+	if (!version || !(de || en)) return null;
+	return { version, de: de || en, en: en || de };
+}
+
+/**
+ * The declaration's text in the UI's language. The app (/app) is German only;
+ * `en` is there for the day it is not.
+ * @param {{ de: string, en: string }} w @param {'de' | 'en'} [lang]
+ */
+export const withdrawalText = (w, lang = 'de') => (lang === 'en' ? w.en : w.de);
+
+/**
+ * What a purchase request carries for the declaration: its version when the
+ * box is ticked, nothing otherwise (and nothing without a declaration).
+ * @param {{ version: string } | null | undefined} withdrawal @param {boolean} ticked
+ * @returns {{ waiver?: string }}
+ */
+export const waiverOf = (withdrawal, ticked) => (withdrawal?.version && ticked ? { waiver: withdrawal.version } : {});
 
 /**
  * Accept a version of the terms (the one in force or the announced one).
@@ -157,6 +188,13 @@ export async function acceptTerms(master, version, options) {
 
 /** Buying needs the terms in force accepted first (412 TERMS). */
 export class TermsError extends Error {}
+
+/** Buying needs the declaration on withdrawal (412 WAIVER): missing, or an old version. */
+export class WaiverError extends Error {}
+const WAIVER_MESSAGE = 'Ohne die Erklärung zum Widerrufsrecht kann Le Space den Kauf nicht ausführen. Bitte das Kästchen vor dem Bezahlen ankreuzen. War es angekreuzt, hat sich der Text womöglich geändert: dann die Seite neu laden und noch einmal bestätigen.';
+
+/** A 412 from the service: the declaration on withdrawal, or the terms. @param {any} answer */
+const preconditionError = (answer) => (answer?.code === 'WAIVER' ? new WaiverError(WAIVER_MESSAGE) : new TermsError('Erst den aktuellen Bedingungen (AGB) zustimmen, dann geht es weiter.'));
 
 /**
  * This vault's purchases for paperless-anywhere, newest first, each with the
@@ -196,11 +234,25 @@ export function stripeLink(url) {
  * what the app shows until it has asked.
  */
 export const PLANS = Object.freeze([
+	{ id: 'paperless-15', hours: 15, priceCredits: 490 },
+	{ id: 'paperless-100', hours: 100, priceCredits: 1490 },
+	{ id: 'paperless-always', hours: 730, priceCredits: 8900 }
+]);
+/**
+ * Packages no longer offered (le-space-credits#53): an account that has one
+ * keeps it and renews on it until it switches, so the app still names it.
+ */
+export const RETIRED_PLANS = Object.freeze([
 	{ id: 'paperless-10', hours: 10, priceCredits: 400 },
 	{ id: 'paperless-30', hours: 30, priceCredits: 600 },
 	{ id: 'paperless-80', hours: 80, priceCredits: 1000 }
 ]);
-export const planOf = (id, plans = PLANS) => plans.find((p) => p.id === id) ?? null;
+export const planOf = (id, plans = PLANS) => plans.find((p) => p.id === id) ?? RETIRED_PLANS.find((p) => p.id === id) ?? null;
+
+/** A month of round-the-clock running: a package this large is "Dauerbetrieb". */
+export const ALWAYS_HOURS = 720;
+/** How a package's hours read: "15 Stunden", or "Dauerbetrieb" for round the clock. @param {{ hours: number }} plan */
+export const planHours = (plan) => (plan.hours >= ALWAYS_HOURS ? 'Dauerbetrieb' : `${plan.hours} Stunden`);
 
 /**
  * Few hours left of a package: at most a fifth of it, and never less than two hours.
@@ -260,7 +312,7 @@ const MESSAGES = {
 	MONTHS: 'Sicherungen lassen sich für 1 bis 12 Monate bezahlen.',
 	SUBS_OFF: 'Le Space Credits bezahlen VMs gerade noch nicht selbst. Später noch einmal versuchen.',
 	DELEGATES: 'Zu viele Geräte sind schon für dieses Konto freigegeben.',
-	SUBSCRIBED: 'Es läuft schon ein Abo. Ändern oder kündigen geht über „Abo verwalten“.',
+	SUBSCRIBED: 'Es läuft schon ein Abo. Ändern geht über „Abo verwalten“, kündigen über „Verträge hier kündigen“.',
 	NO_SUBSCRIPTION: 'Es gibt noch kein Abo zum Verwalten.',
 	ORIGIN: 'Diese Adresse der App darf das Abo-Portal nicht öffnen.',
 	PRICE_TAX: 'Das Abo ist beim Credits-Dienst noch nicht fertig eingerichtet (Preise).',
@@ -297,14 +349,19 @@ async function send(master, method, path, body, { baseUrl = CREDITS_URL, fetch: 
 		body: JSON.stringify({ product: CREDITS_PRODUCT, address: creditsAccount(master).address, ...body })
 	});
 	const answer = await res.json().catch(() => null);
-	if (res.status === 412) throw new TermsError('Erst den aktuellen Bedingungen (AGB) zustimmen, dann geht es weiter.');
+	if (res.status === 412) throw preconditionError(answer);
 	if (res.status === 402) {
 		// "insufficient credits: N free, M needed"
 		const [, free, needed] = /(\d+)\s*free,\s*(\d+)\s*needed/.exec(String(answer?.error ?? '')) ?? [];
 		const missing = free != null ? Math.max(0, Number(needed) - Number(free)) : null;
 		throw new CreditsShortError(`Die Le Space Credits reichen dafür nicht${missing != null ? ` (es fehlen ${(missing / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })})` : ''}. Erst aufladen.`, missing);
 	}
-	if (!res.ok) throw new Error(messages[answer?.code] ?? MESSAGES[answer?.code] ?? (answer?.error ? `Le Space Credits: ${answer.error}` : `Le Space Credits antwortet ${res.status}`));
+	if (!res.ok) {
+		const e = /** @type {Error & { status?: number, code?: string }} */ (new Error(messages[answer?.code] ?? MESSAGES[answer?.code] ?? (answer?.error ? `Le Space Credits: ${answer.error}` : `Le Space Credits antwortet ${res.status}`)));
+		e.status = res.status;
+		e.code = typeof answer?.code === 'string' ? answer.code : undefined;
+		throw e;
+	}
 	return answer;
 }
 
@@ -448,21 +505,22 @@ export const PACKAGES = Object.freeze([
 /**
  * Open a Stripe Checkout for a package: the service returns the session's
  * client secret, which only its /pay page uses.
+ * `waiver`: the declaration's version, only when its box is ticked (waiverOf).
  * @param {Uint8Array} master
  * @param {string} packageId
- * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @param {{ waiver?: string, baseUrl?: string, fetch?: typeof fetch }} [options]
  * @returns {Promise<string>} the client secret
  */
-export async function startCheckout(master, packageId, { baseUrl = CREDITS_URL, fetch: fetchImpl = fetch } = {}) {
+export async function startCheckout(master, packageId, { waiver, baseUrl = CREDITS_URL, fetch: fetchImpl = fetch } = {}) {
 	const path = '/v1/checkout';
 	const headers = await signedHeaders(creditsAccount(master), { method: 'POST', path });
 	const res = await fetchImpl(`${baseUrl}${path}`, {
 		method: 'POST',
 		headers: { ...headers, 'content-type': 'application/json' },
-		body: JSON.stringify({ product: CREDITS_PRODUCT, package: packageId, locale: 'de' })
+		body: JSON.stringify({ product: CREDITS_PRODUCT, package: packageId, locale: 'de', ...(waiver ? { waiver } : {}) })
 	});
 	const body = await res.json().catch(() => null);
-	if (res.status === 412) throw new TermsError('Erst den aktuellen Bedingungen (AGB) zustimmen, dann geht es weiter.');
+	if (res.status === 412) throw preconditionError(body);
 	if (res.status === 503) throw new Error('Bezahlen ist beim Credits-Dienst noch nicht eingerichtet.');
 	if (!res.ok || typeof body?.client_secret !== 'string') throw new Error(body?.error ? `Le Space Credits: ${body.error}` : `Le Space Credits antwortet ${res.status}`);
 	return body.client_secret;
@@ -505,12 +563,13 @@ export async function backupRevoke(master, backupKey, options) {
 /**
  * Subscribe to a package with Stripe (card, monthly invoice): the service
  * answers a Checkout in subscription mode, mounted like a top-up on /pay.
+ * `waiver`: the declaration's version, only when its box is ticked (waiverOf).
  * @param {Uint8Array} master @param {string} packageId
- * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @param {{ waiver?: string, baseUrl?: string, fetch?: typeof fetch }} [options]
  * @returns {Promise<string>} the client secret
  */
-export async function startSubscription(master, packageId, options) {
-	const r = await send(master, 'POST', '/v1/subscribe', { package: packageId, locale: 'de' }, options);
+export async function startSubscription(master, packageId, { waiver, ...options } = {}) {
+	const r = await send(master, 'POST', '/v1/subscribe', { package: packageId, locale: 'de', ...(waiver ? { waiver } : {}) }, options);
 	if (typeof r?.client_secret !== 'string') throw new Error('Le Space Credits haben keine Bezahlseite für das Abo geliefert.');
 	return r.client_secret;
 }
@@ -526,6 +585,71 @@ export async function subscriptionPortal(master, options) {
 	const url = stripeLink(r?.url);
 	if (!url) throw new Error('Le Space Credits haben keine Stripe-Adresse geliefert.');
 	return url;
+}
+
+/** An older service has no cancel route (404): cancel in Stripe's portal instead. */
+export class CancelUnsupportedError extends Error {}
+
+const CANCEL_MESSAGES = {
+	NO_SUBSCRIPTION: 'Es läuft kein Abo, das gekündigt werden könnte.'
+};
+
+/**
+ * Cancel the running subscription from the app's own cancel page (§ 312k
+ * BGB): an ordinary cancellation at the end of the paid month. The service
+ * records when it received it. Throws CancelUnsupportedError on 404 (an older
+ * service), and says so when no subscription runs (409 NO_SUBSCRIPTION).
+ * @param {Uint8Array} master
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<{ kind: 'ordinary', receivedAt: string, effectiveAt: string | null }>}
+ */
+export async function cancelSubscription(master, options) {
+	let r;
+	try {
+		r = await send(master, 'POST', '/v1/subscription/cancel', {}, options, CANCEL_MESSAGES);
+	} catch (e) {
+		if (/** @type {any} */ (e)?.status === 404) throw new CancelUnsupportedError('Der Credits-Dienst kann das Abo noch nicht hier in der App kündigen. Gekündigt wird deshalb im Kundenportal von Stripe, das sich jetzt öffnet.');
+		throw e;
+	}
+	const at = (/** @type {unknown} */ v) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : null);
+	const receivedAt = at(r?.received_at);
+	if (!receivedAt) throw new Error('Le Space Credits haben den Eingang der Kündigung nicht bestätigt. Bitte „Aktualisieren“ und den Stand prüfen.');
+	return { kind: 'ordinary', receivedAt, effectiveAt: at(r?.effective_at) };
+}
+
+/** The contract as the cancel page names it. @param {{ hours: number } | null} plan @param {string} [id] */
+export const contractName = (plan, id = '') => `Paperless anywhere, Paket ${plan ? planHours(plan) : id}, Monatsabo`;
+export const CANCEL_KIND = 'Ordentliche Kündigung zum Ende des bezahlten Monats';
+/** Who the contract is with, as the cancel page and its confirmation name it. */
+export const PROVIDER = 'Le Space UG (haftungsbeschränkt), info@le-space.de';
+export const IMPRINT_URL = 'https://le-space.de/#impressum';
+
+/** @param {string | null} iso @param {string} [timeZone] */
+export const germanDate = (iso, timeZone) => (iso ? new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone }) : '–');
+/** @param {string | null} iso @param {string} [timeZone] */
+export const germanDateTime = (iso, timeZone) => (iso ? new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone, timeZoneName: 'short' }) : '–');
+
+/**
+ * The confirmation of a cancellation as a small text file: what the person
+ * keeps as the durable record. Plain text, no remote resources.
+ * @param {{ contract: string, receivedAt: string, effectiveAt: string | null, address: string, timeZone?: string }} c
+ * @returns {{ filename: string, text: string }}
+ */
+export function cancellationRecord({ contract, receivedAt, effectiveAt, address, timeZone }) {
+	const text = [
+		'Bestätigung der Kündigung',
+		'',
+		`Vertrag: ${contract}`,
+		`Art: ${CANCEL_KIND}`,
+		`Kündigung eingegangen am: ${germanDateTime(receivedAt, timeZone)} (${receivedAt})`,
+		`Wirksam zum: ${germanDate(effectiveAt, timeZone)}${effectiveAt ? ` (${effectiveAt})` : ''}`,
+		`Konto (Adresse): ${address}`,
+		'',
+		`Anbieter: ${PROVIDER}`,
+		`Impressum: ${IMPRINT_URL}`,
+		''
+	].join('\n');
+	return { filename: `kuendigung-paperless-anywhere-${receivedAt.slice(0, 10)}.txt`, text };
 }
 
 /**
