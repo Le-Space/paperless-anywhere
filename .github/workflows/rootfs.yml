@@ -173,17 +173,22 @@ jobs:
           cp relay-button/.github/actions/aleph-confidential-rootfs/publish-store.mjs "$dir/"
           cd "$dir"
           npm init -y >/dev/null && npm install --silent ethers@6.13.4 ipfs-unixfs-importer@17.1.1 >/dev/null
-          # Aleph's node sometimes answers an upload of this size with a 500
-          # ("Server got itself in trouble", 2026-11-12, right after it took
-          # the encrypted image). Nothing is stored then, so trying again
-          # repeats nothing.
+          # Stored gzipped. Aleph's node answered every upload of the image
+          # as it is with a 500 (2026-11-12, six tries in two runs), while it
+          # took the encrypted image of the same size each time; what differs
+          # is the content, so the plain image goes up packed, and smaller.
+          # The SHA-256 above stays that of the image itself: the builder
+          # unpacks while it downloads and checks what it unpacked.
+          gzip -6 -c "$plain" > "$plain.gz"
+          echo "stored_bytes=$(stat -c %s "$plain.gz")" >> "$GITHUB_OUTPUT"
+          # A failed upload stores nothing, so trying again repeats nothing.
           for try in 1 2 3; do
-            node publish-store.mjs "$plain" > store.json && break
+            node publish-store.mjs "$plain.gz" > store.json && break
             [ "$try" = 3 ] && { echo "::error::Aleph did not take the plain image in three tries"; exit 1; }
             echo "upload $try failed; trying again in a minute"
             sleep 60
           done
-          rm -f "$plain"
+          rm -f "$plain" "$plain.gz"
           store="$(jq -r .item_hash store.json)"
           [[ "$store" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::no STORE hash for the plain image"; exit 1; }
           echo "store=$store" >> "$GITHUB_OUTPUT"
@@ -217,6 +222,7 @@ jobs:
           PLAIN_STORE: ${{ steps.plain.outputs.store }}
           PLAIN_SHA256: ${{ steps.plain.outputs.sha256 }}
           PLAIN_PUBLISHED_BYTES: ${{ steps.plain.outputs.bytes }}
+          PLAIN_STORED_BYTES: ${{ steps.plain.outputs.stored_bytes }}
           PROVENANCE: ${{ steps.provenance.outputs.attestation-url }}
         run: |
           {
@@ -238,8 +244,8 @@ jobs:
               echo "| | |"
               echo "|---|---|"
               echo "| Plain image (STORE) | \`${PLAIN_STORE}\` |"
-              echo "| SHA-256 | \`${PLAIN_SHA256}\` |"
-              echo "| Size | $(( ${PLAIN_PUBLISHED_BYTES:-0} / 1048576 )) MiB |"
+              echo "| SHA-256 (of the image, unpacked) | \`${PLAIN_SHA256}\` |"
+              echo "| Size | $(( ${PLAIN_PUBLISHED_BYTES:-0} / 1048576 )) MiB; stored gzipped, $(( ${PLAIN_STORED_BYTES:-0} / 1048576 )) MiB |"
               echo "| Built from | commit \`${GITHUB_SHA}\` |"
               echo "| Provenance | ${PROVENANCE:-none: GitHub signs it only for a public repository} |"
             fi
