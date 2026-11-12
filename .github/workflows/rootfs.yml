@@ -173,7 +173,16 @@ jobs:
           cp relay-button/.github/actions/aleph-confidential-rootfs/publish-store.mjs "$dir/"
           cd "$dir"
           npm init -y >/dev/null && npm install --silent ethers@6.13.4 ipfs-unixfs-importer@17.1.1 >/dev/null
-          node publish-store.mjs "$plain" > store.json
+          # Aleph's node sometimes answers an upload of this size with a 500
+          # ("Server got itself in trouble", 2026-11-12, right after it took
+          # the encrypted image). Nothing is stored then, so trying again
+          # repeats nothing.
+          for try in 1 2 3; do
+            node publish-store.mjs "$plain" > store.json && break
+            [ "$try" = 3 ] && { echo "::error::Aleph did not take the plain image in three tries"; exit 1; }
+            echo "upload $try failed; trying again in a minute"
+            sleep 60
+          done
           rm -f "$plain"
           store="$(jq -r .item_hash store.json)"
           [[ "$store" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::no STORE hash for the plain image"; exit 1; }
