@@ -166,6 +166,20 @@ IMAGE=localhost/paperless-anywhere-image-builder:1
   guest kernel does not have.
 - An upload of several hundred MiB from the guest to Aleph goes through.
 
+## What the runs showed so far
+
+- 2026-11-11, node chosen by the scheduler: the attestation was refused,
+  that node's firmware is below the network's floor.
+- 2026-11-11 and 12, on a named node: the attestation verifies, the builder
+  comes up after about four minutes and answers `/`.
+- 2026-11-12, a first build request with a real plain image: accepted over
+  the attested channel, and failed at its first step with "fetch failed".
+  The builder did not reach Aleph's API from inside the guest. Why is not
+  known yet: the builder of that day did not say what lay behind the error.
+  It does now, and `GET /health` reports the name servers the guest was
+  given, what the API's name resolves to, and whether the API answers; the
+  workflow prints it after `publish` and `check`.
+
 ## What goes into the app afterwards
 
 `BUILDER` in `pwa/src/lib/own-image.js`:

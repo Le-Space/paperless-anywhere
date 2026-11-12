@@ -7,6 +7,7 @@
 // goes to cryptsetup's stdin and nowhere else, and the files of a job are
 // removed when it is published, fails or gets too old.
 //
+//   GET  /health               → what the builder reaches (Aleph's API, name resolution)
 //   POST /build                {store, sha256, passphrase} → 202 {job}
 //   GET  /job/<job>            → {state, cid?, size?, error?}
 //   POST /job/<job>/publish    {message} → {item_hash}
@@ -27,6 +28,20 @@ export class Refused extends Error {
 		super(message);
 		this.status = status;
 	}
+}
+
+/**
+ * An error with what lies behind it: Node's fetch says only "fetch failed"
+ * and keeps the reason (no name resolution, no route, a refused certificate)
+ * in `cause`. Nothing here comes from the caller, so it is safe to answer.
+ */
+export function explain(error) {
+	const parts = [];
+	for (let e = error, depth = 0; e && depth < 4; e = e.cause, depth++) {
+		const text = [e.code, e.message].filter(Boolean).join(' ');
+		if (text && !parts.includes(text)) parts.push(text);
+	}
+	return (parts.join(': ') || String(error)).slice(0, 300);
 }
 
 /** What a build request must look like. */
@@ -68,6 +83,7 @@ export function checkStoreMessage(message, cid) {
  *   remove: (path: string) => Promise<void>,
  *   getJson: (url: string) => Promise<any>,
  *   pathFor: (job: string) => string,
+ *   health?: () => Promise<object>,
  *   now?: () => number
  * }} deps
  */
@@ -103,13 +119,17 @@ export function createBuilder(deps) {
 			j.size = await deps.sizeOf(j.path);
 			j.state = 'built';
 		} catch (error) {
-			j.error = String(error?.message ?? error).slice(0, 200);
+			j.error = explain(error);
 			j.state = 'failed';
 			await deps.remove(j.path).catch(() => {});
 		}
 	}
 
 	return {
+		/** Whether the builder reaches what it needs; no job, no secret. */
+		async health() {
+			return deps.health ? deps.health() : {};
+		},
 		async build(body) {
 			await expire();
 			if (job && job.state !== 'failed' && job.state !== 'published') throw new Refused(503, 'busy with another image; try again in a few minutes');
@@ -171,6 +191,7 @@ export function handler(builder) {
 			};
 			const at = /^\/job\/([0-9a-f]{48})(\/publish)?$/.exec(path);
 			if (req.method === 'GET' && path === '/') return send(200, { service: 'paperless-anywhere image builder' });
+			if (req.method === 'GET' && path === '/health') return send(200, await builder.health());
 			if (req.method === 'POST' && path === '/build') return send(202, { job: (await builder.build(await read())).job });
 			if (req.method === 'GET' && at && !at[2]) return send(200, await builder.status(at[1]));
 			if (req.method === 'POST' && at?.[2]) return send(200, await builder.publish(at[1], await read()));

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import { checkBuildRequest, checkStoreMessage, createBuilder, JOB_TTL_MS, Refused } from './builder.mjs';
+import { checkBuildRequest, checkStoreMessage, createBuilder, explain, JOB_TTL_MS, Refused } from './builder.mjs';
 
 const store = 'ab'.repeat(32);
 const sha256 = 'cd'.repeat(32);
@@ -110,4 +110,20 @@ test('a STORE message must be whole', () => {
 	assert.throws(() => checkStoreMessage(storeMessage({ item_hash: '00'.repeat(32) }), cid), refusal(400));
 	assert.throws(() => checkStoreMessage(storeMessage({ type: 'POST' }), cid), refusal(400));
 	assert.throws(() => checkStoreMessage(storeMessage({ sender: '0x' + '22'.repeat(20) }), cid), refusal(400));
+});
+
+test('a failed fetch says what lies behind it', async () => {
+	const failed = new TypeError('fetch failed', { cause: Object.assign(new Error('getaddrinfo ENOTFOUND api.example.test'), { code: 'ENOTFOUND' }) });
+	assert.equal(explain(failed), 'fetch failed: ENOTFOUND getaddrinfo ENOTFOUND api.example.test');
+	assert.equal(explain(new Error('plain')), 'plain');
+	const { builder } = setup({ getJson: async () => { throw failed; } });
+	const { job, done } = await builder.build({ store, sha256, passphrase });
+	await done;
+	assert.deepEqual(await builder.status(job), { state: 'failed', error: 'fetch failed: ENOTFOUND getaddrinfo ENOTFOUND api.example.test' });
+});
+
+test('health says what the builder reaches, and nothing about a job', async () => {
+	const { builder } = setup({ health: async () => ({ answers: { status: 200 } }) });
+	assert.deepEqual(await builder.health(), { answers: { status: 200 } });
+	assert.deepEqual(await setup().builder.health(), {});
 });

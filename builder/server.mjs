@@ -2,6 +2,8 @@
 // forwards what arrives on the VM's attested TLS port. See builder.mjs.
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { getServers } from 'node:dns';
+import { lookup } from 'node:dns/promises';
 import { createReadStream, createWriteStream, openAsBlob } from 'node:fs';
 import { mkdir, rm, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -11,7 +13,7 @@ import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { createGunzip } from 'node:zlib';
 import { importer } from 'ipfs-unixfs-importer';
-import { createBuilder, handler } from './builder.mjs';
+import { createBuilder, explain, handler } from './builder.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const api = (process.env.ALEPH_API || 'https://api2.aleph.im').replace(/\/+$/, '');
@@ -79,6 +81,28 @@ async function upload(path, message) {
 	return { status: response.status, cid };
 }
 
+/**
+ * Whether the guest reaches Aleph's API, and how far it gets: the name
+ * servers it was given, what the API's name resolves to, and an answer from
+ * the API. Each part says its own error, so "no network" has a reason.
+ */
+async function health() {
+	const host = new URL(api).hostname;
+	const report = { api, nameServers: getServers() };
+	try {
+		report.resolves = (await lookup(host, { all: true })).map((a) => a.address);
+	} catch (error) {
+		report.resolves = { error: explain(error) };
+	}
+	try {
+		const response = await fetch(`${api}/api/v0/version`, { redirect: 'error', signal: AbortSignal.timeout(15_000) });
+		report.answers = { status: response.status };
+	} catch (error) {
+		report.answers = { error: explain(error) };
+	}
+	return report;
+}
+
 const builder = createBuilder({
 	api,
 	download,
@@ -88,7 +112,8 @@ const builder = createBuilder({
 	sizeOf: async (path) => (await stat(path)).size,
 	remove: (path) => rm(path, { force: true }),
 	getJson: async (url) => (await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(30_000) })).json(),
-	pathFor: (job) => join(work, `${job}.img`)
+	pathFor: (job) => join(work, `${job}.img`),
+	health
 });
 
 createServer(handler(builder)).listen(8080, '127.0.0.1', () => console.log('image builder on 127.0.0.1:8080'));
