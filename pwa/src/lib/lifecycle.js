@@ -225,7 +225,7 @@ export async function startPaperless(master, profile, onProgress, { onRequested 
 	if (balance < reserve) {
 		const running = runningPerHour ? ` und ${runningPerHour.toLocaleString('de-DE')} Credits/h für das, was schon läuft` : '';
 		throw new AlephShortError(
-			`Für einen Start fehlen noch ${(reserve - balance).toLocaleString('de-DE')} Aleph-Credits auf ${profile.leSpacePays ? 'dem Konto, mit dem Le Space deine VM bezahlt' : profile.appPays ? 'dem Konto der App' : 'dem zahlenden Konto'}. Aleph nimmt die VM erst mit einem Tag Reserve an: ${reserve.toLocaleString('de-DE')} (${vmPerHour.toLocaleString('de-DE')} Credits/h für Paperless${running}), da sind ${balance.toLocaleString('de-DE')}.`,
+			`Für einen Start fehlen noch ${(reserve - balance).toLocaleString('de-DE')} Aleph-Credits auf ${profile.leSpacePays ? 'dem Konto, mit dem Le Space deine VM bezahlt' : profile.appPays ? 'der Adresse der App' : 'deiner Wallet'}. Aleph nimmt die VM erst mit einem Tag Reserve an: ${reserve.toLocaleString('de-DE')} (${vmPerHour.toLocaleString('de-DE')} Credits/h für Paperless${running}), da sind ${balance.toLocaleString('de-DE')}.`,
 			{ balance, reserve, vmPerHour }
 		);
 	}

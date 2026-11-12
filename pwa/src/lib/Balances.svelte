@@ -6,14 +6,22 @@
 	import { PAPERLESS_VM } from '$lib/vm.js';
 	import { marketPrices, money, UNITS } from '$lib/prices.js';
 
-	/** @type {{ master: Uint8Array, version?: number, onsummary?: (s: { money: string, lasts: string, warnings: ('start' | 'backups')[] } | null) => void }} */
-	let { master, version = 0, onsummary = () => {} } = $props();
+	/** @type {{ master: Uint8Array, version?: number, onsummary?: (s: { money: string, lasts: string, warnings: ('start' | 'backups')[] } | null) => void, onshown?: (shown: boolean) => void }} */
+	let { master, version = 0, onsummary = () => {}, onshown = () => {} } = $props();
 
 	const appAddress = privateKeyToAccount(alephPrivateKey(master)).address;
 	// Who pays the VM on Aleph, and the wallet that pays the backups on Filecoin.
 	let alephPayer = $state('');
 	let payer = $state('');
 	let appPays = $state(false);
+	// Crypto balances are shown only where the person pays with them: the VM's
+	// Aleph credits when the app's address or their own wallet pays it (not when
+	// Le Space pays from a package), the Filecoin side when their wallet pays the
+	// backups (not when Le Space Credits do). The start warning still reads
+	// Le Space's account for this customer, without showing it.
+	let showAleph = $state(false);
+	let showFilecoin = $state(false);
+	$effect(() => onshown(showAleph || showFilecoin));
 	let network = $state('calibration');
 	/** @type {{ credits: number, aleph: number } | null} */
 	let aleph = $state(null);
@@ -64,7 +72,7 @@
 			confidentialCreditsPerHour(PAPERLESS_VM).then((p) => (vmPerHour = p)),
 			marketPrices().then((p) => (prices = p)),
 			runningCreditsPerHour(alephPayer).then((p) => (runningPerHour = p)).catch(() => (runningPerHour = null)),
-			payer && filecoinBalance(network, payer).then((b) => (filecoin = b)).catch(() => ((filecoin = null), (filecoinError = true)))
+			showFilecoin && filecoinBalance(network, payer).then((b) => (filecoin = b)).catch(() => ((filecoin = null), (filecoinError = true)))
 		]);
 		reading = false;
 	}
@@ -77,7 +85,7 @@
 		if (!vmUp && vmPerHour && aleph.credits < reserve) warnings.push('start');
 		if (filecoin && ((filecoin.runwayDays !== null && filecoin.runwayDays < 30) || filecoin.gas < LOW_GAS)) warnings.push('backups');
 		onsummary({
-			money: money(aleph.credits, 'eur', prices),
+			money: showAleph ? money(aleph.credits, 'eur', prices) : '',
 			lasts: perHour ? duration(hoursOf(aleph.credits, perHour)) : '',
 			warnings
 		});
@@ -90,6 +98,8 @@
 			.then((p) => {
 				payer = p.payer ?? '';
 				appPays = Boolean(p.appPays);
+				showAleph = !p.leSpacePays && Boolean(p.appPays || p.payer);
+				showFilecoin = Boolean(p.payer) && !p.backupsByCredits;
 				vmUp = Boolean(p.running || p.starting);
 				alephPayer = vmPayer(p, appAddress) ?? '';
 				network = p.network ?? 'calibration';
@@ -99,11 +109,13 @@
 	});
 </script>
 
-{#if alephPayer}
+{#if showAleph || showFilecoin}
 	<section class="balances" data-testid="balances">
-		<h2>{appPays ? 'Konten bei Aleph und Filecoin' : 'Konten des zahlenden Kontos'}</h2>
+		<h2>{showAleph && appPays ? 'Adresse der App und deine Wallet' : 'Deine Wallet'}</h2>
+		<p class="hint keys" data-testid="balance-keys">{showAleph && appPays ? 'Den Schlüssel der App-Adresse leitet dein Browser aus deinem Passkey (oder den 24 Wörtern) ab. ' : ''}{payer ? 'Den Schlüssel deiner Wallet hat nur deine Wallet. ' : ''}Le Space hat keinen dieser Schlüssel und kann nichts davon ausgeben.</p>
 		<dl>
-			<dt>Aleph-Credits{#if appPays} <small>(Konto der App)</small>{/if}</dt>
+			{#if showAleph}
+			<dt>Aleph-Credits{#if appPays} <small>(Adresse der App)</small>{/if}</dt>
 			<dd data-testid="balance-credits">
 				{#if aleph}
 					{amount(aleph.credits, 0)} {#if inMoney(aleph.credits)}<span class="money" data-testid="balance-money">{inMoney(aleph.credits)}</span>{/if}
@@ -113,27 +125,29 @@
 				{:else if alephError}<span class="hint">nicht lesbar</span>{:else}…{/if}
 			</dd>
 			{#if aleph?.aleph}<dt>ALEPH</dt><dd>{amount(aleph.aleph)}</dd>{/if}
+			{/if}
 
-			{#if payer}
+			{#if showFilecoin}
 			<dt>{gasName} <small>(Gas)</small></dt>
 			<dd data-testid="balance-gas">
 				{#if filecoin}
 					{amount(filecoin.gas, 3)}
-					{#if filecoin.gas < LOW_GAS}<br /><span class="warn">Wenig Gas: Sitzungsschlüssel verlängern oder einzahlen braucht {gasName}.</span>{/if}
+					{#if filecoin.gas < LOW_GAS}<br /><span class="warn">Wenig Gas: Den Sitzungsschlüssel zu verlängern oder Filecoin Pay aufzufüllen kostet {gasName}.</span>{/if}
 				{:else if filecoinError}<span class="hint">nicht lesbar</span>{:else}…{/if}
 			</dd>
 			{#if filecoin}
-				<dt>USDFC{test ? ' (Test)' : ''} im Wallet</dt>
+				<dt>USDFC{test ? ' (Test)' : ''} in deiner Wallet</dt>
 				<dd>{amount(filecoin.usdfc)}</dd>
 				<dt>Filecoin Pay <small>(für Sicherungen)</small></dt>
 				<dd data-testid="balance-deposit">
-					{amount(filecoin.available)} verfügbar <small>von {amount(filecoin.deposit)} eingezahlt</small>
+					{amount(filecoin.available)} verfügbar <small>von {amount(filecoin.deposit)} hinterlegt</small>
 					{#if filecoin.perMonth > 0}<br /><small>Verbrauch ca. {amount(filecoin.perMonth)} USDFC im Monat{filecoin.runwayDays !== null ? `, reicht ca. ${filecoin.runwayDays} Tage` : ''}</small>{/if}
-					{#if filecoin.runwayDays !== null && filecoin.runwayDays < 30}<br /><span class="warn">Reicht weniger als einen Monat: einzahlen, sonst schlagen Sicherungen fehl.</span>{/if}
+					{#if filecoin.runwayDays !== null && filecoin.runwayDays < 30}<br /><span class="warn">Reicht weniger als einen Monat: aus deiner Wallet auffüllen, sonst schlagen Sicherungen fehl.</span>{/if}
 				</dd>
 			{/if}
 			{/if}
 		</dl>
+		{#if showAleph}
 		<p class="units">
 			<label>Credits auch in
 				<select value={unit} onchange={(e) => setUnit(e.currentTarget.value)} data-testid="credit-unit">
@@ -141,6 +155,7 @@
 				</select></label>
 			<small class="hint">1 $ = 1.000.000 Credits (Aleph){#if prices} · ALEPH {amount(prices.alephEur, 4)} €, 1 $ = {amount(prices.usdEur, 3)} € (CoinGecko, {new Date(prices.at).toLocaleTimeString('de-DE', { timeStyle: 'short' })}){:else if unit === 'eur' || unit === 'aleph'} · Kurse gerade nicht abrufbar{/if}</small>
 		</p>
+		{/if}
 		<button class="quiet" onclick={read} disabled={reading}>{reading ? 'Lese …' : 'Aktualisieren'}</button>
 	</section>
 {/if}
@@ -154,6 +169,7 @@
 	@media (max-width: 480px) { dl { grid-template-columns: 1fr; } dd { margin-bottom: 0.4rem; } }
 	.warn { color: var(--warn); font-size: 0.9rem; }
 	.hint { color: var(--text-2); }
+	.keys { margin: 0 0 0.6rem; font-size: 0.9rem; }
 	.money { color: var(--text-2); margin-left: 0.3rem; }
 	.units { margin: 0.5rem 0 0; font-size: 0.9rem; }
 	.units select { margin-left: 0.3rem; }
