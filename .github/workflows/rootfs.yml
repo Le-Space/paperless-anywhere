@@ -117,18 +117,11 @@ jobs:
           echo "BUILD_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
           echo "PLAIN_BYTES=$(stat -c %s "$RUNNER_TEMP/paperless.ext4")" >> "$GITHUB_ENV"
 
-      - name: Confidential, encrypted, published
-        id: rootfs
-        uses: NiKrause/relay-button/.github/actions/aleph-confidential-rootfs@28e4e09c2e988a8cd903d457d734be0d0982be62 # v0.12.1
-        with:
-          image_path: ${{ runner.temp }}/paperless.ext4
-          # The action wants a non-empty file; sshd ignores a comment line.
-          ssh_public_key: '# no key in the image: a test sends its own with the unlock'
-          luks_passphrase: ${{ inputs.purpose == 'release' && steps.key.outputs.passphrase || secrets.PAPERLESS_LUKS_PASSPHRASE }}
-          aleph_private_key: ${{ secrets.ALEPH_PRIVATE_KEY }}
-
-      # The same conversion the action above runs (the same script at the same
-      # commit), kept this time: the action removes its plain copy.
+      # The same conversion the action below runs (the same script at the same
+      # commit), kept this time: the action removes its plain copy. It comes
+      # first: gzipped it is a third of the encrypted image, and Aleph's node
+      # has refused uploads of the full size several times (2026-11-12), so a
+      # run that fails there still leaves the plain image published.
       - name: Get the conversion script
         if: inputs.plain
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -212,6 +205,16 @@ jobs:
         with:
           subject-name: paperless-plain.ext4
           subject-digest: sha256:${{ steps.plain.outputs.sha256 }}
+
+      - name: Confidential, encrypted, published
+        id: rootfs
+        uses: NiKrause/relay-button/.github/actions/aleph-confidential-rootfs@28e4e09c2e988a8cd903d457d734be0d0982be62 # v0.12.1
+        with:
+          image_path: ${{ runner.temp }}/paperless.ext4
+          # The action wants a non-empty file; sshd ignores a comment line.
+          ssh_public_key: '# no key in the image: a test sends its own with the unlock'
+          luks_passphrase: ${{ inputs.purpose == 'release' && steps.key.outputs.passphrase || secrets.PAPERLESS_LUKS_PASSPHRASE }}
+          aleph_private_key: ${{ secrets.ALEPH_PRIVATE_KEY }}
 
       - name: Summary
         if: always()
