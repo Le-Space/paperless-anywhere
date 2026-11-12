@@ -171,6 +171,10 @@ jobs:
           done
           if [ -n "$verified" ]; then
             cat "$RUNNER_TEMP/call.log" "$RUNNER_TEMP/call.txt"
+            # What the builder reaches from inside the guest (Aleph's API,
+            # name resolution). Reported, not judged: it is there to be read.
+            aleph vprogram call "$hash" /health > "$RUNNER_TEMP/health.json" 2>/dev/null || true
+            cat "$RUNNER_TEMP/health.json"
             exit 0
           fi
           if [ "$KEEP" = true ]; then
@@ -193,6 +197,8 @@ jobs:
           aleph vprogram call "$HASH" / --verbose > "$RUNNER_TEMP/call.txt" 2> "$RUNNER_TEMP/call.log" || { cat "$RUNNER_TEMP/call.log"; echo "::error::the attested call failed"; exit 1; }
           cat "$RUNNER_TEMP/call.log" "$RUNNER_TEMP/call.txt"
           grep -q 'paperless-anywhere image builder' "$RUNNER_TEMP/call.txt" || { echo "::error::the builder did not answer as the image builder"; exit 1; }
+          aleph vprogram call "$HASH" /health > "$RUNNER_TEMP/health.json" 2>/dev/null || true
+          cat "$RUNNER_TEMP/health.json"
 
       - name: Delete it
         if: inputs.action == 'delete'
@@ -231,5 +237,6 @@ jobs:
           block "V-PROGRAM ${HASH:-$(cat "$RUNNER_TEMP/hash.txt" 2>/dev/null)}" "$RUNNER_TEMP/show.json"
           block "Attested call" "$RUNNER_TEMP/call.log"
           block "Answer" "$RUNNER_TEMP/call.txt"
+          block "What the builder reaches" "$RUNNER_TEMP/health.json"
           block "Deleted" "$RUNNER_TEMP/delete.json"
           exit 0

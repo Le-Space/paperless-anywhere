@@ -19,6 +19,7 @@ let uploaded;
 createServer(async (req, res) => {
 	if (req.url === `/api/v0/messages/${store}`) return res.end(JSON.stringify({ type: 'STORE', content: { item_hash: 'cd'.repeat(32) } }));
 	if (req.url === `/api/v0/storage/raw/${'cd'.repeat(32)}`) return res.end(stored);
+	if (req.url === '/api/v0/version') return res.end(JSON.stringify({ version: 'stand-in' }));
 	if (req.url === '/api/v0/ipfs/add_file') {
 		const form = await new Request('http://x', { method: 'POST', headers: req.headers, body: req, duplex: 'half' }).formData();
 		uploaded = { file: Buffer.from(await form.get('file').arrayBuffer()), metadata: JSON.parse(form.get('metadata')) };
@@ -38,6 +39,8 @@ const check = (ok, what) => {
 };
 try {
 	await new Promise((resolve) => setTimeout(resolve, 1500));
+	const health = await call('/health');
+	check(health.answers?.status === 200 && Array.isArray(health.resolves), `health: the API answers (${JSON.stringify(health.answers)})`);
 	const { job, status } = await call('/build', { store, sha256, passphrase });
 	check(status === 202 && job, 'the build is accepted');
 	check((await call('/build', { store, sha256, passphrase })).status === 503, 'a second build has to wait');

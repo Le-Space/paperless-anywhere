@@ -157,6 +157,7 @@ only way in and forwards from the attested TLS port.
 | Call | Does |
 |---|---|
 | `POST /build` `{store, sha256, passphrase}` | Fetches the plain image named by `store` from Aleph and unpacks it on the way, refuses it unless the SHA-256 of the unpacked image is `sha256`, encrypts it. Answers `{job}` at once. |
+| `GET /health` | What the builder reaches from inside its VM: the name servers it was given, what the API's name resolves to, whether the API answers. No job, no secret. |
 | `GET /job/<job>` | `{state}`: `building`, `built` (with the content address and size), `failed`, `published`. |
 | `POST /job/<job>/publish` `{message}` | Uploads the image beside the signed STORE message, only if the message names exactly the built file. Then removes the image. |
 
