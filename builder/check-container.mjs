@@ -1,36 +1,23 @@
 // check-container.mjs: runs inside the builder's container (docs/own-image.md)
-// and drives one whole job against a stand-in for Aleph's API on this host:
-// download, encryption, the CID, the upload beside a STORE message. Then it
-// asks cryptsetup whether the uploaded file opens with the passphrase.
+// and drives one whole job as on Aleph: no network, the plain image gzipped
+// on a "volume", the sealed image fetched back in pieces. Then it asks
+// cryptsetup whether what came back opens with the passphrase.
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
-import { createServer } from 'node:http';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 
-// Half noise, half zeros, as a filesystem image is; stored gzipped, as on Aleph.
+// Half noise, half zeros, as a filesystem image is.
 const plain = Buffer.concat([randomBytes(4 * 1024 * 1024), Buffer.alloc(4 * 1024 * 1024)]);
-const stored = gzipSync(plain);
 const sha256 = createHash('sha256').update(plain).digest('hex');
-const store = 'ab'.repeat(32);
 const passphrase = randomBytes(32).toString('base64');
-let uploaded;
+mkdirSync('/tmp/plain', { recursive: true });
+writeFileSync('/tmp/plain/paperless-plain.ext4.gz', gzipSync(plain));
 
-createServer(async (req, res) => {
-	if (req.url === `/api/v0/messages/${store}`) return res.end(JSON.stringify({ type: 'STORE', content: { item_hash: 'cd'.repeat(32) } }));
-	if (req.url === `/api/v0/storage/raw/${'cd'.repeat(32)}`) return res.end(stored);
-	if (req.url === '/api/v0/version') return res.end(JSON.stringify({ version: 'stand-in' }));
-	if (req.url === '/api/v0/ipfs/add_file') {
-		const form = await new Request('http://x', { method: 'POST', headers: req.headers, body: req, duplex: 'half' }).formData();
-		uploaded = { file: Buffer.from(await form.get('file').arrayBuffer()), metadata: JSON.parse(form.get('metadata')) };
-		return res.end(JSON.stringify({ status: 'success' }));
-	}
-	res.writeHead(404).end();
-}).listen(9000, '127.0.0.1');
-
-const server = spawn('node', ['server.mjs'], { env: { ...process.env, ALEPH_API: 'http://127.0.0.1:9000', BUILDER_WORK: '/tmp/work' }, stdio: 'inherit' });
-const call = async (path, body) => {
-	const response = await fetch(`http://127.0.0.1:8080${path}`, body ? { method: 'POST', body: JSON.stringify(body) } : {});
+const server = spawn('node', ['server.mjs'], { env: { ...process.env, BUILDER_PLAIN: '/tmp/plain/paperless-plain.ext4.gz', BUILDER_WORK: '/tmp/work' }, stdio: 'inherit' });
+const at = (path) => `http://127.0.0.1:8080${path}`;
+const call = async (path, init) => {
+	const response = await fetch(at(path), init);
 	return { status: response.status, ...(await response.json()) };
 };
 const check = (ok, what) => {
@@ -39,32 +26,44 @@ const check = (ok, what) => {
 };
 try {
 	await new Promise((resolve) => setTimeout(resolve, 1500));
-	const health = await call('/health');
-	check(health.answers?.status === 200 && Array.isArray(health.resolves), `health: the API answers (${JSON.stringify(health.answers)})`);
-	const { job, status } = await call('/build', { store, sha256, passphrase });
-	check(status === 202 && job, 'the build is accepted');
-	check((await call('/build', { store, sha256, passphrase })).status === 503, 'a second build has to wait');
+	check((await call('/')).plain === null, 'says who it is');
+	const wrong = await call('/build', { method: 'POST', body: JSON.stringify({ sha256: '00'.repeat(32), passphrase }) });
+	check(wrong.status === 202, 'a build for another image is accepted …');
+	// … and fails, because the image on the volume is not that one.
+	await new Promise((resolve) => setTimeout(resolve, 3000));
+	check((await call(`/job/${wrong.job}`)).state === 'failed', '… and fails: the image on the volume is not that one');
+	const { job, status } = await call('/build', { method: 'POST', body: JSON.stringify({ sha256, passphrase }) });
+	check(status === 202 && job, 'the build is accepted (the failed one before does not block it)');
+	check((await call('/build', { method: 'POST', body: JSON.stringify({ sha256, passphrase }) })).status === 503, 'a second build has to wait');
 	let state;
 	for (let i = 0; i < 120 && (state = await call(`/job/${job}`)).state === 'building'; i++) await new Promise((resolve) => setTimeout(resolve, 1000));
 	check(state.state === 'built' && state.size === plain.length + 32 * 1048576, `built: ${state.state}, ${state.size} bytes${state.error ? `, ${state.error}` : ''}`);
-	const sender = '0x' + '11'.repeat(20);
-	const item_content = JSON.stringify({ address: sender, time: 1, item_type: 'ipfs', item_hash: state.cid, payment: { type: 'credit' } });
-	const message = { sender, chain: 'ETH', type: 'STORE', item_type: 'inline', item_content, item_hash: createHash('sha256').update(item_content).digest('hex'), signature: '0xstand-in' };
-	const published = await call(`/job/${job}/publish`, { message });
-	check(published.status === 200 && published.item_hash === message.item_hash, 'published beside the STORE message');
-	check(uploaded?.metadata?.message?.item_hash === message.item_hash, 'the stand-in got the message');
-	writeFileSync('/tmp/uploaded.img', uploaded.file);
+	check((await call('/')).plain?.sha256 === sha256, 'knows which plain image it holds');
+
+	// Fetch it back in pieces of 4 MiB, as the app does.
+	const pieces = [];
+	const step = 4 * 1024 * 1024;
+	for (let start = 0; start < state.size; start += step) {
+		const response = await fetch(at(`/job/${job}/image`), { headers: { range: `bytes=${start}-${Math.min(start + step, state.size) - 1}` } });
+		if (response.status !== 206) throw new Error(`a piece answered ${response.status}`);
+		pieces.push(Buffer.from(await response.arrayBuffer()));
+	}
+	const image = Buffer.concat(pieces);
+	check(image.length === state.size, `fetched back in ${pieces.length} pieces`);
+	check((await fetch(at(`/job/${job}/image`), { headers: { range: 'bytes=0-99999999' } })).status === 416, 'a piece larger than allowed is refused');
+	writeFileSync('/tmp/fetched.img', image);
 	const opens = (pass) => {
 		try {
-			execFileSync('cryptsetup', ['open', '--test-passphrase', '--key-file', '-', '/tmp/uploaded.img'], { input: pass, stdio: ['pipe', 'ignore', 'ignore'] });
+			execFileSync('cryptsetup', ['open', '--test-passphrase', '--key-file', '-', '/tmp/fetched.img'], { input: pass, stdio: ['pipe', 'ignore', 'ignore'] });
 			return true;
 		} catch {
 			return false;
 		}
 	};
-	check(opens(passphrase), 'the uploaded image opens with the passphrase');
+	check(opens(passphrase), 'the fetched image opens with the passphrase');
 	check(!opens('another passphrase, long enough to be one'), 'and with no other');
-	check(!uploaded.file.includes(plain.subarray(0, 64)), 'the plain image is not in it');
+	check(!image.includes(plain.subarray(0, 64)), 'the plain image is not in it');
+	check((await call(`/job/${job}`, { method: 'DELETE' })).removed === true, 'the caller removes it');
 	check(execFileSync('sh', ['-c', 'ls /tmp/work | wc -l']).toString().trim() === '0', 'nothing is left in the work directory');
 } finally {
 	server.kill();
