@@ -98,6 +98,20 @@
 		vault = loadVault();
 		phrase = '';
 	});
+	// The landing page, on the same origin; it shows the language chosen there.
+	const LANDING = '/';
+	// A start, a backup or a stop under way in the lifecycle card.
+	let acting = $state(false);
+	/**
+	 * The way home. The unlock lives in this page's memory only, so leaving
+	 * locks the app; that is fine and the link says so. While something is
+	 * under way it asks first: the VM carries on, but this page stops
+	 * following it.
+	 * @param {MouseEvent} event
+	 */
+	function leave(event) {
+		if (state === 'unlocked' && acting && !confirm('Die App wird beim Wechsel zur Startseite gesperrt. Gerade läuft noch etwas (Start, Sicherung oder Stopp); die VM macht weiter, die App verfolgt es aber erst wieder, wenn du sie neu entsperrst. Trotzdem wechseln?')) event.preventDefault();
+	}
 	function lock() {
 		master?.fill(0);
 		master = null;
@@ -167,7 +181,7 @@
 
 <header class="top">
 	<div class="bar">
-		<Logo>{#snippet sub()}<NgxText text={texts.de.tagline} link />{/snippet}</Logo>
+		<Logo href={LANDING} label={state === 'unlocked' ? 'Zur Startseite (die App wird dabei gesperrt)' : 'Zur Startseite'} onnavigate={leave}>{#snippet sub()}<NgxText text={texts.de.tagline} link />{/snippet}</Logo>
 		{#if state === 'unlocked'}<button class="ghost" onclick={lock}>Sperren</button>{/if}
 	</div>
 </header>
@@ -258,7 +272,7 @@
 						</ul>
 					</section>
 				{/if}
-				<div class="life" id="paperless"><Lifecycle {master} {simple} version={profileVersion} onchange={() => profileVersion++} onadvanced={openSetup} onmissing={(m) => { missing = m; if (m.length) setupOpen = true; }} onglance={(g) => (life = g)} /></div>
+				<div class="life" id="paperless"><Lifecycle {master} {simple} version={profileVersion} onchange={() => profileVersion++} onadvanced={openSetup} onmissing={(m) => { missing = m; if (m.length) setupOpen = true; }} onglance={(g) => (life = g)} onbusy={(b) => (acting = b)} /></div>
 				{#if CREDITS_URL}<div class="pkg" id="paket"><Package {master} version={profileVersion} onglance={(g) => (pkg = g)} /></div>{/if}
 			</div>
 		{/if}
