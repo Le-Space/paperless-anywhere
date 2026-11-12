@@ -293,7 +293,7 @@
 		<summary>Wo die Einrichtung liegt: verschlüsselt auf Aleph, auf jedem Gerät da</summary>
 		<p>Jede Änderung hier wird <strong>in diesem Browser verschlüsselt</strong> (AES-256-GCM, mit einem Schlüssel aus deinem Tresor) und dann <strong>auf Aleph</strong> gespeichert, unter dem Schlüssel dieser App. Jedes Gerät, das den Tresor öffnet (Passkey oder 24 Wörter), findet dieselbe Einrichtung.</p>
 		<p>Drin sind: zahlendes Konto, Netz, Relays, Image, Knoten und Passphrase des Images, die Sicherungseinstellungen samt Schlüssel der Sicherungen (age) und die laufende VM.</p>
-		<p>Aleph sieht nur einen verschlüsselten Block, wann er sich ändert, und (im Wallet des zahlenden Kontos) dass es diese App freigegeben hat, nicht den Inhalt.
+		<p>Aleph sieht nur einen verschlüsselten Block, wann er sich ändert, und (in der zahlenden Wallet) dass es diese App freigegeben hat, nicht den Inhalt.
 			Mehr: <a href="https://github.com/Le-Space/paperless-anywhere/blob/main/docs/keys-and-recovery.md#where-the-setup-is-kept" target="_blank" rel="noopener">Schlüssel und Wiederherstellung</a>.</p>
 	</details>
 	{#if busy === 'wallet'}<p class="waiting" data-testid="wallet-waiting">Warte auf MetaMask … (bitte dort bestätigen oder ablehnen)</p>{/if}
@@ -320,8 +320,8 @@
 
 		<h3>{step.pays}. Wer zahlt die VM?</h3>
 		<fieldset class="payer-choice" disabled={busy === 'pays'}>
-			{#if CREDITS_URL}<label><input type="radio" name="pays" checked={Boolean(profile.leSpacePays)} onchange={() => setPays('lespace')} data-testid="pays-lespace" /> Le Space, aus meinem Paket: kein Wallet, keine Kryptowerte</label>{/if}
-			<label><input type="radio" name="pays" checked={!profile.appPays && !profile.leSpacePays} onchange={() => setPays('wallet')} data-testid="pays-wallet" /> Mein Wallet (MetaMask), mit einer Freigabe für diese App</label>
+			{#if CREDITS_URL}<label><input type="radio" name="pays" checked={Boolean(profile.leSpacePays)} onchange={() => setPays('lespace')} data-testid="pays-lespace" /> Le Space, aus meinem Paket: keine Wallet, keine Kryptowerte</label>{/if}
+			<label><input type="radio" name="pays" checked={!profile.appPays && !profile.leSpacePays} onchange={() => setPays('wallet')} data-testid="pays-wallet" /> Meine Wallet (MetaMask), mit einer Freigabe für diese App</label>
 			<label><input type="radio" name="pays" checked={Boolean(profile.appPays) && !profile.leSpacePays} onchange={() => setPays('app')} data-testid="pays-app" /> Diese App selbst: Aleph-Credits liegen auf ihrer Adresse</label>
 		</fieldset>
 		{#if CREDITS_URL}
@@ -329,22 +329,22 @@
 				<summary>Aleph selbst bezahlen, ohne Paket (für Fortgeschrittene)</summary>
 				<p>Die VM läuft auf Aleph. Statt über ein Paket kannst du sie dort auch selbst bezahlen:</p>
 				<ul>
-					<li><strong>Mein Wallet:</strong> Die Aleph-Credits liegen in deinem Wallet (MetaMask). Du gibst dieser App dort frei, VMs zu starten und zu löschen (Schritt {step.aleph ?? 2}, sobald das Wallet verbunden ist).</li>
-					<li><strong>Diese App selbst:</strong> Du überweist Aleph-Credits an die Adresse der App. Wer den Tresor öffnet, kann sie ausgeben.</li>
+					<li><strong>Meine Wallet:</strong> Die Aleph-Credits liegen in deiner Wallet (MetaMask); den Schlüssel hat nur sie. Du gibst dieser App dort frei, VMs zu starten und zu löschen (Schritt {step.aleph ?? 2}, sobald die Wallet verbunden ist).</li>
+					<li><strong>Diese App selbst:</strong> Du schickst Aleph-Credits selbst an die Adresse der App. Den Schlüssel dazu leitet dein Browser aus deinem Passkey (oder den 24 Wörtern) ab; Le Space hat ihn nicht. Wer deinen Tresor öffnet, kann damit VMs bezahlen.</li>
 				</ul>
-				<p>Dann rechnet Le Space für die VM nichts ab: keine Stunden aus dem Paket, keine Rechnung dafür. Um Aleph-Credits und deren Kurs kümmerst du dich selbst; was das Konto hält, steht unter „Konten bei Aleph und Filecoin“. Die Sicherungen kannst du weiter über Le Space Credits bezahlen (Schritt {step.backups}).</p>
+				<p>Dann rechnet Le Space für die VM nichts ab: keine Stunden aus dem Paket, keine Rechnung dafür. Um Aleph-Credits und deren Kurs kümmerst du dich selbst; was die Adresse der App hält, steht unter „Deine Wallet bei Aleph und Filecoin“. Die Sicherungen kannst du weiter über Le Space Credits bezahlen (Schritt {step.backups}).</p>
 			</details>
 		{/if}
 		{#if profile.leSpacePays}
 			<p class="hint" data-testid="lespace-pays">Le Space bezahlt deine VM aus einem eigenen Konto für dich; diese App startet und beendet sie in dessen Auftrag. Abgerechnet wird über dein Paket. {profile.vmOwner ? 'Konto für deine VM: ' : ''}{#if profile.vmOwner}<code>{profile.vmOwner}</code>{/if}</p>
 		{:else if profile.appPays}
 			<p>Adresse der App: <code data-testid="app-payer">{pwaAddress}</code>
-				<br /><small class="money">Hier liegen die Aleph-Credits für die VMs. Der Schlüssel dazu kommt aus deinem Tresor: wer den Tresor öffnet, kann sie ausgeben. Aufladen per Aleph-Überweisung an diese Adresse{CREDITS_URL ? ' oder aus Le Space Credits' : ''}.</small></p>
-			<p class="hint">Ein Wallet brauchst du so nur für Sicherungen (Filecoin){CREDITS_URL ? `, und auch dafür nicht, wenn Le Space Credits sie bezahlen (Schritt ${step.backups})` : ''}.</p>
+				<br /><small class="money">Hier liegen deine Aleph-Credits für die VMs. Den Schlüssel dazu leitet dein Browser aus deinem Passkey (oder den 24 Wörtern) ab; Le Space hat ihn nicht. Wer deinen Tresor öffnet, kann damit VMs bezahlen. Aleph-Credits schickst du selbst an diese Adresse{CREDITS_URL ? '; mit einem Paket aus Le Space Credits brauchst du das nicht' : ''}.</small></p>
+			<p class="hint">Eine Wallet brauchst du so nur für Sicherungen (Filecoin){CREDITS_URL ? `, und auch dafür nicht, wenn Le Space Credits sie bezahlen (Schritt ${step.backups})` : ''}.</p>
 		{/if}
 		{#if profile.payer}
 			<p>{profile.appPays ? 'Wallet für die Sicherungen' : 'Verbunden'}: <code data-testid="payer">{profile.payer}</code>
-				<br /><small class="money">{profile.appPays ? `Hier liegt das Geld für die Sicherungen: ${backupCoins}.` : `Hier liegt das Geld: Aleph-Credits für die VMs, ${backupCoins} für die Sicherungen.`} Der Schlüssel dazu bleibt in deinem Wallet; diese App sieht ihn nie.</small></p>
+				<br /><small class="money">{profile.appPays ? `Hier liegen deine Mittel für die Sicherungen: ${backupCoins}.` : `Hier liegen deine Mittel für den Betrieb: Aleph-Credits für die VMs, ${backupCoins} für die Sicherungen.`} Den Schlüssel dazu hat nur deine Wallet; weder diese App noch Le Space sehen ihn.</small></p>
 		{/if}
 		{@render feedback('pays')}
 		<button onclick={connect} disabled={busy === 'wallet'}>{profile.payer ? 'Anderes Wallet verbinden' : profile.appPays ? 'Wallet für Sicherungen verbinden' : 'Wallet verbinden'}</button>
@@ -352,19 +352,19 @@
 		{#if showAleph}
 			<h3>{step.aleph}. Aleph: diese App darf VMs starten und löschen</h3>
 			<p>App-Schlüssel: <code>{pwaAddress}</code>
-				<br /><small class="nomoney">Hält kein Geld – nichts dorthin überweisen. Er darf nur im Auftrag des zahlenden Kontos VMs starten und löschen.</small></p>
+				<br /><small class="nomoney">Hält keine Mittel – nichts an diese Adresse schicken. Er darf nur im Auftrag des zahlenden Kontos VMs starten und löschen.</small></p>
 			<p data-testid="aleph-status">{alephOk ? 'freigegeben (INSTANCE, FORGET, Port-Freigaben)' : 'nicht freigegeben'}</p>
 			{#if alephOk}
 				<button onclick={() => authorize(true)} disabled={busy === 'wallet'}>Freigabe zurücknehmen</button>
 			{:else}
-				<button onclick={() => authorize()} disabled={busy === 'wallet'}>Im Wallet freigeben</button>
+				<button onclick={() => authorize()} disabled={busy === 'wallet'}>In der Wallet freigeben</button>
 			{/if}
 		{/if}
 
 		{#if showFilecoin}
 			<h3>{step.filecoin}. Filecoin: Sicherungen hinzufügen</h3>
 			<p>Sitzungsschlüssel: <code>{sessionAddress}</code>
-				<br /><small class="nomoney">Hält kein Geld – nichts dorthin überweisen. Er darf 30 Tage lang Sicherungen hinzufügen, bezahlt vom zahlenden Konto.</small></p>
+				<br /><small class="nomoney">Hält keine Mittel – nichts an diese Adresse schicken. Er darf 30 Tage lang Sicherungen hinzufügen, bezahlt vom zahlenden Konto.</small></p>
 			<p data-testid="session-status">{until(sessionUntil) ? `gültig bis ${until(sessionUntil)}` : 'nicht freigegeben'}</p>
 			{@render feedback('wallet')}
 			<button onclick={() => session()} disabled={busy === 'wallet'}>{until(sessionUntil) ? 'Um 30 Tage verlängern' : 'Für 30 Tage freigeben'}</button>
@@ -387,7 +387,7 @@
 			</fieldset>
 			{#if profile.backupsByCredits}
 				<p>Schlüssel der VM für die Sicherungen: <code data-testid="backup-key">{backupKey}</code>
-					<br /><small class="nomoney">Aus deinem Tresor abgeleitet. Hält kein Geld – nichts dorthin überweisen. Le Space bezahlt den Speicher; der Dienst unterschreibt jeden Schritt der Sicherung nur für deine eigenen Datensätze, solange sie bezahlt sind.</small></p>
+					<br /><small class="nomoney">Aus deinem Tresor abgeleitet. Hält keine Mittel – nichts an diese Adresse schicken. Le Space bezahlt den Speicher; der Dienst unterschreibt jeden Schritt der Sicherung nur für deine eigenen Datensätze, solange sie bezahlt sind.</small></p>
 				<p data-testid="credits-backup-state">{#if backupState === undefined}…{:else if !backupState}Le Space Credits bezahlen gerade keine Sicherungen.{:else}{fundedUntil(backupState.fundedUntil) ? `Bezahlt bis ${fundedUntil(backupState.fundedUntil)}` : 'Noch nicht bezahlt'} · {backupState.dataSets.length === 1 ? '1 Datensatz' : `${backupState.dataSets.length} Datensätze`} · VM-Schlüssel {profile.backupSigner?.payer ? 'freigegeben' : 'noch nicht freigegeben'}{/if}</p>
 				<button onclick={payBackups} disabled={busy === 'bycredits'} data-testid="pay-backups">Einen Monat Sicherungen bezahlen</button>
 				{#if !profile.backupSigner?.payer}<button onclick={authorizeBackupKey} disabled={busy === 'bycredits'} data-testid="authorize-backup-key">VM-Schlüssel freigeben</button>{/if}

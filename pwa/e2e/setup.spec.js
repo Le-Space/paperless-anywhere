@@ -68,7 +68,7 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	await expect(page.getByTestId('aleph-status')).toHaveText('nicht freigegeben');
 	await expect(page.getByTestId('setup').locator('h3')).toHaveText([/^1\. /, /^2\. Aleph/, /^3\. Filecoin/, /^4\. /, /^5\. /, /^6\. /, /^7\. /]);
 
-	await page.getByRole('button', { name: 'Im Wallet freigeben' }).click();
+	await page.getByRole('button', { name: 'In der Wallet freigeben' }).click();
 	await expect(page.getByTestId('aleph-status')).toHaveText('freigegeben (INSTANCE, FORGET, Port-Freigaben)');
 	expect(aggregates.get(payer.address).security.authorizations).toEqual([OTHER, { address: appAddress, types: ['INSTANCE', 'FORGET', 'AGGREGATE'], aggregate_keys: ['port-forwarding'] }]);
 
@@ -190,8 +190,11 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await expect(page.getByTestId('saved-role')).toBeVisible();
 	await page.getByTestId('role-test').check();
 
+	// Nobody pays with crypto yet: no wallet balances to show.
+	await expect(page.getByTestId('tech-balances')).toBeHidden();
 	await page.getByTestId('pays-app').check();
 	await expect(page.getByTestId('app-payer')).toHaveText(appAddress);
+	await expect(page.getByTestId('tech-balances')).toBeVisible();
 	await expect(page.getByTestId('aleph-status')).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Wallet für Sicherungen verbinden' })).toBeVisible();
 	// Steps are numbered as shown: no Aleph approval and no Filecoin key here, so no gap.
@@ -199,7 +202,9 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	// No image builder is fixed in the app yet, so the setup offers no build.
 	await expect(page.getByTestId('own-image')).toHaveCount(0);
 	await open(page, 'tech-balances');
-	await expect(page.getByTestId('balances')).toContainText('Konto der App');
+	await expect(page.getByTestId('balances')).toContainText('Adresse der App');
+	await expect(page.getByTestId('balance-keys')).toContainText('aus deinem Passkey');
+	await expect(page.getByTestId('balance-keys')).toContainText('Le Space hat keinen dieser Schlüssel');
 	await expect(page.getByTestId('balance-credits')).toContainText('1.500.000');
 	await expect(page.getByTestId('balance-gas')).toHaveCount(0);
 	// Credits also in money: euros by default, ALEPH on request.

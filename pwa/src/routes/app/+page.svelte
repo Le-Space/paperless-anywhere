@@ -140,7 +140,7 @@
 	let life = $state(null);
 	/** @type {{ plan: boolean, hoursLeft: number | null, pays: string | null, low: boolean } | null} */
 	let pkg = $state(null);
-	const PAYS = { lespace: 'Le Space, aus dem Paket', app: 'Konto der App', wallet: 'Mein Wallet' };
+	const PAYS = { lespace: 'Le Space, aus dem Paket', app: 'Adresse der App', wallet: 'Meine Wallet' };
 	const when = (/** @type {string} */ at) => new Date(at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 	const glance = $derived([
 		...(CREDITS_URL && pkg ? [{ id: 'paket', label: 'Paket', state: !pkg.plan ? 'kein Paket' : pkg.pays === 'app' || pkg.pays === 'wallet' ? 'nicht in Gebrauch' : pkg.hoursLeft != null ? `${pkg.hoursLeft} h übrig` : 'aktiv', tone: !pkg.plan || pkg.low ? 'warn' : pkg.pays === 'app' || pkg.pays === 'wallet' ? '' : 'ok' }] : []),
@@ -157,6 +157,7 @@
 	};
 	/** @type {{ money: string, lasts: string, warnings: ('start' | 'backups')[] } | null} */
 	let summary = $state(null);
+	let balancesShown = $state(false);
 </script>
 
 <!-- Its own title: coming from the landing page, the tab would keep that one. -->
@@ -271,7 +272,7 @@
 			<details class="part" data-testid="tech-keys">
 				<summary><span>Schlüssel und Passkeys</span></summary>
 				<p>Entsperrt. Schlüssel dieser App für Aleph: <code data-testid="address">{address}</code>
-					<br /><small class="hint">Geld liegt hier nur, wenn die App ihre VMs selbst bezahlt (Einrichtung, Schritt 1); sonst beim zahlenden Konto.</small></p>
+					<br /><small class="hint">Dein Browser leitet diesen Schlüssel aus deinem Passkey (oder den 24 Wörtern) ab; Le Space hat ihn nicht. Aleph-Credits liegen hier nur, wenn du deine VMs selbst über diese Adresse bezahlst (Einrichtung, Schritt 1).</small></p>
 				<details class="fold">
 					<summary>Weiteren Passkey hinzufügen</summary>
 					<p class="hint">Ein Passkey gehört zu einer Adresse ({location.host}). Für die gehostete App oder ein zweites Gerät: dort mit den 24 Wörtern öffnen und hier einen Passkey anlegen. Jeder Passkey öffnet denselben Tresor.</p>
@@ -280,9 +281,10 @@
 				</details>
 			</details>
 			{#if !shownPhrase}
-				<details class="part" data-testid="tech-balances">
-					<summary><span>Konten bei Aleph und Filecoin</span>{#if summary?.money}<span class="chip">{summary.money}</span>{/if}</summary>
-					<Balances {master} version={profileVersion} onsummary={(s) => (summary = s)} />
+				<!-- Only where the person pays with crypto themselves; Balances still reads the start warning otherwise. -->
+				<details class="part" data-testid="tech-balances" hidden={!balancesShown}>
+					<summary><span>Deine Wallet bei Aleph und Filecoin</span>{#if summary?.money}<span class="chip">{summary.money}</span>{/if}</summary>
+					<Balances {master} version={profileVersion} onsummary={(s) => (summary = s)} onshown={(v) => (balancesShown = v)} />
 				</details>
 				<details class="part" data-testid="tech-vms">
 					<summary><span>Meine VMs</span></summary>

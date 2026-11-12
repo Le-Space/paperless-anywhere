@@ -19,14 +19,14 @@ export const filecoinChain = (network) => (network === 'mainnet' ? mainnet : cal
 
 function ethereum() {
 	const provider = /** @type {any} */ (globalThis).ethereum;
-	if (!provider) throw new Error('Kein Wallet gefunden (MetaMask oder ein Hardware-Wallet in MetaMask).');
+	if (!provider) throw new Error('Keine Wallet gefunden (MetaMask oder eine Hardware-Wallet in MetaMask).');
 	return provider;
 }
 
 /** Connect the paying account; returns its address. */
 export async function connectPayer() {
 	const [address] = await ethereum().request({ method: 'eth_requestAccounts' });
-	if (!/^0x[0-9a-fA-F]{40}$/.test(address ?? '')) throw new Error('Das Wallet hat kein Konto freigegeben.');
+	if (!/^0x[0-9a-fA-F]{40}$/.test(address ?? '')) throw new Error('Die Wallet hat kein Konto freigegeben.');
 	// Aleph keys balances and aggregates by the checksum spelling; MetaMask
 	// answers in lowercase, under which the account has no credits.
 	return getAddress(address);

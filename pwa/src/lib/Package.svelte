@@ -179,8 +179,8 @@
 			<!-- One answer first: how long Paperless can run. Money and changes below. -->
 			{#if pays === 'app' || pays === 'wallet'}
 				<!-- The VM is not paid from the package: say what pays it, so 0 hours do not alarm. -->
-				<p class="big" data-testid="plan-left"><strong>Paperless anywhere läuft über {pays === 'app' ? 'das Konto der App' : 'deine Wallet'}</strong></p>
-				<p class="hint" data-testid="plan-source">Das Paket wird dafür nicht verbraucht{hoursLeft != null ? ` (darin ${hoursLeft} ${hoursLeft === 1 ? 'Stunde' : 'Stunden'})` : ''}. Es zählt erst, wenn du beim Start „Le Space, aus meinem Paket“ wählst. Was {pays === 'app' ? 'das Konto der App' : 'deine Wallet'} hält, steht unter „Erweitert“.</p>
+				<p class="big" data-testid="plan-left"><strong>Paperless anywhere läuft über {pays === 'app' ? 'die Adresse der App' : 'deine Wallet'}</strong></p>
+				<p class="hint" data-testid="plan-source">Das Paket wird dafür nicht verbraucht{hoursLeft != null ? ` (darin ${hoursLeft} ${hoursLeft === 1 ? 'Stunde' : 'Stunden'})` : ''}. Es zählt erst, wenn du beim Start „Le Space, aus meinem Paket“ wählst. Was {pays === 'app' ? 'die Adresse der App' : 'deine Wallet'} hält, steht unter „Erweitert“.</p>
 			{:else}
 				<p class="big" data-testid="plan-left">
 					{#if hoursLeft != null}<strong>{hoursLeft} {hoursLeft === 1 ? 'Stunde' : 'Stunden'}</strong> Laufzeit übrig{balance.plan.periodEnd ? `, bis ${day(balance.plan.periodEnd)}` : ''}{:else}Paket aktiv{/if}
