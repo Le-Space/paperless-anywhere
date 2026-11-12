@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BackupFailedError, BackupPartialError, passphraseFitsImage, requestBackup, resumeAfterPartial, startRequirements, stopPaperless } from './lifecycle.js';
+import { BackupFailedError, BackupPartialError, passphraseFitsImage, requestBackup, resumeAfterPartial, startRequirements, stopPaperless, debugKeysFor } from './lifecycle.js';
 import { newMasterSecret, statusToken } from './keys/derive.js';
 
 const master = newMasterSecret();
@@ -149,5 +149,16 @@ describe('the image passphrase belongs to one image', () => {
 
 	it('lets a profile from before the record start', () => {
 		expect(startRequirements(base)).toEqual([]);
+	});
+});
+
+describe('debugKeysFor', () => {
+	const key = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleExampleExampleExampleExampleExampleEx test';
+	it('hands the key of a test over, and never to a productive instance', () => {
+		expect(debugKeysFor({ debugAuthorizedKeys: key })).toBe(key);
+		expect(debugKeysFor({ debugAuthorizedKeys: key, role: 'test' })).toBe(key);
+		expect(debugKeysFor({ debugAuthorizedKeys: key, role: 'primary' })).toBeNull();
+		expect(debugKeysFor({ role: 'test' })).toBeNull();
+		expect(debugKeysFor({})).toBeNull();
 	});
 });

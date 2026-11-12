@@ -159,6 +159,19 @@ export async function retryBackupRevoke(master, profile, deps) {
 }
 
 /**
+ * The public key a test may send with the unlock, so that it can look into
+ * the VM (the confidential init adds it to root's authorized_keys, and sshd
+ * starts only then). The app's UI never sets it, the image carries no key of
+ * its own, and a productive instance gets none: nobody logs in where the
+ * real documents are. The VM, on its side, starts sshd on a productive
+ * instance only when the unlock asks for it explicitly, which this app
+ * never does.
+ * @param {Record<string, any>} profile
+ * @returns {string | null}
+ */
+export const debugKeysFor = (profile) => (profile?.debugAuthorizedKeys && profile.role !== 'primary' ? String(profile.debugAuthorizedKeys) : null);
+
+/**
  * Whether the stored passphrase belongs to the stored image. Every image has
  * a passphrase of its own, and the setup records which image a passphrase
  * was entered for (`luksFor`); a profile from before that has no record and
@@ -317,10 +330,8 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 			onProgress({ step: 'unlock', detail: `Ohne Sicherungen: ${e instanceof Error ? e.message : String(e)}` });
 		}
 	}
-	// Diagnosis only: a test may pass a public key, which the confidential init
-	// adds to root's authorized_keys (relay-button's confidential-init.sh). The
-	// app's UI never sets it, and the image carries no key of its own.
-	if (profile.debugAuthorizedKeys) secrets.authorized_keys = String(profile.debugAuthorizedKeys);
+	const keys = debugKeysFor(profile);
+	if (keys) secrets.authorized_keys = keys;
 	if (profile.restoreEntry && profile.ageIdentity) {
 		secrets.restore_ledger_entry = JSON.stringify(profile.restoreEntry);
 		secrets.age_identity = profile.ageIdentity;

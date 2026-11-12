@@ -87,6 +87,10 @@ database, so only inside that person's running VM and their encrypted backups.
 - What Paperless writes goes onto a disk area encrypted with a key the VM
   makes at boot and keeps in memory only. If that area cannot be made, Paperless
   does not start.
+- sshd starts only when a public key came with the unlock, which a test does
+  and the app never. A productive instance needs more than a key: the unlock
+  must ask for sshd explicitly, which only one live test does. The image
+  itself carries no key.
 - Postgres, Valkey, Tika, Gotenberg and Paperless listen on the VM's loopback
   only; Caddy serves HTTPS. Caddy's admin interface is off.
 - A stop backs up first and erases the VM only when every requested copy has

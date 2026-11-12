@@ -205,7 +205,10 @@ jobs:
           umask 077
           # The role the PWA gives a VM that backs up to mainnet: primary (the image
           # refuses mainnet for any other role).
-          printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=$ROLE" \
+          # A productive instance starts sshd only when the unlock asks for it
+          # in so many words (rootfs/files/paperless-ssh-allowed); this run
+          # drives its VM over SSH.
+          printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=$ROLE" --secret "paperless_debug_ssh=yes" \
             --secret "backup_config=$(cat "$RUNNER_TEMP/vm/backup_config.json")" --secret "backup_key=$(cat "$RUNNER_TEMP/vm/backup_key")" \
             > "$RUNNER_TEMP/secrets1.args"
           . "$RUNNER_TEMP/fixed.sh"; fixed_args "$hash" "$RUNNER_TEMP/fixed1.args"; cat "$RUNNER_TEMP/fixed1.args" >> "$RUNNER_TEMP/secrets1.args"

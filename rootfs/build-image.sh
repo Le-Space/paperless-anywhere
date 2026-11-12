@@ -92,13 +92,17 @@ install -D -m 644 "$here/files/paperless-status.service" "$root/etc/systemd/syst
 install -D -m 644 "$here/files/paperless-stop.service" "$root/etc/systemd/system/paperless-stop.service"
 install -D -m 644 "$here/files/paperless-forget-passphrase.service" "$root/etc/systemd/system/paperless-forget-passphrase.service"
 install -D -m 644 "$here/files/paperless-fixed-address.service" "$root/etc/systemd/system/paperless-fixed-address.service"
-for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-backup-loop paperless-net-hardening paperless-status paperless-stop paperless-stack-up paperless-data-disk paperless-file-extents paperless-forget-passphrase paperless-fixed-address paperless-dns-records; do
+for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-backup-loop paperless-net-hardening paperless-status paperless-stop paperless-stack-up paperless-data-disk paperless-file-extents paperless-forget-passphrase paperless-fixed-address paperless-dns-records paperless-ssh-allowed; do
   install -D -m 755 "$here/files/$script" "$root/usr/local/sbin/$script"
 done
 install -d -m 700 "$root/etc/paperless-anywhere"
 
 printf 'PermitRootLogin prohibit-password\nPasswordAuthentication no\nUseDNS no\n' \
   > "$root/etc/ssh/sshd_config.d/paperless-anywhere.conf"
+# sshd starts only when a key came with the unlock, and never on a productive
+# instance (files/paperless-ssh-allowed). The unit stays enabled: the
+# conversion to a confidential rootfs enables it anyway.
+install -D -m 644 "$here/files/ssh-paperless-anywhere.conf" "$root/etc/systemd/system/ssh.service.d/paperless-anywhere.conf"
 echo paperless-anywhere > "$root/etc/hostname"
 : > "$root/etc/resolv.conf"
 # No socket activation in the confidential rootfs (see files/docker.service).
