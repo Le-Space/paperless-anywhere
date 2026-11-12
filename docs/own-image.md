@@ -1,10 +1,10 @@
 # Your own image
 
 > **Status: in preparation.** The image builder exists
-> ([`builder/`](../builder/)), has been published on Aleph and verified by
-> attestation there, and the app's step is written. No build has run on
-> Aleph yet in the form described here, and the app names no builder; the
-> list at the end says what is missing. Until then every image version has
+> ([`builder/`](../builder/)), has been published on Aleph, verified by
+> attestation there, and has sealed the real image there in a trial. The
+> app's step is written, but the app names no builder; the list at the end
+> says what is missing. Until then every image version has
 > one passphrase, as [keys and recovery](keys-and-recovery.md) describes.
 
 A VM of Paperless anywhere boots from an encrypted image. The measured part
@@ -224,12 +224,6 @@ docker run --rm --network none -v "$PWD/check-container.mjs:/opt/builder/check-c
 
 ## Before it goes live
 
-- A **whole build on Aleph**: the builder was published and attested there
-  with an earlier design that fetched the plain image itself, which a
-  V-PROGRAM cannot do. In the form described here (image on a verified
-  volume, result handed back) it runs locally without any network; on Aleph
-  the workflow's action `trial` shows it
-  ([`builder/vprogram/`](../builder/vprogram/README.md)).
 - **Fetching through a relay**: the app gets the sealed image in pieces over
   the attested channel. How long nearly 900 MiB take that way, and how the
   attest relay reaches a V-PROGRAM, is not measured yet.

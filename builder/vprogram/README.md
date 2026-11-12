@@ -3,11 +3,11 @@
 How the builder ([docs/own-image.md](../../docs/own-image.md)) gets onto
 Aleph as a measured, confidential VM that anyone can attest.
 
-> **Status: published and attested, no build on Aleph yet.** Through the
-> workflow below the builder has been published on Aleph several times and
-> an attested call to it verifies. The design of those runs fetched the
-> plain image itself, which a V-PROGRAM cannot do; the design described
-> here has run only locally, without any network.
+> **Status: a build has run on Aleph; the app does not use it yet.** Through
+> the workflow below the builder was published with the plain image as a
+> verified volume, an attested call to it verifies, and it sealed the real
+> image there. Not tried: the app fetching the whole sealed image through
+> an attest relay, and uploading it from a browser.
 
 ## What runs
 
@@ -43,7 +43,7 @@ and pays. Its summary holds what each action found.
 | `dry-run` | builds the archive and the workload, computes the launch measurements; uploads and publishes nothing | nothing |
 | `publish` | a dry run first, then uploads the workload and publishes the V-PROGRAM, waits until it is reachable and makes an attested call to it; if that call does not verify, the builder is deleted again | credits of the account, from then on **until it is deleted** |
 | `check` | shows the V-PROGRAM with the given hash and makes one attested call to `/`; fails unless the builder answers | nothing |
-| `trial` | has the builder with the given hash seal the image once, with a passphrase made for the run and thrown away, and fetches three pieces back; fails unless the result is a LUKS2 disk | nothing beyond the running builder |
+| `trial` | has the builder with the given hash seal the image once, with a passphrase made for the run and thrown away, and fetches two pieces back; fails unless the result begins as a LUKS2 disk | nothing beyond the running builder |
 | `delete` | forgets the V-PROGRAM with the given hash; the scheduler then stops the VM | nothing; ends the cost |
 
 The usual order:
@@ -195,6 +195,13 @@ IMAGE=localhost/paperless-anywhere-image-builder:1
   no reply to an outbound connection comes back. A V-PROGRAM cannot fetch
   or upload; the builder was rebuilt around that (image on a verified
   volume, result handed back).
+
+- 2026-11-12, the rebuilt builder, published with the plain image as a
+  verified volume (257 MiB) and tried with the action `trial`: the build
+  of the real image (836 MiB) was done within 36 s and gave a sealed image
+  of 868 MiB; pieces came back over the attested channel, 4 MiB in about
+  two seconds with the attestation of that call included. Aleph's CLI
+  prints answers as text, so the bytes could not be compared there.
 
 ## What goes into the app afterwards
 

@@ -14,9 +14,9 @@ name: Image builder on Aleph
 #            builder that verifies costs credits until it is deleted.
 #   check    shows a published V-PROGRAM and makes one attested call to it
 #   trial    has a published builder seal the image once, with a passphrase
-#            made for this run and thrown away, and fetches the first and the
-#            last piece back: it shows that a whole image fits into the VM's
-#            memory and that the result is a LUKS2 disk
+#            made for this run and thrown away, and fetches two pieces back:
+#            it shows that a whole image fits into the VM's memory, how long
+#            it takes, and that the result begins as a LUKS2 disk
 #   delete   forgets a published V-PROGRAM (the scheduler then stops the VM)
 #
 # The plain image the builder seals is part of what is published: it goes
@@ -277,26 +277,28 @@ jobs:
           size="$(jq -r .size <<<"$answer")"
           cid="$(jq -r .cid <<<"$answer")"
 
-          # The first piece must begin as a LUKS2 header does, the last must
-          # be as long as asked for, and a piece of 4 MiB tells the pace.
+          # Pieces of the sealed image, fetched back. Aleph's CLI prints an
+          # answer as text and replaces what is no valid UTF-8, so the bytes
+          # that arrive here are not the image's bytes and their count says
+          # nothing (first trial, 2026-11-12). What survives is ASCII: a
+          # LUKS2 header begins with "LUKS". The app reads the channel as
+          # bytes, and Aleph recomputes the content address on upload, so
+          # the image's integrity does not rest on this check.
           call "/job/$job/image" -H 'Range: bytes=0-4095' > "$RUNNER_TEMP/first.bin"
-          magic="$(head -c 6 "$RUNNER_TEMP/first.bin" | od -An -tx1 | tr -d ' \n')"
-          call "/job/$job/image" -H "Range: bytes=$(( size - 4096 ))-$(( size - 1 ))" > "$RUNNER_TEMP/last.bin"
+          magic="$(head -c 4 "$RUNNER_TEMP/first.bin")"
           piece_started=$(date +%s%N)
           call "/job/$job/image" -H 'Range: bytes=4194304-8388607' > "$RUNNER_TEMP/piece.bin"
           piece_ms=$(( ( $(date +%s%N) - piece_started ) / 1000000 ))
           call "/job/$job" -X DELETE > "$RUNNER_TEMP/removed.json" || true
           {
-            echo "built after:        ${built_after} s"
+            echo "built after:        at most ${built_after} s (asked every 15 s)"
             echo "sealed image:       $(( size / 1048576 )) MiB, $cid"
-            echo "first bytes:        $magic (a LUKS2 header begins 4c554b53babe)"
-            echo "last piece:         $(stat -c %s "$RUNNER_TEMP/last.bin") bytes of 4096"
-            echo "a piece of 4 MiB:   $(stat -c %s "$RUNNER_TEMP/piece.bin") bytes in ${piece_ms} ms, attestation included"
+            echo "first four bytes:   $magic (a LUKS2 header begins with LUKS)"
+            echo "a piece of 4 MiB:   fetched in ${piece_ms} ms, attestation included"
             echo "removed afterwards: $(cat "$RUNNER_TEMP/removed.json")"
           } | tee "$RUNNER_TEMP/trial.txt"
-          [ "$magic" = 4c554b53babe ] || { echo "::error::what came back is no LUKS2 disk"; exit 1; }
-          [ "$(stat -c %s "$RUNNER_TEMP/last.bin")" = 4096 ] || { echo "::error::the last piece is not whole"; exit 1; }
-          [ "$(stat -c %s "$RUNNER_TEMP/piece.bin")" = 4194304 ] || { echo "::error::a piece of 4 MiB did not come back whole"; exit 1; }
+          [ "$magic" = LUKS ] || { echo "::error::what came back does not begin as a LUKS2 disk"; exit 1; }
+          [ -s "$RUNNER_TEMP/piece.bin" ] || { echo "::error::a piece of the image did not come back"; exit 1; }
 
       - name: Delete it
         if: inputs.action == 'delete'
