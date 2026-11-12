@@ -103,3 +103,31 @@ test('the landing page shows who holds which key, what is attested and where to 
 	// Nothing wider than the phone.
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });
+
+test('the section links stay at the top while the page scrolls', async ({ page }) => {
+	await page.context().route(/^https?:\/\/(?!localhost)/, (route) => route.abort());
+	await page.setViewportSize({ width: 1200, height: 800 });
+	await page.addInitScript(() => Object.defineProperty(navigator, 'language', { get: () => 'de-DE' }));
+	await page.goto('/');
+	const header = page.locator('header.top');
+	const nav = page.getByRole('navigation', { name: 'Sections' });
+	await nav.getByRole('link', { name: 'FAQ' }).click();
+	await expect(page).toHaveURL(/#faq$/);
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(500);
+	// Still there, at the very top, and usable for the next jump.
+	await expect(nav).toBeInViewport();
+	expect(Math.round((await header.boundingBox())?.y ?? -1)).toBe(0);
+	// The section it jumped to begins below the header, not under it.
+	const bottom = await header.evaluate((h) => h.getBoundingClientRect().bottom);
+	const heading = await page.locator('#faq h2').evaluate((h) => h.getBoundingClientRect().top);
+	expect(heading).toBeGreaterThanOrEqual(bottom);
+	await nav.getByRole('link', { name: 'Preise' }).click();
+	await expect(page).toHaveURL(/#prices$/);
+	await expect(page.locator('#prices h2')).toBeInViewport();
+
+	// On a phone there are no section links, and the header scrolls away as before.
+	await page.setViewportSize({ width: 390, height: 800 });
+	await page.goto('/#faq');
+	await expect(nav).toBeHidden();
+	await expect(header).not.toBeInViewport();
+});
