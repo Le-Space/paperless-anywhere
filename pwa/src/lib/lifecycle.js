@@ -350,7 +350,7 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 			passphrase: profile.luksPassphrase,
 			secrets,
 			sign: (payload) => app.signMessage({ message: payload }),
-			onProgress: ({ detail }) => onProgress({ step: 'unlock', detail })
+			onProgress: ({ detail, phase }) => onProgress({ step: 'unlock', detail, phase })
 		});
 	// A resumed start may find the VM unlocked already: its status page answers.
 	const already = await vmStatus(host, statusToken(master)).catch(() => null);
@@ -359,12 +359,12 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	/** @type {import('./evidence.js').Attestation | null} */
 	let attestation = null;
 	if (already?.phase) {
-		onProgress({ step: 'unlock', detail: 'schon entsperrt' });
+		onProgress({ step: 'unlock', detail: 'schon entsperrt', already: true });
 	} else {
 		const unlocked = await unlock();
 		attestation = attestationOf(unlocked);
 		// Which secrets the guest's agent says it stored (names only).
-		onProgress({ step: 'unlock', detail: 'entsperrt', injected: unlocked?.injected ?? [] });
+		onProgress({ step: 'unlock', detail: 'entsperrt', injected: unlocked?.injected ?? [], attestation });
 	}
 
 	// Sometimes the guest's init never sees the passphrase the agent stored and

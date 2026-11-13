@@ -22,7 +22,9 @@
 	import { providerIdsIn } from '$lib/providers.js';
 	import Evidence from '$lib/Evidence.svelte';
 	import { evidenceRows } from '$lib/evidence.js';
-	import { appLang, evidenceTexts } from '$lib/evidence-i18n.js';
+	import { appLang, evidenceTexts, panelTexts } from '$lib/evidence-i18n.js';
+	import StartPanel from '$lib/StartPanel.svelte';
+	import { startPanel } from '$lib/start-panel.js';
 	import { RUNTIME } from '$lib/runtime-pin.js';
 	import { ALEPH_API } from '$lib/aleph.js';
 
@@ -70,18 +72,34 @@
 		{ key: 'cert', label: 'Zertifikat ausgestellt' },
 		{ key: 'paperless', label: 'Paperless-ngx antwortet' }
 	];
+	// What the start panel's lights are lit from: the library's phase within
+	// the unlock, what the unlock returned, the VM's status page, and whether
+	// this start restores a backup.
+	let libPhase = $state('');
+	/** @type {{ already?: boolean, injected?: string[], attestation?: any } | null} */
+	let unlockSeen = $state(null);
+	/** @type {any} */
+	let vmPage = $state(null);
+	let startRestores = $state(false);
 	let now = $state(Date.now());
 	let ticker = 0;
 	const track = (/** @type {'start' | 'stop'} */ kind) => {
 		action = kind;
 		times = {};
 		vmStart = null;
+		libPhase = '';
+		unlockSeen = null;
+		vmPage = null;
 		current = '';
 		startedAt = Date.now();
 		clearInterval(ticker);
 		ticker = setInterval(() => (now = Date.now()), 1000);
-		return (/** @type {{ step: string, detail?: string, status?: any, instanceHash?: string }} */ { step, detail, status, instanceHash }) => {
+		return (/** @type {{ step: string, detail?: string, status?: any, instanceHash?: string, phase?: string, already?: boolean, injected?: string[], attestation?: any }} */ { step, detail, status, instanceHash, phase, already, injected, attestation }) => {
 			progress = detail ?? step;
+			if (step === 'unlock' && phase) libPhase = phase;
+			if (already) unlockSeen = { already: true };
+			if (injected) unlockSeen = { injected, attestation };
+			if (status) vmPage = status;
 			if (instanceHash) startingInstance.set(instanceHash);
 			if (status?.start) vmStart = status.start;
 			if (step !== current) {
@@ -139,6 +157,11 @@
 	const evidenceT = evidenceTexts[appLang()];
 	const evidence = $derived(
 		profile.running ? evidenceRows({ running: profile.running, rootfsItemHash: profile.rootfsItemHash, runtime: RUNTIME, alephApi: ALEPH_API, lastGood, backupsOn: Boolean(profile.backupConfig) }) : []
+	);
+	const panelT = panelTexts[appLang()];
+	const startShown = $derived(action === 'start' && (busy || Object.keys(times).length > 0));
+	const panel = $derived(
+		startShown ? startPanel({ step: current, libPhase, unlock: unlockSeen, status: vmPage, restore: startRestores, finished: !busy && Boolean(profile.running), failed: !busy && !profile.running && Boolean(error) }) : []
 	);
 	const checkAgain = async () => {
 		await attestRunning(master, $state.snapshot(profile));
@@ -312,6 +335,7 @@
 		const chosen = chosenBackup;
 		if (gapOpen) throw new Error('Der Start wartet auf deine Bestätigung: die letzte bekannte Sicherung würde nicht eingespielt.');
 		const forStart = { ...$state.snapshot(profile), restoreEntry: chosen ? restoreEntry(chosen) : null };
+		startRestores = Boolean(forStart.restoreEntry);
 		// Once Aleph has the VM, the profile knows it: a reload carries on from there.
 		const onRequested = async (starting) => {
 			profile = await updateProfile(master, (now) => ({ ...now, starting }));
@@ -375,6 +399,7 @@
 			const newer = newerBackup(await listBackups({ network: profile.network ?? 'calibration', ...listing }), chosen);
 			if (newer) profile = await updateProfile(master, (now) => (now.starting ? { ...now, starting: { ...now.starting, restoreEntry: restoreEntry(newer) } } : now));
 		}
+		startRestores = Boolean(profile.starting?.restoreEntry);
 		await finishStart(() => resumeStart(master, $state.snapshot(profile), track('start')));
 	});
 	/** @param {() => Promise<any>} bringUp */
@@ -533,6 +558,7 @@
 		{#if phase === 'starting' || phase === 'stopping'}
 			<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(share * 100)} aria-label={TITLES[phase]}><span style="width: {Math.round(share * 100)}%"></span></div>
 			<p class="calm" data-testid="simple-progress">{stepLabel} · noch etwa {leftMinutes} min</p>
+			{#if startShown}<StartPanel rows={panel} t={panelT} />{/if}
 		{:else if phase === 'running'}
 			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="simple-open">Paperless-ngx öffnen</a>
 			{#if profile.running.restore?.status === 'failed'}<p class="error">Die Sicherung ließ sich nicht wiederherstellen; Paperless-ngx läuft leer. Details unter „Erweitert“.</p>{/if}
@@ -639,6 +665,7 @@
 				{#if missing.length}<p class="hint">Es fehlt noch: {missing.join(', ')}</p>{/if}
 			{/if}
 		{/if}
+		{#if startShown}<StartPanel rows={panel} t={panelT} />{/if}
 		{#if action && (busy || Object.keys(times).length)}
 			<ol class="steps" data-testid="progress-steps">
 				{#each STEPS[action] as s (s.step)}

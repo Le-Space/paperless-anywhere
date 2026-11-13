@@ -87,3 +87,58 @@ export const evidenceTexts = {
 		failed: (reason) => `The check failed: ${reason}`
 	}
 };
+
+export const panelTexts = {
+	de: {
+		title: 'Start der VM: was gerade geschieht und was geprüft ist',
+		rows: { measure: 'Messwerte', instance: 'Instanz', network: 'Netz', attestation: 'Attestierung', unlock: 'Entsperren', restore: 'Wiederherstellen', ready: 'Bereit' },
+		lights: {
+			runtime: 'Laufzeit von Aleph ist die in der App eingetragene',
+			measurement: 'Messwert berechnet, mit deinem App-Schlüssel als Besitzer',
+			signed: 'INSTANCE-Nachricht signiert und von Aleph angenommen',
+			notified: 'Knoten benachrichtigt',
+			port: 'Port 443 zugeordnet',
+			address: 'Adresse der VM bekannt',
+			report: 'Bericht von AMD signiert, Messwert und Policy wie berechnet',
+			binding: 'frischer Zufallswert und TLS-Schlüssel der VM im Bericht',
+			handed: 'Passphrase und Geheimnisse signiert übergeben',
+			stored: 'VM nennt, was sie angenommen hat',
+			restored: 'Sicherung eingespielt',
+			dataDisk: 'eigener Datenbereich versiegelt',
+			containers: 'Container laufen',
+			cert: 'Zertifikat ausgestellt',
+			paperless: 'Paperless-ngx antwortet'
+		},
+		states: { off: 'offen', run: 'läuft', app: 'von der App geprüft', reported: 'gemeldet', skipped: 'in dieser Sitzung nicht geprüft', failed: 'fehlgeschlagen' },
+		rowStates: { off: 'offen', run: 'läuft', done: 'fertig', skipped: 'nicht geprüft', failed: 'fehlgeschlagen' },
+		live: (row, state) => `${row}: ${state}`,
+		legend: 'Grün: von der App selbst geprüft. Blau: von der VM oder von Aleph gemeldet, nicht von der Hardware bestätigt.',
+		after: 'Werte und Links stehen danach unter „Nachweis dieser VM“.'
+	},
+	en: {
+		title: 'Start of the VM: what is happening and what has been checked',
+		rows: { measure: 'Measurements', instance: 'Instance', network: 'Network', attestation: 'Attestation', unlock: 'Unlock', restore: 'Restore', ready: 'Ready' },
+		lights: {
+			runtime: 'runtime from Aleph is the one fixed in the app',
+			measurement: 'measurement computed, with your app key as the owner',
+			signed: 'INSTANCE message signed and accepted by Aleph',
+			notified: 'node notified',
+			port: 'port 443 mapped',
+			address: 'address of the VM known',
+			report: 'report signed by AMD, measurement and policy as computed',
+			binding: 'fresh random value and the VM’s TLS key in the report',
+			handed: 'passphrase and secrets handed over, signed',
+			stored: 'VM names what it accepted',
+			restored: 'backup restored',
+			dataDisk: 'data area of its own sealed',
+			containers: 'containers running',
+			cert: 'certificate issued',
+			paperless: 'Paperless-ngx answers'
+		},
+		states: { off: 'open', run: 'under way', app: 'checked by the app', reported: 'reported', skipped: 'not checked in this session', failed: 'failed' },
+		rowStates: { off: 'open', run: 'under way', done: 'done', skipped: 'not checked', failed: 'failed' },
+		live: (row, state) => `${row}: ${state}`,
+		legend: 'Green: checked by the app itself. Blue: reported by the VM or by Aleph, not confirmed by the hardware.',
+		after: 'Values and links are under “Evidence of this VM” afterwards.'
+	}
+};
