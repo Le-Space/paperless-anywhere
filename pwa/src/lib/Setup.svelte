@@ -10,6 +10,7 @@
 	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups } from '$lib/credits.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
 	import { BUILDER, buildOwnImage, builderOpener, hasOwnImage, sources } from '$lib/own-image.js';
+	import { format, lang, t } from '$lib/i18n/index.js';
 	import {
 		connectPayer,
 		isAuthorized,
@@ -428,20 +429,20 @@
 		{@render feedback('image')}
 		{#if BUILDER}
 			<div class="own-image" data-testid="own-image">
-				<p class="hint">Oder ein Image nur für diesen Tresor: Ein geprüfter Build-Dienst versiegelt das öffentliche Image mit einer Passphrase, die aus deinem Tresor abgeleitet wird. Die App prüft den Hardware-Nachweis des Dienstes, bevor sie die Passphrase schickt, holt das versiegelte Image in Stücken über ebenso geprüfte Verbindungen zurück und lädt es selbst zu Aleph hoch (knapp 900 MiB; das dauert und braucht eine stabile Verbindung). Das Image liegt danach bei Aleph auf der Adresse dieser App (<code>{pwaAddress}</code>), die auch den Speicher bezahlt.</p>
+				<p class="hint">{$t.ownImage.intro.before}<code>{pwaAddress}</code>{$t.ownImage.intro.after}</p>
 				<details class="sources" data-testid="own-image-sources">
-					<summary>Woraus und womit wird gebaut?</summary>
-					<p class="hint">Diese Werte sind in der App festgelegt und für alle gleich. Das öffentliche Image kann jeder laden und den Hash vergleichen; den Messwert bestätigt die Hardware, bevor die App die Passphrase schickt.</p>
+					<summary>{$t.ownImage.sourcesFold}</summary>
+					<p class="hint">{$t.ownImage.sourcesHint}</p>
 					<dl>
-						{#each sources(BUILDER) as row}
+						{#each sources(BUILDER, $t.ownImage.sources) as row}
 							<dt>{row.label}</dt>
 							<dd>{#if row.href}<a href={row.href} target="_blank" rel="noreferrer"><code>{row.value}</code></a>{:else}<code>{row.value}</code>{/if}</dd>
 						{/each}
 					</dl>
 				</details>
-				{#if hasOwnImage(profile, BUILDER.plain.sha256)}<p class="saved" data-testid="own-image-have">Du nutzt dein eigenes Image, gebaut am {new Date(profile.ownImage.builtAt).toLocaleDateString('de-DE')}.</p>{/if}
-				<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{hasOwnImage(profile, BUILDER.plain.sha256) ? 'Mein Image neu bauen' : 'Mein Image bauen'}</button>
-				{#if profile.running}<p class="hint">Erst wieder möglich, wenn Paperless gestoppt ist.</p>{/if}
+				{#if hasOwnImage(profile, BUILDER.plain.sha256)}<p class="saved" data-testid="own-image-have">{$t.ownImage.have(format.date(profile.ownImage.builtAt, undefined, $lang))}</p>{/if}
+				<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{hasOwnImage(profile, BUILDER.plain.sha256) ? $t.ownImage.rebuild : $t.ownImage.build}</button>
+				{#if profile.running}<p class="hint">{$t.ownImage.whileRunning}</p>{/if}
 				{#if busy === 'own-image' && ownStep}<p class="hint" role="status" data-testid="own-image-step">{ownStep} …</p>{/if}
 				{@render feedback('own-image')}
 			</div>
