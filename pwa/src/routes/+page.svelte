@@ -198,6 +198,7 @@
 					<summary>{item.q}</summary>
 					<p>{item.a}</p>
 					{#if item.tips}<ul>{#each item.tips as tip}<li>{tip}</li>{/each}</ul>{/if}
+					{#if item.after}<p>{item.after}</p>{/if}
 					{#if item.more}<p><a href={item.more.href} rel="noopener">{item.more.text}</a></p>{/if}
 				</details>
 			{/each}
