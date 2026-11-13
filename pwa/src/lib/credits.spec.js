@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { recoverMessageAddress } from 'viem';
-import { backupAuthorize, backupKeyAddress, backupOf, backupRevoke, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, quoteVm, QuoteUnsupportedError, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp, creditsTerms, withdrawalOf, withdrawalText, waiverOf, WaiverError, cancelSubscription, CancelUnsupportedError, cancellationRecord, contractName, cancelMailto, withdraw, withdrawableOf, withdrawalQuote, withdrawalRecord, WithdrawalUnsupportedError } from './credits.js';
+import { backupAuthorize, backupKeyAddress, backupOf, backupRevoke, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, quoteVm, QuoteUnsupportedError, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp, creditsTerms, withdrawalOf, withdrawalText, waiverOf, WaiverError, cancelSubscription, CancelUnsupportedError, cancellationRecord, contractName, cancelMailto, withdraw, withdrawableOf, withdrawalQuote, withdrawalRecord, WithdrawalUnsupportedError, BACKUP_MONTH_CREDITS, backupMonthCredits } from './credits.js';
 
 // A made-up vault: the ledger knows it by the address its Aleph key has.
 const master = new Uint8Array(32).fill(7);
@@ -608,5 +608,15 @@ describe('cancelling without the key (§ 312k BGB)', () => {
 		expect(body).toContain('Rechnungsnummer');
 		// Spaces as %20: a mail program shows a "+" as a plus.
 		expect(cancelMailto()).not.toContain('+');
+	});
+});
+
+describe('the price of a month of backups', () => {
+	it('is the one the service lists, else the known one', () => {
+		expect(backupMonthCredits([{ backupMonthCredits: 200 }, { backupMonthCredits: 150 }])).toBe(200);
+		expect(backupMonthCredits([{}, { backupMonthCredits: 175 }])).toBe(175);
+		expect(backupMonthCredits([{}])).toBe(BACKUP_MONTH_CREDITS);
+		expect(backupMonthCredits([{ backupMonthCredits: 0 }, { backupMonthCredits: NaN }])).toBe(BACKUP_MONTH_CREDITS);
+		expect(backupMonthCredits([])).toBe(150);
 	});
 });

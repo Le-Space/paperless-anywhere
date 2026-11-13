@@ -40,7 +40,14 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.getByTestId('trust-hint')).toHaveAttribute('href', '#trust');
 	await expect(page.locator('#prices')).toContainText('4,90 €');
 	await expect(page.locator('#prices')).toContainText('Dauerbetrieb, rund um die Uhr');
-	await expect(page.getByTestId('prices-included')).toHaveText('In jedem Paket enthalten: bis 8 GB Dokumente und ihre verschlüsselten Sicherungen in drei Kopien.');
+	// The package holds the documents' room; the backup is a price of its own.
+	await expect(page.getByTestId('prices-included')).toHaveText('In jedem Paket enthalten: bis 8 GB Dokumente.');
+	await expect(page.getByTestId('prices-backup')).toContainText('ist nicht im Paket enthalten: Sie kostet 1,50 € im Monat dazu');
+	await expect(page.getByTestId('prices-backup')).toContainText('damit deine Dokumente nach einem Stopp zurückkommen');
+	await expect(page.getByTestId('prices-backup-total')).toHaveText('15 Stunden mit Sicherung: 4,90 € + 1,50 € = 6,40 € im Monat.');
+	await expect(page.getByTestId('prices-backup-after')).toContainText('mindestens 30 Tage abrufbar');
+	await expect(page.locator('#faq')).toContainText('Die Sicherung ist nicht im Paket enthalten');
+	await expect(page.locator('main')).not.toContainText('Sicherungen in drei Kopien.');
 
 	await expect(page.getByRole('link', { name: 'Impressum' })).toHaveAttribute('href', 'https://le-space.de/#impressum');
 	await expect(page.getByRole('link', { name: 'Datenschutz' })).toHaveAttribute('href', 'https://le-space.de/#datenschutz');

@@ -179,7 +179,11 @@ export const texts = {
 			legal: { before: 'Es gelten die ', terms: 'AGB', between: '; dort steht auch die ', withdrawal: 'Widerrufsbelehrung', after: ' (§ 9).' },
 			hours: (h) => (h >= 720 ? 'Dauerbetrieb, rund um die Uhr' : `${h} Stunden`),
 			example: 'Beispiel: zwei Stunden pro Woche sind rund 8,7 Stunden im Monat und passen in das kleinste Paket.',
-			included: 'In jedem Paket enthalten: bis 8 GB Dokumente und ihre verschlüsselten Sicherungen in drei Kopien.',
+			included: 'In jedem Paket enthalten: bis 8 GB Dokumente.',
+			backup: (price) => `Die verschlüsselte Sicherung in drei Kopien ist nicht im Paket enthalten: Sie kostet ${price} im Monat dazu und wird aus deinem Guthaben bezahlt.`,
+			backupNeed: 'Du brauchst sie, damit deine Dokumente nach einem Stopp zurückkommen: Beim Stoppen wird die VM gelöscht, beim nächsten Start kommt alles aus der Sicherung.',
+			backupTotal: (hours, plan, backup, total) => `${hours} mit Sicherung: ${plan} + ${backup} = ${total} im Monat.`,
+			backupAfter: 'Nach dem letzten bezahlten Sicherungsmonat entstehen keine neuen Sicherungen; die vorhandenen bleiben noch mindestens 30 Tage abrufbar.',
 		},
 		faq: {
 			title: 'Häufige Fragen',
@@ -188,7 +192,7 @@ export const texts = {
 				{ q: 'Was ist Paperless-ngx?', a: 'Paperless-ngx ist die Open-Source-Software, die in deiner VM läuft: Sie liest Dokumente ein, erkennt den Text und macht sie durchsuchbar. Paperless anywhere startet sie für dich auf Abruf in einer vertraulichen VM und sichert sie danach.' },
 				{ q: 'Bekommen alle dieselbe Software?', a: 'Ja. Das System ist für alle gleich. Heute öffnet eine Passphrase je Image die Platte; alle VMs dieses Images teilen sie, und Le Space kennt sie. Was deine VM schreibt, liegt deshalb in einem Datenbereich mit einem Schlüssel, den nur sie hat. In Vorbereitung ist, dass ein geprüfter Build-Dienst das Image für jede Person einzeln versiegelt, mit einer Passphrase aus ihrem Tresor. Wie man Image und Dienst dann nachprüft, beschreibt die Dokumentation.' },
 				{ q: 'Brauche ich ein Konto?', a: 'Für den Tresor nicht. Ein Passkey auf deinem Gerät öffnet ihn; die 24 Wörter sind der Weg zurück, falls das Gerät fehlt. Le Space kann den Tresor weder öffnen noch wiederherstellen. Beim Kauf eines Pakets fragt der Zahlungsdienst Stripe nach einer E-Mail-Adresse, für Beleg und Abo.' },
-				{ q: 'Was kostet es, wenn Paperless anywhere nicht läuft?', a: 'Stunden verbraucht nur eine laufende Instanz. Dein Monatspaket läuft aber weiter und wird jeden Monat berechnet, bis du kündigst. Die verschlüsselten Sicherungen bleiben bei den Speicheranbietern liegen; sie sind im Paket enthalten.' }
+				{ q: 'Was kostet es, wenn Paperless anywhere nicht läuft?', a: 'Stunden verbraucht nur eine laufende Instanz. Dein Monatspaket läuft aber weiter und wird jeden Monat berechnet, bis du kündigst. Die Sicherung ist nicht im Paket enthalten: Sie kostet monatlich extra und wird aus deinem Guthaben bezahlt (siehe Preise). Nach dem letzten bezahlten Sicherungsmonat entstehen keine neuen Sicherungen; die vorhandenen bleiben noch mindestens 30 Tage abrufbar.' }
 			]
 		},
 		licences: {
@@ -374,7 +378,11 @@ export const texts = {
 			legal: { before: 'The ', terms: 'terms', between: ' apply (in German); they also hold the ', withdrawal: 'instruction on withdrawal', after: ' (§ 9).' },
 			hours: (h) => (h >= 720 ? 'Always on, around the clock' : `${h} hours`),
 			example: 'Example: two hours a week are about 8.7 hours a month and fit in the smallest package.',
-			included: 'Included in every package: up to 8 GB of documents and their encrypted backups in three copies.',
+			included: 'Included in every package: up to 8 GB of documents.',
+			backup: (price) => `The encrypted backup in three copies is not included in the package: it costs ${price} a month on top and is paid from your balance.`,
+			backupNeed: 'You need it for your documents to come back after a stop: stopping erases the VM, and the next start restores everything from the backup.',
+			backupTotal: (hours, plan, backup, total) => `${hours} with backup: ${plan} + ${backup} = ${total} a month.`,
+			backupAfter: 'After the last paid backup month no new backups are made; the existing ones stay retrievable for at least 30 more days.',
 		},
 		faq: {
 			title: 'Frequently asked questions',
@@ -383,7 +391,7 @@ export const texts = {
 				{ q: 'What is Paperless-ngx?', a: 'Paperless-ngx is the open source software that runs in your VM: it takes in documents, recognises their text and makes them searchable. Paperless anywhere starts it for you on demand in a confidential VM and backs it up afterwards.' },
 				{ q: 'Does everyone get the same software?', a: 'Yes. The system is the same for everyone. Today one passphrase per image opens the disk; every VM of that image shares it, and Le Space knows it. That is why what your VM writes goes into a data area with a key only the VM has. In preparation: an attested builder seals the image for each person separately, with a passphrase from their vault. The documentation says how image and builder can then be checked.' },
 				{ q: 'Do I need an account?', a: 'Not for the vault. A passkey on your device opens it; the 24 words are the way back in if the device is missing. Le Space can neither open nor recover the vault. When you buy a package, the payment service Stripe asks for an e-mail address, for the receipt and the subscription.' },
-				{ q: 'What does it cost while Paperless anywhere is not running?', a: 'Only a running instance uses hours. Your monthly package runs on, though, and is billed every month until you cancel. The encrypted backups stay with the storage providers; they are included in the package.' }
+				{ q: 'What does it cost while Paperless anywhere is not running?', a: 'Only a running instance uses hours. Your monthly package runs on, though, and is billed every month until you cancel. The backup is not included in the package: it costs extra every month and is paid from your balance (see Prices). After the last paid backup month no new backups are made; the existing ones stay retrievable for at least 30 more days.' }
 			]
 		},
 		licences: {
