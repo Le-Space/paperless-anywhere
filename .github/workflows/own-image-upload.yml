@@ -21,6 +21,14 @@ on:
         description: Size of the test file in MiB (868 is a sealed image).
         required: true
         default: '868'
+      from:
+        description: '"browser" uploads from Chromium, as the app does; "node" uploads the same way from Node, to tell the browser apart from Aleph.'
+        required: true
+        default: browser
+        type: choice
+        options:
+          - browser
+          - node
       dry:
         description: Sign with a throwaway key and stop before the upload (costs nothing).
         required: true
@@ -63,6 +71,7 @@ jobs:
         env:
           UPLOAD_KEY: ${{ inputs.dry && '' || secrets.ALEPH_PRIVATE_KEY }}
           UPLOAD_MIB: ${{ inputs.size_mib }}
+          UPLOAD_FROM: ${{ inputs.from }}
           UPLOAD_RESULT: ${{ runner.temp }}/upload.json
         run: pnpm exec playwright test -c playwright.upload.config.js --reporter=line
 

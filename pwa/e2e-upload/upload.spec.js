@@ -16,7 +16,8 @@ import { createServer } from 'node:http';
 import { expect, test } from '@playwright/test';
 import { importer } from 'ipfs-unixfs-importer';
 import { privateKeyToAccount } from 'viem/accounts';
-import { storeMessage } from '../src/lib/own-image.js';
+import { storeMessage, storeOnAleph } from '../src/lib/own-image.js';
+import { openAsBlob } from 'node:fs';
 import { forgetInstance } from '../src/lib/vm.js';
 import { ALEPH_API } from '../src/lib/aleph.js';
 
@@ -24,6 +25,9 @@ const MIB = Number(process.env.UPLOAD_MIB ?? 868);
 const KEY = process.env.UPLOAD_KEY ?? '';
 const DRY = !KEY || process.env.DRY === '1';
 const RESULT = process.env.UPLOAD_RESULT ?? '';
+// "node": the same storeOnAleph from Node instead of the page, to tell the
+// browser apart from Aleph when an upload fails.
+const FROM = process.env.UPLOAD_FROM === 'node' ? 'node' : 'browser';
 
 /** The CID Aleph's node makes of a file (`ipfs add` defaults), as builder/server.mjs computes it. */
 async function cidOf(path) {
@@ -44,7 +48,7 @@ const statusOf = async (hash) => (await (await fetch(`${ALEPH_API}/api/v0/messag
 
 test('a sealed image\'s size, from a browser to Aleph', async ({ page }) => {
 	const seconds = (t) => Math.round((Date.now() - t) / 100) / 10;
-	const result = { mib: MIB, dry: DRY };
+	const result = { mib: MIB, dry: DRY, from: FROM };
 	const dir = await mkdtemp(join(tmpdir(), 'upload-'));
 	const file = join(dir, 'image.bin');
 	let stored = null;
@@ -84,10 +88,13 @@ test('a sealed image\'s size, from a browser to Aleph', async ({ page }) => {
 
 		t = Date.now();
 		stored = message.item_hash;
-		const answer = await page.evaluate(async (message) => {
-			const { storeOnAleph } = await import('/src/lib/own-image.js');
-			return storeOnAleph(globalThis.__image, message);
-		}, message);
+		const answer =
+			FROM === 'node'
+				? await storeOnAleph(await openAsBlob(file), message)
+				: await page.evaluate(async (message) => {
+						const { storeOnAleph } = await import('/src/lib/own-image.js');
+						return storeOnAleph(globalThis.__image, message);
+					}, message);
 		result.uploadSeconds = seconds(t);
 		result.uploadStatus = answer.status;
 		if (answer.reason) result.uploadReason = answer.reason;
