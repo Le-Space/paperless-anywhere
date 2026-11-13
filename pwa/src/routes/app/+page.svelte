@@ -98,8 +98,16 @@
 		vault = loadVault();
 		phrase = '';
 	});
-	// The landing page, on the same origin; it shows the language chosen there.
-	const LANDING = '/';
+	// The landing page, on the same origin, at the address of the language
+	// chosen there (German at /, English at /en/).
+	const landingPath = () => {
+		try {
+			return localStorage.getItem('paperless-lang') === 'en' ? '/en/' : '/';
+		} catch {
+			return '/';
+		}
+	};
+	const LANDING = landingPath();
 	// A start, a backup or a stop under way in the lifecycle card.
 	let acting = $state(false);
 	/**
@@ -110,7 +118,13 @@
 	 * @param {MouseEvent} event
 	 */
 	function leave(event) {
-		if (state === 'unlocked' && acting && !confirm('Die App wird beim Wechsel zur Startseite gesperrt. Gerade läuft noch etwas (Start, Sicherung oder Stopp); die VM macht weiter, die App verfolgt es aber erst wieder, wenn du sie neu entsperrst. Trotzdem wechseln?')) event.preventDefault();
+		if (state === 'unlocked' && acting && !confirm('Die App wird beim Wechsel zur Startseite gesperrt. Gerade läuft noch etwas (Start, Sicherung oder Stopp); die VM macht weiter, die App verfolgt es aber erst wieder, wenn du sie neu entsperrst. Trotzdem wechseln?')) return event.preventDefault();
+		// The language may have been chosen after this page was opened.
+		const target = landingPath();
+		if (target !== LANDING) {
+			event.preventDefault();
+			location.assign(target);
+		}
 	}
 	function lock() {
 		master?.fill(0);
