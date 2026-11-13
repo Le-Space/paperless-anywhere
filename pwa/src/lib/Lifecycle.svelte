@@ -12,6 +12,7 @@
 	import { alephBalance } from '$lib/balances.js';
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey } from '$lib/keys/derive.js';
+	import BackupExport from '$lib/BackupExport.svelte';
 	import { backupSize, knownBackup, listBackups, newerBackup, pieceCidOfStop, place, restoreEntry, restoreGap, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
@@ -608,6 +609,7 @@
 					{#if backupsError}<small class="hint">{backupsError}</small>{/if}
 				</fieldset>
 				{@render gapWarning()}
+				{#if chosenBackup}<BackupExport backup={chosenBackup} identity={profile.ageIdentity} />{/if}
 			{/if}
 			{#if profile.starting && !busy}
 				<div class="interrupted" data-testid="start-interrupted">
