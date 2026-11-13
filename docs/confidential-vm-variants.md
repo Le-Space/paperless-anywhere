@@ -97,7 +97,7 @@ it, or not: that is where the variants part.
 - *How the image is sealed:* by a builder that itself runs as a confidential
   VM whose whole content is measured (variant 3), the plain image included.
   The app attests the builder before it sends the passphrase.
-- *State, exactly:* the builder is built. It has run once on Aleph as a
+- *State, exactly:* the builder is built. It has run on Aleph as a
   measured VM, was verified by attestation there, and sealed the real image
   in a trial. It is not in operation: no builder is published at the moment,
   and the app names none. Fetching the sealed image by the app through the
