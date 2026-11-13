@@ -135,6 +135,16 @@ test('the landing page shows who holds which key, what is attested and where to 
 	await secrets.locator('summary').focus();
 	await page.keyboard.press('Enter');
 	await expect(page.getByTestId('trust-secrets').getByRole('row')).toHaveCount(6);
+	// The app's evidence view as a sample: marked as one, with made-up values and no link built from them.
+	const sample = trust.locator('details#trust-sample');
+	await expect(sample.locator('summary').first()).toContainText('Beispiel, keine echte VM');
+	await expect(sample.getByTestId('evidence')).toBeHidden();
+	await sample.locator('summary').first().click();
+	await expect(sample.getByTestId('evidence-sample')).toHaveText('Beispiel, keine echte VM');
+	await expect(sample.getByTestId('evidence-instance')).toContainText('example-instance-');
+	await expect(sample.getByTestId('evidence-instance').getByRole('link')).toHaveCount(0);
+	await expect(sample.getByTestId('evidence-image')).toContainText('Der Inhalt des Images wird nicht mitgemessen.');
+	await expect(sample.getByTestId('evidence-again')).toHaveCount(0);
 	// A link to a folded part opens it.
 	await page.evaluate(() => (location.hash = '#trust-verify'));
 	await expect(verify).toHaveAttribute('open', '');

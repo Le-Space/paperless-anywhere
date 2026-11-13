@@ -8,8 +8,14 @@
 	import { onMount } from 'svelte';
 	import TrustBox from './TrustBox.svelte';
 	import { RUNTIME_ITEM_HASH } from './trust.js';
+	import Evidence from '$lib/Evidence.svelte';
+	import { evidenceTexts } from '$lib/evidence-i18n.js';
+	import { sampleRows } from './evidence-sample.js';
 
-	let { t } = $props();
+	/** @type {{ t: any, lang?: 'de' | 'en' }} */
+	let { t, lang = 'de' } = $props();
+	// How the app shows the evidence of a running VM, with made-up values.
+	const sample = sampleRows();
 	const d = $derived(t.diagram);
 
 	const REPO = 'https://github.com/Le-Space/paperless-anywhere';
@@ -136,6 +142,12 @@
 	</div>
 </details>
 
+<details class="fold" id="trust-sample">
+	<summary><h3>{t.sampleTitle}</h3><span class="count sample">{evidenceTexts[lang].sample}</span></summary>
+	<p class="lead-in">{t.sampleLead}</p>
+	<Evidence rows={sample} t={evidenceTexts[lang]} sample open />
+</details>
+
 <details class="fold" id="trust-verify">
 	<summary><h3>{t.verifyTitle}</h3><span class="count">{t.fold.verify(Object.keys(LINKS).length)}</span></summary>
 	<ul class="verify" data-testid="trust-verify">
@@ -196,6 +208,8 @@
 	.fold > summary:focus-visible { outline: 2px solid var(--accent-2-text); outline-offset: 2px; }
 	.fold > summary h3 { margin: 0; font-size: 1.05rem; }
 	.fold .count { color: var(--text-2); font-size: 0.85rem; }
+	.fold .count.sample { padding: 0.05rem 0.5rem; border-radius: 999px; background: var(--warn-bg); color: var(--warn); font-weight: 600; }
+	.fold .lead-in { margin-top: 0; margin-bottom: 0; color: var(--text-2); font-size: 0.93rem; }
 	.fold > :not(summary) { margin-left: 1.1rem; margin-right: 1.1rem; }
 	.fold > :last-child:not(summary) { margin-bottom: 1.1rem; }
 	.fold .secrets { border-radius: var(--radius-sm); }

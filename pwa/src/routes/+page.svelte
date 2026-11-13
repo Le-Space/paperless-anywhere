@@ -151,7 +151,7 @@
 	<section id="trust">
 		<h2>{t.trust.title}</h2>
 		<p class="lead">{t.trust.lead}</p>
-		<Trust t={t.trust} />
+		<Trust t={t.trust} {lang} />
 	</section>
 
 	<section id="image">
