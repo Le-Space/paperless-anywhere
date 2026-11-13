@@ -32,8 +32,6 @@ const NOT_YET = new Set([
 	'lib/StripeCheckout.svelte',
 	'lib/Terms.svelte',
 	'lib/TopUp.svelte',
-	'lib/TrialRestore.svelte',
-	'lib/VmList.svelte',
 	'lib/Withdraw.svelte',
 	'lib/aleph.js',
 	'lib/attest-p2p.js',
@@ -45,14 +43,12 @@ const NOT_YET = new Set([
 	'lib/keys/age.js',
 	'lib/keys/passkey.js',
 	'lib/keys/vault.js',
-	'lib/lifecycle.js',
 	'lib/own-image.js',
 	'lib/permissions.js',
 	'lib/providers.js',
 	'lib/relays.js',
 	'lib/runtime-pin.js',
 	'lib/storage.js',
-	'lib/vm.js'
 ]);
 
 const GERMAN = /[äöüÄÖÜß„“]|\b(?:nicht|und|oder|für|wird|werden|wurde|kein|keine|bitte|noch|schon|dein|deine|deinem|deiner|eine|einen|einer|dieser|diese|dieses|gerade|läuft|Sicherung|Sicherungen|Schlüssel|Tresor|Guthaben|Einrichtung)\b/;

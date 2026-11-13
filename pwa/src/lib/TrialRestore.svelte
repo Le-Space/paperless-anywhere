@@ -7,6 +7,7 @@
 	import { listBackups, restoreEntry } from '$lib/backups.js';
 	import { creditsBalance } from '$lib/credits.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
+	import { format, lang, t, tr } from '$lib/i18n/index.js';
 
 	/** @type {{ master: Uint8Array, profile: Record<string, any>, listing: { owner: string, customer?: string, label?: string } | null, onchange?: () => void }} */
 	let { master, profile, listing, onchange = () => {} } = $props();
@@ -19,17 +20,17 @@
 	let showPassword = $state(false);
 
 	async function start() {
-		if (!confirm('Eine zweite Paperless-ngx-Instanz mit der neuesten Sicherung starten? Sie läuft neben der jetzigen, ohne Mails und ohne eigene Sicherungen, und kostet Rechenzeit wie die laufende Instanz, bis du sie beendest.')) return;
+		if (!confirm(tr().life.trial.startConfirm)) return;
 		busy = true;
 		error = '';
-		step = 'Sicherungen lesen';
+		step = tr().life.trial.readingBackups;
 		try {
-			if (!listing) throw new Error('Es ist nicht eingerichtet, wo die Sicherungen liegen.');
+			if (!listing) throw new Error(tr().life.trial.noListing);
 			// Through Le Space Credits, the data sets the service lists for this account.
 			const ids = profile.backupsByCredits && !profile.backupOwner ? (await creditsBalance(master).catch(() => null))?.backup?.dataSets : undefined;
 			const list = await listBackups({ network: profile.network ?? 'calibration', ...listing, ...(ids ? { dataSetIds: ids } : {}) });
 			const newest = list[0];
-			if (!newest) throw new Error('Es gibt noch keine Sicherung zum Prüfen.');
+			if (!newest) throw new Error(tr().life.trial.noBackup);
 			const entry = restoreEntry(newest);
 			const run = await startTrial(master, $state.snapshot(profile), entry, ({ detail, step: s }) => (step = detail ?? s), {
 				onRequested: async (starting) => {
@@ -48,10 +49,10 @@
 	}
 
 	async function end() {
-		if (!confirm('Die Probe beenden? Die zweite VM wird ohne Sicherung gelöscht; was du dort geändert hast, ist dann weg. Die laufende Instanz bleibt.')) return;
+		if (!confirm(tr().life.trial.endConfirm)) return;
 		busy = true;
 		error = '';
-		step = 'Probe-VM löschen';
+		step = tr().life.trial.removing;
 		try {
 			await endTrial(master, $state.snapshot(trial), $state.snapshot(profile));
 			await updateProfile(master, ({ trial: _gone, ...rest }) => rest);
@@ -64,21 +65,22 @@
 		}
 	}
 	const docs = $derived(trial?.restore?.documents);
+	const x = $derived($t.life.trial);
 </script>
 
 <div class="trial" data-testid="trial">
-	<p class="label">Sicherung prüfen</p>
+	<p class="label">{x.label}</p>
 	{#if !trial}
-		<p class="hint">Startet eine zweite Paperless-ngx-Instanz aus der neuesten Sicherung, neben der laufenden: ohne Mail-Abruf, ohne eigene Sicherungen, mit eigener Adresse. Dort siehst du nach, ob alles da ist, und beendest sie dann.</p>
-		<button type="button" class="small" onclick={start} disabled={busy} data-testid="trial-start">Probe aus der neuesten Sicherung starten</button>
+		<p class="hint">{x.hint}</p>
+		<button type="button" class="small" onclick={start} disabled={busy} data-testid="trial-start">{x.start}</button>
 	{:else if !trial.host}
-		<p class="hint">Die Probe-VM wurde angefordert, ist aber nicht fertig gestartet{busy ? '' : ' (Start unterbrochen)'}.</p>
-		{#if !busy}<button type="button" class="small" onclick={end} data-testid="trial-end">Probe beenden</button>{/if}
+		<p class="hint">{x.requested}{busy ? '' : x.requestedInterrupted}.</p>
+		{#if !busy}<button type="button" class="small" onclick={end} data-testid="trial-end">{x.end}</button>{/if}
 	{:else}
-		<p>Probe läuft, aus Sicherung <code>…{String(trial.backup ?? '').slice(-12)}</code>{#if trial.restore?.status === 'done'}: <strong class="ok">wiederhergestellt{docs != null ? `, ${docs} Dokumente` : ''}</strong>{:else if trial.restore?.status === 'failed'}: <strong class="bad">Wiederherstellung fehlgeschlagen{trial.restore.reason ? ` (${trial.restore.reason})` : ''}</strong>{/if}</p>
-		<a class="open" href={`https://${trial.host}/`} target="_blank" rel="noopener" data-testid="trial-open">Probe öffnen</a>
-		<p class="hint">Anmeldung wie bei deiner Paperless-ngx-Instanz: <code>admin</code>, Passwort {#if showPassword}<code>{adminPassword}</code>{:else}<button type="button" class="link" onclick={() => (showPassword = true)}>anzeigen</button>{/if}</p>
-		<button type="button" class="small" onclick={end} disabled={busy} data-testid="trial-end">Probe beenden (ohne Sicherung)</button>
+		<p>{x.running} <code>…{String(trial.backup ?? '').slice(-12)}</code>{#if trial.restore?.status === 'done'}: <strong class="ok">{x.restored}{docs != null ? x.documents(docs) : ''}</strong>{:else if trial.restore?.status === 'failed'}: <strong class="bad">{x.restoreFailed}{trial.restore.reason ? ` (${trial.restore.reason})` : ''}</strong>{/if}</p>
+		<a class="open" href={`https://${trial.host}/`} target="_blank" rel="noopener" data-testid="trial-open">{x.open}</a>
+		<p class="hint">{x.login} <code>admin</code>, {x.password} {#if showPassword}<code>{adminPassword}</code>{:else}<button type="button" class="link" onclick={() => (showPassword = true)}>{x.show}</button>{/if}</p>
+		<button type="button" class="small" onclick={end} disabled={busy} data-testid="trial-end">{x.endNoBackup}</button>
 	{/if}
 	{#if busy && step}<p class="hint" role="status">{step} …</p>{/if}
 	{#if error}<p class="bad" role="alert">{error}</p>{/if}
