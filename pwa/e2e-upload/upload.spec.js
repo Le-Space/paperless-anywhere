@@ -28,6 +28,10 @@ const RESULT = process.env.UPLOAD_RESULT ?? '';
 // "node": the same storeOnAleph from Node instead of the page, to tell the
 // browser apart from Aleph when an upload fails.
 const FROM = process.env.UPLOAD_FROM === 'node' ? 'node' : 'browser';
+// The API node that takes the upload: api2 (the app's today) or api3, a core
+// channel node of its own that took uploads api2 refused (relay-button 0.12.3).
+const API = { api2: 'https://api2.aleph.im', api3: 'https://api3.aleph.im' }[process.env.UPLOAD_API ?? 'api2'];
+if (!API) throw new Error('UPLOAD_API: api2 or api3');
 
 /** The CID Aleph's node makes of a file (`ipfs add` defaults), as builder/server.mjs computes it. */
 async function cidOf(path) {
@@ -48,7 +52,7 @@ const statusOf = async (hash) => (await (await fetch(`${ALEPH_API}/api/v0/messag
 
 test('a sealed image\'s size, from a browser to Aleph', async ({ page }) => {
 	const seconds = (t) => Math.round((Date.now() - t) / 100) / 10;
-	const result = { mib: MIB, dry: DRY, from: FROM };
+	const result = { mib: MIB, dry: DRY, from: FROM, api: API };
 	const dir = await mkdtemp(join(tmpdir(), 'upload-'));
 	const file = join(dir, 'image.bin');
 	let stored = null;
@@ -90,11 +94,11 @@ test('a sealed image\'s size, from a browser to Aleph', async ({ page }) => {
 		stored = message.item_hash;
 		const answer =
 			FROM === 'node'
-				? await storeOnAleph(await openAsBlob(file), message)
-				: await page.evaluate(async (message) => {
+				? await storeOnAleph(await openAsBlob(file), message, API)
+				: await page.evaluate(async ([message, api]) => {
 						const { storeOnAleph } = await import('/src/lib/own-image.js');
-						return storeOnAleph(globalThis.__image, message);
-					}, message);
+						return storeOnAleph(globalThis.__image, message, api);
+					}, [message, API]);
 		result.uploadSeconds = seconds(t);
 		result.uploadStatus = answer.status;
 		if (answer.reason) result.uploadReason = answer.reason;
