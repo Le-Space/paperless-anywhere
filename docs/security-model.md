@@ -100,6 +100,48 @@ database, so only inside that person's running VM and their encrypted backups.
 - A stop backs up first and erases the VM only when every requested copy has
   arrived.
 
+## The relay
+
+A browser cannot open a plain TCP connection, so the app reaches the guest's
+attestation port through a relay: WebSocket on the browser's side, TCP on
+the guest's ([workflow](workflow.md), sections 3 and 5).
+
+- **Not attested.** The relay runs in an ordinary VM on Aleph. Nobody checks a
+  measurement of it, and nothing in the design needs to.
+- **What it cannot do.** Read or change what passes. The TLS connection ends
+  inside the guest, the AMD report binds the guest's TLS key, and every check
+  runs in the browser (`@le-space/attest-wasm`). A relay that tampered would
+  make the attestation fail; it would not get a secret.
+- **What it can do.** Refuse or delay connections, and so block a start, an
+  unlock or a check.
+- **What it sees.** The browser's IP address, which VM on which node is asked
+  for and when (both are in the address the app calls), and how much data
+  flows.
+- **Which relays the app uses.** Only relays that Aleph lists as a running
+  instance of one of two accounts Le Space pays its relays from
+  (`TRUSTED_RELAY_OWNERS` in `pwa/src/lib/relays.js`), each under its
+  instance's own name at Aleph's gateway; or a relay the person enters in the
+  setup.
+- **What it connects to.** Only addresses it looked up itself in Aleph's node
+  list, never a host the caller names, and only public ones: it is no open
+  proxy. By default it closes a connection after 4 MiB in one direction or
+  120 seconds, and allows 4 connections per caller and 256 in all. These are
+  the defaults in its source; the settings of the relay in use were not
+  checked for this page.
+- **Availability.** It is one of the things that still depend on Le Space. If
+  no relay of Le Space's answers, nobody can start or unlock unless they enter
+  a relay of their own.
+- **Source.** The relay is `packages/attest-relay` in
+  [NiKrause/relay-button](https://github.com/NiKrause/relay-button/tree/main/packages/attest-relay)
+  (`src/relay.ts`: the lookup of the target and the limits). Reached over
+  libp2p, a bridge in
+  [NiKrause/orbitdb-relay](https://github.com/NiKrause/orbitdb-relay/blob/main/src/services/attest-bridge-service.ts)
+  hands the stream to that same relay on the same machine. The relay VM's
+  image is built from
+  [`packages/rootfs/reference/orbitdb-relay`](https://github.com/NiKrause/relay-button/tree/main/packages/rootfs/reference/orbitdb-relay)
+  in relay-button. Whether the image in use is published with a hash was not
+  checked.
+
 ## Your own device
 
 Encryption and the confidential VM protect the documents from the node, from

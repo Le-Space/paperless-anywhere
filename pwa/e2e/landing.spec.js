@@ -173,9 +173,14 @@ test('the landing page shows who holds which key, what is attested and where to 
 	// A link to a folded part opens it.
 	await page.evaluate(() => (location.hash = '#trust-verify'));
 	await expect(verify).toHaveAttribute('open', '');
-	await expect(verify.locator('summary')).toContainText('8 Stellen mit Links');
+	await expect(verify.locator('summary')).toContainText('9 Stellen mit Links');
 	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Aleph-Nachricht' })).toHaveAttribute('href', /api2\.aleph\.im\/api\/v0\/messages\/[0-9a-f]{64}$/);
-	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Sicherheitsmodell' })).toHaveAttribute('href', /docs\/security-model\.md$/);
+	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Sicherheitsmodell', exact: true })).toHaveAttribute('href', /docs\/security-model\.md$/);
+	// The relay: named as not attested among the open points, with its source to read.
+	await expect(page.getByTestId('trust-gaps')).toContainText('läuft in einer gewöhnlichen VM und wird nicht attestiert');
+	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'attest-relay (relay-button)' })).toHaveAttribute('href', 'https://github.com/NiKrause/relay-button/tree/main/packages/attest-relay');
+	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Brücke (orbitdb-relay)' })).toHaveAttribute('href', /NiKrause\/orbitdb-relay\/blob\/main\/src\/services\/attest-bridge-service\.ts$/);
+	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Im Sicherheitsmodell' })).toHaveAttribute('href', /docs\/security-model\.md#the-relay$/);
 	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Varianten vertraulicher VMs im Vergleich' })).toHaveAttribute('href', /docs\/confidential-vm-variants\.md$/);
 
 	await page.goto('/en/');
