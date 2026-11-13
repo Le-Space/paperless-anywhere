@@ -90,6 +90,7 @@ test('a sealed image\'s size, from a browser to Aleph', async ({ page }) => {
 		}, message);
 		result.uploadSeconds = seconds(t);
 		result.uploadStatus = answer.status;
+		if (answer.reason) result.uploadReason = answer.reason;
 		result.mibPerSecond = Math.round((MIB / result.uploadSeconds) * 100) / 100;
 		expect(answer.status, 'Aleph took the upload').toBeLessThan(300);
 		expect(answer.cid, 'Aleph made the same CID').toBe(cid);
