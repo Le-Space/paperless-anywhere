@@ -154,6 +154,7 @@ test('the landing page shows who holds which key, what is attested and where to 
 	await expect(verify.locator('summary')).toContainText('8 Stellen mit Links');
 	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Aleph-Nachricht' })).toHaveAttribute('href', /api2\.aleph\.im\/api\/v0\/messages\/[0-9a-f]{64}$/);
 	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Sicherheitsmodell' })).toHaveAttribute('href', /docs\/security-model\.md$/);
+	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Varianten vertraulicher VMs im Vergleich' })).toHaveAttribute('href', /docs\/confidential-vm-variants\.md$/);
 
 	await page.getByRole('button', { name: 'EN' }).click();
 	await expect(trust.getByRole('heading', { level: 2 })).toHaveText('Checkable: who holds which key');

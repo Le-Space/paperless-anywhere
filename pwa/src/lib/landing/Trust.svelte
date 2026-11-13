@@ -28,7 +28,7 @@
 		data: [`${REPO}/blob/main/rootfs/files/paperless-data-disk`],
 		backups: ['https://filfox.info/'],
 		app: [`${REPO}/releases`],
-		docs: [DOC('security-model.md'), DOC('keys-and-recovery.md'), DOC('own-image.md'), DOC('workflow.md')]
+		docs: [DOC('security-model.md'), DOC('keys-and-recovery.md'), DOC('own-image.md'), DOC('workflow.md'), DOC('confidential-vm-variants.md')]
 	};
 
 	// Two drawings of the same thing: a wide one, and a tall one for a phone.
