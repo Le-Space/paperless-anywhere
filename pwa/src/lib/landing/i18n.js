@@ -50,7 +50,7 @@ export const texts = {
 		points: [
 			{ t: 'Ausfallsicher', d: 'Kein einzelnes Rechenzentrum: Gerechnet wird auf Knoten mehrerer Betreiber, gesichert bei mehreren unabhängigen Speicheranbietern. Fällt ein Knoten aus, startest du auf einem anderen.' },
 			{ t: 'Vertraulich und nachprüfbar', d: 'Speicher und Platte der VM sind verschlüsselt; der Betreiber des Knotens kann sie nicht lesen. Was der Prozessor bestätigt und was noch offen ist, steht unter „Nachprüfbar“.' },
-			{ t: 'Rund um die Uhr oder auf Abruf', d: 'Ein Monatspaket, das zu deinem Betrieb passt: Dauerbetrieb rund um die Uhr, oder ein Stundenpaket zum Starten, Arbeiten und Stoppen.' }
+			{ t: 'Rund um die Uhr oder nach Gebrauch', d: 'Ein Monatspaket, das zu deinem Betrieb passt: Dauerbetrieb rund um die Uhr, oder ein Stundenpaket zum Starten, Arbeiten und Stoppen.' }
 		],
 		trustHint: 'Nachprüfbar: wer welchen Schlüssel hat, was die Hardware bestätigt und was noch offen ist',
 		audience: {
@@ -272,7 +272,7 @@ export const texts = {
 		points: [
 			{ t: 'Resilient', d: 'No single data centre: it computes on nodes of several operators and backs up to several independent storage providers. If a node fails, you start on another.' },
 			{ t: 'Confidential and checkable', d: 'The VM’s memory and disk are encrypted; the node’s operator cannot read them. What the processor confirms and what is still open is under “Verify”.' },
-			{ t: 'Around the clock or on demand', d: 'A monthly package that fits how you work: always on, around the clock, or a package of hours to start, work and stop.' }
+			{ t: 'Around the clock or pay as you use', d: 'A monthly package that fits how you work: always on, around the clock, or a package of hours to start, work and stop.' }
 		],
 		trustHint: 'Checkable: who holds which key, what the hardware confirms and what is still open',
 		audience: {
