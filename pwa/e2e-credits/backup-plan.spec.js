@@ -78,6 +78,7 @@ test('“mit Sicherung” starts unticked, shows the total and goes into the ord
 
 test('packages that include the backup show one price, no box, and say what is included', async ({ page }) => {
 	await openApp(page, { plan: false, backup: 'none', offered: true, included: true });
+	await expect(page.getByTestId('plan-none-hint')).toHaveText('Ein Paket gibt dir jeden Monat Stunden für dein Paperless anywhere, die Sicherung inklusive. Bezahlt wird es als Monatsabo per Karte.');
 	await expect(page.getByTestId('plan-backup')).toHaveCount(0);
 	await expect(page.getByTestId('plan-backup-included')).toHaveText('Sicherung inklusive: 3 verschlüsselte Kopien, bis 32 GiB, nach dem Ende noch 30 Tage abrufbar.');
 	await expect(page.getByTestId('plan-price-paperless-15-backup')).toHaveText('6,40 €');

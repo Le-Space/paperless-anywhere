@@ -391,6 +391,7 @@
 					<br /><small class="nomoney">Aus deinem Tresor abgeleitet. Hält keine Mittel – nichts an diese Adresse schicken. Le Space bezahlt den Speicher; der Dienst unterschreibt jeden Schritt der Sicherung nur für deine eigenen Datensätze, solange sie bezahlt sind.</small></p>
 				<p data-testid="credits-backup-state">{#if backupState === undefined}…{:else if !backupState}Le Space Credits bezahlen gerade keine Sicherungen.{:else}{fundedUntil(backupState.fundedUntil) ? `Bezahlt bis ${fundedUntil(backupState.fundedUntil)}` : 'Noch nicht bezahlt'} · {backupState.dataSets.length === 1 ? '1 Datensatz' : `${backupState.dataSets.length} Datensätze`} · VM-Schlüssel {profile.backupSigner?.payer ? 'freigegeben' : 'noch nicht freigegeben'}{/if}</p>
 				<button onclick={payBackups} disabled={busy === 'bycredits'} data-testid="pay-backups">Einen Monat Sicherungen bezahlen</button>
+				<br /><small class="hint" data-testid="pay-backups-hint">Nur ohne Paket nötig: In jedem Paket ist die Sicherung enthalten und verlängert sich mit ihm.</small>
 				{#if !profile.backupSigner?.payer}<button onclick={authorizeBackupKey} disabled={busy === 'bycredits'} data-testid="authorize-backup-key">VM-Schlüssel freigeben</button>{/if}
 				{@render feedback('bycredits')}
 			{/if}
@@ -418,7 +419,7 @@
 		{/if}
 		{@render feedback('backups')}{@render feedback('places')}
 		{#if profile.network === 'mainnet' && profile.role !== 'primary'}<p class="hint" data-testid="mainnet-backup-hint">Auf Mainnet sichert nur eine produktive Instanz (Rolle oben). Als Test bleibt sie ohne Sicherung.</p>
-		{:else if profile.backupConfig && profile.backupsByCredits && (!profile.backupSigner?.payer || (backupState && !fundedUntil(backupState.fundedUntil)))}<p class="hint" data-testid="credits-backup-hint">Dafür braucht es bezahlte Sicherungsmonate und den freigegebenen VM-Schlüssel: „Einen Monat Sicherungen bezahlen“.</p>
+		{:else if profile.backupConfig && profile.backupsByCredits && (!profile.backupSigner?.payer || (backupState && !fundedUntil(backupState.fundedUntil)))}<p class="hint" data-testid="credits-backup-hint">Dafür braucht es eine bezahlte Sicherung (in jedem Paket enthalten, sonst „Einen Monat Sicherungen bezahlen“) und den freigegebenen VM-Schlüssel.</p>
 		{:else if profile.backupConfig && !profile.backupsByCredits && !until(sessionUntil)}<p class="hint">Dafür braucht die VM den Sitzungsschlüssel aus Schritt {step.filecoin}.</p>{/if}
 
 		<h3>{step.image}. Paperless-anywhere-Image und Knoten</h3>

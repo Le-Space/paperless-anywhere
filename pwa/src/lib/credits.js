@@ -245,11 +245,10 @@ export function stripeLink(url) {
 }
 
 /**
- * The monthly packages for paperless-anywhere (Le-Space/belege#591 draft 2,
- * prices decided 2026-11-04): a package debits its price from the balance at
- * the start of each period and grants that period's Aleph credits to this
- * vault's address. The service lists them (GET /v1/packages, public); this is
- * what the app shows until it has asked.
+ * The monthly packages for paperless-anywhere: a subscription paid by card,
+ * with the backup in its price (le-space-credits#72, terms version 3). The
+ * service lists them (GET /v1/packages, public); this is what the app shows
+ * until it has asked.
  */
 export const PLANS = Object.freeze([
 	{ id: 'paperless-15-backup', hours: 15, priceCredits: 640, backupIncluded: true },
