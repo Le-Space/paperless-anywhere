@@ -72,3 +72,22 @@ describe('attestRelaysFor', () => {
 		await expect(attestRelaysFor({}, async () => [])).rejects.toThrow(/Kein Attest-Relay/);
 	});
 });
+
+describe('the relay the evidence view names', () => {
+	it('gives the host of a wss relay and of a multiaddr, and says whether the person entered it', async () => {
+		const { relayUsed } = await import('./relays.js');
+		const { relayTransports } = await import('./attest-p2p.js');
+		const own = 'wss://relay.example/attest';
+		const p2p = '/dns4/p2p.example/tcp/443/tls/ws/p2p/12D3KooWGjMCwS7mDqWnWsbgPCcZV8qJ9P2sRkW8Wkq5cCQzZxYb';
+		expect(relayUsed(own, { attestRelay: `${own}\n${p2p}` })).toEqual({ host: 'relay.example', own: true });
+		expect(relayUsed(p2p, { attestRelay: own })).toEqual({ host: 'p2p.example', own: false });
+		expect(relayUsed('wss://found-on-aleph.2n6.me/attest', {})).toEqual({ host: 'found-on-aleph.2n6.me', own: false });
+		expect(relayUsed('', {})).toBeNull();
+		expect(relayUsed('not a relay', { attestRelay: 'also not' })).toBeNull();
+		// The transports name the relay of the latest attempt.
+		const transports = relayTransports([p2p, p2p]);
+		expect(transports.last()).toBe('');
+		transports(`${p2p}?crn=${'d'.repeat(64)}&vm=${'c'.repeat(64)}`).close();
+		expect(transports.last()).toBe(p2p);
+	});
+});

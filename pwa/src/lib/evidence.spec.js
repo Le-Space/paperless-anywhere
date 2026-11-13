@@ -12,7 +12,7 @@ const row = (rows, id) => rows.find((r) => r.id === id);
 
 describe('the evidence of a VM', () => {
 	it('names every claim once, in a fixed order', () => {
-		expect(evidenceRows({ ...base, running }).map((r) => r.id)).toEqual(['runtime', 'measurement', 'instance', 'node', 'attestation', 'image', 'data', 'backups']);
+		expect(evidenceRows({ ...base, running }).map((r) => r.id)).toEqual(['runtime', 'measurement', 'instance', 'node', 'attestation', 'relay', 'image', 'data', 'backups']);
 	});
 
 	it('calls the attestation checked only with a kept result whose measurement the app computed', () => {
@@ -23,6 +23,18 @@ describe('the evidence of a VM', () => {
 		expect(checked.values[3].v).toBe('2026-01-02T03:04:05.000Z');
 		const other = row(evidenceRows({ ...base, running: { ...running, attestation: { ...attestation, measurement: '33'.repeat(48) } } }), 'attestation');
 		expect(other).toMatchObject({ mark: 'open', note: 'mismatch' });
+	});
+
+	it('names the relay that carried the attestation, and never calls a relay confirmed', () => {
+		const unknown = row(evidenceRows({ ...base, running: { ...running, attestation } }), 'relay');
+		expect(unknown).toMatchObject({ mark: 'open', note: 'relayUnknown', values: [] });
+		const leSpace = row(evidenceRows({ ...base, running: { ...running, attestation: { ...attestation, relay: { host: 'four-made-up-words.2n6.me', own: false } } } }), 'relay');
+		expect(leSpace).toMatchObject({ mark: 'open', note: 'relayLeSpace', values: [{ k: 'relayHost', v: 'four-made-up-words.2n6.me', mono: true }] });
+		const own = row(evidenceRows({ ...base, running: { ...running, attestation: { ...attestation, relay: { host: 'relay.example', own: true } } } }), 'relay');
+		expect(own).toMatchObject({ mark: 'open', note: 'relayOwn' });
+		// Without a kept attestation there is no relay to name either.
+		expect(row(evidenceRows({ ...base, running }), 'relay')).toMatchObject({ mark: 'open', note: 'relayUnknown' });
+		expect(leSpace.links.map((l) => l.k)).toEqual(['relayWs', 'relayP2p']);
 	});
 
 	it('never calls the image confirmed, and what the VM says about itself only reported', () => {
@@ -57,7 +69,7 @@ describe('the evidence of a VM', () => {
 	});
 
 	it('counts the marks and reads measurements and firmware levels', () => {
-		expect(tally(evidenceRows({ ...base, running: { ...running, attestation } }))).toEqual({ app: 4, reported: 2, open: 2 });
+		expect(tally(evidenceRows({ ...base, running: { ...running, attestation } }))).toEqual({ app: 4, reported: 2, open: 3 });
 		expect(launchesOf(tee)).toEqual(['11'.repeat(48), '22'.repeat(48)]);
 		expect(launchesOf(null)).toEqual([]);
 		expect(tcbLine(attestation.launchTcb)).toBe('bootloader 4 · tee 0 · snp 22 · microcode 213');
@@ -75,7 +87,9 @@ describe('the texts of the evidence view', () => {
 			{ ...base, running },
 			{ ...base, running: { ...running, attestation }, lastGood: { at: '2026-01-02T03:04:05Z', copies: 2, pieceCid: 'bafkexample' }, backupsOn: true },
 			{ ...base, running: { ...running, attestation: { ...attestation, measurement: 'ff' }, dataDisk: 'plain', trustedExecution: {} }, backupsOn: true },
-			{ ...base, running: { ...running, dataDisk: 'unknown' } }
+			{ ...base, running: { ...running, dataDisk: 'unknown' } },
+			{ ...base, running: { ...running, attestation: { ...attestation, relay: { host: 'relay.example', own: true } } } },
+			{ ...base, running: { ...running, attestation: { ...attestation, relay: { host: 'relay.example', own: false } } } }
 		];
 		for (const lang of /** @type {const} */ (['de', 'en'])) {
 			const t = evidenceTexts[lang];
@@ -96,11 +110,12 @@ describe('checking a running VM again', () => {
 	it('keeps what the fresh report says, for the VM that was checked, and closes the channel', async () => {
 		let closed = 0;
 		let saved = null;
-		const attest = async () => ({ freshVerified: attestation, channel: { close: () => closed++ } });
+		const attest = async () => ({ freshVerified: attestation, relay: { host: 'relay.example', own: false }, channel: { close: () => closed++ } });
 		const update = async (_m, fn) => (saved = fn({ running, other: 1 }));
 		const got = await attestRunning(master, { running }, { attest, update });
 		expect(got).toMatchObject({ measurement: attestation.measurement, policy: '0x30000' });
 		expect(saved.running.attestation.measurement).toBe(attestation.measurement);
+		expect(saved.running.attestation.relay).toEqual({ host: 'relay.example', own: false });
 		expect(saved.other).toBe(1);
 		expect(closed).toBe(1);
 		// Another VM runs by now: nothing is written onto it.

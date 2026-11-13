@@ -105,16 +105,21 @@ export function libp2pTransport(relay, { crn, vm }) {
 /**
  * The transport factory for attest-wasm (`unlockInstance`'s `transport`, which
  * calls it with `<relay>?crn=…&vm=…`): the relays in turn, one per attempt, so
- * a relay that is down hands the next attempt to the next one.
+ * a relay that is down hands the next attempt to the next one. `last()` names
+ * the relay of the latest attempt: after a successful attestation, the one
+ * that carried it.
  * @param {string[]} relays
  */
 export function relayTransports(relays) {
 	let attempt = 0;
-	return (/** @type {string} */ url) => {
+	let last = '';
+	const transports = (/** @type {string} */ url) => {
 		const query = new URLSearchParams(url.slice(url.indexOf('?') + 1));
 		const crn = query.get('crn') ?? '';
 		const vm = query.get('vm') ?? '';
 		const relay = relays[attempt++ % relays.length];
+		last = relay;
 		return isMultiaddr(relay) ? libp2pTransport(relay, { crn, vm }) : websocketTransport(`${relay}?crn=${crn}&vm=${vm}`);
 	};
+	return Object.assign(transports, { last: () => last });
 }

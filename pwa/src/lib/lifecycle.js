@@ -15,7 +15,7 @@ import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, CREDIT
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
 import { relayTransports } from './attest-p2p.js';
 import { backupFacts, vmBackupSecrets } from './backups.js';
-import { attestRelaysFor } from './relays.js';
+import { attestRelaysFor, relayUsed } from './relays.js';
 import { updateProfile, vmPayer } from './profile.js';
 import { ALEPH_API, readFetch } from './aleph.js';
 import { format, tr } from './i18n/index.js';
@@ -343,11 +343,18 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 
 	onProgress({ step: 'unlock', detail: tr().life.progress.unlock });
 	const relays = await attestRelaysFor(profile);
+	const transports = relayTransports(relays);
+	// The attestation with the relay that carried it (not attested itself; it forwards encrypted bytes).
+	const kept = (/** @type {any} */ unlocked) => {
+		const a = attestationOf(unlocked);
+		const relay = a ? relayUsed(transports.last(), profile) : null;
+		return a && relay ? { ...a, relay } : a;
+	};
 	const unlock = () =>
 		unlockInstance({
 			wasm,
 			relayUrl: relays[0],
-			transport: relayTransports(relays),
+			transport: transports,
 			crnHash: starting.crnHash,
 			instanceItemHash: instanceHash,
 			trustedExecution,
@@ -366,7 +373,7 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 		onProgress({ step: 'unlock', detail: tr().life.progress.alreadyUnlocked, already: true });
 	} else {
 		const unlocked = await unlock();
-		attestation = attestationOf(unlocked);
+		attestation = kept(unlocked);
 		// Which secrets the guest's agent says it stored (names only).
 		onProgress({ step: 'unlock', detail: tr().life.progress.unlocked, injected: unlocked?.injected ?? [], attestation });
 	}
@@ -402,7 +409,7 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 			again.shift();
 			onProgress({ step: 'ready', detail: tr().life.progress.passphraseAgain });
 			await unlock()
-				.then((unlocked) => (attestation = attestationOf(unlocked) ?? attestation))
+				.then((unlocked) => (attestation = kept(unlocked) ?? attestation))
 				.catch((e) => onProgress({ step: 'ready', detail: tr().life.progress.passphraseAgainFailed(e instanceof Error ? e.message : String(e)) }));
 		}
 		if (!ready) await sleep(10_000);
@@ -455,6 +462,7 @@ export async function attestRunning(master, profile, { attest = attestRunningGue
 	let attestation;
 	try {
 		attestation = attestationOf(attested.freshVerified);
+		if (attestation && attested.relay) attestation = { ...attestation, relay: attested.relay };
 	} finally {
 		attested.channel.close();
 	}
@@ -483,7 +491,7 @@ async function attestRunningGuest(profile, wasm) {
 			if (i + 1 >= relays.length || /rejected|measurement|policy|signature/i.test(String(error))) throw error;
 		}
 	}
-	return attested;
+	return Object.assign(attested, { relay: relayUsed(transports.last(), profile) });
 }
 
 /**
