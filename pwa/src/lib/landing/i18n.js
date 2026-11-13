@@ -194,10 +194,10 @@ export const texts = {
 			hours: (h) => (h >= 720 ? 'Dauerbetrieb, rund um die Uhr' : `${h} Stunden`),
 			example: 'Beispiel: zwei Stunden pro Woche sind rund 8,7 Stunden im Monat und passen in das kleinste Paket.',
 			included: 'In jedem Paket enthalten: bis 8 GB Dokumente.',
-			backup: (price) => `Die verschlüsselte Sicherung in drei Kopien ist nicht im Paket enthalten: Sie kostet ${price} im Monat dazu. Du buchst sie beim Paket mit, als weitere Zeile deines Monatsabos.`,
-			backupYear: (price) => `Oder einmalig ${price} für ein Jahr Aufbewahrung, mit oder ohne Paket. Aufbewahren heißt nicht öffnen: Zum Wiederherstellen braucht es Rechenzeit, also ein Paket oder Zusatzstunden.`,
+			backupIncluded: 'Sicherung inklusive',
+			backup: 'Die verschlüsselte Sicherung in drei Kopien ist in jedem Paket enthalten.',
+			backupYear: (price) => `Ohne Paket kannst du deine Sicherungen für einmalig ${price} ein Jahr aufbewahren lassen. Aufbewahren heißt nicht öffnen: Zum Wiederherstellen braucht es Rechenzeit, also ein Paket oder Zusatzstunden.`,
 			backupNeed: 'Du brauchst sie, damit deine Dokumente nach einem Stopp zurückkommen: Beim Stoppen wird die VM gelöscht, beim nächsten Start kommt alles aus der Sicherung.',
-			backupTotal: (hours, plan, backup, total) => `${hours} mit Sicherung: ${plan} + ${backup} = ${total} im Monat.`,
 			backupAfter: 'Nach dem Ende des bezahlten Zeitraums entstehen keine neuen Sicherungen; die vorhandenen bleiben noch mindestens 30 Tage abrufbar.',
 		},
 		faq: {
@@ -228,7 +228,7 @@ export const texts = {
 					],
 					more: { text: 'Die Einzelheiten stehen im Sicherheitsmodell.', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/security-model.md#your-own-device' }
 				},
-				{ q: 'Was kostet es, wenn Paperless anywhere nicht läuft?', a: 'Stunden verbraucht nur eine laufende Instanz. Dein Monatspaket läuft aber weiter und wird jeden Monat berechnet, bis du kündigst. Die Sicherung ist nicht im Paket enthalten: Sie kostet extra, monatlich zum Paket dazu oder einmalig für ein Jahr (siehe Preise). Nach dem Ende des bezahlten Zeitraums entstehen keine neuen Sicherungen; die vorhandenen bleiben noch mindestens 30 Tage abrufbar.' }
+				{ q: 'Was kostet es, wenn Paperless anywhere nicht läuft?', a: 'Stunden verbraucht nur eine laufende Instanz. Dein Monatspaket läuft aber weiter und wird jeden Monat berechnet, bis du kündigst. Die Sicherung ist im Paket enthalten und läuft mit ihm weiter. Nach dem Ende des bezahlten Zeitraums entstehen keine neuen Sicherungen; die vorhandenen bleiben noch mindestens 30 Tage abrufbar.' }
 			]
 		},
 		licences: {
@@ -427,10 +427,10 @@ export const texts = {
 			hours: (h) => (h >= 720 ? 'Always on, around the clock' : `${h} hours`),
 			example: 'Example: two hours a week are about 8.7 hours a month and fit in the smallest package.',
 			included: 'Included in every package: up to 8 GB of documents.',
-			backup: (price) => `The encrypted backup in three copies is not included in the package: it costs ${price} a month on top. You book it with the package, as a further line of your monthly subscription.`,
-			backupYear: (price) => `Or ${price} once for a year of keeping, with or without a package. Keeping is not opening: restoring needs compute time, that is a package or extra hours.`,
+			backupIncluded: 'Backup included',
+			backup: 'The encrypted backup in three copies is included in every package.',
+			backupYear: (price) => `Without a package you can have your backups kept for a year, for ${price} once. Keeping is not opening: restoring needs compute time, that is a package or extra hours.`,
 			backupNeed: 'You need it for your documents to come back after a stop: stopping erases the VM, and the next start restores everything from the backup.',
-			backupTotal: (hours, plan, backup, total) => `${hours} with backup: ${plan} + ${backup} = ${total} a month.`,
 			backupAfter: 'After the end of the paid period no new backups are made; the existing ones stay retrievable for at least 30 more days.',
 		},
 		faq: {
@@ -461,7 +461,7 @@ export const texts = {
 					],
 					more: { text: 'The details are in the security model.', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/security-model.md#your-own-device' }
 				},
-				{ q: 'What does it cost while Paperless anywhere is not running?', a: 'Only a running instance uses hours. Your monthly package runs on, though, and is billed every month until you cancel. The backup is not included in the package: it costs extra, monthly on top of the package or once for a year (see Prices). After the end of the paid period no new backups are made; the existing ones stay retrievable for at least 30 more days.' }
+				{ q: 'What does it cost while Paperless anywhere is not running?', a: 'Only a running instance uses hours. Your monthly package runs on, though, and is billed every month until you cancel. The backup is included in the package and runs on with it. After the end of the paid period no new backups are made; the existing ones stay retrievable for at least 30 more days.' }
 			]
 		},
 		licences: {

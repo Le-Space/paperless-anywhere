@@ -9,7 +9,7 @@
 	import StorageProviders from '$lib/landing/StorageProviders.svelte';
 	import OwnImage from '$lib/landing/OwnImage.svelte';
 	import { LANGS, TERMS_URL, texts } from '$lib/landing/i18n.js';
-	import { BACKUP_YEAR_CENTS, CREDITS_URL, PLANS, backupMonthCredits, creditsCatalog } from '$lib/credits.js';
+	import { BACKUP_YEAR_CENTS, CREDITS_URL, PLANS, creditsCatalog } from '$lib/credits.js';
 	import Trust from '$lib/landing/Trust.svelte';
 	import BuildLine from '$lib/landing/BuildLine.svelte';
 
@@ -43,7 +43,6 @@
 	});
 
 	// Le Space Credits: 100 credits are 1 €.
-	const backup = $derived(backupMonthCredits(plans));
 	// The year of keeping has one price, named in the terms (§ 7).
 	const backupYear = BACKUP_YEAR_CENTS;
 	const euro = (credits) => new Intl.NumberFormat(lang, { style: 'currency', currency: 'EUR', maximumFractionDigits: credits % 100 ? 2 : 0 }).format(credits / 100);
@@ -189,15 +188,15 @@
 					<span class="hours">{t.prices.hours(p.hours)}</span>
 					<span class="price">{euro(p.priceCredits)}</span>
 					<span class="per">{t.prices.perMonth}</span>
+					{#if p.backupIncluded}<span class="incl" data-testid="prices-plan-backup">{t.prices.backupIncluded}</span>{/if}
 				</li>
 			{/each}
 		</ul>
 		<p class="vat" data-testid="prices-vat">{t.prices.vat}</p>
 		<p class="included" data-testid="prices-included">{t.prices.included}</p>
 		<!-- The backup is a price of its own (terms § 7), read from the service's list. -->
-		<p data-testid="prices-backup"><strong>{t.prices.backup(euro(backup))}</strong> {t.prices.backupNeed}</p>
+		<p data-testid="prices-backup"><strong>{t.prices.backup}</strong> {t.prices.backupNeed}</p>
 		<p data-testid="prices-backup-year">{t.prices.backupYear(euro(backupYear))}</p>
-		{#if plans[0]}<p data-testid="prices-backup-total">{t.prices.backupTotal(t.prices.hours(plans[0].hours), euro(plans[0].priceCredits), euro(backup), euro(plans[0].priceCredits + backup))}</p>{/if}
 		<p class="legal" data-testid="prices-backup-after">{t.prices.backupAfter}</p>
 		<p>{t.prices.example}</p>
 		<p class="legal" data-testid="prices-legal">{t.prices.legal.before}<a href={TERMS_URL}>{t.prices.legal.terms}</a>{t.prices.legal.between}<a href={TERMS_URL}>{t.prices.legal.withdrawal}</a>{t.prices.legal.after}</p>
@@ -322,6 +321,7 @@
 
 	.plans li { display: flex; flex-direction: column; gap: 0.2rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.5rem; }
 	.plans li.first { border: 2px solid var(--accent); }
+	.plans .incl { margin-top: 0.4rem; font-size: 0.9rem; color: var(--text-2); }
 	.hours { font-weight: 600; }
 	.price { font-size: 2.4rem; font-weight: 700; letter-spacing: -0.03em; }
 	.per { color: var(--text-2); font-size: 0.9rem; }
