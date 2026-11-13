@@ -3,7 +3,7 @@
 	// up and the invoices (Le Space Credits, belege#591). No crypto here: Aleph
 	// credits, FIL and USDFC are under "Erweitert" (Balances).
 	import { loadProfile } from '$lib/profile.js';
-	import { biggerPlan, planHours, creditsBalance, creditsCatalog, fewHoursLeft, hoursPerWeek, creditsPurchases, choosePlan, fundVm, planOf, PLANS, quoteVm, startSubscription, subscriptionPortal, waitForSubscription, creditsTerms, waiverOf, WaiverError } from '$lib/credits.js';
+	import { biggerPlan, planHours, creditsBalance, creditsCatalog, fewHoursLeft, hoursPerWeek, creditsPurchases, choosePlan, fundVm, planOf, PLANS, quoteVm, redeemVoucher, startSubscription, subscriptionPortal, waitForSubscription, creditsTerms, waiverOf, WaiverError } from '$lib/credits.js';
 	import StripeCheckout from '$lib/StripeCheckout.svelte';
 	import Cancel from '$lib/Cancel.svelte';
 	import Withdraw from '$lib/Withdraw.svelte';
@@ -48,11 +48,15 @@
 		.then((c) => {
 			if (c?.plans.length) plans = c.plans;
 			backupOffer = c?.backup ?? null;
+			voucherOffered = c?.voucherOffered === true;
 		})
 		.catch(() => {});
 	// "mit Sicherung" at the plan choice: an extra that costs money, so it
 	// starts unticked (§ 312a Abs. 3 BGB) and is never set by the app.
 	let withBackup = $state(false);
+	// Vouchers (le-space-credits#73): shown only when the service says it takes them.
+	let voucherOffered = $state(false);
+	let voucherInput = $state('');
 	const backupSold = $derived(Boolean(backupOffer?.planOffered));
 	// A package whose price includes the backup (le-space-credits#72): nothing
 	// to tick and nothing to add. The box is left for packages without it.
@@ -178,6 +182,21 @@
 			return tr().pkg.stripeOpens;
 		});
 	const byStripe = $derived(balance?.plan?.billing === 'stripe');
+	// A voucher's period: it runs out by itself, nothing to change, end or cancel.
+	const byVoucher = $derived(balance?.plan?.billing === 'voucher');
+	// During a voucher's period the backup ends with it by design: the service's
+	// "runs out soon" from the first day on is shown as the plain paid-until
+	// line, not as a warning. After the end the notices are shown as they come.
+	const voucherBackup = $derived(byVoucher && balance?.backup?.notice?.kind === 'expires_soon' ? { ...balance.backup, notice: null } : null);
+	const longDay = (/** @type {string | null} */ iso) => (iso ? format.date(iso, undefined, $lang) : '');
+	const redeem = () =>
+		act(async () => {
+			const r = await redeemVoucher(master, voucherInput);
+			voucherInput = '';
+			const v = tr().pkg.voucher;
+			const what = r.always ? v.always : r.hours != null ? tr().pkg.hours(r.hours) : '';
+			return v.redeemed({ what, until: longDay(r.periodEnd), backupUntil: longDay(r.backupUntil) }) + (r.granted ? '' : v.pending);
+		});
 	// Extra hours: a quote first, the confirmation shows it, and only its
 	// button buys – once (purchase.js). act() then re-reads the balance.
 	/** @type {import('$lib/purchase.js').PurchaseState} */
@@ -246,7 +265,8 @@
 				</div>
 			{/if}
 			<p class="hint" data-testid="plan-current">
-				{#if current && byStripe}{x.yourSubscription(planHours(current), euro(current.priceCredits))} {balance.plan.cancelAtPeriodEnd ? x.cancelledEnds(day(balance.plan.renewsAt ?? balance.plan.periodEnd)) : x.renewsInvoice(day(balance.plan.renewsAt ?? balance.plan.periodEnd))}{#if hoursLeft != null && hoursLeft > current.hours}{' '}{x.moreThanPackage}{/if}
+				{#if byVoucher}<span data-testid="voucher-period">{x.voucher.period(longDay(balance.plan.periodEnd))}</span> {x.voucher.periodEnds}
+				{:else if current && byStripe}{x.yourSubscription(planHours(current), euro(current.priceCredits))} {balance.plan.cancelAtPeriodEnd ? x.cancelledEnds(day(balance.plan.renewsAt ?? balance.plan.periodEnd)) : x.renewsInvoice(day(balance.plan.renewsAt ?? balance.plan.periodEnd))}{#if hoursLeft != null && hoursLeft > current.hours}{' '}{x.moreThanPackage}{/if}
 				{:else if current}{x.yourPackage(planHours(current), euro(current.priceCredits))} {x.renewsFromBalance(day(balance.plan.periodEnd))} {x.endAnyMonth}{#if hoursLeft != null && hoursLeft > current.hours}{' '}{x.moreThanPackage}{/if}{:else}{x.packageId(balance.plan.id)}{/if}
 			</p>
 			{#if byStripe && !cancelling}
@@ -271,13 +291,24 @@
 		{/if}
 
 		{#if balance.backup}
-			<BackupLine {master} backup={balance.backup} own={ownBackups} offer={backupOffer} plan={balance.plan} included={included(current)} {withdrawal} {termsRead} disabled={busy} onchanged={read} onportal={portal} onwaiver={readWithdrawal} />
+			<BackupLine {master} backup={voucherBackup ?? balance.backup} own={ownBackups} offer={backupOffer} plan={balance.plan} included={included(current)} {withdrawal} {termsRead} disabled={busy} onchanged={read} onportal={portal} onwaiver={readWithdrawal} />
 		{/if}
 
 		<p class="line"><span class="label">{x.balance}</span> <strong data-testid="balance-euro">{euro(balance.credits)}</strong>
 			<span class="hint">{#if balance.reserved}{x.reserved(euro(balance.reserved))}{/if}{x.balanceUse}</span></p>
 
 		{#if !balance.plan || choosing}
+			{#if !balance.plan && voucherOffered}
+				<!-- Before the plans: someone holding a code is not here to buy. -->
+				<details class="voucher" data-testid="voucher">
+					<summary>{x.voucher.fold}</summary>
+					<p class="hint">{x.voucher.hint}</p>
+					<form class="row" onsubmit={(e) => { e.preventDefault(); redeem(); }}>
+						<label>{x.voucher.label} <input bind:value={voucherInput} placeholder={x.voucher.placeholder} autocomplete="off" autocapitalize="characters" spellcheck="false" data-testid="voucher-code" /></label>
+						<button class="small" type="submit" disabled={busy || !voucherInput.trim()} data-testid="voucher-redeem">{x.voucher.button}</button>
+					</form>
+				</details>
+			{/if}
 			<p class="hint">{balance.plan ? x.chooseNew : x.chooseFirst}</p>
 			{#if !balance.plan && allIncluded}
 				<p class="hint" data-testid="plan-backup-included">{includedText}</p>
@@ -313,7 +344,7 @@
 					{#if buying.error}<p class="warn" role="alert" data-testid="buy-error">{buying.error}</p>{/if}
 				</div>
 			{/if}
-			{#if balance.plan}
+			{#if balance.plan && !byVoucher}
 				<p class="row">
 					{#if byStripe}
 						<button class="link" onclick={portal} disabled={busy} data-testid="plan-portal">{x.manage}</button>
@@ -394,6 +425,9 @@
 	.plan-choice small { font-size: 0.8rem; }
 	.self > summary { cursor: pointer; }
 	.self[open] > summary { margin-bottom: 0.75rem; }
+	.voucher { margin: 0.5rem 0 0.75rem; }
+	.voucher summary { cursor: pointer; color: var(--text-2); }
+	.voucher input { width: 14rem; font-family: var(--mono); text-transform: uppercase; }
 	.with-backup { display: flex; gap: 0.5rem; align-items: flex-start; margin: 0.5rem 0; }
 	.with-backup input { width: auto; margin-top: 0.25rem; flex: none; }
 	.badge { font-style: normal; font-size: 0.75rem; font-weight: 600; padding: 0.05rem 0.5rem; border-radius: 999px; background: var(--accent); color: var(--cta-text, #0f1b2d); }

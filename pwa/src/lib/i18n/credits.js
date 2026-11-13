@@ -52,6 +52,19 @@ export const credits = {
 		withdrawal: {
 			NOTHING_TO_WITHDRAW: 'Es gibt nichts mehr, das sich widerrufen ließe: Die 14 Tage sind vorbei.'
 		},
+		voucher: {
+			VOUCHER_FORMAT: 'Das ist kein Gutschein-Code. Er sieht so aus: PA-XXXX-XXXX-XXXX.',
+			VOUCHER: 'Diesen Gutschein-Code gibt es nicht. Bitte noch einmal prüfen.',
+			VOUCHER_REVOKED: 'Dieser Gutschein wurde zurückgezogen.',
+			VOUCHER_EXPIRED: 'Dieser Gutschein ist abgelaufen.',
+			VOUCHER_USED_UP: 'Dieser Gutschein ist schon vollständig eingelöst.',
+			VOUCHER_REDEEMED: 'Diesen Gutschein hast du schon eingelöst.',
+			PERIOD_RUNNING: 'Ein Gutschein lässt sich erst einlösen, wenn kein Paket und kein anderer Zeitraum mehr läuft.',
+			NOT_YET: 'Gutscheine lassen sich erst mit den neuen AGB einlösen.',
+			VOUCHER_OFF: 'Gutscheine lassen sich gerade nicht einlösen. Später noch einmal versuchen.',
+			PAUSED: 'Gutscheine lassen sich gerade nicht einlösen. Später noch einmal versuchen.'
+		},
+		voucherNotConfirmed: 'Le Space Credits haben die Einlösung nicht bestätigt. Bitte „Aktualisieren“ und den Stand prüfen.',
 		withdrawalUnsupported: 'Der Credits-Dienst kann den Widerruf noch nicht hier in der App annehmen.',
 		withdrawalNotConfirmed: 'Le Space Credits haben den Eingang des Widerrufs nicht bestätigt. Bitte „Aktualisieren“ und den Stand prüfen.',
 		quoteUnsupportedBought: (/** @type {number | null} */ charged) => `Le Space Credits können noch keinen Preis vorab nennen und haben die Stunden womöglich schon gekauft${charged != null ? ` (${charged} Credits)` : ''}. Bitte das Guthaben prüfen und nicht noch einmal kaufen: bestätigte Käufe gehen erst, wenn der Dienst sie kann.`,
@@ -125,6 +138,19 @@ export const credits = {
 		withdrawal: {
 			NOTHING_TO_WITHDRAW: 'There is nothing left that could be withdrawn: the 14 days are over.'
 		},
+		voucher: {
+			VOUCHER_FORMAT: 'This is not a voucher code. It looks like this: PA-XXXX-XXXX-XXXX.',
+			VOUCHER: 'There is no such voucher code. Please check it again.',
+			VOUCHER_REVOKED: 'This voucher was withdrawn.',
+			VOUCHER_EXPIRED: 'This voucher has expired.',
+			VOUCHER_USED_UP: 'This voucher has already been redeemed in full.',
+			VOUCHER_REDEEMED: 'You have already redeemed this voucher.',
+			PERIOD_RUNNING: 'A voucher can be redeemed only once no package and no other period is running any more.',
+			NOT_YET: 'Vouchers can be redeemed only with the new terms.',
+			VOUCHER_OFF: 'Vouchers cannot be redeemed right now. Try again later.',
+			PAUSED: 'Vouchers cannot be redeemed right now. Try again later.'
+		},
+		voucherNotConfirmed: 'Le Space Credits did not confirm the redemption. Please use “Refresh” and check the state.',
 		withdrawalUnsupported: 'The credits service cannot take the withdrawal here in the app yet.',
 		withdrawalNotConfirmed: 'Le Space Credits did not confirm that the withdrawal arrived. Please use “Refresh” and check the state.',
 		quoteUnsupportedBought: (/** @type {number | null} */ charged) => `Le Space Credits cannot name a price in advance yet and may already have bought the hours${charged != null ? ` (${charged} credits)` : ''}. Please check the balance and do not buy again: confirmed purchases work only once the service can do them.`,

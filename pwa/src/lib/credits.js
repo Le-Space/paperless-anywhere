@@ -74,7 +74,8 @@ export async function creditsBalance(master, { baseUrl = CREDITS_URL, fetch: fet
 					periodEnd: p.period_end ?? null,
 					hoursLeft: p.hours_left == null ? null : Number(p.hours_left),
 					// A Stripe subscription (card, monthly invoice) or a plan paid from the balance.
-					billing: p.billing === 'stripe' ? 'stripe' : 'credits',
+					// A Stripe subscription, a voucher's period (le-space-credits#73), or a plan paid from the balance.
+					billing: p.billing === 'stripe' ? 'stripe' : p.billing === 'voucher' ? 'voucher' : 'credits',
 					renewsAt: p.renews_at ?? null,
 					cancelAtPeriodEnd: Boolean(p.cancel_at_period_end)
 				}
@@ -335,6 +336,8 @@ export async function creditsCatalog({ baseUrl = CREDITS_URL, fetch: fetchImpl =
 		network: body?.network === 'mainnet' || body?.network === 'calibration' ? body.network : null,
 		plans: (body?.packages ?? []).map((p) => ({ id: String(p.id), hours: Number(p.hours), priceCredits: Number(p.price_credits), ...(p.backup_month_credits != null ? { backupMonthCredits: Number(p.backup_month_credits) } : {}), ...(p.backup_included === true ? { backupIncluded: true } : {}) })),
 		backup: backupOfferOf(body?.backup),
+		// Vouchers can be redeemed: only when the service says so (its terms that name them are in force).
+		voucherOffered: body?.voucher?.offered === true,
 		topups: (body?.topups ?? []).map((t) => ({ id: String(t.id), amountCents: Number(t.amount_cents), credits: Number(t.credits) }))
 	};
 }
@@ -732,6 +735,37 @@ export { CANCEL_KIND, CANCEL_MAIL, IMPRINT_URL, PROVIDER, WITHDRAWAL_SUBJECTS, c
 export class WithdrawalUnsupportedError extends Error {}
 
 const WITHDRAWAL_MESSAGES = table((c) => c.withdrawal);
+const VOUCHER_MESSAGES = table((c) => c.voucher);
+
+/**
+ * A voucher code as the service prints it: two letters and three groups of
+ * four, "PA-XXXX-XXXX-XXXX". Typed in any case, with or without spaces and
+ * hyphens. Null when it cannot be one, so nothing is sent for a typo.
+ * @param {unknown} input
+ * @returns {string | null}
+ */
+export function voucherCode(input) {
+	const raw = String(input ?? '').toUpperCase().replace(/[\s-]+/g, '');
+	if (!/^[A-Z]{2}[A-Z0-9]{12}$/.test(raw)) return null;
+	return `${raw.slice(0, 2)}-${raw.slice(2, 6)}-${raw.slice(6, 10)}-${raw.slice(10, 14)}`;
+}
+
+/**
+ * Redeem a voucher: a period of running time with backups, without a payment
+ * (le-space-credits#73). The terms in force must be accepted, as for a
+ * purchase (412 TERMS); no declaration on withdrawal, since nothing is paid.
+ * `granted` false: the hours arrive with the service's next run.
+ * @param {Uint8Array} master @param {string} code
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<{ days: number | null, hours: number | null, always: boolean, periodEnd: string | null, backupUntil: string | null, granted: boolean }>}
+ */
+export async function redeemVoucher(master, code, options) {
+	const formatted = voucherCode(code);
+	if (!formatted) throw new Error(tr().credits.voucher.VOUCHER_FORMAT);
+	const r = await send(master, 'POST', '/v1/voucher/redeem', { code: formatted }, options, { ...MESSAGES, ...VOUCHER_MESSAGES });
+	if (r?.redeemed !== true) throw new Error(tr().credits.voucherNotConfirmed);
+	return { days: numberOrNull(r.days), hours: numberOrNull(r.hours), always: r.always === true, periodEnd: isoOrNull(r.period_end), backupUntil: isoOrNull(r.backup_until), granted: r.granted === true };
+}
 
 const isoOrNull = (/** @type {unknown} */ v) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : null);
 
