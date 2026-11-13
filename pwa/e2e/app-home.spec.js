@@ -46,7 +46,7 @@ test('the logo and the name in the app lead back to the landing page', async ({ 
 	page.on('dialog', (d) => { asked = true; d.dismiss(); });
 	await home.click();
 	await expect(page).toHaveURL(/\/$/);
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Your documents. Awake only when you need them.');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName('Paperless anywhere runs resilient, confidential and only when you need it.');
 	expect(asked).toBe(false);
 
 	// Back in the app the vault is still there, and locked.

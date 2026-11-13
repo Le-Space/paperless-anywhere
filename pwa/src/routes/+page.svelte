@@ -94,7 +94,15 @@
 <main>
 	<section class="hero">
 		<p class="kicker data">{t.hero.kicker}</p>
-		<h1>{t.hero.title}</h1>
+		<!-- One sentence, one changing word. A screen reader gets the sentence with
+		     all three words and no announcement of the change; the changing part is
+		     decoration to it. CSS only: three turns, then it stands still on the
+		     first word, and with reduced motion it stands from the start. -->
+		<h1 aria-label={t.hero.full} data-testid="hero-title">
+			<span aria-hidden="true">{t.hero.before}
+				<span class="swap">{#each t.hero.words as w, i}<span class="word w{i}">{w}</span>{' '}{/each}</span>
+			</span>
+		</h1>
 		<p class="lead">{t.hero.lead}</p>
 		<p class="actions"><a class="cta" href={APP}>{t.open} →</a><span class="hint">{t.openHint}</span></p>
 		<p class="disclaimer" data-testid="hero-disclaimer">{t.disclaimer}</p>
@@ -230,7 +238,25 @@
 
 	.hero { padding-top: 3rem; }
 	.kicker { color: var(--accent-text); text-transform: uppercase; letter-spacing: 0.12em; margin: 0 0 1rem; }
-	h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.08; letter-spacing: -0.03em; margin: 0 0 1.25rem; max-width: 18ch; }
+	h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.08; letter-spacing: -0.03em; margin: 0 0 1.25rem; max-width: 22ch; }
+	/* The three words lie on top of each other in one cell, which is as wide and
+	   as high as the largest: the line below never moves when the word changes. */
+	.swap { display: grid; }
+	.word { grid-area: 1 / 1; color: var(--accent-text); opacity: 0; }
+	.w0 { opacity: 1; }
+	@media (min-width: 600px) {
+		.word { white-space: nowrap; }
+	}
+	@media (prefers-reduced-motion: no-preference) {
+		.w0 { animation: word-first 9s ease-in-out 3 both; }
+		.w1 { animation: word-second 9s ease-in-out 3 both; }
+		.w2 { animation: word-third 9s ease-in-out 3 both; }
+	}
+	/* One turn is nine seconds, three for each word. The first is there at the
+	   start and at the end of a turn, so the turns join and the last one ends on it. */
+	@keyframes word-first { 0%, 28% { opacity: 1; } 33%, 95% { opacity: 0; } 100% { opacity: 1; } }
+	@keyframes word-second { 0%, 33% { opacity: 0; } 38%, 61% { opacity: 1; } 66%, 100% { opacity: 0; } }
+	@keyframes word-third { 0%, 66% { opacity: 0; } 71%, 95% { opacity: 1; } 100% { opacity: 0; } }
 	.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; margin: 2rem 0; }
 	.cta { display: inline-block; padding: 0.85rem 1.5rem; border-radius: 999px; background: var(--cta-bg); color: var(--cta-text); font-weight: 600; text-decoration: none; }
 	.cta:hover { filter: brightness(1.08); }
