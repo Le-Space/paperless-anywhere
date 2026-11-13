@@ -374,3 +374,91 @@ export function backupFacts(backup) {
 	if (typeof backup.exit === 'number') facts.push(`Exit-Code ${backup.exit}`);
 	return facts;
 }
+
+// --- Fetching a backup without a VM ("Sicherung selbst holen") -------------
+//
+// A backup is public where it lies and readable only with the backup key. So
+// a person can fetch it from a provider and decrypt it on their own machine,
+// with curl and age, or with paperless-backup-filecoin's `restore`. The app
+// gives them what that needs: where the pieces lie, and, when they ask for it
+// in so many words, the key.
+
+// What a piece's address must look like before it is shown as a command to
+// paste into a shell: the addresses come from the providers' own registry
+// entries, which the app does not control.
+const PIECE_URL = /^https:\/\/[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::\d{1,5})?\/piece\/[a-z0-9]+$/i;
+
+/**
+ * Where the parts of `backup` can be fetched, in order: per part its piece
+ * CID and the address at each provider that holds a copy. Addresses that do
+ * not look like a piece address are left out.
+ * @param {{ pieceCid: string, parts?: Array<{ pieceCid: string }>, copies: Array<{ retrievalUrl: string, retrievalUrls?: string[] }> }} backup
+ * @returns {Array<{ pieceCid: string, urls: string[] }>}
+ */
+export function pieceSources(backup) {
+	const parts = backup.parts?.length > 1 ? backup.parts : [{ pieceCid: backup.pieceCid }];
+	return parts.map((part, i) => ({
+		pieceCid: part.pieceCid,
+		urls: backup.copies
+			.map((c) => c.retrievalUrls?.[i] ?? (i === 0 ? c.retrievalUrl : String(c.retrievalUrl ?? '').replace(/[^/]+$/, part.pieceCid)))
+			.filter((url) => typeof url === 'string' && PIECE_URL.test(url) && url.endsWith(`/${part.pieceCid}`))
+	}));
+}
+
+/**
+ * The instructions a person keeps with a backup they want to fetch
+ * themselves: the commands for curl and age, and the same for the backup
+ * tool. Plain text, in German, as the app is.
+ * @param {Parameters<typeof pieceSources>[0]} backup
+ * @returns {{ filename: string, text: string, complete: boolean }}
+ */
+export function selfRestoreGuide(backup) {
+	const sources = pieceSources(backup);
+	const complete = sources.every((s) => s.urls.length > 0);
+	const short = backup.pieceCid.slice(-12);
+	const many = sources.length > 1;
+	const file = (i) => (many ? `teil-${String(i + 1).padStart(2, '0')}.age` : 'sicherung.age');
+	const lines = [
+		'Sicherung selbst holen – Paperless anywhere',
+		'',
+		`Sicherung: ${backup.pieceCid}`,
+		many ? `Sie besteht aus ${sources.length} Teilen, die in dieser Reihenfolge aneinandergehängt werden.` : 'Sie besteht aus einem Stück.',
+		'',
+		'Du brauchst: curl, age (https://age-encryption.org) und deinen Sicherungsschlüssel',
+		'als Datei schluessel.txt (eine Zeile, beginnt mit AGE-SECRET-KEY-1). Den Schlüssel',
+		'zeigt die App unter „Sicherung selbst holen“.',
+		'',
+		'1. Herunterladen (von einer der Kopien; jede enthält dasselbe):',
+		''
+	];
+	sources.forEach((s, i) => {
+		if (many) lines.push(`   Teil ${i + 1}: ${s.pieceCid}`);
+		if (!s.urls.length) lines.push('   (für dieses Stück kennt die App gerade keine Adresse)');
+		s.urls.forEach((url, n) => lines.push(`   ${n === 0 ? '' : '# oder: '}curl -fL -o ${file(i)} '${url}'`));
+		lines.push('');
+	});
+	if (many) lines.push('2. Zusammensetzen:', '', `   cat ${sources.map((_, i) => file(i)).join(' ')} > sicherung.age`, '');
+	lines.push(
+		`${many ? 3 : 2}. Entschlüsseln:`,
+		'',
+		'   age -d -i schluessel.txt sicherung.age > paperless-export.zip',
+		'',
+		'Das Ergebnis ist ein Zip mit deinen Dokumenten (Originale und Archiv-PDFs) und der Datei',
+		'manifest.json. Es lässt sich ohne Paperless-ngx öffnen; in ein leeres Paperless-ngx',
+		'spielt man es mit dessen document_importer ein.',
+		'',
+		'Mit dem Werkzeug paperless-backup-filecoin (https://github.com/Le-Space/paperless-backup-filecoin)',
+		'geht dasselbe in einem Schritt: die Datei mit dem Eintrag dieser Sicherung als ledger.json',
+		'ablegen, AGE_IDENTITY_FILE auf schluessel.txt setzen und',
+		'',
+		`   node backup.mjs restore ${backup.pieceCid}`,
+		'',
+		'Der Schlüssel öffnet alle deine Sicherungen. Bewahre ihn wie die 24 Wörter auf und',
+		'lösche schluessel.txt, wenn du fertig bist.',
+		''
+	);
+	return { filename: `sicherung-selbst-holen-${short}.txt`, text: lines.join('\n'), complete };
+}
+
+/** A backup key as age writes it, or null. @param {unknown} identity */
+export const ageSecretKey = (identity) => (typeof identity === 'string' && /^AGE-SECRET-KEY-1[0-9A-Z]{58}$/.test(identity.trim()) ? identity.trim() : null);
