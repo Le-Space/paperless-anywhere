@@ -5,9 +5,10 @@
 	// year of keeping at once. Each is a purchase of its own with its own
 	// declaration on withdrawal. The app shows what the service says and
 	// derives no dates itself.
-	import { addBackupLine, backupStatus, germanDate, startBackupYear, waitForBackup, waiverOf, WaiverError } from '$lib/credits.js';
+	import { addBackupLine, backupStatus, startBackupYear, waitForBackup, waiverOf, WaiverError } from '$lib/credits.js';
 	import StripeCheckout from '$lib/StripeCheckout.svelte';
 	import Waiver from '$lib/Waiver.svelte';
+	import { format, lang, t, tr } from '$lib/i18n/index.js';
 
 	/**
 	 * @type {{
@@ -27,15 +28,17 @@
 	 */
 	let { master, backup, own = false, included = false, offer, plan, withdrawal, termsRead, disabled = false, onchanged = () => {}, onportal = () => {}, onwaiver = () => {} } = $props();
 
-	const euro = (/** @type {number} */ cents) => `${(cents / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+	const euro = (/** @type {number} */ cents) => format.euro(cents, $lang);
+	const x = $derived($t.buy.line);
+	const date = (/** @type {string | null} */ iso) => (iso ? format.date(iso, undefined, $lang) : '–');
 	// Paid from the person's own wallet (setup): Le Space's backup period says
 	// nothing about their backups, and nothing is offered for them here.
-	const status = $derived(own ? { tone: /** @type {const} */ ('ok'), text: 'Sicherung: bezahlst du aus deiner eigenen Wallet. Wie lange der Speicher bezahlt ist, steht unter „Deine Wallet bei Aleph und Filecoin“.' } : backupStatus(backup));
+	const status = $derived(own ? { tone: /** @type {const} */ ('ok'), text: x.own } : ($lang, backupStatus(backup)));
 	const sold = $derived(Boolean(offer?.planOffered) && !own);
 	// The line can be added to a running card subscription that is not ending.
 	// Not for a package whose price includes the backup: there is nothing to add.
 	const canAdd = $derived(sold && !included && plan?.billing === 'stripe' && !plan.cancelAtPeriodEnd && !backup.renewsWithPlan);
-	const nextCharge = $derived(plan ? germanDate(plan.renewsAt ?? plan.periodEnd) : '');
+	const nextCharge = $derived(plan ? date(plan.renewsAt ?? plan.periodEnd) : '');
 
 	let busy = $state(false);
 	let note = $state('');
@@ -68,7 +71,7 @@
 			const waiver = waiverOf(withdrawal, waivedAdd);
 			waivedAdd = false;
 			await addBackupLine(master, waiver);
-			return 'Die Sicherung ist jetzt Teil deines Abos. Die Rechnung über den Rest des Monats kommt von Stripe per E-Mail.';
+			return tr().buy.line.added;
 		});
 	const year = () =>
 		act(async () => {
@@ -77,47 +80,47 @@
 			waivedYear = false;
 			const secret = await startBackupYear(master, waiver);
 			const outcome = await checkout?.pay(secret);
-			if (outcome === 'closed') return 'Das Jahr wurde nicht gekauft.';
-			if (outcome === 'failed') throw new Error('Die Bezahlseite ließ sich nicht laden. Bitte später noch einmal.');
-			note = 'Bezahlt – das Jahr wird gebucht …';
+			if (outcome === 'closed') return tr().buy.line.yearNotBought;
+			if (outcome === 'failed') throw new Error(tr().buy.line.payPageFailed);
+			note = tr().buy.line.yearBooking;
 			const { booked, balance } = await waitForBackup(master, before);
-			return booked ? `Gebucht: Die Sicherungen sind bis zum ${germanDate(balance?.backup?.fundedUntil ?? null)} bezahlt.` : 'Bezahlt; das Jahr erscheint in Kürze.';
+			return booked ? tr().buy.line.yearBooked(date(balance?.backup?.fundedUntil ?? null)) : tr().buy.line.yearSoon;
 		});
 </script>
 
 <div class="backup" data-testid="backup-line">
 	<p class={status.tone} role={status.tone === 'warn' || status.tone === 'over' ? 'alert' : undefined} data-testid="backup-status" data-tone={status.tone}>{status.text}</p>
 	{#if !own && backup.retentionUntil && backup.active && !backup.renewsWithPlan && status.tone === 'ok'}
-		<p class="hint">Nach dem Ende bleiben die Sicherungen noch bis zum {germanDate(backup.retentionUntil)} abrufbar.</p>
+		<p class="hint">{x.retention(date(backup.retentionUntil))}</p>
 	{/if}
 
 	{#if sold && offer}
 		{#if canAdd}
 			<details class="buy" data-testid="backup-add-fold" bind:open={addOpen}>
-				<summary>Sicherung zum Abo hinzubuchen ({euro(offer.monthCents)} im Monat)</summary>
-				<p class="hint">Stripe berechnet den Rest des laufenden Monats sofort anteilig. Danach verlängert sich die Sicherung mit dem Paket, nächste Abbuchung am {nextCharge}. Herausnehmen kannst du sie in der Abo-Verwaltung bei Stripe; der bezahlte Zeitraum läuft dann noch aus, und die Sicherungen bleiben danach {offer.retentionDays} Tage abrufbar.</p>
+				<summary data-testid="backup-add-summary">{x.addFold(euro(offer.monthCents))}</summary>
+				<p class="hint">{x.addHint(nextCharge, offer.retentionDays)}</p>
 				<Waiver {withdrawal} bind:checked={waivedAdd} testid="backup-add-waiver" />
-				<p class="row"><button class="small" onclick={add} disabled={disabled || busy || blocked(waivedAdd)} data-testid="backup-add">Sicherung für {euro(offer.monthCents)} im Monat hinzubuchen</button></p>
+				<p class="row"><button class="small" onclick={add} disabled={disabled || busy || blocked(waivedAdd)} data-testid="backup-add">{x.addButton(euro(offer.monthCents))}</button></p>
 			</details>
 		{:else if backup.renewsWithPlan}
-			<p class="hint">Herausnehmen kannst du die Sicherung in der <button class="link" onclick={() => onportal()} disabled={disabled || busy} data-testid="backup-remove">Abo-Verwaltung bei Stripe</button>. Der bezahlte Zeitraum läuft dann noch aus, und die Sicherungen bleiben danach {offer.retentionDays} Tage abrufbar.</p>
+			<p class="hint">{x.remove.before}<button class="link" onclick={() => onportal()} disabled={disabled || busy} data-testid="backup-remove">{x.remove.link}</button>{x.remove.after(offer.retentionDays)}</p>
 		{/if}
 
 		<details class="buy" data-testid="backup-year-fold" bind:open={yearOpen}>
-			<summary>1 Jahr Aufbewahrung buchen ({euro(offer.yearCents)}, einmalig)</summary>
-			<p><strong>Aufbewahren heißt nicht öffnen:</strong> Zum Wiederherstellen braucht es Rechenzeit, also ein laufendes Paket oder Zusatzstunden.</p>
-			<p class="hint">{offer.yearDays} Tage, gerechnet ab heute oder, wenn schon länger bezahlt ist, ab dem bezahlten Ende. Zusätzlich zum Paket, keine Verlängerung, eigene Rechnung von Stripe.</p>
+			<summary data-testid="backup-year-summary">{x.yearFold(euro(offer.yearCents))}</summary>
+			<p><strong>{x.keepStrong}</strong> {x.keep}</p>
+			<p class="hint">{x.yearHint(offer.yearDays)}</p>
 			<Waiver {withdrawal} bind:checked={waivedYear} testid="backup-year-waiver" />
-			<p class="row"><button class="small" onclick={year} disabled={disabled || busy || blocked(waivedYear)} data-testid="backup-year">1 Jahr für {euro(offer.yearCents)} bezahlen</button></p>
+			<p class="row"><button class="small" onclick={year} disabled={disabled || busy || blocked(waivedYear)} data-testid="backup-year">{x.yearButton(euro(offer.yearCents))}</button></p>
 		</details>
 		{#if status.tone === 'soon' || status.tone === 'warn'}
-			<p class="hint" data-testid="backup-mail-note">Eine Erinnerung kommt auch per E-Mail, an die Adresse aus deiner Kartenzahlung bei Stripe. Ohne Kartenzahlung steht der Hinweis nur hier.</p>
+			<p class="hint" data-testid="backup-mail-note">{x.mailNote}</p>
 		{/if}
 	{/if}
 	{#if note}<p class="hint" role="status" data-testid="backup-note">{note}</p>{/if}
 	{#if error}<p class="warn" role="alert" data-testid="backup-error">{error}</p>{/if}
 </div>
-<StripeCheckout bind:this={checkout} label="1 Jahr Aufbewahrung bezahlen" summary={offer ? `1 Jahr Aufbewahrung der Sicherungen: ${euro(offer.yearCents)}, einmalig, keine Verlängerung.` : ''} />
+<StripeCheckout bind:this={checkout} label={x.yearCheckout} summary={offer ? x.yearSummary(euro(offer.yearCents)) : ''} />
 
 <style>
 	.backup { margin: 1rem 0 0; padding: 0.9rem 0 0; border-top: 1px solid var(--line); }
