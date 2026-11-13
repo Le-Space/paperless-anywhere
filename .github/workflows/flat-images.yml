@@ -11,10 +11,10 @@ on:
   workflow_dispatch:
     inputs:
       runner:
-        description: Where the job runs ("aleph" needs a runner started with relay-button's gh-runner up)
+        description: Where the job runs ("aleph" is a self-hosted runner from relay-button's gh-runner; since the repository is public it starts only with --allow-public and is rarely needed)
         type: choice
-        options: [aleph, ubuntu-24.04]
-        default: aleph
+        options: [ubuntu-24.04, aleph]
+        default: ubuntu-24.04
 
 permissions:
   contents: read

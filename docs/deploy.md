@@ -13,12 +13,9 @@ A published GitHub release runs `.github/workflows/pwa-deploy.yml`, one job:
 2. pin the build on Aleph IPFS (the last three are kept);
 3. point `paperless.le-space.de` at the new CID and note the CID on the release.
 
-The repository is private, so hosted minutes are billed; the job runs on an Aleph
-runner. Start one before publishing the release (relay-button):
-
-```bash
-pnpm relay-button gh-runner up --repo Le-Space/paperless-anywhere --count 1
-```
+The job runs on a GitHub-hosted runner: the repository is public, so nothing has to be
+started before a release. No workflow that a pull request can trigger runs on a
+self-hosted runner.
 
 A manual run without `link_domain` only publishes, for a look by CID.
 

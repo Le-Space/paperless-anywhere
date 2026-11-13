@@ -42,13 +42,13 @@ on:
         default: false
         type: boolean
       runner:
-        description: Where the job runs. "aleph" needs a runner started with `pnpm relay-button gh-runner up --repo Le-Space/paperless-anywhere`; it uses no hosted minutes.
+        description: Where the job runs. "aleph" is a self-hosted runner from relay-button's gh-runner; since the repository is public it starts only with --allow-public and is rarely needed.
         required: true
-        default: aleph
+        default: github-hosted
         type: choice
         options:
-          - aleph
           - github-hosted
+          - aleph
 
 permissions:
   contents: read
