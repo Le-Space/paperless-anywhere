@@ -239,6 +239,13 @@ export const PLANS = Object.freeze([
 	{ id: 'paperless-always', hours: 730, priceCredits: 8900 }
 ]);
 /**
+ * What a month of backups costs, in credits, until the service's own list has
+ * answered (its `backup_month_credits`; the terms' § 7 name the same amount).
+ */
+export const BACKUP_MONTH_CREDITS = 150;
+/** A month of backups as the list of packages names it, else the known price. @param {{ backupMonthCredits?: number }[]} plans */
+export const backupMonthCredits = (plans) => plans.find((p) => Number.isFinite(p.backupMonthCredits) && /** @type {number} */ (p.backupMonthCredits) > 0)?.backupMonthCredits ?? BACKUP_MONTH_CREDITS;
+/**
  * Packages no longer offered (le-space-credits#53): an account that has one
  * keeps it and renews on it until it switches, so the app still names it.
  */
