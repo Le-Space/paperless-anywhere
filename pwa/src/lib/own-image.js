@@ -195,11 +195,11 @@ const fetched = { current: null };
  * own address, and says which content address the node made.
  * @param {Blob} image @param {object} message
  */
-export async function storeOnAleph(image, message) {
+export async function storeOnAleph(image, message, api = ALEPH_API) {
 	const form = new FormData();
 	form.append('file', image, 'rootfs');
 	form.append('metadata', JSON.stringify({ message, sync: true }));
-	const response = await fetch(`${ALEPH_API}/api/v0/ipfs/add_file`, { method: 'POST', body: form });
+	const response = await fetch(`${api}/api/v0/ipfs/add_file`, { method: 'POST', body: form });
 	const text = await response.text().catch(() => '');
 	let answer = null;
 	try {
