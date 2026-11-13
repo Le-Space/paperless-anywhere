@@ -29,6 +29,14 @@ on:
         options:
           - browser
           - node
+      api:
+        description: 'The API node that takes the upload: "api2" (the app today) or "api3" (a core channel node of its own).'
+        required: true
+        default: api2
+        type: choice
+        options:
+          - api2
+          - api3
       dry:
         description: Sign with a throwaway key and stop before the upload (costs nothing).
         required: true
@@ -72,6 +80,7 @@ jobs:
           UPLOAD_KEY: ${{ inputs.dry && '' || secrets.ALEPH_PRIVATE_KEY }}
           UPLOAD_MIB: ${{ inputs.size_mib }}
           UPLOAD_FROM: ${{ inputs.from }}
+          UPLOAD_API: ${{ inputs.api }}
           UPLOAD_RESULT: ${{ runner.temp }}/upload.json
         run: pnpm exec playwright test -c playwright.upload.config.js --reporter=line
 
