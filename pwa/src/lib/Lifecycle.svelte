@@ -309,7 +309,35 @@
 		}
 	}
 
-	const start = () => run(startNow);
+	// A package pays the VM, but the service says no backup period covers today
+	// (Le-Space/paperless-anywhere#175): the start asks once instead of running
+	// on without backups. A test instance is not asked, and neither is someone
+	// whose backups are paid from their own wallet.
+	let unpaidBackup = $state(false);
+	async function backupUnpaid() {
+		if (!CREDITS_URL || !profile.leSpacePays || profile.role !== 'primary') return false;
+		if (profile.backupConfig && !profile.backupsByCredits) return false;
+		return (await creditsBalance(master).catch(() => null))?.backup?.active === false;
+	}
+	let asking = false;
+	const start = async () => {
+		if (asking) return;
+		asking = true;
+		try {
+			unpaidBackup = await backupUnpaid();
+		} finally {
+			asking = false;
+		}
+		if (!unpaidBackup) run(startNow);
+	};
+	const startWithoutBackup = () => {
+		unpaidBackup = false;
+		run(startNow);
+	};
+	const toPackage = () => {
+		unpaidBackup = false;
+		document.getElementById('paket')?.scrollIntoView({ behavior: 'smooth' });
+	};
 	/**
 	 * Model A: ask Le Space Credits for this app's delegation on the account
 	 * that pays the VM, keep that account in the profile, and wait until Aleph
@@ -524,6 +552,19 @@
 	{/if}
 {/snippet}
 
+{#snippet unpaidQuestion()}
+	{#if unpaidBackup}
+		<div class="warn gap" role="alertdialog" aria-label="Start ohne Sicherung" data-testid="start-unpaid-backup">
+			<p><strong>Für heute ist keine Sicherung bezahlt.</strong> Paperless anywhere würde ohne Sicherung laufen: Was du in dieser Sitzung hinzufügst oder änderst, ist nach dem Stopp weg.</p>
+			<p class="row">
+				<button class="secondary" onclick={toPackage} data-testid="start-book-backup">Erst die Sicherung buchen (im Paket)</button>
+				<button class="quiet" onclick={startWithoutBackup} disabled={busy} data-testid="start-without-backup">Ohne Sicherung starten</button>
+				<button class="quiet" onclick={() => (unpaidBackup = false)}>Doch nicht starten</button>
+			</p>
+		</div>
+	{/if}
+{/snippet}
+
 {#snippet gapWarning()}
 	{#if gap}
 		<div class="warn gap" data-testid="restore-gap">
@@ -584,6 +625,7 @@
 				<button class="secondary" onclick={onadvanced}>Einrichtung öffnen</button>
 			{:else}
 				<button class="cta" onclick={start} disabled={busy || backupsPending || Boolean(backupsError) || gapOpen}>Paperless anywhere starten</button>
+				{@render unpaidQuestion()}
 				{#if backupsPending}<p class="hint">Sicherungen werden gelesen …</p>
 				{:else if backupsError}<p class="warn">{backupsError} Bitte gleich noch einmal versuchen.</p>
 				{:else if profile.ageIdentity}<p class="hint" data-testid="simple-restore">{choice === 'latest' || choice === 'own' ? `Startet mit der neuesten Sicherung (${pick(choice === 'latest' ? backups ?? [] : split.own)?.pieceCid.slice(-12)}${whenOf(chosenBackup)}).` : 'Startet ohne Daten: es gibt noch keine eigene Sicherung.'}</p>{/if}
@@ -662,6 +704,7 @@
 			{:else}
 				<p class="role-line" data-testid="role-line">{profile.role === 'primary' ? 'Startet produktiv: Mail-Regeln an, Sicherungen auf Mainnet.' : 'Startet als Test: Mail-Regeln aus, Sicherungen ins Testnetz.'}</p>
 				<button class="cta" onclick={start} disabled={busy || missing.length > 0 || gapOpen}>Paperless anywhere starten</button>
+				{@render unpaidQuestion()}
 				{#if missing.length}<p class="hint">Es fehlt noch: {missing.join(', ')}</p>{/if}
 			{/if}
 		{/if}
