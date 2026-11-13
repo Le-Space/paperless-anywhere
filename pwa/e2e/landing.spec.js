@@ -25,7 +25,7 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(h1).toHaveAccessibleName('Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt.');
 	await expect(h1).not.toHaveAttribute('aria-live');
 	await expect(h1.locator('.word')).toHaveText(['ausfallsicher.', 'vertraulich.', 'nach deinem Takt.']);
-	await expect(page.locator('.hero .kicker')).toHaveText('Dezentral · vertraulich · auf Abruf');
+	await expect(page.locator('.hero .kicker')).toHaveText('Dezentral · vertraulich · nachprüfbar');
 	await expect(page.locator('.points h3')).toHaveText(['Ausfallsicher', 'Vertraulich und nachprüfbar', 'Rund um die Uhr oder nach Gebrauch']);
 	await expect(page).toHaveTitle('Paperless anywhere – ausfallsicher, vertraulich, nach deinem Takt');
 	await expect(page.locator('#nodes')).toContainText('2 TEE-Knoten, 1 davon mit Platz');
@@ -88,7 +88,7 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 	await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', 'https://le-space.de/#privacy');
 	await expect(page.getByTestId('hero-disclaimer')).toHaveText('Paperless-ngx is an independent open source project (GPL-3.0). Paperless anywhere is offered by Le Space, is not affiliated with the project and is neither endorsed nor sponsored by it.');
-	await expect(page.getByTestId('brand')).toContainText('Paperless-ngx on demand, run by Le Space');
+	await expect(page.getByTestId('brand')).toContainText('Paperless-ngx, run confidentially by Le Space');
 	await page.reload();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName('Paperless anywhere runs resilient, confidential and on your schedule.');
 

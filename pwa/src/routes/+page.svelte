@@ -234,7 +234,12 @@
 		.top { position: sticky; top: 0; z-index: 10; padding-top: 0.75rem; padding-bottom: 0.75rem; background: var(--bg); box-shadow: 0 0 0 100vmax var(--bg), 0 1px 0 100vmax var(--line); clip-path: inset(0 -100vmax -1px); }
 	}
 	.brand { min-width: 0; }
-	nav { display: flex; gap: 1.1rem; margin-left: auto; font-size: 0.9rem; }
+	nav { display: flex; gap: 0.95rem; margin-left: auto; font-size: 0.9rem; }
+	/* Beside the section links the line under the logo stays on one line. */
+	@media (min-width: 981px) {
+		.top :global(.logo) { flex: none; }
+		.top :global(.logo .sub) { white-space: nowrap; }
+	}
 	nav a { color: var(--text-2); text-decoration: none; white-space: nowrap; }
 	nav a:hover { color: var(--text); }
 	.langs { display: flex; gap: 0.25rem; }

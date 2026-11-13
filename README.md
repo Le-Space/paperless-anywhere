@@ -4,7 +4,7 @@
 
 Paperless-ngx usually lives on one machine at home. This project moves it to rented, decentralised compute instead, without giving the operator a look inside:
 
-- **On demand.** Press a button in a PWA: a VM starts, restores your archive, and you work. When you are done, it backs up and deletes itself. Nothing runs (and nothing is billed) in between.
+- **Around the clock or on demand.** Keep it running, or press a button in a PWA: a VM starts, restores your archive, and you work. When you are done, it backs up and deletes itself, and no compute time is used in between.
 - **Your data stays yours.** The archive lives encrypted on [Filecoin Onchain Cloud](https://docs.filecoin.cloud), with several independent providers at once (see [paperless-backup-filecoin](https://github.com/Le-Space/paperless-backup-filecoin)). The VM is disposable.
 - **Confidential.** The VM runs on AMD SEV-SNP: memory and disk are encrypted by the CPU, and the keys reach it only after the PWA has checked what was booted.
 - **No fixed computer, no password file.** A YubiKey (WebAuthn PRF) or a seed phrase unlocks a master secret in the browser. From it come the account that pays for the VM and the passwords of your Paperless; the backup key travels sealed with it.

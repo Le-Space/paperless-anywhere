@@ -1,7 +1,7 @@
 {
 	"name": "Paperless anywhere",
 	"short_name": "Paperless anywhere",
-	"description": "Paperless-ngx auf Abruf in einer vertraulichen VM, betrieben von Le Space.",
+	"description": "Paperless-ngx in einer vertraulichen VM, betrieben von Le Space.",
 	"lang": "de",
 	"start_url": "/app/",
 	"scope": "/",

@@ -1,6 +1,6 @@
 # Security model: what a VM gets, and from whom
 
-Paperless anywhere runs one Paperless per vault, on demand, in a confidential
+Paperless anywhere runs one Paperless per vault, around the clock or on demand, in a confidential
 virtual machine (AMD SEV-SNP) on Aleph. Everyone runs the same image. This
 page describes where a VM's secrets come from, what the image contains, and
 why one person's VM, balance and backups stay separate from another's.
