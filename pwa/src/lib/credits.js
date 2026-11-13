@@ -9,6 +9,7 @@
 // time in seconds. The service takes each timestamp once, within 5 minutes.
 import { privateKeyToAccount } from 'viem/accounts';
 import { alephPrivateKey, backupPrivateKey } from './keys/derive.js';
+import { currentLang, format, tr } from './i18n/index.js';
 
 export const CREDITS_PRODUCT = 'paperless-anywhere';
 export const SCHEME = 'ls-credits/v1';
@@ -60,7 +61,7 @@ export async function creditsBalance(master, { baseUrl = CREDITS_URL, fetch: fet
 	const headers = await signedHeaders(creditsAccount(master), { method: 'GET', path });
 	const res = await fetchImpl(`${baseUrl}${path}?product=${CREDITS_PRODUCT}`, { headers, cache: 'no-store' });
 	const body = await res.json().catch(() => null);
-	if (!res.ok) throw new Error(body?.error ? `Le Space Credits: ${body.error}` : `Le Space Credits antwortet ${res.status}`);
+	if (!res.ok) throw new Error(body?.error ? `Le Space Credits: ${body.error}` : tr().credits.answers(res.status));
 	const p = body?.package;
 	return {
 		credits: Number(body?.credits ?? 0),
@@ -157,7 +158,7 @@ const safeUrl = (url) => {
 export async function creditsTerms({ baseUrl = CREDITS_URL, fetch: fetchImpl = fetch } = {}) {
 	if (!baseUrl) return null;
 	const res = await fetchImpl(`${baseUrl}/v1/terms?product=${CREDITS_PRODUCT}`, { cache: 'no-store' });
-	if (!res.ok) throw new Error(`Le Space Credits antwortet ${res.status}`);
+	if (!res.ok) throw new Error(tr().credits.answers(res.status));
 	const body = await res.json();
 	const one = (v) => (v?.version ? { version: String(v.version), date: v.date ?? null, url: safeUrl(v.url), sha256: String(v.sha256 ?? ''), changes: Array.isArray(v.changes) ? v.changes.map(String) : v.changes ? [String(v.changes)] : [], effectiveAt: v.effectiveAt ?? null } : null);
 	return { current: one(body?.current), pending: one(body?.pending), withdrawal: withdrawalOf(body?.withdrawal) };
@@ -209,10 +210,9 @@ export class TermsError extends Error {}
 
 /** Buying needs the declaration on withdrawal (412 WAIVER): missing, or an old version. */
 export class WaiverError extends Error {}
-const WAIVER_MESSAGE = 'Ohne die Erklärung zum Widerrufsrecht kann Le Space den Kauf nicht ausführen. Bitte das Kästchen vor dem Bezahlen ankreuzen. War es angekreuzt, hat sich der Text womöglich geändert: dann die Seite neu laden und noch einmal bestätigen.';
 
 /** A 412 from the service: the declaration on withdrawal, or the terms. @param {any} answer */
-const preconditionError = (answer) => (answer?.code === 'WAIVER' ? new WaiverError(WAIVER_MESSAGE) : new TermsError('Erst den aktuellen Bedingungen (AGB) zustimmen, dann geht es weiter.'));
+const preconditionError = (answer) => (answer?.code === 'WAIVER' ? new WaiverError(tr().credits.waiver) : new TermsError(tr().credits.terms));
 
 /**
  * This vault's purchases for paperless-anywhere, newest first, each with the
@@ -228,7 +228,7 @@ export async function creditsPurchases(master, { baseUrl = CREDITS_URL, fetch: f
 	const headers = await signedHeaders(creditsAccount(master), { method: 'GET', path });
 	const res = await fetchImpl(`${baseUrl}${path}?product=${CREDITS_PRODUCT}`, { headers, cache: 'no-store' });
 	const body = await res.json().catch(() => null);
-	if (!res.ok) throw new Error(body?.error ? `Le Space Credits: ${body.error}` : `Le Space Credits antwortet ${res.status}`);
+	if (!res.ok) throw new Error(body?.error ? `Le Space Credits: ${body.error}` : tr().credits.answers(res.status));
 	return (body?.purchases ?? [])
 		.map((p) => ({ id: String(p.id), at: String(p.created_at ?? ''), cents: Number(p.amount_cents ?? 0), credits: Number(p.credits ?? 0), invoiceUrl: stripeLink(p.stripe_invoice_url) }))
 		.sort((a, b) => (a.at < b.at ? 1 : -1));
@@ -284,7 +284,7 @@ export const planOf = (id, plans = PLANS) => plans.find((p) => p.id === id) ?? R
 /** A month of round-the-clock running: a package this large is "Dauerbetrieb". */
 export const ALWAYS_HOURS = 720;
 /** How a package's hours read: "15 Stunden", or "Dauerbetrieb" for round the clock. @param {{ hours: number }} plan */
-export const planHours = (plan) => (plan.hours >= ALWAYS_HOURS ? 'Dauerbetrieb' : `${plan.hours} Stunden`);
+export const planHours = (plan) => tr().credits.planHours(plan.hours, plan.hours >= ALWAYS_HOURS);
 
 /**
  * Few hours left of a package: at most a fifth of it, and never less than two hours.
@@ -328,7 +328,7 @@ export function backupOfferOf(b) {
 export async function creditsCatalog({ baseUrl = CREDITS_URL, fetch: fetchImpl = fetch } = {}) {
 	if (!baseUrl) return null;
 	const res = await fetchImpl(`${baseUrl}/v1/packages?product=${CREDITS_PRODUCT}`, { cache: 'no-store' });
-	if (!res.ok) throw new Error(`Le Space Credits antwortet ${res.status}`);
+	if (!res.ok) throw new Error(tr().credits.answers(res.status));
 	const body = await res.json();
 	return {
 		// Where the service pays backups: calibration, mainnet, or null while off.
@@ -349,40 +349,30 @@ export class CreditsShortError extends Error {
 	}
 }
 
+/**
+ * A table of messages by error code that reads the catalogue each time a code
+ * is looked up, so a message is in the language shown at that moment. It can
+ * be spread into another table like a plain object.
+ * @param {(c: ReturnType<typeof tr>['credits']) => Record<string, string>} pick
+ * @returns {Record<string, string>}
+ */
+const table = (pick) =>
+	new Proxy(/** @type {Record<string, string>} */ ({}), {
+		get: (_, code) => pick(tr().credits)[/** @type {string} */ (code)],
+		has: (_, code) => code in pick(tr().credits),
+		ownKeys: () => Reflect.ownKeys(pick(tr().credits)),
+		getOwnPropertyDescriptor: (_, code) => (code in pick(tr().credits) ? { enumerable: true, configurable: true, value: pick(tr().credits)[/** @type {string} */ (code)] } : undefined)
+	});
+
 /** What the service's error codes mean for a person (le-space-credits, /v1/vm/fund). */
-const MESSAGES = {
-	NO_PLAN: 'Dafür braucht es ein laufendes Paket: erst ein Paket wählen.',
-	TREASURY_OFF: 'Le Space Credits können gerade keine Aleph-Credits ausgeben. Später noch einmal versuchen.',
-	REFUSED: 'Aleph hat die Gutschrift abgelehnt. Später noch einmal versuchen.',
-	CAP: 'Le Space hat gerade nicht genug Aleph-Credits vorrätig. Später noch einmal versuchen.',
-	HOURS: 'Diese Stundenzahl nimmt der Dienst nicht an.',
-	VERSION: 'Diese Fassung der Bedingungen kann gerade nicht angenommen werden. Bitte die Seite neu laden.',
-	ADDRESS: 'Le Space Credits nehmen den Schlüssel der VM für die Sicherungen nicht an.',
-	TOO_SOON: 'Die Sicherungen wurden gerade erst bezahlt. Bitte in fünf Minuten noch einmal.',
-	MONTHS: 'Sicherungen lassen sich für 1 bis 12 Monate bezahlen.',
-	SUBS_OFF: 'Le Space Credits bezahlen VMs gerade noch nicht selbst. Später noch einmal versuchen.',
-	DELEGATES: 'Zu viele Geräte sind schon für dieses Konto freigegeben.',
-	SUBSCRIBED: 'Es läuft schon ein Abo. Ändern geht über „Abo verwalten“, kündigen über „Verträge hier kündigen“.',
-	NO_SUBSCRIPTION: 'Es gibt noch kein Abo zum Verwalten.',
-	ORIGIN: 'Diese Adresse der App darf das Abo-Portal nicht öffnen.',
-	PRICE_TAX: 'Das Abo ist beim Credits-Dienst noch nicht fertig eingerichtet (Preise).',
-	STRIPE_OFF: 'Bezahlen ist beim Credits-Dienst gerade abgeschaltet.',
-	NO_BACKUP: 'Für dieses Produkt bezahlen Le Space Credits keine Sicherungen.',
-	PAUSED: 'Le Space Credits zahlen gerade keine Sicherungen ein (Tageslimit oder noch nicht freigeschaltet). Später noch einmal versuchen.',
-	BACKUP_OFF: 'Le Space Credits bezahlen gerade keine Sicherungen (beim Dienst nicht eingerichtet). Später noch einmal versuchen.',
-	PRODUCT: 'Le Space Credits kennen dieses Produkt nicht.'
-};
+const MESSAGES = table((c) => c.codes);
 
 /** The same codes where a backup key is meant (POST /v1/backup/authorize). */
 // Buying VM hours: TOO_SOON means the last purchase is younger than 10
 // minutes and its hours are on the way (not the backups' TOO_SOON).
-const VM_FUND_MESSAGES = {
-	TOO_SOON: 'Stunden sind schon unterwegs, bitte kurz warten.'
-};
+const VM_FUND_MESSAGES = table((c) => c.vmFund);
 
-const BACKUP_KEY_MESSAGES = {
-	DELEGATES: 'Für dieses Konto sind schon 5 VM-Schlüssel für Sicherungen freigegeben, mehr nimmt der Dienst nicht an.'
-};
+const BACKUP_KEY_MESSAGES = table((c) => c.backupKey);
 
 /**
  * A signed JSON request to the service; throws with its message, and a
@@ -391,7 +381,7 @@ const BACKUP_KEY_MESSAGES = {
  * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
  */
 async function send(master, method, path, body, { baseUrl = CREDITS_URL, fetch: fetchImpl = fetch } = {}, messages = MESSAGES) {
-	if (!baseUrl) throw new Error('Le Space Credits sind hier nicht eingerichtet.');
+	if (!baseUrl) throw new Error(tr().credits.notSetUp);
 	const headers = await signedHeaders(creditsAccount(master), { method, path });
 	const res = await fetchImpl(`${baseUrl}${path}`, {
 		method,
@@ -404,10 +394,10 @@ async function send(master, method, path, body, { baseUrl = CREDITS_URL, fetch: 
 		// "insufficient credits: N free, M needed"
 		const [, free, needed] = /(\d+)\s*free,\s*(\d+)\s*needed/.exec(String(answer?.error ?? '')) ?? [];
 		const missing = free != null ? Math.max(0, Number(needed) - Number(free)) : null;
-		throw new CreditsShortError(`Die Le Space Credits reichen dafür nicht${missing != null ? ` (es fehlen ${(missing / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })})` : ''}. Erst aufladen.`, missing);
+		throw new CreditsShortError(tr().credits.short(missing != null ? format.euro(missing) : null), missing);
 	}
 	if (!res.ok) {
-		const e = /** @type {Error & { status?: number, code?: string }} */ (new Error(messages[answer?.code] ?? MESSAGES[answer?.code] ?? (answer?.error ? `Le Space Credits: ${answer.error}` : `Le Space Credits antwortet ${res.status}`)));
+		const e = /** @type {Error & { status?: number, code?: string }} */ (new Error(messages[answer?.code] ?? MESSAGES[answer?.code] ?? (answer?.error ? `Le Space Credits: ${answer.error}` : tr().credits.answers(res.status))));
 		e.status = res.status;
 		e.code = typeof answer?.code === 'string' ? answer.code : undefined;
 		throw e;
@@ -455,8 +445,8 @@ export class QuoteUnsupportedError extends Error {
 		const bought = charged != null || Boolean(answer?.transfer_id);
 		super(
 			bought
-				? `Le Space Credits können noch keinen Preis vorab nennen und haben die Stunden womöglich schon gekauft${charged != null ? ` (${charged} Credits)` : ''}. Bitte das Guthaben prüfen und nicht noch einmal kaufen: bestätigte Käufe gehen erst, wenn der Dienst sie kann.`
-				: 'Le Space Credits können noch keinen Preis vorab nennen. Stunden lassen sich hier erst kaufen, wenn der Dienst bestätigte Käufe kann.'
+				? tr().credits.quoteUnsupportedBought(charged)
+				: tr().credits.quoteUnsupported
 		);
 		this.name = 'QuoteUnsupportedError';
 		this.charged = charged;
@@ -481,7 +471,7 @@ export async function quoteVm(master, hours, options) {
 	const r = await send(master, 'POST', '/v1/vm/fund', { hours, quote: true }, options, VM_FUND_MESSAGES);
 	if (r?.quote !== true) throw new QuoteUnsupportedError(r);
 	const chargedCredits = numberOrNull(r.charged_credits);
-	if (chargedCredits == null || chargedCredits < 0) throw new Error('Le Space Credits nennen keinen gültigen Preis. Bitte später noch einmal.');
+	if (chargedCredits == null || chargedCredits < 0) throw new Error(tr().credits.noPrice);
 	return {
 		hours,
 		alephCredits: numberOrNull(r.aleph_credits),
@@ -526,12 +516,12 @@ export async function fundBackups(master, months, options) {
  * @returns {Promise<{ payer: string, signer: string, tag: string, label: string, network: 'calibration' | 'mainnet', fundedUntil: string | null }>}
  */
 export async function backupAuthorize(master, backupKey, options) {
-	if (!ADDRESS.test(String(backupKey ?? ''))) throw new Error('Der Schlüssel der VM für die Sicherungen ist keine Adresse.');
+	if (!ADDRESS.test(String(backupKey ?? ''))) throw new Error(tr().credits.backupKeyNoAddress);
 	const r = await send(master, 'POST', '/v1/backup/authorize', { backupKey }, options, BACKUP_KEY_MESSAGES);
-	if (!ADDRESS.test(String(r?.payer ?? '')) || !ADDRESS.test(String(r?.signer ?? ''))) throw new Error('Le Space Credits haben kein Konto für die Sicherungen genannt.');
-	if (!/^[0-9a-f]{8,64}$/.test(String(r?.tag ?? ''))) throw new Error('Le Space Credits haben keine Kennung für die Sicherungen genannt.');
-	if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(String(r?.label ?? ''))) throw new Error('Le Space Credits haben keinen Namen für die Datensätze genannt.');
-	if (!NETWORKS.includes(r?.network)) throw new Error('Le Space Credits haben kein Netz für die Sicherungen genannt.');
+	if (!ADDRESS.test(String(r?.payer ?? '')) || !ADDRESS.test(String(r?.signer ?? ''))) throw new Error(tr().credits.noBackupAccount);
+	if (!/^[0-9a-f]{8,64}$/.test(String(r?.tag ?? ''))) throw new Error(tr().credits.noBackupTag);
+	if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(String(r?.label ?? ''))) throw new Error(tr().credits.noBackupLabel);
+	if (!NETWORKS.includes(r?.network)) throw new Error(tr().credits.noBackupNetwork);
 	return {
 		payer: String(r.payer),
 		signer: String(r.signer),
@@ -567,12 +557,12 @@ export async function startCheckout(master, packageId, { waiver, baseUrl = CREDI
 	const res = await fetchImpl(`${baseUrl}${path}`, {
 		method: 'POST',
 		headers: { ...headers, 'content-type': 'application/json' },
-		body: JSON.stringify({ product: CREDITS_PRODUCT, package: packageId, locale: 'de', ...(waiver ? { waiver } : {}) })
+		body: JSON.stringify({ product: CREDITS_PRODUCT, package: packageId, locale: currentLang(), ...(waiver ? { waiver } : {}) })
 	});
 	const body = await res.json().catch(() => null);
 	if (res.status === 412) throw preconditionError(body);
-	if (res.status === 503) throw new Error('Bezahlen ist beim Credits-Dienst noch nicht eingerichtet.');
-	if (!res.ok || typeof body?.client_secret !== 'string') throw new Error(body?.error ? `Le Space Credits: ${body.error}` : `Le Space Credits antwortet ${res.status}`);
+	if (res.status === 503) throw new Error(tr().credits.payOff);
+	if (!res.ok || typeof body?.client_secret !== 'string') throw new Error(body?.error ? `Le Space Credits: ${body.error}` : tr().credits.answers(res.status));
 	return body.client_secret;
 }
 
@@ -586,7 +576,7 @@ export async function startCheckout(master, packageId, { waiver, baseUrl = CREDI
  */
 export async function vmAuthorize(master, options) {
 	const r = await send(master, 'POST', '/v1/vm/authorize', {}, options);
-	if (!/^0x[0-9a-fA-F]{40}$/.test(String(r?.owner ?? ''))) throw new Error('Le Space Credits haben kein Konto für die VM genannt.');
+	if (!/^0x[0-9a-fA-F]{40}$/.test(String(r?.owner ?? ''))) throw new Error(tr().credits.noVmAccount);
 	return {
 		owner: String(r.owner),
 		delegate: String(r.delegate ?? ''),
@@ -605,7 +595,7 @@ export async function vmAuthorize(master, options) {
  * @returns {Promise<{ revoked: boolean }>}
  */
 export async function backupRevoke(master, backupKey, options) {
-	if (!ADDRESS.test(String(backupKey ?? ''))) throw new Error('Der Schlüssel der VM für die Sicherungen ist keine Adresse.');
+	if (!ADDRESS.test(String(backupKey ?? ''))) throw new Error(tr().credits.backupKeyNoAddress);
 	const r = await send(master, 'DELETE', '/v1/backup/authorize', { backupKey }, options, BACKUP_KEY_MESSAGES);
 	return { revoked: r?.revoked === true };
 }
@@ -620,21 +610,12 @@ export async function backupRevoke(master, backupKey, options) {
  * @returns {Promise<string>} the client secret
  */
 export async function startSubscription(master, packageId, { waiver, backup = false, ...options } = {}) {
-	const r = await send(master, 'POST', '/v1/subscribe', { package: packageId, locale: 'de', ...(waiver ? { waiver } : {}), ...(backup ? { backup: true } : {}) }, options);
-	if (typeof r?.client_secret !== 'string') throw new Error('Le Space Credits haben keine Bezahlseite für das Abo geliefert.');
+	const r = await send(master, 'POST', '/v1/subscribe', { package: packageId, locale: currentLang(), ...(waiver ? { waiver } : {}), ...(backup ? { backup: true } : {}) }, options);
+	if (typeof r?.client_secret !== 'string') throw new Error(tr().credits.noCheckout);
 	return r.client_secret;
 }
 
-const BACKUP_PLAN_MESSAGES = {
-	NOT_YET: 'Die Sicherung im Abo und das Jahr Aufbewahrung gibt es erst mit den neuen AGB. Bis dahin: einen Monat Sicherungen aus dem Guthaben bezahlen (Einrichtung).',
-	BACKUP_ON: 'Die Sicherung ist schon Teil deines Abos.',
-	BACKUP_INCLUDED: 'Die Sicherung ist in deinem Paket schon enthalten.',
-	NO_SUBSCRIPTION: 'Dafür braucht es ein laufendes Abo per Karte.',
-	NO_BACKUP: 'Für dieses Produkt gibt es keine Sicherung.',
-	NO_BACKUP_LINE: 'Die Sicherung ist nicht Teil deines Abos.',
-	BACKUP_PRICE: 'Die Sicherung im Abo ist beim Credits-Dienst noch nicht fertig eingerichtet.',
-	STRIPE_OFF: 'Bezahlen ist beim Credits-Dienst noch nicht eingerichtet.'
-};
+const BACKUP_PLAN_MESSAGES = table((c) => c.backupPlan);
 
 /**
  * Add the backup line to the running subscription: a purchase of its own,
@@ -657,8 +638,8 @@ export async function addBackupLine(master, { waiver, ...options } = {}) {
  * @returns {Promise<string>} the client secret
  */
 export async function startBackupYear(master, { waiver, ...options } = {}) {
-	const r = await send(master, 'POST', '/v1/backup/checkout', { locale: 'de', ...(waiver ? { waiver } : {}) }, options, { ...MESSAGES, ...BACKUP_PLAN_MESSAGES });
-	if (typeof r?.client_secret !== 'string') throw new Error('Le Space Credits haben keine Bezahlseite für das Jahr geliefert.');
+	const r = await send(master, 'POST', '/v1/backup/checkout', { locale: currentLang(), ...(waiver ? { waiver } : {}) }, options, { ...MESSAGES, ...BACKUP_PLAN_MESSAGES });
+	if (typeof r?.client_secret !== 'string') throw new Error(tr().credits.noYearCheckout);
 	return r.client_secret;
 }
 
@@ -689,17 +670,18 @@ export async function waitForBackup(master, before, { tries = 30, delayMs = 2000
  * @returns {{ tone: 'none' | 'ok' | 'soon' | 'warn' | 'over', text: string }}
  */
 export function backupStatus(backup, { timeZone } = {}) {
-	const date = (/** @type {string | null} */ iso) => germanDate(iso, timeZone);
+	const date = (/** @type {string | null} */ iso) => (iso ? format.date(iso, { day: '2-digit', month: '2-digit', year: 'numeric', timeZone }) : '–');
+	const b = tr().credits.backup;
 	const n = backup.notice;
-	if (n?.kind === 'retention_over') return { tone: 'over', text: 'Die Sicherungen sind abgelaufen. Der Speicher dafür kann beendet sein; eine neue Sicherung entsteht, sobald wieder eine bezahlt ist und Paperless anywhere läuft.' };
-	if (n?.kind === 'expired') return { tone: 'warn', text: `Seit dem ${date(n.fundedUntil ?? backup.fundedUntil)} entstehen keine neuen Sicherungen. Die vorhandenen bleiben bis zum ${date(n.retentionUntil ?? backup.retentionUntil)} abrufbar.` };
+	if (n?.kind === 'retention_over') return { tone: 'over', text: b.over };
+	if (n?.kind === 'expired') return { tone: 'warn', text: b.expired(date(n.fundedUntil ?? backup.fundedUntil), date(n.retentionUntil ?? backup.retentionUntil)) };
 	if (n?.kind === 'expires_soon') {
 		const week = n.daysLeft != null && n.daysLeft <= 7;
-		return { tone: week ? 'warn' : 'soon', text: `Die Sicherung ist bis zum ${date(n.fundedUntil ?? backup.fundedUntil)} bezahlt${week && n.daysLeft != null ? ` (noch ${n.daysLeft} ${n.daysLeft === 1 ? 'Tag' : 'Tage'})` : ''}. Danach entstehen keine neuen Sicherungen mehr.` };
+		return { tone: week ? 'warn' : 'soon', text: b.soon(date(n.fundedUntil ?? backup.fundedUntil), week ? n.daysLeft : null) };
 	}
-	if (backup.active && backup.renewsWithPlan) return { tone: 'ok', text: `Sicherung: Teil deines Abos, verlängert sich mit dem Paket. Bezahlt bis zum ${date(backup.fundedUntil)}.` };
-	if (backup.active) return { tone: 'ok', text: `Sicherung: bezahlt bis zum ${date(backup.fundedUntil)}.` };
-	return { tone: 'none', text: 'Sicherung: nicht gebucht. Ohne Sicherung sind deine Dokumente nach einem Stopp weg.' };
+	if (backup.active && backup.renewsWithPlan) return { tone: 'ok', text: b.renews(date(backup.fundedUntil)) };
+	if (backup.active) return { tone: 'ok', text: b.paid(date(backup.fundedUntil)) };
+	return { tone: 'none', text: b.none };
 }
 
 /**
@@ -711,16 +693,14 @@ export function backupStatus(backup, { timeZone } = {}) {
 export async function subscriptionPortal(master, options) {
 	const r = await send(master, 'POST', '/v1/portal', {}, options);
 	const url = stripeLink(r?.url);
-	if (!url) throw new Error('Le Space Credits haben keine Stripe-Adresse geliefert.');
+	if (!url) throw new Error(tr().credits.noPortal);
 	return url;
 }
 
 /** An older service has no cancel route (404): cancel in Stripe's portal instead. */
 export class CancelUnsupportedError extends Error {}
 
-const CANCEL_MESSAGES = {
-	NO_SUBSCRIPTION: 'Es läuft kein Abo, das gekündigt werden könnte.'
-};
+const CANCEL_MESSAGES = table((c) => c.cancel);
 
 /**
  * Cancel the running subscription from the app's own cancel page (§ 312k
@@ -736,79 +716,22 @@ export async function cancelSubscription(master, options) {
 	try {
 		r = await send(master, 'POST', '/v1/subscription/cancel', {}, options, CANCEL_MESSAGES);
 	} catch (e) {
-		if (/** @type {any} */ (e)?.status === 404) throw new CancelUnsupportedError('Der Credits-Dienst kann das Abo noch nicht hier in der App kündigen. Gekündigt wird deshalb im Kundenportal von Stripe, das sich jetzt öffnet.');
+		if (/** @type {any} */ (e)?.status === 404) throw new CancelUnsupportedError(tr().credits.cancelUnsupported);
 		throw e;
 	}
 	const at = (/** @type {unknown} */ v) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : null);
 	const receivedAt = at(r?.received_at);
-	if (!receivedAt) throw new Error('Le Space Credits haben den Eingang der Kündigung nicht bestätigt. Bitte „Aktualisieren“ und den Stand prüfen.');
+	if (!receivedAt) throw new Error(tr().credits.cancelNotConfirmed);
 	return { kind: 'ordinary', receivedAt, effectiveAt: at(r?.effective_at) };
 }
 
-/** The contract as the cancel page names it. @param {{ hours: number } | null} plan @param {string} [id] */
-export const contractName = (plan, id = '') => `Paperless anywhere, Paket ${plan ? planHours(plan) : id}, Monatsabo`;
-export const CANCEL_KIND = 'Ordentliche Kündigung zum Ende des bezahlten Monats';
-/** Who the contract is with, as the cancel page and its confirmation name it. */
-export const PROVIDER = 'Le Space UG (haftungsbeschränkt), info@le-space.de';
-export const IMPRINT_URL = 'https://le-space.de/#impressum';
-
-/** @param {string | null} iso @param {string} [timeZone] */
-export const germanDate = (iso, timeZone) => (iso ? new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone }) : '–');
-/** @param {string | null} iso @param {string} [timeZone] */
-export const germanDateTime = (iso, timeZone) => (iso ? new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone, timeZoneName: 'short' }) : '–');
-
-/**
- * The confirmation of a cancellation as a small text file: what the person
- * keeps as the durable record. Plain text, no remote resources.
- * @param {{ contract: string, receivedAt: string, effectiveAt: string | null, address: string, timeZone?: string }} c
- * @returns {{ filename: string, text: string }}
- */
-export function cancellationRecord({ contract, receivedAt, effectiveAt, address, timeZone }) {
-	const text = [
-		'Bestätigung der Kündigung',
-		'',
-		`Vertrag: ${contract}`,
-		`Art: ${CANCEL_KIND}`,
-		`Kündigung eingegangen am: ${germanDateTime(receivedAt, timeZone)} (${receivedAt})`,
-		`Wirksam zum: ${germanDate(effectiveAt, timeZone)}${effectiveAt ? ` (${effectiveAt})` : ''}`,
-		`Konto (Adresse): ${address}`,
-		'',
-		`Anbieter: ${PROVIDER}`,
-		`Impressum: ${IMPRINT_URL}`,
-		''
-	].join('\n');
-	return { filename: `kuendigung-paperless-anywhere-${receivedAt.slice(0, 10)}.txt`, text };
-}
-
-/**
- * The way to cancel without the vault's key (§ 312k BGB): someone who cannot
- * unlock the app cannot sign a cancellation, so this opens a mail to Le Space
- * that says what is cancelled and asks for what identifies the contract. The
- * app fills in nothing about the person.
- */
-export const CANCEL_MAIL = 'info@le-space.de';
-export const cancelMailto = () =>
-	`mailto:${CANCEL_MAIL}?${new URLSearchParams({
-		subject: 'Kündigung Paperless anywhere',
-		body: [
-			'Ich kündige mein Abo von Paperless anywhere zum nächstmöglichen Zeitpunkt.',
-			'',
-			'E-Mail-Adresse, die bei der Zahlung angegeben wurde: ',
-			'Rechnungsnummer (falls zur Hand): ',
-			'',
-			'Bitte bestätigt mir den Eingang der Kündigung und den Zeitpunkt, zu dem sie wirksam wird.',
-			''
-		].join('\n')
-	})
-		.toString()
-		.replaceAll('+', '%20')}`;
+// The legal wording of cancelling and withdrawing lives in legal-texts.js, German only.
+export { CANCEL_KIND, CANCEL_MAIL, IMPRINT_URL, PROVIDER, WITHDRAWAL_SUBJECTS, cancelMailto, cancellationRecord, contractName, germanDate, germanDateTime, withdrawableName, withdrawalRecord } from './legal-texts.js';
 
 /** An older service has no withdrawal route (404): the app then offers none. */
 export class WithdrawalUnsupportedError extends Error {}
 
-const WITHDRAWAL_MESSAGES = {
-	NOTHING_TO_WITHDRAW: 'Es gibt nichts mehr, das sich widerrufen ließe: Die 14 Tage sind vorbei.'
-};
+const WITHDRAWAL_MESSAGES = table((c) => c.withdrawal);
 
 const isoOrNull = (/** @type {unknown} */ v) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : null);
 
@@ -822,10 +745,6 @@ export function withdrawableOf(w) {
 	if (w?.subject !== 'subscription' && w?.subject !== 'credits' && w?.subject !== 'backup') return null;
 	return { subject: w.subject, what: typeof w.what === 'string' ? w.what.trim().slice(0, 200) : '', concludedAt: isoOrNull(w.concluded_at), until: isoOrNull(w.until) };
 }
-
-/** What a withdrawable contract is called when the service names none. */
-export const WITHDRAWAL_SUBJECTS = Object.freeze({ subscription: 'Paket im Monatsabo', credits: 'Guthaben-Kauf', backup: '1 Jahr Aufbewahrung der Sicherungen' });
-export const withdrawableName = (/** @type {{ subject: 'subscription' | 'credits' | 'backup', what: string }} */ w) => w.what || WITHDRAWAL_SUBJECTS[w.subject];
 
 /**
  * What can be withdrawn right now (§ 356a BGB), without withdrawing: the
@@ -842,10 +761,10 @@ export async function withdrawalQuote(master, options) {
 	try {
 		r = await send(master, 'POST', '/v1/withdrawal', { quote: true }, options, WITHDRAWAL_MESSAGES);
 	} catch (e) {
-		if (/** @type {any} */ (e)?.status === 404) throw new WithdrawalUnsupportedError('Der Credits-Dienst kann den Widerruf noch nicht hier in der App annehmen.');
+		if (/** @type {any} */ (e)?.status === 404) throw new WithdrawalUnsupportedError(tr().credits.withdrawalUnsupported);
 		throw e;
 	}
-	if (r?.quote !== true) throw new WithdrawalUnsupportedError('Der Credits-Dienst kann den Widerruf noch nicht hier in der App annehmen.');
+	if (r?.quote !== true) throw new WithdrawalUnsupportedError(tr().credits.withdrawalUnsupported);
 	return (Array.isArray(r.withdrawable) ? r.withdrawable : []).map(withdrawableOf).filter((w) => w !== null);
 }
 
@@ -860,31 +779,9 @@ export async function withdrawalQuote(master, options) {
 export async function withdraw(master, options) {
 	const r = await send(master, 'POST', '/v1/withdrawal', {}, options, WITHDRAWAL_MESSAGES);
 	const receivedAt = isoOrNull(r?.received_at);
-	if (!receivedAt) throw new Error('Le Space Credits haben den Eingang des Widerrufs nicht bestätigt. Bitte „Aktualisieren“ und den Stand prüfen.');
+	if (!receivedAt) throw new Error(tr().credits.withdrawalNotConfirmed);
 	const refund = r?.refund && typeof r.refund === 'object' ? { id: String(r.refund.refund_id ?? '').slice(0, 100), state: String(r.refund.state ?? '').slice(0, 40) } : null;
 	return { receivedAt, withdrawn: (Array.isArray(r.withdrawn) ? r.withdrawn : []).map(withdrawableOf).filter((w) => w !== null), refund };
-}
-
-/**
- * The confirmation of a withdrawal as a small text file: what the person
- * keeps as the durable record. Plain text, no remote resources.
- * @param {{ withdrawn: { subject: 'subscription' | 'credits' | 'backup', what: string, concludedAt: string | null }[], receivedAt: string, refundId?: string | null, address: string, timeZone?: string }} c
- * @returns {{ filename: string, text: string }}
- */
-export function withdrawalRecord({ withdrawn, receivedAt, refundId = null, address, timeZone }) {
-	const text = [
-		'Bestätigung des Widerrufs',
-		'',
-		...withdrawn.map((w) => `Widerrufen: ${withdrawableName(w)}${w.concludedAt ? `, geschlossen am ${germanDate(w.concludedAt, timeZone)}` : ''}`),
-		`Widerruf eingegangen am: ${germanDateTime(receivedAt, timeZone)} (${receivedAt})`,
-		...(refundId ? [`Erstattung: ${refundId}`] : []),
-		`Konto (Adresse): ${address}`,
-		'',
-		`Anbieter: ${PROVIDER}`,
-		`Impressum: ${IMPRINT_URL}`,
-		''
-	].join('\n');
-	return { filename: `widerruf-paperless-anywhere-${receivedAt.slice(0, 10)}.txt`, text };
 }
 
 /**
