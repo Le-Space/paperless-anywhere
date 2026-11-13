@@ -24,6 +24,7 @@
 	/** @type {Awaited<ReturnType<typeof creditsPurchases>>} */
 	let purchases = $state(null);
 	let appPays = $state(false);
+	let ownBackups = $state(false);
 	// Who pays the running VM: the package (Le Space, model A), the app's own
 	// address, or the person's wallet. Only for the package do its hours count.
 	let pays = $state(/** @type {'lespace' | 'app' | 'wallet' | null} */ (null));
@@ -192,6 +193,8 @@
 		loadProfile(master)
 			.then((p) => {
 				appPays = Boolean(p.appPays);
+				// Backups set up and paid from the person's own wallet: nothing of Le Space's to book.
+				ownBackups = Boolean(p.backupConfig && !p.backupsByCredits);
 				pays = p.leSpacePays ? 'lespace' : p.appPays ? 'app' : p.payer ? 'wallet' : null;
 			})
 			.catch(() => {});
@@ -252,7 +255,7 @@
 		{/if}
 
 		{#if balance.backup}
-			<BackupLine {master} backup={balance.backup} offer={backupOffer} plan={balance.plan} {withdrawal} {termsRead} disabled={busy} onchanged={read} onportal={portal} onwaiver={readWithdrawal} />
+			<BackupLine {master} backup={balance.backup} own={ownBackups} offer={backupOffer} plan={balance.plan} {withdrawal} {termsRead} disabled={busy} onchanged={read} onportal={portal} onwaiver={readWithdrawal} />
 		{/if}
 
 		<p class="line"><span class="label">Guthaben</span> <strong data-testid="balance-euro">{euro(balance.credits)}</strong>
