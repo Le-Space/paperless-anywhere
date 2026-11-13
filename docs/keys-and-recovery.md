@@ -265,4 +265,4 @@ A backup can also be fetched and decrypted without a VM: [fetching a backup your
 ## Limits, for now
 
 - The image's disk passphrase is shared by every VM made from the same image. A passphrase per person, derived from the master secret, is in preparation: [your own image](own-image.md).
-- Backups from the app go to Filecoin **Calibration** only. On mainnet the Mac stays the only writer until the app has been tested with real backups.
+- Backups paid through Le Space Credits are made from the VM on Filecoin **mainnet**, in several parts above 1 GiB, and are in daily use. Backups paid from a person's own wallet take the same way in the VM, but have not been run on mainnet from the app since the latest changes: try them on Calibration first.

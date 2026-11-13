@@ -323,3 +323,14 @@ test('/en without the slash reaches the English page, and the way back from the 
 	await page.goto('/app/');
 	await expect(page.getByTestId('logo-home').first()).toHaveAttribute('href', '/en/');
 });
+
+test('the FAQ says that the providers can be paid directly, what that needs and what still comes from Le Space', async ({ page }) => {
+	await page.context().route(/^https?:\/\/(?!localhost)/, (route) => route.abort());
+	await page.addInitScript(() => Object.defineProperty(navigator, 'language', { get: () => 'de-DE' }));
+	await page.goto('/');
+	const item = page.locator('#faq details', { hasText: 'Kann ich die Anbieter auch selbst bezahlen?' });
+	await item.locator('summary').click();
+	await expect(item).toContainText('gehören in diesem Fall der Adresse deiner Wallet');
+	await expect(item.locator('li')).toHaveText([/^Was du brauchst: eine Wallet/, /^Was du freigibst:/, /^Was auch dann von Le Space kommt: die App, das Image samt seiner heutigen Image-Passphrase und der Relay/]);
+	await expect(item).toContainText('Einrichten kannst du das in der App unter „Einrichtung“.');
+});

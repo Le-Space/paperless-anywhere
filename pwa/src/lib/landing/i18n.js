@@ -208,6 +208,16 @@ export const texts = {
 				{ q: 'Bekommen alle dieselbe Software?', a: 'Ja. Das System ist für alle gleich. Heute öffnet eine Passphrase je Image die Platte; alle VMs dieses Images teilen sie, und Le Space kennt sie. Was deine VM schreibt, liegt deshalb in einem Datenbereich mit einem Schlüssel, den nur sie hat. In Vorbereitung ist, dass ein geprüfter Build-Dienst das Image für jede Person einzeln versiegelt, mit einer Passphrase aus ihrem Tresor. Wie man Image und Dienst dann nachprüft, beschreibt die Dokumentation.' },
 				{ q: 'Brauche ich ein Konto?', a: 'Für den Tresor nicht. Ein Passkey auf deinem Gerät öffnet ihn; die 24 Wörter sind der Weg zurück, falls das Gerät fehlt. Le Space kann den Tresor weder öffnen noch wiederherstellen. Beim Kauf eines Pakets fragt der Zahlungsdienst Stripe nach einer E-Mail-Adresse, für Beleg und Abo.' },
 				{
+					q: 'Kann ich die Anbieter auch selbst bezahlen?',
+					a: 'Ja. Statt eines Pakets bezahlst du dann die Anbieter direkt aus deiner eigenen Wallet. Die VM bei Aleph und die Sicherungen bei Filecoin gehören in diesem Fall der Adresse deiner Wallet.',
+					tips: [
+						'Was du brauchst: eine Wallet (zum Beispiel MetaMask), Aleph-Credits für die VM und für die Sicherungen USDFC und etwas FIL.',
+						'Was du freigibst: Deine Wallet erlaubt der App, VMs für dich zu starten und zu löschen, und einem Sitzungsschlüssel für begrenzte Zeit, Sicherungen abzulegen. Die Seed deiner Wallet bleibt bei dir.',
+						'Was auch dann von Le Space kommt: die App, das Image samt seiner heutigen Image-Passphrase und der Relay, über den die App den Nachweis der VM prüft.'
+					],
+					after: 'Einrichten kannst du das in der App unter „Einrichtung“.'
+				},
+				{
 					q: 'Wie sicher ist mein eigenes Gerät dabei?',
 					a: 'Deine Dokumente liegen verschlüsselt in der VM und in den Sicherungen, und die Schlüssel dazu entstehen nur bei dir, wenn du den Tresor öffnest. Die Grenze ist der Browser auf deinem Gerät, wie bei jeder Web-App und jedem Passwortmanager im Browser: Was dort offen liegt, kann eine Browser-Erweiterung mit Zugriff auf die Seite oder Schadsoftware mitlesen. An den Passkey selbst kommt sie nicht, und ohne deine Freigabe per Fingerabdruck oder PIN öffnet er nichts. Mit wenig Aufwand bist du auf der sicheren Seite:',
 					tips: [
@@ -430,6 +440,16 @@ export const texts = {
 				{ q: 'What is Paperless-ngx?', a: 'Paperless-ngx is the open source software that runs in your VM: it takes in documents, recognises their text and makes them searchable. With Paperless anywhere it runs in a confidential VM of your own, around the clock or on demand, and is backed up.' },
 				{ q: 'Does everyone get the same software?', a: 'Yes. The system is the same for everyone. Today one passphrase per image opens the disk; every VM of that image shares it, and Le Space knows it. That is why what your VM writes goes into a data area with a key only the VM has. In preparation: an attested builder seals the image for each person separately, with a passphrase from their vault. The documentation says how image and builder can then be checked.' },
 				{ q: 'Do I need an account?', a: 'Not for the vault. A passkey on your device opens it; the 24 words are the way back in if the device is missing. Le Space can neither open nor recover the vault. When you buy a package, the payment service Stripe asks for an e-mail address, for the receipt and the subscription.' },
+				{
+					q: 'Can I pay the providers myself?',
+					a: 'Yes. Instead of a package you then pay the providers directly from your own wallet. The VM on Aleph and the backups on Filecoin belong to your wallet’s address in that case.',
+					tips: [
+						'What you need: a wallet (MetaMask, for example), Aleph credits for the VM, and USDFC and a little FIL for the backups.',
+						'What you approve: your wallet lets the app start and delete VMs for you, and lets a session key store backups for a limited time. Your wallet’s seed stays with you.',
+						'What still comes from Le Space: the app, the image with its present image passphrase, and the relay through which the app checks the VM’s attestation.'
+					],
+					after: 'You set this up in the app, under “Einrichtung” (the app itself is in German).'
+				},
 				{
 					q: 'How safe is my own device in this?',
 					a: 'Your documents are encrypted in the VM and in the backups, and the keys to them come into being only with you, when you open the vault. The limit is the browser on your device, as with every web app and every password manager in a browser: what lies open there can be read by a browser extension with access to the page, or by malware. It cannot get at the passkey itself, and without your approval by fingerprint or PIN the passkey opens nothing. A little care puts you on the safe side:',
