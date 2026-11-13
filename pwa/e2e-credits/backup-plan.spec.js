@@ -198,6 +198,15 @@ test.describe('a start without a paid backup', () => {
 	test('backups paid from the own wallet: the card offers nothing and warns of nothing', async ({ page }) => {
 		// A made-up wallet pays the VM and the backups; Le Space sells this account nothing.
 		await openReady(page, { plan: false, backup: 'none', offered: true }, 'test', { leSpacePays: false, payer: '0x00000000000000000000000000000000000000aa', backupConfig: { providers: 2 }, backupsByCredits: false });
+		// The card is one line for someone who pays the providers themselves, until they open it.
+		const self = page.getByTestId('package-self');
+		await expect(self.locator('> summary')).toContainText('Du zahlst die Anbieter selbst.');
+		await expect(page.getByTestId('plan-paperless-30')).toBeHidden();
+		await expect(page.getByTestId('backup-status')).toBeHidden();
+		if (process.env.SHOTS) await page.getByTestId('package').screenshot({ path: `${process.env.SHOTS}/package-self-closed.png` });
+		await self.locator('> summary').click();
+		await expect(self).toContainText('Deine Wallet bezahlt die VM bei Aleph direkt');
+		await expect(page.getByTestId('plan-paperless-30')).toBeVisible();
 		await expect(page.getByTestId('backup-status')).toContainText('bezahlst du aus deiner eigenen Wallet');
 		await expect(page.getByTestId('backup-status')).not.toContainText('nicht gebucht');
 		await expect(page.getByTestId('backup-year-fold')).toHaveCount(0);
