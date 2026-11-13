@@ -334,3 +334,43 @@ test('the FAQ says that the providers can be paid directly, what that needs and 
 	await expect(item.locator('li')).toHaveText([/^Was du brauchst: eine Wallet/, /^Was du freigibst:/, /^Was auch dann von Le Space kommt: die App, das Image samt seiner heutigen Image-Passphrase und der Relay/]);
 	await expect(item).toContainText('Einrichten kannst du das in der App unter „Einrichtung“.');
 });
+
+test('the footers of /, /en/ and /lizenzen/ name the build: release, time in UTC, commit, in the delivered HTML', async ({ page, request }) => {
+	await page.context().route(/^https?:\/\/(?!localhost)/, (route) => route.abort());
+	const version = process.env.PAPERLESS_VERSION || 'dev';
+	for (const [path, date, label] of /** @type {const} */ ([
+		['/', /^\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2} UTC$/, 'Stand dieser Seite:'],
+		['/en/', /^\d{2}\/\d{2}\/\d{4}, \d{2}:\d{2} UTC$/, 'This page’s build:'],
+		['/lizenzen/', /^\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2} UTC$/, 'Stand dieser Seite:']
+	])) {
+		// Prerendered: the line is in the HTML itself, before any script runs.
+		const html = await (await request.get(path)).text();
+		expect(html, path).toContain('data-testid="landing-build"');
+		expect(html, path).toMatch(/data-testid="landing-build-time"[^>]*>\d{2}[./]\d{2}[./]\d{4}, \d{2}:\d{2} UTC</);
+		expect(html, path).toMatch(/href="https:\/\/github\.com\/Le-Space\/paperless-anywhere\/commit\/[0-9a-f]{7}"/);
+
+		// The licence page is one address for both languages and shows the one chosen before.
+		if (path === '/lizenzen/') await page.addInitScript(() => localStorage.setItem('paperless-lang', 'de'));
+		await page.goto(path);
+		const build = page.getByTestId('landing-build');
+		await expect(build).toContainText(label);
+		await expect(build.getByTestId('landing-build-version')).toHaveText(version);
+		// A release links its page on GitHub; a build without one says "dev" and links nothing.
+		if (version === 'dev') await expect(build.getByRole('link', { name: 'dev' })).toHaveCount(0);
+		else await expect(build.getByTestId('landing-build-version')).toHaveAttribute('href', `https://github.com/Le-Space/paperless-anywhere/releases/tag/${version}`);
+		await expect(build.getByTestId('landing-build-time')).toHaveText(date);
+		await expect(build.getByTestId('landing-build-time')).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+		await expect(build.getByTestId('landing-build-commit')).toHaveText(/^[0-9a-f]{7}$/);
+		await expect(build.getByTestId('landing-build-commit')).toHaveAttribute('href', /\/commit\/[0-9a-f]{7}$/);
+	}
+	// The licence page follows the language chosen: its build line too.
+	await page.getByRole('button', { name: 'EN' }).click();
+	await expect(page.getByTestId('landing-build')).toContainText('This page’s build:');
+	await expect(page.getByTestId('landing-build-time')).toHaveText(/^\d{2}\/\d{2}\/\d{4}, \d{2}:\d{2} UTC$/);
+	// No message from the browser about the page's content policy or a mismatch of the prerendered text.
+	const complaints = [];
+	page.on('console', (m) => /Content Security Policy|hydration/i.test(m.text()) && complaints.push(m.text()));
+	await page.goto('/en/');
+	await expect(page.getByTestId('landing-build')).toBeVisible();
+	expect(complaints).toEqual([]);
+});
