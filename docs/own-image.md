@@ -46,9 +46,10 @@ sequenceDiagram
     V->>B: which plain image it expects (SHA-256), and the passphrase, over the attested channel
     B->>B: unpack the plain image from its volume, check its SHA-256, encrypt it, forget the passphrase
     B-->>V: the content address and size of the sealed image
-    loop in pieces
-        V->>B: the next piece of the sealed image
-        B-->>V: the bytes, over the attested channel
+    loop in runs of 3 MiB, each over a new connection
+        V->>B: attestation request with a fresh nonce, checked as in 2 to 4
+        V->>B: the next pieces of the sealed image
+        B-->>V: the bytes, over that attested channel
     end
     V->>B: remove the image
     V->>V: sign a STORE message for exactly that content address
@@ -70,12 +71,20 @@ In the setup, beside the image's hash and passphrase: **Mein Image bauen**
 1. derives the passphrase from the master secret, under its own label and
    the plain image's SHA-256, so the 24 words alone give it back;
 2. opens an attested channel to the builder and sends the build request;
-3. fetches the sealed image back in pieces over that channel and has the
-   builder remove it;
+3. fetches the sealed image back and has the builder remove it. An attest
+   relay carries 4 MiB per connection and direction, and a connection for
+   two minutes, so the image comes in runs of 3 MiB, four side by side, each
+   over a connection of its own that is attested like the first. A run that
+   breaks off is fetched again; a connection whose attestation does not
+   show the builder's measurement ends the build;
 4. signs a STORE message for the image's content address, as the app's own
    address, which also pays the storage, and uploads the image to Aleph;
 5. waits until Aleph has processed it, and saves the image's hash and the
-   passphrase in the sealed profile.
+   passphrase in the sealed profile, with the measurement the hardware
+   reported for the builder and the time of that check.
+
+If the upload fails, the fetched image stays in the open window: a second
+try uploads it again, and builds nothing.
 
 While Paperless runs, the step is disabled: a running VM belongs to the
 image it started from.
@@ -225,9 +234,11 @@ docker run --rm --network none -v "$PWD/check-container.mjs:/opt/builder/check-c
 
 ## Before it goes live
 
-- **Fetching through a relay**: the app gets the sealed image in pieces over
-  the attested channel. How long nearly 900 MiB take that way, and how the
-  attest relay reaches a V-PROGRAM, is not measured yet.
+- **Fetching through a relay**: the app gets the sealed image in runs that
+  fit a relay's limits (tested against a stand-in with those limits). How
+  long nearly 900 MiB take that way, and how the attest relay reaches a
+  V-PROGRAM, is not measured yet.
+- **The upload from a browser** of an image of that size has not run yet.
 - The builder's **measurement**, its V-PROGRAM and the plain image are
   **fixed in the app** (`BUILDER` in `pwa/src/lib/own-image.js`). The step
   "Mein Image bauen" in the setup is written and shows up once they are.
