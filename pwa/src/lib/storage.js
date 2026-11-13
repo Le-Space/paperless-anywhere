@@ -1,6 +1,8 @@
 // How much of the included storage the documents take (pilot: 8 GB per
-// package; the landing page and the terms say the same). The backups are
-// not part of the package: they are paid by the month from the balance. A running VM reports
+// package; the landing page and the terms say the same). The backups have
+// their own room and are part of every package offered now (terms version 3);
+// an account on an older package has them as a line of its subscription or
+// pays months from the balance. A running VM reports
 // its documents' size on its private status page; a stopped one is known by
 // its last backup's size.
 

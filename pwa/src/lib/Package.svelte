@@ -250,7 +250,7 @@
 			{/if}
 		{:else}
 			<p class="big" data-testid="plan-none"><strong>Noch kein Paket</strong></p>
-			<p class="hint">Ein Paket gibt dir jeden Monat Stunden für dein Paperless anywhere. Bezahlt wird aus deinem Guthaben.</p>
+			<p class="hint" data-testid="plan-none-hint">Ein Paket gibt dir jeden Monat Stunden für dein Paperless anywhere, die Sicherung inklusive. Bezahlt wird es als Monatsabo per Karte.</p>
 		{/if}
 
 		{#if cancelling}
