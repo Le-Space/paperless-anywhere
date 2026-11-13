@@ -76,6 +76,25 @@ test('“mit Sicherung” starts unticked, shows the total and goes into the ord
 	await closeCheckout(page);
 });
 
+test('packages that include the backup show one price, no box, and say what is included', async ({ page }) => {
+	await openApp(page, { plan: false, backup: 'none', offered: true, included: true });
+	await expect(page.getByTestId('plan-backup')).toHaveCount(0);
+	await expect(page.getByTestId('plan-backup-included')).toHaveText('Sicherung inklusive: 3 verschlüsselte Kopien, bis 32 GiB, nach dem Ende noch 30 Tage abrufbar.');
+	await expect(page.getByTestId('plan-price-paperless-15-backup')).toHaveText('6,40 €');
+	await expect(page.getByTestId('plan-price-paperless-100-backup')).toHaveText('16,40 €');
+	await expect(page.getByTestId('plan-price-paperless-always-backup')).toHaveText('90,50 €');
+	await expect(page.getByTestId('plan-paperless-15-backup')).toContainText('Sicherung inklusive');
+	await shot(page, 'plans-backup-included', page.getByTestId('package'));
+	await page.getByTestId('plan-waiver-box').check();
+	await page.getByTestId('plan-paperless-15-backup').click();
+	// The plan carries the backup: no extra flag goes out, and the order says what it holds.
+	await expect.poll(async () => (await received('/v1/subscribe')).map((r) => [r.body.package, 'backup' in r.body])).toEqual([['paperless-15-backup', false]]);
+	await expect(page.getByTestId('checkout-summary')).toHaveText('15 Stunden im Monat: 6,40 €, Sicherung inklusive. Monatsabo, verlängert sich jeden Monat, kündbar zum Monatsende.');
+	await closeCheckout(page);
+	// The year of keeping stays, also without a package.
+	await expect(page.getByTestId('backup-year-fold')).toHaveCount(1);
+});
+
 test('the backup is added to a running subscription in the app, with its own declaration', async ({ page }) => {
 	await openApp(page, { plan: true, backup: 'none', offered: true });
 	await expect(page.getByTestId('backup-status')).toHaveText('Sicherung: nicht gebucht. Ohne Sicherung sind deine Dokumente nach einem Stopp weg.');

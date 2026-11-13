@@ -272,7 +272,13 @@ export const backupMonthCredits = (plans) => plans.find((p) => Number.isFinite(p
 export const RETIRED_PLANS = Object.freeze([
 	{ id: 'paperless-10', hours: 10, priceCredits: 400 },
 	{ id: 'paperless-30', hours: 30, priceCredits: 600 },
-	{ id: 'paperless-80', hours: 80, priceCredits: 1000 }
+	{ id: 'paperless-80', hours: 80, priceCredits: 1000 },
+	// Without the backup, which every package offered now includes
+	// (le-space-credits#72); named here so an account still on one reads right
+	// once the service no longer lists them.
+	{ id: 'paperless-15', hours: 15, priceCredits: 490 },
+	{ id: 'paperless-100', hours: 100, priceCredits: 1490 },
+	{ id: 'paperless-always', hours: 730, priceCredits: 8900 }
 ]);
 export const planOf = (id, plans = PLANS) => plans.find((p) => p.id === id) ?? RETIRED_PLANS.find((p) => p.id === id) ?? null;
 
@@ -304,14 +310,15 @@ export const hoursPerWeek = (/** @type {number} */ hours) => Math.max(1, Math.ro
  * once. `planOffered` is false until the terms that name them are in force;
  * null from a service that knows neither.
  * @param {any} b
- * @returns {{ monthCents: number, yearCents: number, yearDays: number, copies: number | null, quotaGib: number | null, retentionDays: number, planOffered: boolean } | null}
+ * `includedInPlans`: every package offered includes the backup in its price (le-space-credits#72).
+ * @returns {{ monthCents: number, yearCents: number, yearDays: number, copies: number | null, quotaGib: number | null, retentionDays: number, planOffered: boolean, includedInPlans: boolean } | null}
  */
 export function backupOfferOf(b) {
 	const cents = (/** @type {unknown} */ v) => (Number.isInteger(v) && /** @type {number} */ (v) > 0 ? /** @type {number} */ (v) : null);
 	const monthCents = cents(b?.month_price_cents);
 	const yearCents = cents(b?.year_price_cents);
 	if (monthCents == null || yearCents == null) return null;
-	return { monthCents, yearCents, yearDays: cents(b.year_days) ?? 365, copies: cents(b.copies), quotaGib: cents(b.quota_gib), retentionDays: cents(b.retention_days) ?? 30, planOffered: b.plan_offered === true };
+	return { monthCents, yearCents, yearDays: cents(b.year_days) ?? 365, copies: cents(b.copies), quotaGib: cents(b.quota_gib), retentionDays: cents(b.retention_days) ?? 30, planOffered: b.plan_offered === true, includedInPlans: b.included_in_plans === true };
 }
 
 /**
@@ -327,7 +334,7 @@ export async function creditsCatalog({ baseUrl = CREDITS_URL, fetch: fetchImpl =
 	return {
 		// Where the service pays backups: calibration, mainnet, or null while off.
 		network: body?.network === 'mainnet' || body?.network === 'calibration' ? body.network : null,
-		plans: (body?.packages ?? []).map((p) => ({ id: String(p.id), hours: Number(p.hours), priceCredits: Number(p.price_credits), ...(p.backup_month_credits != null ? { backupMonthCredits: Number(p.backup_month_credits) } : {}) })),
+		plans: (body?.packages ?? []).map((p) => ({ id: String(p.id), hours: Number(p.hours), priceCredits: Number(p.price_credits), ...(p.backup_month_credits != null ? { backupMonthCredits: Number(p.backup_month_credits) } : {}), ...(p.backup_included === true ? { backupIncluded: true } : {}) })),
 		backup: backupOfferOf(body?.backup),
 		topups: (body?.topups ?? []).map((t) => ({ id: String(t.id), amountCents: Number(t.amount_cents), credits: Number(t.credits) }))
 	};
@@ -622,6 +629,7 @@ export async function startSubscription(master, packageId, { waiver, backup = fa
 const BACKUP_PLAN_MESSAGES = {
 	NOT_YET: 'Die Sicherung im Abo und das Jahr Aufbewahrung gibt es erst mit den neuen AGB. Bis dahin: einen Monat Sicherungen aus dem Guthaben bezahlen (Einrichtung).',
 	BACKUP_ON: 'Die Sicherung ist schon Teil deines Abos.',
+	BACKUP_INCLUDED: 'Die Sicherung ist in deinem Paket schon enthalten.',
 	NO_SUBSCRIPTION: 'Dafür braucht es ein laufendes Abo per Karte.',
 	NO_BACKUP: 'Für dieses Produkt gibt es keine Sicherung.',
 	NO_BACKUP_LINE: 'Die Sicherung ist nicht Teil deines Abos.',

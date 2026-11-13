@@ -14,6 +14,7 @@
 	 *   master: Uint8Array,
 	 *   backup: NonNullable<ReturnType<typeof import('$lib/credits.js').backupOf>>,
 	 *   own?: boolean,
+	 *   included?: boolean,
 	 *   offer: ReturnType<typeof import('$lib/credits.js').backupOfferOf>,
 	 *   plan: { billing: 'stripe' | 'credits', renewsAt: string | null, periodEnd: string | null, cancelAtPeriodEnd: boolean } | null,
 	 *   withdrawal: { version: string, de: string, en: string } | null,
@@ -24,7 +25,7 @@
 	 *   onwaiver?: () => unknown
 	 * }}
 	 */
-	let { master, backup, own = false, offer, plan, withdrawal, termsRead, disabled = false, onchanged = () => {}, onportal = () => {}, onwaiver = () => {} } = $props();
+	let { master, backup, own = false, included = false, offer, plan, withdrawal, termsRead, disabled = false, onchanged = () => {}, onportal = () => {}, onwaiver = () => {} } = $props();
 
 	const euro = (/** @type {number} */ cents) => `${(cents / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 	// Paid from the person's own wallet (setup): Le Space's backup period says
@@ -32,7 +33,8 @@
 	const status = $derived(own ? { tone: /** @type {const} */ ('ok'), text: 'Sicherung: bezahlst du aus deiner eigenen Wallet. Wie lange der Speicher bezahlt ist, steht unter „Deine Wallet bei Aleph und Filecoin“.' } : backupStatus(backup));
 	const sold = $derived(Boolean(offer?.planOffered) && !own);
 	// The line can be added to a running card subscription that is not ending.
-	const canAdd = $derived(sold && plan?.billing === 'stripe' && !plan.cancelAtPeriodEnd && !backup.renewsWithPlan);
+	// Not for a package whose price includes the backup: there is nothing to add.
+	const canAdd = $derived(sold && !included && plan?.billing === 'stripe' && !plan.cancelAtPeriodEnd && !backup.renewsWithPlan);
 	const nextCharge = $derived(plan ? germanDate(plan.renewsAt ?? plan.periodEnd) : '');
 
 	let busy = $state(false);
