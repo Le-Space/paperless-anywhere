@@ -18,6 +18,8 @@
 
 	let lang = $state(/** @type {'de' | 'en'} */ ('de'));
 	const t = $derived(texts[lang]);
+	// Back to the landing page in the language shown here.
+	const home = $derived(lang === 'en' ? '/en/' : '/');
 	const l = $derived(t.licences);
 	function setLang(/** @type {'de' | 'en'} */ next) {
 		lang = next;
@@ -45,7 +47,7 @@
 </svelte:head>
 
 <header class="top">
-	<a class="brand" href="/" aria-label={l.back}><Logo size={34} name="Paperless anywhere" /></a>
+	<a class="brand" href={home} aria-label={l.back}><Logo size={34} name="Paperless anywhere" /></a>
 	<div class="langs" role="group" aria-label="Language">
 		{#each LANGS as code}
 			<button class="lang" class:on={lang === code} aria-pressed={lang === code} onclick={() => setLang(code)}>{code.toUpperCase()}</button>
@@ -116,7 +118,7 @@
 </main>
 
 <footer>
-	<a href="/">{l.back}</a>
+	<a href={home}>{l.back}</a>
 	<a href={t.footer.imprintUrl}>{t.footer.imprint}</a>
 	<a href={t.footer.privacyUrl}>{t.footer.privacy}</a>
 </footer>

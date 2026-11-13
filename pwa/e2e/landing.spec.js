@@ -83,9 +83,18 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.getByTestId('own-image-flow').getByRole('listitem')).toHaveCount(4);
 	await expect(page.getByTestId('own-image-knows').getByRole('listitem')).toHaveText([/Dein Tresor: ja/, /Der Build-Dienst: nur kurz/, /Deine VM: nur kurz/, /Le Space: nein/, /Der Betreiber des Knotens: nein/, /GitHub: nein/]);
 
-	await page.getByRole('button', { name: 'EN' }).click();
+	// English has its own address; the language links are real links.
+	await expect(page.getByTestId('lang-de')).toHaveAttribute('aria-current', 'page');
+	await expect(page.getByTestId('lang-en')).toHaveAttribute('href', '/en/');
+	await page.getByTestId('lang-en').click();
+	await expect(page).toHaveURL(/\/en\/$/);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName('Paperless anywhere runs resilient, confidential and on your schedule.');
 	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+	await expect(page.getByTestId('lang-de')).toHaveAttribute('href', '/');
+	await expect(page.locator('.hero .hint')).toHaveText('With a passkey, no account. The app itself is in German for now.');
+	// Section links stay on the English page, and the licence page follows the language.
+	await page.locator('nav a[href="#trust"]').click();
+	await expect(page).toHaveURL(/\/en\/#trust$/);
 	await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', 'https://le-space.de/#privacy');
 	await expect(page.getByTestId('hero-disclaimer')).toHaveText('Paperless-ngx is an independent open source project (GPL-3.0). Paperless anywhere is offered by Le Space, is not affiliated with the project and is neither endorsed nor sponsored by it.');
 	await expect(page.getByTestId('brand')).toContainText('Paperless-ngx in confidential VMs · offered by Le Space');
@@ -109,6 +118,7 @@ test('link previews find title, description and image in the HTML itself, withou
 	const image = await request.get('/og.png');
 	expect(image.ok()).toBe(true);
 	expect(image.headers()['content-type']).toContain('image/png');
+	expect((await request.get('/og-en.png')).headers()['content-type']).toContain('image/png');
 
 	const manifest = await (await request.get('/manifest.webmanifest')).json();
 	expect(manifest.name).toBe('Paperless anywhere');
@@ -167,7 +177,7 @@ test('the landing page shows who holds which key, what is attested and where to 
 	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Sicherheitsmodell' })).toHaveAttribute('href', /docs\/security-model\.md$/);
 	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Varianten vertraulicher VMs im Vergleich' })).toHaveAttribute('href', /docs\/confidential-vm-variants\.md$/);
 
-	await page.getByRole('button', { name: 'EN' }).click();
+	await page.goto('/en/');
 	await expect(trust.getByRole('heading', { level: 2 })).toHaveText('Don’t trust. Verify.');
 	await expect(page.getByTestId('trust-sub')).toContainText('Checkable: who holds which key');
 	await expect(page.getByTestId('trust-sub').getByRole('link')).toHaveText('Not confirmed yet ↓');
@@ -261,6 +271,57 @@ test('the FAQ says what the own device has to do with it, with what to do and a 
 	await expect(item.locator('li').first()).toContainText('eigenes Browser-Profil ohne Erweiterungen');
 	await expect(item.getByRole('link', { name: 'Die Einzelheiten stehen im Sicherheitsmodell.' })).toHaveAttribute('href', /docs\/security-model\.md#your-own-device$/);
 	if (process.env.SHOTS) await item.screenshot({ path: `${process.env.SHOTS}/faq-device.png` });
+});
+
+// A shared link shows the preview of the language it points to: crawlers run
+// no scripts, so each address carries its own language in the HTML itself.
+for (const page_ of [
+	{ path: '/', lang: 'de', url: 'https://paperless.le-space.de/', title: 'Paperless anywhere – ausfallsicher, vertraulich, nach deinem Takt', description: /^Paperless anywhere läuft ausfallsicher/, locale: 'de_DE', alternate: 'en_US', image: 'https://paperless.le-space.de/og.png?v=4', alt: /ein Angebot von Le Space/, h1: 'Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt.' },
+	{ path: '/en/', lang: 'en', url: 'https://paperless.le-space.de/en/', title: 'Paperless anywhere – resilient, confidential, on your schedule', description: /^Paperless anywhere runs resilient/, locale: 'en_US', alternate: 'de_DE', image: 'https://paperless.le-space.de/og-en.png?v=1', alt: /offered by Le Space: Resilient\./, h1: 'Paperless anywhere runs resilient, confidential and on your schedule.' }
+]) {
+	test(`without JavaScript, ${page_.path} carries its own language in title, description and preview`, async ({ browser }) => {
+		const context = await browser.newContext({ javaScriptEnabled: false, locale: 'fr-FR' });
+		const page = await context.newPage();
+		await page.goto(page_.path);
+		const meta = (key) => page.locator(`meta[property="${key}"], meta[name="${key}"]`);
+		await expect(page.locator('html')).toHaveAttribute('lang', page_.lang);
+		await expect(page).toHaveTitle(page_.title);
+		await expect(meta('description')).toHaveAttribute('content', page_.description);
+		await expect(meta('og:title')).toHaveAttribute('content', page_.title);
+		await expect(meta('og:description')).toHaveAttribute('content', page_.description);
+		await expect(meta('og:url')).toHaveAttribute('content', page_.url);
+		await expect(meta('og:locale')).toHaveAttribute('content', page_.locale);
+		await expect(meta('og:locale:alternate')).toHaveAttribute('content', page_.alternate);
+		await expect(meta('og:image')).toHaveAttribute('content', page_.image);
+		await expect(meta('og:image:alt')).toHaveAttribute('content', page_.alt);
+		await expect(meta('twitter:title')).toHaveAttribute('content', page_.title);
+		await expect(meta('twitter:description')).toHaveAttribute('content', page_.description);
+		await expect(meta('twitter:image')).toHaveAttribute('content', page_.image);
+		await expect(meta('twitter:image:alt')).toHaveAttribute('content', page_.alt);
+		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', page_.url);
+		await expect(page.locator('link[rel="alternate"][hreflang="de"]')).toHaveAttribute('href', 'https://paperless.le-space.de/');
+		await expect(page.locator('link[rel="alternate"][hreflang="en"]')).toHaveAttribute('href', 'https://paperless.le-space.de/en/');
+		await expect(page.locator('link[rel="alternate"][hreflang="x-default"]')).toHaveAttribute('href', 'https://paperless.le-space.de/');
+		// The page itself is in that language too, whatever the browser's is.
+		await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName(page_.h1);
+		await expect(page.getByTestId('lang-de')).toHaveAttribute('href', '/');
+		await expect(page.getByTestId('lang-en')).toHaveAttribute('href', '/en/');
+		await context.close();
+	});
+}
+
+test('/en without the slash reaches the English page, and the way back from the app and the licence page keeps the language', async ({ page }) => {
+	await page.context().route(/^https?:\/\/(?!localhost)/, (route) => route.abort());
+	await page.goto('/en');
+	await expect(page).toHaveURL(/\/en\/$/);
+	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+	await page.getByRole('link', { name: 'Licences' }).first().click();
+	await expect(page).toHaveURL(/\/lizenzen\/$/);
+	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+	await page.locator('a.brand').click();
+	await expect(page).toHaveURL(/\/en\/$/);
+	await page.goto('/app/');
+	await expect(page.getByTestId('logo-home').first()).toHaveAttribute('href', '/en/');
 });
 
 test('the FAQ says that the providers can be paid directly, what that needs and what still comes from Le Space', async ({ page }) => {

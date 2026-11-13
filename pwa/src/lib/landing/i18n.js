@@ -267,7 +267,7 @@ export const texts = {
 	en: {
 		title: 'Paperless anywhere – resilient, confidential, on your schedule',
 		description: 'Paperless anywhere runs resilient, confidential and on your schedule: Paperless-ngx in a confidential VM, on nodes of several operators, in a monthly package around the clock or on demand.',
-		ogImageAlt: 'Paperless anywhere, Paperless-ngx in confidential VMs, offered by Le Space. The image is in German: resilient, confidential, on your schedule.',
+		ogImageAlt: 'Paperless anywhere, Paperless-ngx in confidential VMs, offered by Le Space: Resilient. Confidential. On your schedule.',
 		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Resilient', storage: 'Backups', trust: 'Verify', prices: 'Prices', faq: 'FAQ' },
 		tagline: 'Paperless-ngx in confidential VMs · offered by Le Space',
 		disclaimer: DISCLAIMER.en,

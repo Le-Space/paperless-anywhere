@@ -45,7 +45,7 @@ test('the logo and the name in the app lead back to the landing page', async ({ 
 	let asked = false;
 	page.on('dialog', (d) => { asked = true; d.dismiss(); });
 	await home.click();
-	await expect(page).toHaveURL(/\/$/);
+	await expect(page).toHaveURL(/\/en\/$/);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName('Paperless anywhere runs resilient, confidential and on your schedule.');
 	expect(asked).toBe(false);
 
