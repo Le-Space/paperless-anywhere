@@ -39,7 +39,7 @@
 	// The actions stay folded until someone wants them; a short balance opens them.
 	let moreOpen = $state(false);
 	// The service's own list once it answered; until then the known one.
-	let plans = $state(/** @type {{ id: string, hours: number, priceCredits: number }[]} */ ([...PLANS]));
+	let plans = $state(/** @type {{ id: string, hours: number, priceCredits: number, backupIncluded?: boolean }[]} */ ([...PLANS]));
 	// What the service sells of backups beside the plan (le-space-credits#69).
 	/** @type {ReturnType<typeof import('$lib/credits.js').backupOfferOf>} */
 	let backupOffer = $state(null);
@@ -53,7 +53,13 @@
 	// starts unticked (§ 312a Abs. 3 BGB) and is never set by the app.
 	let withBackup = $state(false);
 	const backupSold = $derived(Boolean(backupOffer?.planOffered));
-	const planTotal = (/** @type {{ priceCredits: number }} */ p) => p.priceCredits + (withBackup && backupSold && backupOffer ? backupOffer.monthCents : 0);
+	// A package whose price includes the backup (le-space-credits#72): nothing
+	// to tick and nothing to add. The box is left for packages without it.
+	const included = (/** @type {{ backupIncluded?: boolean } | null | undefined} */ p) => p?.backupIncluded === true;
+	const boxOffered = $derived(backupSold && plans.some((p) => !included(p)));
+	const allIncluded = $derived(plans.length > 0 && plans.every(included));
+	const planTotal = (/** @type {{ priceCredits: number, backupIncluded?: boolean }} */ p) => p.priceCredits + (!included(p) && withBackup && backupSold && backupOffer ? backupOffer.monthCents : 0);
+	const includedText = $derived(`Sicherung inklusive${backupOffer ? `: ${backupOffer.copies ? `${backupOffer.copies} verschlüsselte Kopien` : 'verschlüsselte Kopien'}${backupOffer.quotaGib ? `, bis ${backupOffer.quotaGib} GiB` : ''}, nach dem Ende noch ${backupOffer.retentionDays} Tage abrufbar` : ''}.`);
 	let ordering = $state('');
 	// The declaration on withdrawal before a payment (le-space-credits#51):
 	// null from an older service, which then gets no checkbox and no waiver.
@@ -137,10 +143,10 @@
 			let secret;
 			const waiver = waiverOf(withdrawal, waivedPlan);
 			waivedPlan = false;
-			const backup = withBackup && backupSold;
 			const chosen = planOf(id, plans);
+			const backup = !included(chosen) && withBackup && backupSold;
 			// Plan, backup, total and the renewal in one line above the Checkout.
-			ordering = chosen ? `${planHours(chosen)} im Monat: ${euro(chosen.priceCredits)}${backup && backupOffer ? ` + Sicherung ${euro(backupOffer.monthCents)} = ${euro(chosen.priceCredits + backupOffer.monthCents)}` : backupSold ? ', ohne Sicherung' : ''}. Monatsabo, verlängert sich jeden Monat, kündbar zum Monatsende.` : '';
+			ordering = chosen ? `${planHours(chosen)} im Monat: ${euro(chosen.priceCredits)}${included(chosen) ? ', Sicherung inklusive' : backup && backupOffer ? ` + Sicherung ${euro(backupOffer.monthCents)} = ${euro(chosen.priceCredits + backupOffer.monthCents)}` : backupSold ? ', ohne Sicherung' : ''}. Monatsabo, verlängert sich jeden Monat, kündbar zum Monatsende.` : '';
 			try {
 				secret = await startSubscription(master, id, { ...waiver, backup });
 			} catch (e) {
@@ -260,7 +266,7 @@
 		{/if}
 
 		{#if balance.backup}
-			<BackupLine {master} backup={balance.backup} own={ownBackups} offer={backupOffer} plan={balance.plan} {withdrawal} {termsRead} disabled={busy} onchanged={read} onportal={portal} onwaiver={readWithdrawal} />
+			<BackupLine {master} backup={balance.backup} own={ownBackups} offer={backupOffer} plan={balance.plan} included={included(current)} {withdrawal} {termsRead} disabled={busy} onchanged={read} onportal={portal} onwaiver={readWithdrawal} />
 		{/if}
 
 		<p class="line"><span class="label">Guthaben</span> <strong data-testid="balance-euro">{euro(balance.credits)}</strong>
@@ -268,7 +274,9 @@
 
 		{#if !balance.plan || choosing}
 			<p class="hint">{balance.plan ? 'Neues Paket wählen:' : 'Paket als Monatsabo per Karte wählen (Stripe, jederzeit zum Monatsende kündbar):'}</p>
-			{#if !balance.plan && backupSold && backupOffer}
+			{#if !balance.plan && allIncluded}
+				<p class="hint" data-testid="plan-backup-included">{includedText}</p>
+			{:else if !balance.plan && boxOffered && backupOffer}
 				<label class="with-backup" data-testid="plan-backup">
 					<input type="checkbox" bind:checked={withBackup} data-testid="plan-backup-box" />
 					<span><strong>mit Sicherung</strong> (+ {euro(backupOffer.monthCents)} im Monat){#if backupOffer.copies}: {backupOffer.copies} verschlüsselte Kopien deiner Dokumente{/if}
@@ -280,7 +288,7 @@
 				{#each plans as p (p.id)}
 					<button class="plan-choice" class:current={balance.plan?.id === p.id} onclick={() => (balance?.plan ? plan(p.id) : subscribe(p.id))} disabled={busy || balance.plan?.id === p.id || (!balance.plan && planBlocked)} data-testid={`plan-${p.id}`}>
 						{#if recommended === p.id}<em class="badge">Empfehlung</em>{/if}
-						<span>{p.hours >= 720 ? 'Dauerbetrieb, rund um die Uhr' : `${p.hours} Stunden im Monat`}</span><strong data-testid={`plan-price-${p.id}`}>{euro(balance.plan ? p.priceCredits : planTotal(p))}</strong><small class="hint">{perWeek(p.hours)}{!balance.plan && withBackup && backupSold ? ' · mit Sicherung' : ''}</small>
+						<span>{p.hours >= 720 ? 'Dauerbetrieb, rund um die Uhr' : `${p.hours} Stunden im Monat`}</span><strong data-testid={`plan-price-${p.id}`}>{euro(balance.plan ? p.priceCredits : planTotal(p))}</strong><small class="hint">{perWeek(p.hours)}{included(p) ? ' · Sicherung inklusive' : !balance.plan && withBackup && backupSold ? ' · mit Sicherung' : ''}</small>
 					</button>
 				{/each}
 			</div>
