@@ -203,6 +203,13 @@ IMAGE=localhost/paperless-anywhere-image-builder:1
   two seconds with the attestation of that call included. Aleph's CLI
   prints answers as text, so the bytes could not be compared there.
 
+- 2026-11-13, a publication for the image with #168: the V-PROGRAM was
+  processed and its endpoint named (the node's IPv4 and a mapped port),
+  but the first attested call came seconds later, before the workload was
+  up. The CLI reports that as "attestation failed: RA-TLS HTTP request
+  failed", which the workflow took for a refused attestation and deleted
+  the builder. It now waits when the call did not reach the guest.
+
 ## What goes into the app afterwards
 
 `BUILDER` in `pwa/src/lib/own-image.js`:

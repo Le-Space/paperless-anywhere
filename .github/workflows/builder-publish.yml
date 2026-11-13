@@ -220,8 +220,12 @@ jobs:
             echo "--- try $try"; cat "$RUNNER_TEMP/call.log" "$RUNNER_TEMP/call.txt"
             # Only a refused attestation ends the waiting. With --verbose a
             # call that verified also prints its policy and TCB, so those
-            # words alone say nothing.
-            grep -qiE 'attestation (challenge )?failed|below the required floor' "$RUNNER_TEMP/call.log" && break
+            # words alone say nothing. A call that never reached the guest
+            # is reported as "attestation failed: … request failed" too
+            # (2026-11-13: the builder was deleted seconds after its start,
+            # before its workload was up); that one is waited for.
+            if grep -qiE 'attestation (challenge )?failed|below the required floor' "$RUNNER_TEMP/call.log" \
+              && ! grep -qiE 'error sending request|request failed|connection (refused|reset|closed)|timed out|timeout' "$RUNNER_TEMP/call.log"; then break; fi
             sleep 30
           done
           if [ -n "$verified" ]; then
