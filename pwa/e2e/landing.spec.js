@@ -22,12 +22,12 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await page.goto('/');
 	// The headline: one sentence with one changing word. Its name holds all three.
 	const h1 = page.getByRole('heading', { level: 1 });
-	await expect(h1).toHaveAccessibleName('Paperless anywhere läuft ausfallsicher, vertraulich und nur bei Bedarf.');
+	await expect(h1).toHaveAccessibleName('Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt.');
 	await expect(h1).not.toHaveAttribute('aria-live');
-	await expect(h1.locator('.word')).toHaveText(['ausfallsicher.', 'vertraulich.', 'nur bei Bedarf.']);
+	await expect(h1.locator('.word')).toHaveText(['ausfallsicher.', 'vertraulich.', 'nach deinem Takt.']);
 	await expect(page.locator('.hero .kicker')).toHaveText('Dezentral · vertraulich · auf Abruf');
 	await expect(page.locator('.points h3')).toHaveText(['Ausfallsicher', 'Vertraulich und nachprüfbar', 'Bezahlt nach Gebrauch']);
-	await expect(page).toHaveTitle('Paperless anywhere – ausfallsicher, vertraulich, nur bei Bedarf');
+	await expect(page).toHaveTitle('Paperless anywhere – ausfallsicher, vertraulich, nach deinem Takt');
 	await expect(page.locator('#nodes')).toContainText('2 TEE-Knoten, 1 davon mit Platz');
 	// Resilience, with the live numbers and without claiming more than is true.
 	await expect(page.locator('#nodes h2')).toHaveText('Ausfallsicher: kein einzelnes Rechenzentrum');
@@ -76,13 +76,13 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.getByTestId('own-image-knows').getByRole('listitem')).toHaveText([/Dein Tresor: ja/, /Der Build-Dienst: nur kurz/, /Deine VM: nur kurz/, /Le Space: nein/, /Der Betreiber des Knotens: nein/, /GitHub: nein/]);
 
 	await page.getByRole('button', { name: 'EN' }).click();
-	await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName('Paperless anywhere runs resilient, confidential and only when you need it.');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName('Paperless anywhere runs resilient, confidential and on your schedule.');
 	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 	await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', 'https://le-space.de/#privacy');
 	await expect(page.getByTestId('hero-disclaimer')).toHaveText('Paperless-ngx is an independent open source project (GPL-3.0). Paperless anywhere is offered by Le Space, is not affiliated with the project and is neither endorsed nor sponsored by it.');
 	await expect(page.getByTestId('brand')).toContainText('Paperless-ngx on demand, run by Le Space');
 	await page.reload();
-	await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName('Paperless anywhere runs resilient, confidential and only when you need it.');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName('Paperless anywhere runs resilient, confidential and on your schedule.');
 
 	await page.getByRole('link', { name: /Open the app/ }).first().click();
 	await expect(page).toHaveURL(/\/app\/$/);
@@ -92,12 +92,12 @@ test('the landing page at / speaks German and English and leads to the app at /a
 
 test('link previews find title, description and image in the HTML itself, without scripts', async ({ request }) => {
 	const html = await (await request.get('/')).text();
-	expect(html).toContain('<title>Paperless anywhere – ausfallsicher, vertraulich, nur bei Bedarf</title>');
+	expect(html).toContain('<title>Paperless anywhere – ausfallsicher, vertraulich, nach deinem Takt</title>');
 	for (const tag of ['og:title', 'og:description', 'og:url', 'og:image', 'og:image:alt', 'twitter:card', 'twitter:image']) expect(html).toMatch(new RegExp(`(property|name)="${tag}"`));
 	expect(html).toContain('content="https://paperless.le-space.de/og.png?v=3"');
 	expect(html).toContain('rel="manifest"');
 	expect(html).toContain('rel="apple-touch-icon"');
-	expect(html).toContain('Paperless anywhere läuft ausfallsicher, vertraulich und nur bei Bedarf.');
+	expect(html).toContain('Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt.');
 	const image = await request.get('/og.png');
 	expect(image.ok()).toBe(true);
 	expect(image.headers()['content-type']).toContain('image/png');

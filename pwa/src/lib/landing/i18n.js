@@ -30,10 +30,10 @@ export const TERMS_URL = 'https://credits.le-space.de/agb';
 
 export const texts = {
 	de: {
-		title: 'Paperless anywhere – ausfallsicher, vertraulich, nur bei Bedarf',
-		description: 'Paperless anywhere läuft ausfallsicher, vertraulich und nur bei Bedarf: Paperless-ngx in einer vertraulichen VM, auf Knoten mehrerer Betreiber, im Monatspaket nach Gebrauch.',
+		title: 'Paperless anywhere – ausfallsicher, vertraulich, nach deinem Takt',
+		description: 'Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt: Paperless-ngx in einer vertraulichen VM, auf Knoten mehrerer Betreiber, im Monatspaket nach Gebrauch.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx auf Abruf, betrieben von Le Space: Deine Dokumente. Nur wach, wenn du sie brauchst.',
-		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Ausfallsicher', storage: 'Backups', trust: 'Nachprüfbar', prices: 'Preise', faq: 'FAQ' },
+		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Ausfallsicher', storage: 'Sicherungen', trust: 'Nachprüfbar', prices: 'Preise', faq: 'FAQ' },
 		tagline: 'Paperless-ngx auf Abruf, betrieben von Le Space',
 		disclaimer: DISCLAIMER.de,
 		open: 'Paperless anywhere starten',
@@ -43,12 +43,12 @@ export const texts = {
 			// The headline: a fixed sentence in which one word changes. `full` is what
 			// a screen reader says and what the page's title holds: all three.
 			before: 'Paperless anywhere läuft',
-			words: ['ausfallsicher.', 'vertraulich.', 'nur bei Bedarf.'],
-			full: 'Paperless anywhere läuft ausfallsicher, vertraulich und nur bei Bedarf.',
+			words: ['ausfallsicher.', 'vertraulich.', 'nach deinem Takt.'],
+			full: 'Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt.',
 			lead: 'Darin läuft Paperless-ngx, auf vertraulichen Knoten mehrerer Betreiber und mit Sicherungen bei mehreren unabhängigen Speicheranbietern: kein einzelnes Rechenzentrum. Die VM ist vertraulich (AMD SEV-SNP); bei jedem Start bestätigt der Prozessor Firmware, Kernel und Initrd, und die App prüft das, bevor sie einen Schlüssel herausgibt. Du wählst ein Paket nach deinem tatsächlichen Gebrauch, etwa für Buchhaltung oder Steuerberatung; Dauerbetrieb nur, wenn du ihn brauchst.'
 		},
 		points: [
-			{ t: 'Ausfallsicher', d: 'Kein einzelnes Rechenzentrum: gerechnet wird auf Knoten mehrerer Betreiber, gesichert bei mehreren unabhängigen Speicheranbietern. Fällt ein Knoten aus, startest du auf einem anderen.' },
+			{ t: 'Ausfallsicher', d: 'Kein einzelnes Rechenzentrum: Gerechnet wird auf Knoten mehrerer Betreiber, gesichert bei mehreren unabhängigen Speicheranbietern. Fällt ein Knoten aus, startest du auf einem anderen.' },
 			{ t: 'Vertraulich und nachprüfbar', d: 'Speicher und Platte der VM sind verschlüsselt; der Betreiber des Knotens kann sie nicht lesen. Was der Prozessor bestätigt und was noch offen ist, steht unter „Nachprüfbar“.' },
 			{ t: 'Bezahlt nach Gebrauch', d: 'Ein Monatspaket für die Stunden, die du brauchst: starten, arbeiten, stoppen. Dauerbetrieb nur, wenn du ihn wirklich brauchst.' }
 		],
@@ -60,10 +60,10 @@ export const texts = {
 		how: {
 			title: 'So geht’s',
 			steps: [
-				{ t: 'Tresor anlegen', d: 'Ein Passkey auf deinem Gerät öffnet deinen Tresor. Dazu bekommst du 24 Wörter zum Aufschreiben: damit kommst du auch ohne das Gerät wieder hinein. Für den Tresor brauchst du kein Konto und keine E-Mail-Adresse. Erst beim Kauf eines Pakets fragt der Zahlungsdienst Stripe nach einer E-Mail-Adresse, für Beleg und Abo.' },
-				{ t: 'Starten', d: 'Die App sucht einen freien TEE-Knoten, prüft dessen Hardware-Nachweis und gibt erst dann den Schlüssel für die Platte heraus. Das Backup wird eingespielt.' },
+				{ t: 'Tresor anlegen', d: 'Ein Passkey auf deinem Gerät öffnet deinen Tresor. Dazu bekommst du 24 Wörter zum Aufschreiben: Damit kommst du auch ohne das Gerät wieder hinein. Für den Tresor brauchst du kein Konto und keine E-Mail-Adresse. Erst beim Kauf eines Pakets fragt der Zahlungsdienst Stripe nach einer E-Mail-Adresse, für Beleg und Abo.' },
+				{ t: 'Starten', d: 'Die App sucht einen freien TEE-Knoten, prüft dessen Hardware-Nachweis und gibt erst dann den Schlüssel für die Platte heraus. Die Sicherung wird eingespielt.' },
 				{ t: 'Arbeiten', d: 'Paperless-ngx wie gewohnt im Browser: hochladen, verschlagworten, suchen.' },
-				{ t: 'Sichern und beenden', d: 'Ein Klick: Die VM verschlüsselt ein Backup, legt es dezentral ab und fährt herunter. Ab dann läuft keine Rechenzeit mehr.' }
+				{ t: 'Sichern und beenden', d: 'Ein Klick: Die VM verschlüsselt eine Sicherung, legt sie dezentral ab und fährt herunter. Von da an fällt keine Rechenzeit mehr an.' }
 			]
 		},
 		tee: {
@@ -81,7 +81,7 @@ export const texts = {
 			lead: 'Noch nicht in Betrieb. Heute teilen alle VMs eines Images dessen Passphrase, und Le Space kennt sie (siehe „Nachprüfbar“). So soll es werden: Die Passphrase kommt aus deinem Tresor, und sonst hat sie niemand: nicht Le Space, nicht der Knoten, nicht GitHub.',
 			steps: [
 				{ t: 'Öffentliches Image', d: 'Das System, in dem Paperless-ngx läuft, ist für alle gleich und enthält kein Geheimnis. Der Image-Workflow veröffentlicht es auf Wunsch schon unverschlüsselt, mit seinem Hash; jeder kann ihn nachrechnen.' },
-				{ t: 'Geprüfter Build-Dienst', d: 'Ein kleiner Dienst in einer vertraulichen VM, ganz gemessen, samt dem Image, das er versiegelt. Die App wird sich von der Hardware bestätigen lassen, dass dort genau der veröffentlichte Code mit genau diesem Image läuft.' },
+				{ t: 'Geprüfter Build-Dienst', d: 'Ein kleiner Dienst in einer vertraulichen VM, vollständig gemessen, samt dem Image, das er versiegelt. Die App wird sich von der Hardware bestätigen lassen, dass dort genau der veröffentlichte Code mit genau diesem Image läuft.' },
 				{ t: 'Dein Image', d: 'Erst dann schickt die App die Passphrase aus deinem Tresor. Der Dienst versiegelt das Image damit und vergisst sie wieder. Die App holt das versiegelte Image über denselben geprüften Kanal und legt es selbst bei Aleph ab.' },
 				{ t: 'Deine VM', d: 'Beim Start öffnet die VM die Platte mit deiner Passphrase. Eine Platte, die nicht damit versiegelt wurde, geht nicht auf, und es startet nichts.' }
 			],
@@ -95,12 +95,12 @@ export const texts = {
 				{ who: 'Der Betreiber des Knotens', v: 'no' },
 				{ who: 'GitHub', v: 'no' }
 			],
-			compare: 'Öffentlich vergleichen lassen sich dann der Hash des Images und der Messwert des Build-Dienstes. Dein verschlüsseltes Image sieht bei jeder Person anders aus. Stand: Der Build-Dienst ist gebaut. Zur Probe lief er bei Aleph als gemessene VM, bestand dort die Prüfung durch die Hardware und versiegelte das echte Image. In Betrieb ist er nicht: Es läuft kein Dienst auf Dauer, und die App nennt keinen; erst dann erscheint „Mein Image bauen“ in der Einrichtung.'
+			compare: 'Öffentlich vergleichen lassen sich dann der Hash des Images und der Messwert des Build-Dienstes. Das verschlüsselte Image sieht bei jeder Person anders aus. Stand: Der Build-Dienst ist gebaut. Zur Probe lief er bei Aleph als gemessene VM, bestand dort die Prüfung durch die Hardware und versiegelte das echte Image. In Betrieb ist er nicht: Es läuft kein Dienst auf Dauer, und die App nennt keinen; erst dann erscheint „Mein Image bauen“ in der Einrichtung.'
 		},
 		nodes: {
 			title: 'Ausfallsicher: kein einzelnes Rechenzentrum',
-			lead: 'Dein Paperless anywhere hängt an keinem bestimmten Rechner: Es kann auf jedem dieser vertraulichen Knoten starten. Fällt einer aus, startest du auf einem anderen und spielst dein Backup ein. Die Liste ist live.',
-			resilience: (n, o, c) => `${n} vertrauliche Knoten von ${o} ${o === 1 ? 'Betreiber' : 'Betreibern'}${c ? ` in ${c} ${c === 1 ? 'Land' : 'Ländern'}` : ''}`,
+			lead: 'Dein Paperless anywhere hängt an keinem bestimmten Rechner: Es kann auf jedem dieser vertraulichen Knoten starten. Fällt einer aus, startest du auf einem anderen und spielst deine Sicherung ein. Die Liste ist live.',
+			resilience: (n, o, c) => `${n} ${n === 1 ? 'vertraulicher Knoten' : 'vertrauliche Knoten'} von ${o} ${o === 1 ? 'Betreiber' : 'Betreibern'}${c ? ` in ${c} ${c === 1 ? 'Land' : 'Ländern'}` : ''}`,
 			storageNote: 'Die Sicherungen liegen dazu bei mehreren unabhängigen Speicheranbietern, in den Ländern, die du wählst.',
 			dependsNote: 'Was noch an Le Space hängt: Guthaben und Abrechnung, der Relay, über den die App den Nachweis der VM prüft, und die Auslieferung der App.',
 			loading: 'Knotenliste wird geladen …',
@@ -112,21 +112,21 @@ export const texts = {
 			you: 'deine VM',
 			list: 'Alle Knoten anzeigen',
 			countries: 'Länder der Knoten',
-			placesNote: 'Standorte ungefähr, aus der IP-Adresse der Knoten ermittelt.',
+			placesNote: 'Standorte ungefähr, aus den IP-Adressen der Knoten ermittelt.',
 		},
 		storage: {
-			title: 'Backups, wo du willst',
-			lead: 'Das Backup wird in der VM verschlüsselt, bevor es sie verlässt, und bei unabhängigen Speicheranbietern abgelegt. Sie weisen regelmäßig nach, dass sie die Daten noch haben.',
+			title: 'Sicherungen, wo du willst',
+			lead: 'Die Sicherung wird in der VM verschlüsselt, bevor sie die VM verlässt, und bei unabhängigen Speicheranbietern abgelegt. Sie weisen regelmäßig nach, dass sie die Daten noch haben.',
 			choose: 'Du wählst selbst: Regionen oder Länder (zum Beispiel nur EU) und 1 bis 3 Kopien bei verschiedenen Anbietern.',
 			loading: 'Anbieter werden geladen …',
 			error: 'Die Anbieterliste ist gerade nicht erreichbar.',
-			count: (n, c) => `${n} zugelassene Anbieter in ${c} Ländern`,
+			count: (n, c) => `${n} ${n === 1 ? 'zugelassener Anbieter' : 'zugelassene Anbieter'} in ${c} ${c === 1 ? 'Land' : 'Ländern'}`,
 			endorsed: 'empfohlen',
 		},
 		trust: {
 			title: 'Nachprüfbar: wer welchen Schlüssel hat',
-			lead: 'Wo das Image entsteht, wie seine Platte verschlüsselt ist, wer welches Geheimnis kennt und was die Hardware bestätigt. Mit den Punkten, die noch offen sind, und wo du jede Aussage selbst prüfen kannst.',
-			diagramLabel: 'Schaubild: Ein GitHub-Runner baut das Image und verschlüsselt es mit LUKS; es liegt bei Aleph. Es läuft in einer vertraulichen VM (AMD SEV-SNP): gemessen werden Firmware, Kernel, Initrd und Besitzer, nicht das Image; was die VM schreibt, liegt in einem Datenbereich mit einem Zufallsschlüssel, den nur sie hat. Sicherungen werden in der VM mit age verschlüsselt und bei Filecoin abgelegt. Dein Browser prüft den Nachweis der VM und schickt erst dann Passphrase und Geheimnisse.',
+			lead: 'Wo das Image entsteht, wie seine Platte verschlüsselt ist, wer welches Geheimnis kennt und was die Hardware bestätigt. Dazu steht hier, was noch offen ist und wo du jede Aussage selbst prüfen kannst.',
+			diagramLabel: 'Schaubild: Ein GitHub-Runner baut das Image und verschlüsselt es mit LUKS; es liegt bei Aleph. Es läuft in einer vertraulichen VM (AMD SEV-SNP): Gemessen werden Firmware, Kernel, Initrd und Besitzer, nicht das Image; was die VM schreibt, liegt in einem Datenbereich mit einem Zufallsschlüssel, den nur sie hat. Sicherungen werden in der VM mit age verschlüsselt und bei Filecoin abgelegt. Dein Browser prüft den Nachweis der VM und schickt erst dann Passphrase und Geheimnisse.',
 			diagram: {
 				build: { kicker: '1 · Gebaut', title: 'GitHub-Runner', lines: ['rootfs.yml baut Debian,', 'Docker, Caddy, Skripte', 'und verschlüsselt (LUKS)'] },
 				store: { kicker: '2 · Abgelegt', title: 'Aleph-Speicher', lines: ['das Image, verschlüsselt,', 'benannt durch seinen', 'STORE-Hash'] },
@@ -134,7 +134,7 @@ export const texts = {
 				measured: { title: 'Gemessen ✓', lines: ['Firmware · Kernel · Initrd · Besitzer'] },
 				image: { title: 'Image (LUKS): nicht gemessen', lines: ['öffnet sich nur mit', 'der Image-Passphrase'] },
 				data: { title: 'Datenbereich (dm-crypt)', lines: ['Zufallsschlüssel bei jedem Start,', 'nur im Speicher der VM'] },
-				backup: { kicker: '4 · Gesichert', title: 'Filecoin', lines: ['in der VM mit age', 'verschlüsselt, an', 'deinen Schlüssel'] },
+				backup: { kicker: '4 · Gesichert', title: 'Filecoin', lines: ['in der VM mit age', 'verschlüsselt, für', 'deinen Schlüssel'] },
 				you: { kicker: 'Du', title: 'Dein Browser, dein Tresor', lines: ['① prüft den AMD-Nachweis der VM', '② erst dann: Passphrase, Geheimnisse', 'über einen Relay, der nur weiterleitet'] },
 				legend: 'Schlüssel',
 				keys: { image: 'Image-Passphrase: eine je Image', data: 'Datenbereich: je Start, nur in der VM', vault: 'Tresor: nur bei dir' }
@@ -142,11 +142,11 @@ export const texts = {
 			secretsTitle: 'Wer welches Geheimnis kennt',
 			cols: { what: 'Geheimnis', has: 'Wer es kennt', not: 'Wer nicht' },
 			secrets: [
-				{ key: 'image', what: 'Image-Passphrase', d: 'öffnet die LUKS-Platte des Images. Für alle VMs eines Images gleich; das Image enthält nichts Persönliches.', has: 'Le Space: Ein Release-Image bekommt beim Bau auf einem GitHub-gehosteten Runner eine zufällige Passphrase, die der Lauf nur verschlüsselt (age) an Le Space ausgibt. Dazu deine App (versiegelt in deinem Profil) und die VM beim Start.', not: 'der Betreiber des Knotens' },
+				{ key: 'image', what: 'Image-Passphrase', d: 'öffnet die LUKS-Platte des Images. Für alle VMs eines Images gleich; das Image enthält nichts Persönliches.', has: 'Le Space: Ein Release-Image bekommt beim Bau auf einem von GitHub gehosteten Runner eine zufällige Passphrase, die der Lauf nur verschlüsselt (age) an Le Space ausgibt. Dazu deine App (versiegelt in deinem Profil) und die VM beim Start.', not: 'der Betreiber des Knotens' },
 				{ key: 'data', what: 'Schlüssel des Datenbereichs', d: 'versiegelt alles, was die VM schreibt: Dokumente, Datenbank, Zertifikat.', has: 'nur die VM, nur im Speicher, bei jedem Start neu und zufällig. Nach dem Stopp gibt es ihn nicht mehr.', not: 'du, die App, Le Space, der Knoten' },
 				{ key: 'vault', what: 'Hauptgeheimnis des Tresors', d: '32 zufällige Bytes; alle Schlüssel darunter werden daraus abgeleitet.', has: 'du: versiegelt mit deinem Passkey (PRF) und mit den 24 Wörtern, offen nur im Speicher deines Browsers.', not: 'Le Space, Aleph (dort liegt es nur versiegelt), die VM' },
 				{ key: 'vault', what: 'Paperless-Passwörter, Sitzungsschlüssel', d: 'aus dem Tresor abgeleitet.', has: 'dein Browser; die VM bekommt sie nach der Prüfung, für diesen Start.', not: 'Le Space, der Knoten' },
-				{ key: 'vault', what: 'Sicherungsschlüssel (age)', d: 'öffnet deine Sicherungen; aus dem Tresor abgeleitet oder selbst eingefügt.', has: 'dein Browser. Die VM verschlüsselt nur an den öffentlichen Teil; den Schlüssel selbst bekommt sie nur für eine Wiederherstellung und löscht ihn danach.', not: 'Le Space, die Speicheranbieter: Sie haben nur Chiffrat.' }
+				{ key: 'vault', what: 'Sicherungsschlüssel (age)', d: 'öffnet deine Sicherungen; aus dem Tresor abgeleitet oder selbst eingefügt.', has: 'dein Browser. Die VM verschlüsselt nur mit dem öffentlichen Teil des Schlüssels; den Schlüssel selbst bekommt sie nur für eine Wiederherstellung und löscht ihn danach.', not: 'Le Space, die Speicheranbieter: Sie haben nur Chiffrat.' }
 			],
 			attestTitle: 'Was die Hardware bestätigt',
 			proves: [
@@ -204,7 +204,7 @@ export const texts = {
 			title: 'Lizenzen – Paperless anywhere',
 			description: 'Welche Open-Source-Software Paperless anywhere einsetzt, in welcher Version, unter welcher Lizenz und wo ihr Quellcode liegt.',
 			h1: 'Lizenzen',
-			lead: 'Paperless anywhere ist ein Angebot von Le Space. Es setzt freie Software ein; hier steht welche, in welcher Version, unter welcher Lizenz und wo ihr Quellcode liegt. Die Angaben stammen aus dem Build dieser Seite.',
+			lead: 'Paperless anywhere ist ein Angebot von Le Space. Es setzt freie Software ein; hier steht, welche, in welcher Version, unter welcher Lizenz und wo ihr Quellcode liegt. Die Angaben stammen aus dem Build dieser Seite.',
 			ngx: {
 				title: 'Paperless-ngx',
 				intro: 'In der VM läuft Paperless-ngx, ein unabhängiges Open-Source-Projekt unter der GNU General Public License, Version 3 (GPL-3.0).',
@@ -229,12 +229,12 @@ export const texts = {
 			gpl: { title: 'Text der GPL-3.0', show: 'Lizenztext anzeigen (Englisch, wie veröffentlicht)' },
 			back: 'Zur Startseite'
 		},
-		cta: { title: 'Bereit?', lead: 'Tresor anlegen dauert eine Minute. Kein Konto, kein Passwort.' },
+		cta: { title: 'Bereit?', lead: 'Den Tresor anzulegen dauert eine Minute. Kein Konto, kein Passwort.' },
 		footer: { by: 'Ein Projekt von Le Space', belege: 'Le Space Belege', imprint: 'Impressum', imprintUrl: 'https://le-space.de/#impressum', privacy: 'Datenschutz', privacyUrl: 'https://le-space.de/#datenschutz', built: 'Paperless anywhere rechnet auf vertraulichen Knoten von Aleph Cloud und sichert auf Filecoin.', ngxLink: 'Paperless-ngx auf GitHub', terms: 'AGB', withdrawal: 'Widerrufsbelehrung' }
 	},
 	en: {
-		title: 'Paperless anywhere – resilient, confidential, only when you need it',
-		description: 'Paperless anywhere runs resilient, confidential and only when you need it: Paperless-ngx in a confidential VM, on nodes of several operators, in a monthly package by use.',
+		title: 'Paperless anywhere – resilient, confidential, on your schedule',
+		description: 'Paperless anywhere runs resilient, confidential and on your schedule: Paperless-ngx in a confidential VM, on nodes of several operators, in a monthly package by use.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx on demand, run by Le Space: Your documents. Awake only when you need them.',
 		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Resilient', storage: 'Backups', trust: 'Verify', prices: 'Prices', faq: 'FAQ' },
 		tagline: 'Paperless-ngx on demand, run by Le Space',
@@ -244,8 +244,8 @@ export const texts = {
 		hero: {
 			kicker: 'Decentralised · confidential · on demand',
 			before: 'Paperless anywhere runs',
-			words: ['resilient.', 'confidential.', 'only when you need it.'],
-			full: 'Paperless anywhere runs resilient, confidential and only when you need it.',
+			words: ['resilient.', 'confidential.', 'on your schedule.'],
+			full: 'Paperless anywhere runs resilient, confidential and on your schedule.',
 			lead: 'Inside it runs Paperless-ngx, on confidential nodes of several operators and with backups at several independent storage providers: no single data centre. The VM is confidential (AMD SEV-SNP); at every start the processor confirms firmware, kernel and initrd, and the app checks that before it hands over a key. You choose a package by what you actually use, for bookkeeping or tax advice, say; around the clock only if you need it.'
 		},
 		points: [
@@ -301,7 +301,7 @@ export const texts = {
 		nodes: {
 			title: 'Resilient: no single data centre',
 			lead: 'Your Paperless anywhere depends on no particular machine: it can start on any of these confidential nodes. If one fails, you start on another and restore your backup. The list is live.',
-			resilience: (n, o, c) => `${n} confidential nodes of ${o} ${o === 1 ? 'operator' : 'operators'}${c ? ` in ${c} ${c === 1 ? 'country' : 'countries'}` : ''}`,
+			resilience: (n, o, c) => `${n} confidential ${n === 1 ? 'node' : 'nodes'} of ${o} ${o === 1 ? 'operator' : 'operators'}${c ? ` in ${c} ${c === 1 ? 'country' : 'countries'}` : ''}`,
 			storageNote: 'The backups, in turn, lie with several independent storage providers, in the countries you choose.',
 			dependsNote: 'What still depends on Le Space: balance and billing, the relay through which the app checks the VM’s attestation, and the delivery of the app.',
 			loading: 'Loading the node list …',
@@ -321,7 +321,7 @@ export const texts = {
 			choose: 'You choose: regions or countries (for example EU only) and 1 to 3 copies with different providers.',
 			loading: 'Loading providers …',
 			error: 'The provider list cannot be reached right now.',
-			count: (n, c) => `${n} approved providers in ${c} countries`,
+			count: (n, c) => `${n} approved ${n === 1 ? 'provider' : 'providers'} in ${c} ${c === 1 ? 'country' : 'countries'}`,
 			endorsed: 'endorsed',
 		},
 		trust: {
