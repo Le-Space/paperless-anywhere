@@ -31,7 +31,7 @@ export const TERMS_URL = 'https://credits.le-space.de/agb';
 export const texts = {
 	de: {
 		title: 'Paperless anywhere – ausfallsicher, vertraulich, nach deinem Takt',
-		description: 'Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt: Paperless-ngx in einer vertraulichen VM, auf Knoten mehrerer Betreiber, im Monatspaket nach Gebrauch.',
+		description: 'Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt: Paperless-ngx in einer vertraulichen VM, auf Knoten mehrerer Betreiber, im Monatspaket rund um die Uhr oder auf Abruf.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx auf Abruf, betrieben von Le Space: Deine Dokumente. Nur wach, wenn du sie brauchst.',
 		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Ausfallsicher', storage: 'Sicherungen', trust: 'Nachprüfbar', prices: 'Preise', faq: 'FAQ' },
 		tagline: 'Paperless-ngx auf Abruf, betrieben von Le Space',
@@ -45,17 +45,17 @@ export const texts = {
 			before: 'Paperless anywhere läuft',
 			words: ['ausfallsicher.', 'vertraulich.', 'nach deinem Takt.'],
 			full: 'Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt.',
-			lead: 'Darin läuft Paperless-ngx, auf vertraulichen Knoten mehrerer Betreiber und mit Sicherungen bei mehreren unabhängigen Speicheranbietern: kein einzelnes Rechenzentrum. Die VM ist vertraulich (AMD SEV-SNP); bei jedem Start bestätigt der Prozessor Firmware, Kernel und Initrd, und die App prüft das, bevor sie einen Schlüssel herausgibt. Du wählst ein Paket nach deinem tatsächlichen Gebrauch, etwa für Buchhaltung oder Steuerberatung; Dauerbetrieb nur, wenn du ihn brauchst.'
+			lead: 'Darin läuft Paperless-ngx, auf vertraulichen Knoten mehrerer Betreiber und mit Sicherungen bei mehreren unabhängigen Speicheranbietern: kein einzelnes Rechenzentrum. Die VM ist vertraulich (AMD SEV-SNP); bei jedem Start bestätigt der Prozessor Firmware, Kernel und Initrd, und die App prüft das, bevor sie einen Schlüssel herausgibt. Du wählst, wie es läuft: im Dauerbetrieb rund um die Uhr oder auf Abruf, wenn du es brauchst, etwa für die Buchhaltung.'
 		},
 		points: [
 			{ t: 'Ausfallsicher', d: 'Kein einzelnes Rechenzentrum: Gerechnet wird auf Knoten mehrerer Betreiber, gesichert bei mehreren unabhängigen Speicheranbietern. Fällt ein Knoten aus, startest du auf einem anderen.' },
 			{ t: 'Vertraulich und nachprüfbar', d: 'Speicher und Platte der VM sind verschlüsselt; der Betreiber des Knotens kann sie nicht lesen. Was der Prozessor bestätigt und was noch offen ist, steht unter „Nachprüfbar“.' },
-			{ t: 'Bezahlt nach Gebrauch', d: 'Ein Monatspaket für die Stunden, die du brauchst: starten, arbeiten, stoppen. Dauerbetrieb nur, wenn du ihn wirklich brauchst.' }
+			{ t: 'Rund um die Uhr oder auf Abruf', d: 'Ein Monatspaket, das zu deinem Betrieb passt: Dauerbetrieb rund um die Uhr, oder ein Stundenpaket zum Starten, Arbeiten und Stoppen.' }
 		],
 		trustHint: 'Nachprüfbar: wer welchen Schlüssel hat, was die Hardware bestätigt und was noch offen ist',
 		audience: {
 			title: 'Für wen?',
-			lead: 'Für alle, die Paperless-ngx nur stundenweise brauchen: Buchhaltung und Steuerberatung, Kanzleien, kleine Firmen und Selbstständige, die ihre Belege einmal in der Woche oder zum Monatsabschluss ablegen und sonst keine Maschine laufen lassen wollen.'
+			lead: 'Für Unternehmen, die ihr Dokumentenarchiv rund um die Uhr brauchen: Paperless anywhere läuft im Dauerbetrieb, vertraulich und an keinen einzelnen Betreiber gebunden. Und für Selbstständige und kleine Firmen, die es nur ab und zu brauchen: Deine eigene VM ist in etwa einer Viertelstunde bereit, zum Beispiel einmal in der Woche oder zum Monatsabschluss für die Buchhaltung, und kostet dazwischen keine Rechenzeit.'
 		},
 		how: {
 			title: 'So geht’s',
@@ -180,7 +180,7 @@ export const texts = {
 		},
 		prices: {
 			title: 'Preise',
-			lead: 'Wähle ein Monatspaket für die Stunden, die du im Monat brauchst. Rund um die Uhr nur, wenn du es wirklich brauchst.',
+			lead: 'Wähle ein Monatspaket: Dauerbetrieb rund um die Uhr, oder die Stunden, die du im Monat brauchst.',
 			perMonth: 'pro Monat',
 			vat: 'Alle Preise inkl. 19 % USt.',
 			legal: { before: 'Es gelten die ', terms: 'AGB', between: '; dort steht auch die ', withdrawal: 'Widerrufsbelehrung', after: ' (§ 9).' },
@@ -249,7 +249,7 @@ export const texts = {
 	},
 	en: {
 		title: 'Paperless anywhere – resilient, confidential, on your schedule',
-		description: 'Paperless anywhere runs resilient, confidential and on your schedule: Paperless-ngx in a confidential VM, on nodes of several operators, in a monthly package by use.',
+		description: 'Paperless anywhere runs resilient, confidential and on your schedule: Paperless-ngx in a confidential VM, on nodes of several operators, in a monthly package around the clock or on demand.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx on demand, run by Le Space: Your documents. Awake only when you need them.',
 		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Resilient', storage: 'Backups', trust: 'Verify', prices: 'Prices', faq: 'FAQ' },
 		tagline: 'Paperless-ngx on demand, run by Le Space',
@@ -261,17 +261,17 @@ export const texts = {
 			before: 'Paperless anywhere runs',
 			words: ['resilient.', 'confidential.', 'on your schedule.'],
 			full: 'Paperless anywhere runs resilient, confidential and on your schedule.',
-			lead: 'Inside it runs Paperless-ngx, on confidential nodes of several operators and with backups at several independent storage providers: no single data centre. The VM is confidential (AMD SEV-SNP); at every start the processor confirms firmware, kernel and initrd, and the app checks that before it hands over a key. You choose a package by what you actually use, for bookkeeping or tax advice, say; around the clock only if you need it.'
+			lead: 'Inside it runs Paperless-ngx, on confidential nodes of several operators and with backups at several independent storage providers: no single data centre. The VM is confidential (AMD SEV-SNP); at every start the processor confirms firmware, kernel and initrd, and the app checks that before it hands over a key. You choose how it runs: always on, around the clock, or on demand when you need it, for the bookkeeping, say.'
 		},
 		points: [
 			{ t: 'Resilient', d: 'No single data centre: it computes on nodes of several operators and backs up to several independent storage providers. If a node fails, you start on another.' },
 			{ t: 'Confidential and checkable', d: 'The VM’s memory and disk are encrypted; the node’s operator cannot read them. What the processor confirms and what is still open is under “Verify”.' },
-			{ t: 'Paid by use', d: 'A monthly package for the hours you need: start, work, stop. Around the clock only if you really need it.' }
+			{ t: 'Around the clock or on demand', d: 'A monthly package that fits how you work: always on, around the clock, or a package of hours to start, work and stop.' }
 		],
 		trustHint: 'Checkable: who holds which key, what the hardware confirms and what is still open',
 		audience: {
 			title: 'Who is it for?',
-			lead: 'For everyone who needs Paperless-ngx by the hour only: bookkeeping and tax advisers, law firms, small companies and the self-employed, who file their receipts once a week or at the month’s end and want no machine running in between.'
+			lead: 'For companies that need their document archive around the clock: Paperless anywhere runs always on, confidential and tied to no single operator. And for freelancers and small businesses that need it only now and then: your own VM is ready in about a quarter of an hour, say once a week or at the month’s end for the bookkeeping, and uses no compute time in between.'
 		},
 		how: {
 			title: 'How it works',
@@ -396,7 +396,7 @@ export const texts = {
 		},
 		prices: {
 			title: 'Prices',
-			lead: 'Choose a monthly package for the hours you need in a month. Around the clock only if you really need it.',
+			lead: 'Choose a monthly package: always on, around the clock, or the hours you need in a month.',
 			perMonth: 'per month',
 			vat: 'All prices include 19% VAT.',
 			legal: { before: 'The ', terms: 'terms', between: ' apply (in German); they also hold the ', withdrawal: 'instruction on withdrawal', after: ' (§ 9).' },
