@@ -3,7 +3,7 @@
 // the last check, when the next check is due, and a requested backup
 // ("Jetzt sichern"). The texts in German and English (same keys); the rest of
 // the app is German for now, so the language follows the landing page's choice.
-import { initialLang } from './landing/i18n.js';
+import { currentLang } from './i18n/index.js';
 
 /**
  * @typedef {{
@@ -135,4 +135,4 @@ export const BACKUP_TEXTS = {
 };
 
 /** The language of these texts: the landing page's choice, else the browser's. */
-export const backupLang = () => initialLang();
+export const backupLang = () => currentLang();

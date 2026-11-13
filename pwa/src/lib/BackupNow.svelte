@@ -7,13 +7,15 @@
 	import { vmStatus } from '$lib/vm.js';
 	import { statusToken } from '$lib/keys/derive.js';
 	import { BackupFailedError, requestBackup } from '$lib/lifecycle.js';
-	import { BACKUP_TEXTS, backupLang, backupOverview, when } from '$lib/backup-overview.js';
+	import { BACKUP_TEXTS, backupOverview, when } from '$lib/backup-overview.js';
+	import { lang as appLang } from '$lib/i18n/index.js';
 
 	/** @type {{ master: Uint8Array, profile: Record<string, any>, known?: { at: string, copies?: number | null } | null, disabled?: boolean, onbusy?: (busy: boolean) => void, ongood?: (good: { at: string, copies: number, requested: number }) => void }} */
 	let { master, profile, known = null, disabled = false, onbusy = () => {}, ongood = () => {} } = $props();
 
-	const lang = backupLang();
-	const t = BACKUP_TEXTS[lang];
+	// Follows the language switch in the header.
+	const lang = $derived($appLang);
+	const t = $derived(BACKUP_TEXTS[lang]);
 	/** @type {any} */
 	let status = $state(null);
 	let answered = $state(false);

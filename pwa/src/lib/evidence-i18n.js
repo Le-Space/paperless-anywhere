@@ -2,14 +2,10 @@
 // in German and English with the same keys (evidence.spec.js checks that).
 // The ids are those of evidence.js.
 
-/** The language chosen on the landing page, else German. @returns {'de' | 'en'} */
-export function appLang() {
-	try {
-		return localStorage.getItem('paperless-lang') === 'en' ? 'en' : 'de';
-	} catch {
-		return 'de';
-	}
-}
+import { currentLang } from './i18n/index.js';
+
+/** The app's language (i18n/index.js): the one chosen last, else German. @returns {'de' | 'en'} */
+export const appLang = () => currentLang();
 
 export const evidenceTexts = {
 	de: {

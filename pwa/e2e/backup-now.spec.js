@@ -33,9 +33,9 @@ async function runningVault(aggregates, extra = {}) {
 
 async function open(page, phrase) {
 	await page.goto('/app/');
-	await page.getByText('Auf diesem Gerät mit Wiederherstellungsphrase öffnen').click();
+	await page.getByTestId('open-with-phrase').click();
 	await page.locator('textarea').first().fill(phrase);
-	await page.getByRole('button', { name: 'Öffnen', exact: true }).click();
+	await page.getByTestId('open-phrase').click();
 }
 
 /** Aleph mock, the vault, nothing else on the network, and the VM's status page. */
@@ -203,10 +203,10 @@ test.describe('German', () => {
 		await page.getByTestId('tab-advanced').click();
 		const glance = page.getByTestId('glance');
 		await expect(glance.locator('li a')).toHaveText(['Paperless-ngx', 'Sicherungen', 'Adresse', 'Zahlweg']);
-		await expect(page.getByTestId('glance-Paperless-ngx')).toHaveText('läuft');
-		await expect(page.getByTestId('glance-Sicherungen')).toHaveText('noch keine');
-		await expect(page.getByTestId('glance-Adresse')).toHaveText(HOST);
-		await expect(page.getByTestId('glance-Zahlweg')).toHaveText('noch nicht gewählt');
+		await expect(page.getByTestId('glance-paperless')).toHaveText('läuft');
+		await expect(page.getByTestId('glance-backups')).toHaveText('noch keine');
+		await expect(page.getByTestId('glance-address')).toHaveText(HOST);
+		await expect(page.getByTestId('glance-pays')).toHaveText('noch nicht gewählt');
 		// It stands first; the Paperless card follows with its own chip and one main action.
 		const top = async (l) => (await l.boundingBox()).y;
 		expect(await top(glance)).toBeLessThan(await top(page.getByTestId('lifecycle')));
@@ -233,6 +233,10 @@ test.describe('English', () => {
 			route.fulfill({ json: { v: 2, phase: 'ready', paperless: true, backup: null, lastBackup: null, backupSchedule: { nextCheck: new Date(Date.now() + 3600_000).toISOString(), everySeconds: 7200 }, backupRequest: null }, headers: { 'access-control-allow-origin': '*' } })
 		);
 		await open(page, phrase);
+		// German without a choice, whatever the browser's language; the switch in the header changes it at once.
+		await expect(page.getByTestId('backup-last')).toHaveText('Letzte Sicherung: Seit dem Start noch keine Sicherung');
+		await page.getByTestId('app-lang-en').click();
+		await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 		await expect(page.getByTestId('backup-last')).toHaveText('Last backup: No backup since the start yet');
 		await expect(page.getByTestId('backup-summary')).toContainText('next check');
 		await expect(page.getByTestId('backup-now')).toHaveText('Back up now');

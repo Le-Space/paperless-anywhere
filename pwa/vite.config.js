@@ -22,5 +22,6 @@ export default defineConfig({
 	// The dev server pre-bundles dependencies into .vite/deps, where the attest
 	// package's `new URL('…_bg.wasm', import.meta.url)` no longer finds its file.
 	optimizeDeps: { exclude: ['@le-space/attest-wasm'] },
-	test: { include: ['src/**/*.spec.js'], environment: 'node' }
+	// The unit tests read the app's texts in German, whatever the machine's language.
+	test: { include: ['src/**/*.spec.js'], environment: 'node', setupFiles: ['src/lib/i18n/test-setup.js'] }
 });

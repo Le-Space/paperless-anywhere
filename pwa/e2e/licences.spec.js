@@ -33,5 +33,10 @@ test('the landing page and the app link to /lizenzen; it follows the language', 
 	await expect(page.getByTestId('ngx-changes')).toContainText('None to its content.');
 
 	await page.goto('/app/');
+	// The app shows the language chosen last, here English from the licence page.
+	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+	await expect(page.getByTestId('build-info').getByRole('link', { name: 'Licences' })).toHaveAttribute('href', '/lizenzen/');
+	await expect(page.getByTestId('build-info').getByRole('link', { name: 'About Paperless anywhere' })).toHaveAttribute('href', '/en/');
+	await page.getByTestId('app-lang-de').click();
 	await expect(page.getByTestId('build-info').getByRole('link', { name: 'Lizenzen' })).toHaveAttribute('href', '/lizenzen/');
 });

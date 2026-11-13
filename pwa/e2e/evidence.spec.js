@@ -39,9 +39,9 @@ async function open(page, running) {
 	await page.context().route(/^https?:\/\/(?!localhost|api2\.aleph\.im)/, (route) => route.abort());
 	await page.context().route(`https://${HOST}/anywhere/**`, (route) => route.fulfill({ json: STATUS, headers: { 'access-control-allow-origin': '*' } }));
 	await page.goto('/app/');
-	await page.getByText('Auf diesem Gerät mit Wiederherstellungsphrase öffnen').click();
+	await page.getByTestId('open-with-phrase').click();
 	await page.locator('textarea').first().fill(phrase);
-	await page.getByRole('button', { name: 'Öffnen', exact: true }).click();
+	await page.getByTestId('open-phrase').click();
 }
 
 test.describe('German', () => {

@@ -4,9 +4,12 @@
 	// of this page's own origin; absent when not served from IPFS).
 	/* global __BUILD__ */
 	import { CREDITS_URL, cancelMailto } from '$lib/credits.js';
+	import { format, lang, t } from '$lib/i18n/index.js';
 
 	const build = __BUILD__;
-	const time = new Date(build.time).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
+	const time = $derived(format.dateTime(build.time, { dateStyle: 'medium', timeStyle: 'short' }, $lang));
+	// The landing page of the language shown here.
+	const home = $derived($lang === 'en' ? '/en/' : '/');
 	let cid = $state('');
 	$effect(() => {
 		fetch(location.href, { method: 'HEAD', cache: 'no-store' })
@@ -16,19 +19,19 @@
 </script>
 
 <footer data-testid="build-info">
-	<nav class="legal" aria-label="Rechtliches">
-		<a href="/">Über Paperless anywhere</a>
-		<a href="https://le-space.de/#impressum">Impressum</a>
-		<a href="https://le-space.de/#datenschutz">Datenschutz</a>
-		<a href="/lizenzen/">Lizenzen</a>
+	<nav class="legal" aria-label={$t.app.footer.legal}>
+		<a href={home}>{$t.app.footer.about}</a>
+		<a href="https://le-space.de/#impressum">{$t.app.footer.imprint}</a>
+		<a href="https://le-space.de/#datenschutz">{$t.app.footer.privacy}</a>
+		<a href="/lizenzen/">{$t.app.footer.licences}</a>
 		<!-- Reachable at any time, also with the vault locked or lost (§ 312k BGB):
 		     with an open vault the package card cancels in place and at once. -->
-		{#if CREDITS_URL}<a href={cancelMailto()} data-testid="cancel-by-mail" title="Auch ohne geöffneten Tresor: per E-Mail an Le Space. Mit geöffnetem Tresor geht es direkt bei „Dein Paket“.">Verträge hier kündigen</a>{/if}
+		{#if CREDITS_URL}<a href={cancelMailto()} data-testid="cancel-by-mail" title={$t.app.footer.cancelHint}>{$t.app.footer.cancel}</a>{/if}
 	</nav>
 	<span data-testid="build-version">{build.version}</span>
 	· <time datetime={build.time}>{time}</time>
-	{#if build.commit}· <code title="Commit">{build.commit}</code>{/if}
-	{#if cid}<br /><span title="IPFS-CID dieser Version">IPFS: <code>{cid}</code></span>{/if}
+	{#if build.commit}· <code title={$t.app.footer.commit}>{build.commit}</code>{/if}
+	{#if cid}<br /><span title={$t.app.footer.cid}>IPFS: <code>{cid}</code></span>{/if}
 </footer>
 
 <style>
