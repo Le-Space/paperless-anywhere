@@ -243,6 +243,8 @@ export const PLANS = Object.freeze([
  * answered (its `backup_month_credits`; the terms' § 7 name the same amount).
  */
 export const BACKUP_MONTH_CREDITS = 150;
+/** A year of keeping the backups, paid once, in cents (the terms' § 7), until the service's list has answered. */
+export const BACKUP_YEAR_CENTS = 1800;
 /** A month of backups as the list of packages names it, else the known price. @param {{ backupMonthCredits?: number }[]} plans */
 export const backupMonthCredits = (plans) => plans.find((p) => Number.isFinite(p.backupMonthCredits) && /** @type {number} */ (p.backupMonthCredits) > 0)?.backupMonthCredits ?? BACKUP_MONTH_CREDITS;
 /**

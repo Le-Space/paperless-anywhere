@@ -50,7 +50,10 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	// The package holds the documents' room; the backup is a price of its own.
 	await expect(page.getByTestId('prices-included')).toHaveText('In jedem Paket enthalten: bis 8 GB Dokumente.');
 	await expect(page.getByTestId('prices-backup')).toContainText('ist nicht im Paket enthalten: Sie kostet 1,50 € im Monat dazu');
+	await expect(page.getByTestId('prices-backup')).toContainText('als weitere Zeile deines Monatsabos');
+	await expect(page.getByTestId('prices-backup')).not.toContainText('Guthaben');
 	await expect(page.getByTestId('prices-backup')).toContainText('damit deine Dokumente nach einem Stopp zurückkommen');
+	await expect(page.getByTestId('prices-backup-year')).toContainText('Oder einmalig 18 € für ein Jahr Aufbewahrung, mit oder ohne Paket.');
 	await expect(page.getByTestId('prices-backup-total')).toHaveText('15 Stunden mit Sicherung: 4,90 € + 1,50 € = 6,40 € im Monat.');
 	await expect(page.getByTestId('prices-backup-after')).toContainText('mindestens 30 Tage abrufbar');
 	await expect(page.locator('#faq')).toContainText('Die Sicherung ist nicht im Paket enthalten');
