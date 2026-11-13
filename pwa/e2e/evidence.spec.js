@@ -94,11 +94,21 @@ test('the evidence, the VM list and what a start needs follow the language switc
 	await expect(summary).toContainText('Nachweis dieser VM', { timeout: 30_000 });
 	await page.getByTestId('app-lang-en').click();
 	await expect(summary).toContainText('Evidence of this VM');
+	// The card itself: state, the way in, sign-in and the stop.
+	await expect(page.getByTestId('simple-status').getByRole('heading')).toHaveText('Paperless-ngx is running');
+	await expect(page.getByTestId('simple-open')).toHaveText('Open Paperless-ngx');
+	await expect(page.getByTestId('simple-login')).toContainText('Signing in to Paperless-ngx');
+	await expect(page.getByTestId('simple-login').getByRole('button')).toHaveText(['Show password', 'Copy']);
+	await expect(page.getByTestId('simple-stop')).toHaveText('Back up and stop');
+	if (process.env.SHOTS) await page.getByTestId('lifecycle').screenshot({ path: `${process.env.SHOTS}/card-en.png` });
 	await page.getByTestId('tab-advanced').click();
 	await page.getByTestId('tech-vms').locator('summary').click();
 	await expect(page.getByTestId('vm-list').getByRole('heading')).toContainText('My VMs');
 	await expect(page.getByTestId('vm-list').getByRole('button', { name: 'Refresh' })).toBeVisible();
+	await expect(page.getByTestId('paperless-chip')).toHaveText('running');
+	await expect(page.getByTestId('stop')).toHaveText('Back up and stop');
 	await page.getByTestId('app-lang-de').click();
 	await expect(page.getByTestId('vm-list').getByRole('heading')).toContainText('Meine VMs');
+	await expect(page.getByTestId('paperless-chip')).toHaveText('läuft');
 	await expect(summary).toContainText('Nachweis dieser VM');
 });
