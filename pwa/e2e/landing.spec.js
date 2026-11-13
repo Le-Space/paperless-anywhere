@@ -26,7 +26,7 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(h1).not.toHaveAttribute('aria-live');
 	await expect(h1.locator('.word')).toHaveText(['ausfallsicher.', 'vertraulich.', 'nach deinem Takt.']);
 	await expect(page.locator('.hero .kicker')).toHaveText('Dezentral · vertraulich · auf Abruf');
-	await expect(page.locator('.points h3')).toHaveText(['Ausfallsicher', 'Vertraulich und nachprüfbar', 'Rund um die Uhr oder auf Abruf']);
+	await expect(page.locator('.points h3')).toHaveText(['Ausfallsicher', 'Vertraulich und nachprüfbar', 'Rund um die Uhr oder nach Gebrauch']);
 	await expect(page).toHaveTitle('Paperless anywhere – ausfallsicher, vertraulich, nach deinem Takt');
 	await expect(page.locator('#nodes')).toContainText('2 TEE-Knoten, 1 davon mit Platz');
 	// Resilience, with the live numbers and without claiming more than is true.
