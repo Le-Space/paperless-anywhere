@@ -1,7 +1,10 @@
 import { Encrypter } from 'age-encryption';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BackupFetchError, fetchBackup, MEMORY_LIMIT_BYTES, openSink, storedBytes } from './backup-fetch.js';
 import { ageRecipient, newAgeIdentity } from './keys/age.js';
+
+// These tests encrypt and decrypt for real; on a busy machine one takes seconds.
+vi.setConfig({ testTimeout: 30_000 });
 
 const cid = (n) => `bafkzcibexamplepiece${String(n).padStart(28, '0')}`;
 const url = (host, c) => `https://${host}.example.com/piece/${c}`;
@@ -13,7 +16,11 @@ async function sealed(plain, identity) {
 }
 
 /** A plain text that is no single repeated byte, so a wrong join shows. */
-const sample = (n) => Uint8Array.from({ length: n }, (_, i) => (i * 31 + (i >> 8)) & 0xff);
+const sample = (n) => {
+	const bytes = new Uint8Array(n);
+	for (let i = 0; i < n; i++) bytes[i] = (i * 31 + (i >> 8)) & 0xff;
+	return bytes;
+};
 
 /** One body in small chunks; `breakAt` ends it with an error after that many bytes. */
 function body(bytes, { chunk = 4096, breakAt = Infinity } = {}) {
@@ -47,7 +54,8 @@ function memory() {
 	const chunks = [];
 	let aborted = false;
 	const sink = new WritableStream({ write: (c) => void chunks.push(c), abort: () => void (aborted = true) });
-	return { sink, bytes: () => Uint8Array.from(chunks.flatMap((c) => [...c])), aborted: () => aborted };
+	// Joined in one go: spreading every byte into an array made these tests slow enough to time out on a busy machine.
+	return { sink, bytes: () => new Uint8Array(Buffer.concat(chunks.map((c) => Buffer.from(c.buffer, c.byteOffset, c.byteLength)))), aborted: () => aborted };
 }
 
 const one = (c, hosts = ['a', 'b']) => ({ pieceCid: c, copies: hosts.map((h) => ({ retrievalUrl: url(h, c) })) });
