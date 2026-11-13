@@ -140,6 +140,8 @@ export const texts = {
 				keys: { image: 'Image-Passphrase: eine je Image', data: 'Datenbereich: je Start, nur in der VM', vault: 'Tresor: nur bei dir' }
 			},
 			fold: { secrets: (n) => `${n} Geheimnisse`, verify: (n) => `${n} Stellen mit Links` },
+			sampleTitle: 'So sieht der Nachweis in der App aus',
+			sampleLead: 'Läuft deine VM, zeigt die App zu jeder Aussage den Wert, woher sie ihn hat und wo du ihn prüfen kannst. Hier mit erfundenen Werten, denn ohne gebuchte VM gibt es keine echten; nur die Laufzeit ist die echte, sie ist für alle gleich. In der App führen die Links zu deinen eigenen Nachrichten bei Aleph.',
 			secretsTitle: 'Wer welches Geheimnis kennt',
 			cols: { what: 'Geheimnis', has: 'Wer es kennt', not: 'Wer nicht' },
 			secrets: [
@@ -166,13 +168,13 @@ export const texts = {
 			verifyTitle: 'Selbst nachprüfen',
 			verify: {
 				runtime: { t: 'Die Laufzeit der VM', d: 'Firmware, Kernel und Initrd: die Aleph-Nachricht, deren Hash in der App steht. Liefert Aleph etwas anderes, startet die App nichts.', links: ['Aleph-Nachricht'] },
-				vm: { t: 'Deine VM und ihre Messwerte', d: 'Die INSTANCE-Nachricht deiner App-Adresse nennt die Messwerte, die die App eingetragen hat; die App zeigt Instanz und Knoten.', links: ['Aleph-Explorer'] },
+				vm: { t: 'Deine VM und ihre Messwerte', d: 'Die INSTANCE-Nachricht deiner App-Adresse nennt die Messwerte, die die App eingetragen hat. Die App zeigt zu einer laufenden VM Instanz, Knoten, Messwerte und das Ergebnis der Prüfung unter „Nachweis dieser VM“, mit Links zu genau deinen Nachrichten.', links: ['Aleph-Explorer'] },
 				amd: { t: 'AMD SEV-SNP', d: 'Wie der Bericht aufgebaut ist und gegen welche Zertifikate er geprüft wird.', links: ['AMD SEV'] },
 				image: { t: 'Das Image', d: 'Den STORE-Hash zeigt die App in der Einrichtung. Gebaut wird es vom Workflow rootfs.yml aus rootfs/build-image.sh; die Zusammenfassung jedes Laufs nennt den Hash und den Quelltext-Stand.', links: ['build-image.sh', 'rootfs.yml', 'Läufe'] },
 				data: { t: 'Der Datenbereich', d: 'Die App zeigt, ob eine laufende VM ihren Datenbereich versiegelt hat. Gelingt das nicht, startet Paperless-ngx nicht.', links: ['paperless-data-disk'] },
 				backups: { t: 'Die Sicherungen', d: 'Datensätze und Stücke sind bei Filecoin öffentlich einsehbar, ihr Inhalt verschlüsselt. Beim Wiederherstellen prüft die VM jedes Stück gegen seine Inhaltsadresse (Piece-CID).', links: ['Filfox'] },
 				app: { t: 'Diese Web-App', d: 'Sie liegt auf IPFS. Welche Version die Domain ausliefert, zeigt ihr DNSLink-Eintrag (dig TXT _dnslink.paperless.le-space.de); jedes Release nennt seine CID.', links: ['Releases'] },
-				docs: { t: 'Im Detail', d: 'Die Beschreibung, nach der diese Seite geschrieben ist.', links: ['Sicherheitsmodell', 'Schlüssel und Wiederherstellung', 'Eigenes Image', 'Ablauf'] }
+				docs: { t: 'Im Detail', d: 'Die Beschreibung, nach der diese Seite geschrieben ist.', links: ['Sicherheitsmodell', 'Schlüssel und Wiederherstellung', 'Eigenes Image', 'Ablauf', 'Varianten vertraulicher VMs im Vergleich'] }
 			},
 			repoNote: 'Der Quelltext liegt offen bei GitHub: github.com/Le-Space/paperless-anywhere.'
 		},
@@ -343,6 +345,8 @@ export const texts = {
 				keys: { image: 'Image passphrase: one per image', data: 'Data area: per start, in the VM only', vault: 'Vault: with you only' }
 			},
 			fold: { secrets: (n) => `${n} secrets`, verify: (n) => `${n} places with links` },
+			sampleTitle: 'What the evidence looks like in the app',
+			sampleLead: 'While your VM runs, the app shows for every claim its value, how it knows it and where you can check it. Here with made-up values, since there are no real ones without a booked VM; only the runtime is the real one, it is the same for everyone. In the app, the links lead to your own messages on Aleph.',
 			secretsTitle: 'Who knows which secret',
 			cols: { what: 'Secret', has: 'Who knows it', not: 'Who does not' },
 			secrets: [
@@ -369,13 +373,13 @@ export const texts = {
 			verifyTitle: 'Check it yourself',
 			verify: {
 				runtime: { t: 'The VM’s runtime', d: 'Firmware, kernel and initrd: the Aleph message whose hash is fixed in the app. If Aleph delivers anything else, the app starts nothing.', links: ['Aleph message'] },
-				vm: { t: 'Your VM and its measurements', d: 'The INSTANCE message of your app address names the measurements the app put in; the app shows instance and node.', links: ['Aleph explorer'] },
+				vm: { t: 'Your VM and its measurements', d: 'The INSTANCE message of your app address names the measurements the app put in. For a running VM the app shows instance, node, measurements and the result of the check under “Evidence of this VM”, with links to exactly your messages.', links: ['Aleph explorer'] },
 				amd: { t: 'AMD SEV-SNP', d: 'How the report is built and which certificates it is checked against.', links: ['AMD SEV'] },
 				image: { t: 'The image', d: 'The app shows the STORE hash in the setup. The workflow rootfs.yml builds it from rootfs/build-image.sh; every run’s summary names the hash and the source commit.', links: ['build-image.sh', 'rootfs.yml', 'Runs'] },
 				data: { t: 'The data area', d: 'The app shows whether a running VM sealed its data area. If that fails, Paperless-ngx does not start.', links: ['paperless-data-disk'] },
 				backups: { t: 'The backups', d: 'Data sets and pieces are public on Filecoin, their content encrypted. At a restore the VM checks every piece against its content address (piece CID).', links: ['Filfox'] },
 				app: { t: 'This web app', d: 'It is served from IPFS. Which version the domain serves, its DNSLink record shows (dig TXT _dnslink.paperless.le-space.de); every release names its CID.', links: ['Releases'] },
-				docs: { t: 'In detail', d: 'The description this page is written from.', links: ['Security model', 'Keys and recovery', 'Your own image', 'Workflow'] }
+				docs: { t: 'In detail', d: 'The description this page is written from.', links: ['Security model', 'Keys and recovery', 'Your own image', 'Workflow', 'Variants of confidential VMs compared'] }
 			},
 			repoNote: 'The source code is public on GitHub: github.com/Le-Space/paperless-anywhere.'
 		},
