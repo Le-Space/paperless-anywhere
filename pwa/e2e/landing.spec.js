@@ -120,9 +120,25 @@ test('the landing page shows who holds which key, what is attested and where to 
 	await expect(page.getByTestId('trust-diagram').getByRole('img')).toHaveCount(1);
 	await expect(page.getByTestId('trust-diagram').locator('svg:visible')).toHaveAttribute('class', /trust-wide/);
 	await expect(page.getByTestId('trust-diagram').locator('svg:visible text').getByText('Image (LUKS): nicht gemessen')).toBeVisible();
-	await expect(page.getByTestId('trust-secrets').getByRole('row')).toHaveCount(6);
+	// What the hardware confirms and what it does not yet are open without a click.
+	await expect(page.getByTestId('trust-gaps')).toBeVisible();
 	await expect(page.getByTestId('trust-gaps')).toContainText('Der Inhalt des Images wird nicht mitgemessen.');
+	await expect(page.getByTestId('trust-proves')).toBeVisible();
 	await expect(page.getByTestId('trust-proves')).toContainText('Der Relay dazwischen trägt nur verschlüsselte Bytes.');
+	// The table and the sources are folded, and open with the keyboard.
+	const secrets = trust.locator('details#trust-secrets');
+	const verify = trust.locator('details#trust-verify');
+	await expect(page.getByTestId('trust-secrets')).toBeHidden();
+	await expect(page.getByTestId('trust-verify')).toBeHidden();
+	await expect(secrets.locator('summary')).toContainText('Wer welches Geheimnis kennt');
+	await expect(secrets.locator('summary')).toContainText('5 Geheimnisse');
+	await secrets.locator('summary').focus();
+	await page.keyboard.press('Enter');
+	await expect(page.getByTestId('trust-secrets').getByRole('row')).toHaveCount(6);
+	// A link to a folded part opens it.
+	await page.evaluate(() => (location.hash = '#trust-verify'));
+	await expect(verify).toHaveAttribute('open', '');
+	await expect(verify.locator('summary')).toContainText('8 Stellen mit Links');
 	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Aleph-Nachricht' })).toHaveAttribute('href', /api2\.aleph\.im\/api\/v0\/messages\/[0-9a-f]{64}$/);
 	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Sicherheitsmodell' })).toHaveAttribute('href', /docs\/security-model\.md$/);
 
@@ -134,6 +150,23 @@ test('the landing page shows who holds which key, what is attested and where to 
 	await expect(page.getByTestId('trust-diagram').locator('svg:visible')).toHaveAttribute('class', /trust-tall/);
 	// Nothing wider than the phone.
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+
+	// Arriving with a link to a folded part finds it open.
+	await page.goto('/#trust-secrets');
+	await page.reload();
+	await expect(page.locator('details#trust-secrets')).toHaveAttribute('open', '');
+	await expect(page.locator('details#trust-verify')).not.toHaveAttribute('open', '');
+});
+
+test('the folded parts of the trust section open without JavaScript', async ({ browser }) => {
+	const context = await browser.newContext({ javaScriptEnabled: false, locale: 'de-DE' });
+	const page = await context.newPage();
+	await page.goto('/');
+	await expect(page.getByTestId('trust-gaps')).toBeVisible();
+	await expect(page.getByTestId('trust-verify')).toBeHidden();
+	await page.locator('details#trust-verify summary').click();
+	await expect(page.getByTestId('trust-verify').getByRole('link').first()).toBeVisible();
+	await context.close();
 });
 
 test('the section links stay at the top while the page scrolls', async ({ page }) => {

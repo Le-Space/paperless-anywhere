@@ -5,6 +5,7 @@
 	// docs/keys-and-recovery.md, docs/own-image.md, docs/workflow.md and
 	// rootfs/; change it with them. All text comes from the catalogue; the
 	// links are fixed here.
+	import { onMount } from 'svelte';
 	import TrustBox from './TrustBox.svelte';
 	import { RUNTIME_ITEM_HASH } from './trust.js';
 
@@ -56,6 +57,22 @@
 		link: 'M334 797H350V435H334'
 	};
 	const KEYS = /** @type {const} */ (['image', 'data', 'vault']);
+
+	// The table and the sources are folded (<details>, so they open without
+	// JavaScript too); what the hardware confirms and what it does not yet
+	// stay open. A link to a folded part, or into it, opens it.
+	onMount(() => {
+		const openTarget = () => {
+			const id = decodeURIComponent(location.hash.slice(1));
+			const part = id ? document.getElementById(id)?.closest('details.fold') : null;
+			if (!(part instanceof HTMLDetailsElement) || part.open) return;
+			part.open = true;
+			part.scrollIntoView();
+		};
+		openTarget();
+		addEventListener('hashchange', openTarget);
+		return () => removeEventListener('hashchange', openTarget);
+	});
 </script>
 
 {#snippet drawing(/** @type {typeof WIDE} */ L, /** @type {string} */ id)}
@@ -92,20 +109,6 @@
 	{@render drawing(TALL, 'trust-tall')}
 </figure>
 
-<h3>{t.secretsTitle}</h3>
-<div class="secrets" data-testid="trust-secrets" role="table" aria-label={t.secretsTitle}>
-	<div class="row head" role="row">
-		<span role="columnheader">{t.cols.what}</span><span role="columnheader">{t.cols.has}</span><span role="columnheader">{t.cols.not}</span>
-	</div>
-	{#each t.secrets as s}
-		<div class="row" role="row">
-			<span role="cell" class="what"><span class="dot {s.key}" aria-hidden="true"></span><span><strong>{s.what}</strong><small>{s.d}</small></span></span>
-			<span role="cell"><em class="label">{t.cols.has}</em>{s.has}</span>
-			<span role="cell" class="not"><em class="label">{t.cols.not}</em>{s.not}</span>
-		</div>
-	{/each}
-</div>
-
 <div class="attest">
 	<div class="proves">
 		<h3>{t.attestTitle}</h3>
@@ -117,16 +120,34 @@
 	</div>
 </div>
 
-<h3>{t.verifyTitle}</h3>
-<ul class="verify" data-testid="trust-verify">
-	{#each Object.entries(LINKS) as [id, hrefs]}
-		<li>
-			<strong>{t.verify[id].t}</strong>
-			<p>{t.verify[id].d}</p>
-			<p class="links">{#each hrefs as href, i}<a {href} rel="noreferrer">{t.verify[id].links[i]}</a>{/each}</p>
-		</li>
-	{/each}
-</ul>
+<details class="fold" id="trust-secrets">
+	<summary><h3>{t.secretsTitle}</h3><span class="count">{t.fold.secrets(t.secrets.length)}</span></summary>
+	<div class="secrets" data-testid="trust-secrets" role="table" aria-label={t.secretsTitle}>
+		<div class="row head" role="row">
+			<span role="columnheader">{t.cols.what}</span><span role="columnheader">{t.cols.has}</span><span role="columnheader">{t.cols.not}</span>
+		</div>
+		{#each t.secrets as s}
+			<div class="row" role="row">
+				<span role="cell" class="what"><span class="dot {s.key}" aria-hidden="true"></span><span><strong>{s.what}</strong><small>{s.d}</small></span></span>
+				<span role="cell"><em class="label">{t.cols.has}</em>{s.has}</span>
+				<span role="cell" class="not"><em class="label">{t.cols.not}</em>{s.not}</span>
+			</div>
+		{/each}
+	</div>
+</details>
+
+<details class="fold" id="trust-verify">
+	<summary><h3>{t.verifyTitle}</h3><span class="count">{t.fold.verify(Object.keys(LINKS).length)}</span></summary>
+	<ul class="verify" data-testid="trust-verify">
+		{#each Object.entries(LINKS) as [id, hrefs]}
+			<li>
+				<strong>{t.verify[id].t}</strong>
+				<p>{t.verify[id].d}</p>
+				<p class="links">{#each hrefs as href, i}<a {href} rel="noreferrer">{t.verify[id].links[i]}</a>{/each}</p>
+			</li>
+		{/each}
+	</ul>
+</details>
 <p class="note">{t.repoNote}</p>
 
 <style>
@@ -166,6 +187,19 @@
 		.row.head { display: none; }
 		.label { display: block; font-style: normal; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent-text); font-family: var(--mono); }
 	}
+
+	.fold { margin-top: 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); scroll-margin-top: 5rem; }
+	.fold > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; padding: 0.9rem 1.1rem; cursor: pointer; list-style: none; border-radius: var(--radius); }
+	.fold > summary::-webkit-details-marker { display: none; }
+	.fold > summary::before { content: '▸'; color: var(--accent-text); }
+	.fold[open] > summary::before { content: '▾'; }
+	.fold > summary:focus-visible { outline: 2px solid var(--accent-2-text); outline-offset: 2px; }
+	.fold > summary h3 { margin: 0; font-size: 1.05rem; }
+	.fold .count { color: var(--text-2); font-size: 0.85rem; }
+	.fold > :not(summary) { margin-left: 1.1rem; margin-right: 1.1rem; }
+	.fold > :last-child:not(summary) { margin-bottom: 1.1rem; }
+	.fold .secrets { border-radius: var(--radius-sm); }
+	.fold .verify li { background: var(--surface-2); }
 
 	.attest { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.25rem; }
 	.attest > div { border-radius: var(--radius); padding: 0.25rem 1.25rem 1rem; }
