@@ -236,3 +236,16 @@ test('the headline changes one word without moving the page, three times, and st
 	await page.reload();
 	expect(await look()).toEqual([{ name: 'none', turns: '1', opacity: 1 }, { name: 'none', turns: '1', opacity: 0 }, { name: 'none', turns: '1', opacity: 0 }]);
 });
+
+test('the FAQ says what the own device has to do with it, with what to do and a link to the details', async ({ page }) => {
+	await page.context().route(/^https?:\/\/(?!localhost)/, (route) => route.abort());
+	await page.addInitScript(() => Object.defineProperty(navigator, 'language', { get: () => 'de-DE' }));
+	await page.goto('/');
+	const item = page.locator('#faq details', { hasText: 'Wie sicher ist mein eigenes Gerät dabei?' });
+	await item.locator('summary').click();
+	await expect(item).toContainText('ohne deine Freigabe per Fingerabdruck oder PIN öffnet er nichts');
+	await expect(item.locator('li')).toHaveCount(4);
+	await expect(item.locator('li').first()).toContainText('eigenes Browser-Profil ohne Erweiterungen');
+	await expect(item.getByRole('link', { name: 'Die Einzelheiten stehen im Sicherheitsmodell.' })).toHaveAttribute('href', /docs\/security-model\.md#your-own-device$/);
+	if (process.env.SHOTS) await item.screenshot({ path: `${process.env.SHOTS}/faq-device.png` });
+});

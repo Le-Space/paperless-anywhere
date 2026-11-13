@@ -189,7 +189,12 @@
 		<h2>{t.faq.title}</h2>
 		<div class="faq">
 			{#each t.faq.items as item, i}
-				<details open={i === 0}><summary>{item.q}</summary><p>{item.a}</p></details>
+				<details open={i === 0}>
+					<summary>{item.q}</summary>
+					<p>{item.a}</p>
+					{#if item.tips}<ul>{#each item.tips as tip}<li>{tip}</li>{/each}</ul>{/if}
+					{#if item.more}<p><a href={item.more.href} rel="noopener">{item.more.text}</a></p>{/if}
+				</details>
 			{/each}
 		</div>
 	</section>
@@ -276,6 +281,8 @@
 	.faq details { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.9rem 1.1rem; }
 	.faq summary { font-weight: 600; cursor: pointer; }
 	.faq p { margin: 0.6rem 0 0; color: var(--text-2); }
+	.faq ul { margin: 0.5rem 0 0; padding-left: 1.2rem; color: var(--text-2); }
+	.faq li { margin: 0.25rem 0; }
 
 	.points, .cards, .steps, .plans { list-style: none; padding: 0; margin: 1.5rem 0 0; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
 	.points li, .cards li, .steps li { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; box-shadow: var(--shadow); }

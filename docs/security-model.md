@@ -100,6 +100,53 @@ database, so only inside that person's running VM and their encrypted backups.
 - A stop backs up first and erases the VM only when every requested copy has
   arrived.
 
+## Your own device
+
+Encryption and the confidential VM protect the documents from the node, from
+the storage providers and from Le Space. They do not protect a vault that is
+open in a browser from that browser. This holds for every web app, and for
+every password manager that runs in a browser.
+
+- **What can read along.** While the vault is open, its master secret is in
+  the page's memory. A browser extension with access to the page, or malware
+  on the device, can read the passkey's answer at the moment of unlocking, or
+  the open vault. With the master secret it can do what the app can: start
+  and stop the VM, read the setup, derive the Paperless passwords and the
+  backup key.
+- **What it cannot.** It does not get the passkey itself: the passkey's key
+  stays in the authenticator, and every answer needs the person's approval
+  (the app asks for user verification: fingerprint, face or PIN). A wallet's
+  seed is not in the vault either, so the money in a wallet stays out of
+  reach; what the app key itself can spend (the Le Space balance on hours
+  and backups, Aleph credits held by the app's address) does not
+  ([keys and recovery](keys-and-recovery.md)).
+- **Passkeys are bound to the address.** A passkey made on
+  `paperless.le-space.de` answers only there; a page on another address gets
+  no answer from it. The 24 words have no such binding: whoever is given
+  them has the vault. Enter them only in the app at its own address, and keep
+  them offline.
+- **Backups and a key that was once read.** The backup key is derived from
+  the vault (or was pasted in), and the pieces on Filecoin can be fetched by
+  anyone who knows their address. Whoever once had the key can therefore
+  decrypt the backups made with it, earlier ones included, for as long as
+  they are stored. A new passkey does not change that: it opens the same
+  vault with the same keys. Only a new vault has new keys.
+- **What Le Space cannot do.** Le Space has no copy of the master secret, the
+  24 words or the backup key. If the passkeys and the words are lost, nobody
+  can open the vault or decrypt its backups.
+
+What helps, in this order:
+
+1. A browser profile of its own, without extensions, for Paperless anywhere;
+   install the app (PWA) in that profile. The installed app is not a
+   protection by itself: in Chrome the profile's extensions run in it too.
+2. Or a private window (extensions are off there unless allowed), a phone or
+   a tablet.
+3. The 24 words on paper, entered nowhere but in the app at
+   `paperless.le-space.de`. Look at the address before you do.
+4. Lock the vault when done ("Sperren": the app drops the master secret) and
+   lock the device.
+
 ## Money
 
 - **Aleph credits** pay the VM. With "Diese App selbst", they sit on the
