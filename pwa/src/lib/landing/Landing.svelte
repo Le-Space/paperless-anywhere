@@ -11,6 +11,7 @@
 	import { LANGS, TERMS_URL, texts } from '$lib/landing/i18n.js';
 	import { BACKUP_YEAR_CENTS, CREDITS_URL, PLANS, backupMonthCredits, creditsCatalog } from '$lib/credits.js';
 	import Trust from '$lib/landing/Trust.svelte';
+	import BuildLine from '$lib/landing/BuildLine.svelte';
 
 	const APP = '/app/';
 	/** @type {{ lang: 'de' | 'en' }} */
@@ -235,6 +236,7 @@
 	<a href={TERMS_URL} data-testid="footer-terms">{t.footer.terms}</a>
 	<a href={TERMS_URL} data-testid="footer-withdrawal">{t.footer.withdrawal}</a>
 	<a href="/lizenzen/">{t.licences.link}</a>
+	<BuildLine {lang} t={t.footer.build} />
 </footer>
 
 <style>

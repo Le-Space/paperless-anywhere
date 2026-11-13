@@ -262,7 +262,7 @@ export const texts = {
 			back: 'Zur Startseite'
 		},
 		cta: { title: 'Bereit?', lead: 'Den Tresor anzulegen dauert eine Minute. Kein Konto, kein Passwort.' },
-		footer: { by: 'Ein Projekt von Le Space', belege: 'Le Space Belege', imprint: 'Impressum', imprintUrl: 'https://le-space.de/#impressum', privacy: 'Datenschutz', privacyUrl: 'https://le-space.de/#datenschutz', built: 'Paperless anywhere rechnet auf vertraulichen Knoten von Aleph Cloud und sichert auf Filecoin.', ngxLink: 'Paperless-ngx auf GitHub', terms: 'AGB', withdrawal: 'Widerrufsbelehrung' }
+		footer: { build: { label: 'Stand dieser Seite:', release: 'Dieses Release bei GitHub, mit seiner IPFS-CID', commit: 'Der Quelltext-Stand dieses Builds bei GitHub', built: 'Wann diese Seite gebaut wurde (UTC)' }, by: 'Ein Projekt von Le Space', belege: 'Le Space Belege', imprint: 'Impressum', imprintUrl: 'https://le-space.de/#impressum', privacy: 'Datenschutz', privacyUrl: 'https://le-space.de/#datenschutz', built: 'Paperless anywhere rechnet auf vertraulichen Knoten von Aleph Cloud und sichert auf Filecoin.', ngxLink: 'Paperless-ngx auf GitHub', terms: 'AGB', withdrawal: 'Widerrufsbelehrung' }
 	},
 	en: {
 		title: 'Paperless anywhere – resilient, confidential, on your schedule',
@@ -495,6 +495,6 @@ export const texts = {
 			back: 'Back to the start page'
 		},
 		cta: { title: 'Ready?', lead: 'Creating a vault takes a minute. No account, no password.' },
-		footer: { by: 'A Le Space project', belege: 'Le Space Belege', imprint: 'Imprint', imprintUrl: 'https://le-space.de/#imprint', privacy: 'Privacy', privacyUrl: 'https://le-space.de/#privacy', built: 'Paperless anywhere computes on confidential nodes of Aleph Cloud and backs up to Filecoin.', ngxLink: 'Paperless-ngx on GitHub', terms: 'Terms', withdrawal: 'Withdrawal' }
+		footer: { build: { label: 'This page’s build:', release: 'This release on GitHub, with its IPFS CID', commit: 'The source commit of this build on GitHub', built: 'When this page was built (UTC)' }, by: 'A Le Space project', belege: 'Le Space Belege', imprint: 'Imprint', imprintUrl: 'https://le-space.de/#imprint', privacy: 'Privacy', privacyUrl: 'https://le-space.de/#privacy', built: 'Paperless anywhere computes on confidential nodes of Aleph Cloud and backs up to Filecoin.', ngxLink: 'Paperless-ngx on GitHub', terms: 'Terms', withdrawal: 'Withdrawal' }
 	}
 };

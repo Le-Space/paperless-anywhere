@@ -4,6 +4,7 @@
 	// at build time (__STACK__, scripts/licences.js), never typed in here.
 	import { onMount } from 'svelte';
 	import Logo from '$lib/Logo.svelte';
+	import BuildLine from '$lib/landing/BuildLine.svelte';
 	import { LANGS, initialLang, texts } from '$lib/landing/i18n.js';
 	import gpl from '$lib/licences/gpl-3.0.txt?raw';
 
@@ -121,6 +122,7 @@
 	<a href={home}>{l.back}</a>
 	<a href={t.footer.imprintUrl}>{t.footer.imprint}</a>
 	<a href={t.footer.privacyUrl}>{t.footer.privacy}</a>
+	<BuildLine {lang} t={t.footer.build} />
 </footer>
 
 <style>
