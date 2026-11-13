@@ -255,7 +255,7 @@ export const texts = {
 		tagline: 'Paperless-ngx on demand, run by Le Space',
 		disclaimer: DISCLAIMER.en,
 		open: 'Open the app',
-		openHint: 'With a passkey, no account.',
+		openHint: 'With a passkey, no account. The app itself is in German for now.',
 		hero: {
 			kicker: 'Decentralised · confidential · on demand',
 			before: 'Paperless anywhere runs',
