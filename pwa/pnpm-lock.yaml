@@ -87,6 +87,9 @@ importers:
       vite:
         specifier: 7.0.6
         version: 7.0.6(@types/node@26.6.5)(terser@5.51.2)
+      vite-node:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@26.6.5)(terser@5.51.2)
       vitest:
         specifier: 3.2.4
         version: 3.2.4(@types/node@26.6.5)(terser@5.51.2)
