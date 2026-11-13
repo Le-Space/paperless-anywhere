@@ -53,7 +53,7 @@ A random **master secret** is sealed by each passkey (WebAuthn PRF, e.g. a YubiK
 
 From the master secret, by HKDF with distinct labels: the **app key** (Aleph), the **Filecoin session key**, the **backup key** (age), the **Paperless passwords**. The app key and the session key are delegates: they act for your own wallet, which keeps the money and can revoke them. They hold nothing.
 
-What lives where, what holds money, and what to do when a passkey, a device or the words are lost: [docs/keys-and-recovery.md](docs/keys-and-recovery.md).
+What lives where, what holds money, and what to do when a passkey, a device or the words are lost: [docs/keys-and-recovery.md](docs/keys-and-recovery.md). Fetching a backup without a VM: [docs/restore-yourself.md](docs/restore-yourself.md).
 
 What a VM gets and from whom, what the image contains, and why one vault's VM, balance and backups stay separate from another's: [docs/security-model.md](docs/security-model.md).
 

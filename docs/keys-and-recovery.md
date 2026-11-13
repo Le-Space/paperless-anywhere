@@ -249,6 +249,8 @@ Backups are encrypted with age before they leave the VM. By default the app uses
 
 An existing key can be pasted instead, for example the one the Mac's backups were made with. The app then says "eingefügt": that key is **not** in the 24 words and must be kept separately, or the backups made with it are lost with it.
 
+A backup can also be fetched and decrypted without a VM: [fetching a backup yourself](restore-yourself.md).
+
 ## What to do when …
 
 | Situation | What to do | What is lost |

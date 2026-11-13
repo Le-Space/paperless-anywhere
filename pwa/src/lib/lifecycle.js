@@ -354,10 +354,15 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 		});
 	// A resumed start may find the VM unlocked already: its status page answers.
 	const already = await vmStatus(host, statusToken(master)).catch(() => null);
+	// What the attestation of this start confirmed, for the evidence view; a
+	// resumed start that finds the VM unlocked has checked nothing itself.
+	/** @type {import('./evidence.js').Attestation | null} */
+	let attestation = null;
 	if (already?.phase) {
 		onProgress({ step: 'unlock', detail: 'schon entsperrt' });
 	} else {
 		const unlocked = await unlock();
+		attestation = attestationOf(unlocked);
 		// Which secrets the guest's agent says it stored (names only).
 		onProgress({ step: 'unlock', detail: 'entsperrt', injected: unlocked?.injected ?? [] });
 	}
@@ -392,13 +397,15 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 		if (!ready && !answered && again.length && Date.now() - unlockedAt > again[0]) {
 			again.shift();
 			onProgress({ step: 'ready', detail: 'Noch keine Antwort der VM: Passphrase erneut übergeben' });
-			await unlock().catch((e) => onProgress({ step: 'ready', detail: `Erneute Übergabe fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}` }));
+			await unlock()
+				.then((unlocked) => (attestation = attestationOf(unlocked) ?? attestation))
+				.catch((e) => onProgress({ step: 'ready', detail: `Erneute Übergabe fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}` }));
 		}
 		if (!ready) await sleep(10_000);
 	}
 	// Whether the VM sealed its data area with a key of its own (image paperless-data-disk).
 	const dataDisk = ready.dataDisk?.status === 'encrypted' ? 'encrypted' : ready.dataDisk ? 'plain' : 'unknown';
-	return { instanceHash, crnHash: starting.crnHash, payer, host, trustedExecution, dataDisk, ...(ready.phase === 'restore-failed' ? { restore: ready.restore } : {}) };
+	return { instanceHash, crnHash: starting.crnHash, payer, host, trustedExecution, dataDisk, ...(attestation ? { attestation } : {}), ...(ready.phase === 'restore-failed' ? { restore: ready.restore } : {}) };
 }
 
 /**
@@ -409,9 +416,57 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
  * @param {Uint8Array} master @param {Record<string, any>} profile with `running` @param {Record<string, string>} secrets
  */
 async function sendToGuest(master, profile, secrets) {
-	const run = profile.running;
 	const app = privateKeyToAccount(alephPrivateKey(master));
 	const wasm = await loadWasm();
+	const attested = await attestRunningGuest(profile, wasm);
+	try {
+		await injectSecrets({ wasm, attested, secrets, sign: (payload) => app.signMessage({ message: payload }) });
+	} finally {
+		attested.channel.close();
+	}
+}
+
+/**
+ * What a verified report says, as the evidence view keeps it: the launch
+ * measurement, the policy, the firmware levels, and when it was checked.
+ * @param {any} verified `freshVerified` of an attestation, or an unlock's result
+ * @returns {import('./evidence.js').Attestation | null}
+ */
+export function attestationOf(verified, at = Date.now()) {
+	if (!verified?.measurement) return null;
+	return { measurement: String(verified.measurement), policy: verified.policy == null ? null : String(verified.policy), launchTcb: verified.launchTcb ?? null, at };
+}
+
+/**
+ * Attest the running VM again, now: a fresh report, checked against AMD's
+ * keys and the measurements of this VM's start. Hands nothing over. The
+ * result is kept in the sealed profile.
+ * @param {Uint8Array} master @param {Record<string, any>} profile with `running`
+ * @param {{ attest?: typeof attestRunningGuest, update?: typeof updateProfile }} [deps]
+ */
+export async function attestRunning(master, profile, { attest = attestRunningGuest, update = updateProfile } = {}) {
+	const instanceHash = profile.running?.instanceHash;
+	if (!instanceHash) throw new Error('Es läuft keine VM.');
+	const attested = await attest(profile);
+	let attestation;
+	try {
+		attestation = attestationOf(attested.freshVerified);
+	} finally {
+		attested.channel.close();
+	}
+	if (!attestation) throw new Error('Die Prüfung hat kein Ergebnis geliefert.');
+	// Only for the VM that was checked: it may have been stopped meanwhile.
+	await update(master, (now) => (now.running?.instanceHash === instanceHash ? { ...now, running: { ...now.running, attestation } } : now));
+	return attestation;
+}
+
+/**
+ * An attested channel to the running VM, against the pins of its start.
+ * @param {Record<string, any>} profile with `running` @param {any} [wasm]
+ */
+async function attestRunningGuest(profile, wasm) {
+	wasm ??= await loadWasm();
+	const run = profile.running;
 	const { expectedMeasurements, expectedPolicy } = pinsOf(run.trustedExecution);
 	// Each relay once, until one carries the attestation.
 	const relays = await attestRelaysFor(profile);
@@ -424,11 +479,7 @@ async function sendToGuest(master, profile, secrets) {
 			if (i + 1 >= relays.length || /rejected|measurement|policy|signature/i.test(String(error))) throw error;
 		}
 	}
-	try {
-		await injectSecrets({ wasm, attested, secrets, sign: (payload) => app.signMessage({ message: payload }) });
-	} finally {
-		attested.channel.close();
-	}
+	return attested;
 }
 
 /**
