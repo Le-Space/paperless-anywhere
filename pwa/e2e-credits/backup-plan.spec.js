@@ -138,7 +138,7 @@ test('after the retention nothing pretends the backups can be brought back', asy
 // Before a start: a package pays the VM, but no backup period covers today.
 test.describe('a start without a paid backup', () => {
 	/** As openApp, with a profile that is ready to start and paid from the package. */
-	async function openReady(page, state, role = 'primary') {
+	async function openReady(page, state, role = 'primary', extra = {}) {
 		const { privateKeyToAccount } = await import('viem/accounts');
 		const { alephPrivateKey, deriveBytes, LABELS } = await import('../src/lib/keys/derive.js');
 		const { PROFILE_KEY } = await import('../src/lib/profile.js');
@@ -147,7 +147,7 @@ test.describe('a start without a paid backup', () => {
 		const master = newMasterSecret();
 		const phrase = newSeedPhrase();
 		aggregates.set(seedIndexAccount(phrase).address, { [VAULT_KEY]: { v: 1, box: await seal(master, sealingKeyFromSeedPhrase(phrase), 'master/seed') } });
-		const profile = { network: role === 'primary' ? 'mainnet' : 'calibration', role, leSpacePays: true, rootfsItemHash: 'a'.repeat(64), luksPassphrase: 'made-up-passphrase', crnHash: 'd'.repeat(64) };
+		const profile = { network: role === 'primary' ? 'mainnet' : 'calibration', role, leSpacePays: true, rootfsItemHash: 'a'.repeat(64), luksPassphrase: 'made-up-passphrase', crnHash: 'd'.repeat(64), ...extra };
 		const sealed = await seal(new TextEncoder().encode(JSON.stringify(profile)), deriveBytes(master, LABELS.profileKey), 'profile');
 		aggregates.set(privateKeyToAccount(alephPrivateKey(master)).address, { [PROFILE_KEY]: { v: 1, box: sealed } });
 		await page.context().route(/^https?:\/\/(?!localhost|127\.0\.0\.1|api2\.aleph\.im)/, (route) => route.abort());
@@ -193,5 +193,14 @@ test.describe('a start without a paid backup', () => {
 		await startButton(page).click();
 		await expect.poll(async () => (await received('/v1/vm/authorize')).length).toBe(1);
 		await expect(question(page)).toHaveCount(0);
+	});
+
+	test('backups paid from the own wallet: the card offers nothing and warns of nothing', async ({ page }) => {
+		// A made-up wallet pays the VM and the backups; Le Space sells this account nothing.
+		await openReady(page, { plan: false, backup: 'none', offered: true }, 'test', { leSpacePays: false, payer: '0x00000000000000000000000000000000000000aa', backupConfig: { providers: 2 }, backupsByCredits: false });
+		await expect(page.getByTestId('backup-status')).toContainText('bezahlst du aus deiner eigenen Wallet');
+		await expect(page.getByTestId('backup-status')).not.toContainText('nicht gebucht');
+		await expect(page.getByTestId('backup-year-fold')).toHaveCount(0);
+		await expect(page.getByTestId('backup-add-fold')).toHaveCount(0);
 	});
 });
