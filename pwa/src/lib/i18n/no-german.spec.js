@@ -46,7 +46,6 @@ const NOT_YET = new Set([
 	'lib/keys/passkey.js',
 	'lib/keys/vault.js',
 	'lib/lifecycle.js',
-	'lib/own-image.js',
 	'lib/permissions.js',
 	'lib/providers.js',
 	'lib/relays.js',

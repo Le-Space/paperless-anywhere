@@ -7,6 +7,7 @@
 // relay carries only a few MiB per connection), stores it on Aleph itself
 // under its own address, and notes the new image in the profile.
 import { ALEPH_API, CHANNEL, readFetch } from './aleph.js';
+import { tr } from './i18n/index.js';
 import { imagePassphrase } from './keys/derive.js';
 import { sha256Hex } from './vm.js';
 
@@ -30,10 +31,11 @@ const CID = /^[A-Za-z0-9]{40,64}$/;
 const decoder = new TextDecoder();
 
 export class BuilderError extends Error {
-	/** @param {string} message */
-	constructor(message) {
+	/** @param {string} message @param {string} [code] what failed, for code that must tell errors apart whatever the language */
+	constructor(message, code) {
 		super(message);
 		this.name = 'BuilderError';
+		this.code = code;
 	}
 }
 
@@ -44,22 +46,23 @@ export const ALEPH_MESSAGE = 'https://api2.aleph.im/api/v0/messages';
  * What a person's image is made from and by, as rows to show: every value
  * that is fixed in the app, with a link where there is something to open.
  * @param {NonNullable<typeof BUILDER>} builder
+ * @param {Record<'plainSha256' | 'plainStore' | 'commit' | 'vprogram' | 'measurement', string>} [labels] a component passes `$t.ownImage.sources` to follow the language
  * @returns {{ label: string, value: string, href?: string }[]}
  */
-export function sources(builder) {
+export function sources(builder, labels = tr().ownImage.sources) {
 	const { plain } = checkBuilder(builder);
-	const rows = [{ label: 'Öffentliches Image, SHA-256', value: plain.sha256 }];
-	if (HEX64.test(plain.store ?? '')) rows.push({ label: 'Öffentliches Image bei Aleph', value: /** @type {string} */ (plain.store), href: `${ALEPH_MESSAGE}/${plain.store}` });
-	if (/^[0-9a-f]{40}$/.test(plain.commit ?? '')) rows.push({ label: 'Gebaut aus dem Quelltext-Stand', value: /** @type {string} */ (plain.commit), href: `${REPOSITORY}/tree/${plain.commit}` });
-	if (/^[0-9a-f]{64}$/.test(builder.vprogram ?? '')) rows.push({ label: 'Build-Dienst bei Aleph', value: /** @type {string} */ (builder.vprogram), href: `${ALEPH_MESSAGE}/${builder.vprogram}` });
-	for (const m of builder.measurements) rows.push({ label: 'Messwert des Build-Dienstes', value: m });
+	const rows = [{ label: labels.plainSha256, value: plain.sha256 }];
+	if (HEX64.test(plain.store ?? '')) rows.push({ label: labels.plainStore, value: /** @type {string} */ (plain.store), href: `${ALEPH_MESSAGE}/${plain.store}` });
+	if (/^[0-9a-f]{40}$/.test(plain.commit ?? '')) rows.push({ label: labels.commit, value: /** @type {string} */ (plain.commit), href: `${REPOSITORY}/tree/${plain.commit}` });
+	if (/^[0-9a-f]{64}$/.test(builder.vprogram ?? '')) rows.push({ label: labels.vprogram, value: /** @type {string} */ (builder.vprogram), href: `${ALEPH_MESSAGE}/${builder.vprogram}` });
+	for (const m of builder.measurements) rows.push({ label: labels.measurement, value: m });
 	return rows;
 }
 
 /** A builder entry that is complete, or an error that says what is missing. */
 export function checkBuilder(builder) {
-	if (!builder?.route || !builder.measurements?.length || builder.policy == null) throw new BuilderError('Der Build-Dienst ist in dieser App nicht festgelegt.');
-	if (!HEX64.test(builder.plain?.sha256 ?? '')) throw new BuilderError('Das öffentliche Image ist in dieser App nicht festgelegt.');
+	if (!builder?.route || !builder.measurements?.length || builder.policy == null) throw new BuilderError(tr().ownImage.error.noBuilder);
+	if (!HEX64.test(builder.plain?.sha256 ?? '')) throw new BuilderError(tr().ownImage.error.noPlain);
 	return builder;
 }
 
@@ -70,7 +73,7 @@ export function checkBuilder(builder) {
  * @param {string} cid @param {number} [time] seconds
  */
 export async function storeMessage(app, cid, time = Date.now() / 1000) {
-	if (!CID.test(cid)) throw new BuilderError('Der Build-Dienst hat keine gültige Adresse für das Image genannt.');
+	if (!CID.test(cid)) throw new BuilderError(tr().ownImage.error.badCid);
 	const item_content = JSON.stringify({ address: app.address, time, item_type: 'ipfs', item_hash: cid, payment: { type: 'credit' } });
 	const item_hash = await sha256Hex(item_content);
 	const message = { sender: app.address, chain: 'ETH', type: 'STORE', item_hash, item_type: 'inline', item_content, time, channel: CHANNEL };
@@ -90,21 +93,22 @@ async function call(channel, method, path, body) {
 	return { status: response.status, answer };
 }
 
-const refused = (what, { status, answer }) => new BuilderError(`${what} (${status}${answer?.error ? `: ${String(answer.error).slice(0, 200)}` : ''}).`);
+/** @param {'notAccepted' | 'jobUnknown'} what */
+const refused = (what, { status, answer }) => new BuilderError(tr().ownImage.error[what](status, answer?.error ? String(answer.error).slice(0, 200) : ''));
 
 /** Aleph's word on the STORE: processed, or an error. */
 async function awaitStore(itemHash, { read, sleep, tries, delayMs }) {
 	for (let i = 0; i < tries; i++) {
 		const status = await read(itemHash);
 		if (status === 'processed') return;
-		if (status === 'rejected' || status === 'forgotten') throw new BuilderError('Aleph hat das Image nicht angenommen. Reicht das Guthaben der App-Adresse für den Speicher?');
+		if (status === 'rejected' || status === 'forgotten') throw new BuilderError(tr().ownImage.error.storeRejected, 'store-rejected');
 		await sleep(delayMs);
 	}
-	throw new BuilderError('Aleph hat das Image noch nicht bestätigt. Es ist hochgeladen; bitte später erneut bauen oder den Hash prüfen.');
+	throw new BuilderError(tr().ownImage.error.storePending);
 }
 
 const storeStatus = async (itemHash) => {
-	const res = await readFetch(`${ALEPH_API}/api/v0/messages/${itemHash}`, 'Image bei Aleph prüfen', { cache: 'no-store' }).catch(() => null);
+	const res = await readFetch(`${ALEPH_API}/api/v0/messages/${itemHash}`, tr().ownImage.checkStore, { cache: 'no-store' }).catch(() => null);
 	return res?.ok ? ((await res.json().catch(() => null))?.status ?? null) : null;
 };
 
@@ -148,7 +152,7 @@ async function fetchImage({ open, job, size, pieceBytes, runBytes, lanes, runTri
 				for (let start = run.start; start < run.end; start += pieceBytes) {
 					const end = Math.min(start + pieceBytes, run.end) - 1;
 					const piece = await channel.request('GET', `/job/${job}/image`, { headers: { range: `bytes=${start}-${end}` } });
-					if ([404, 409, 410, 416].includes(piece.status)) throw new BuilderError(`Der Build-Dienst hat das Image nicht mehr (${piece.status}). Bitte noch einmal bauen.`);
+					if ([404, 409, 410, 416].includes(piece.status)) throw new BuilderError(tr().ownImage.error.imageGone(piece.status));
 					if (piece.status !== 206 || piece.body.length !== end - start + 1) throw new Error(String(piece.status));
 					pieces.push(piece.body);
 					onBytes(piece.body.length);
@@ -161,7 +165,7 @@ async function fetchImage({ open, job, size, pieceBytes, runBytes, lanes, runTri
 				channel?.close();
 			}
 		}
-		throw new BuilderError(`Der Build-Dienst hat ein Stück des Images nicht geliefert (${last.slice(0, 120)}).`);
+		throw new BuilderError(tr().ownImage.error.pieceMissing(last.slice(0, 120)));
 	};
 	const lane = async () => {
 		while (!failed && next < runs.length) {
@@ -235,25 +239,25 @@ export async function buildOwnImage({ master, app, builder, open, onProgress = (
 	// A STORE that was signed and uploaded before is only waited for again.
 	let message = kept.current.message;
 	if (!message) {
-		onProgress({ step: 'sign', detail: 'Speicher-Nachricht signieren' });
+		onProgress({ step: 'sign', detail: tr().ownImage.step.sign });
 		message = await storeMessage(app, cid, now() / 1000);
-		onProgress({ step: 'upload', detail: `Image zu Aleph hochladen (${Math.round(size / 1048576)} MiB)` });
+		onProgress({ step: 'upload', detail: tr().ownImage.step.upload(size) });
 		const stored = await store(image, message);
-		if (stored.status >= 300) throw new BuilderError(`Aleph hat das Image nicht angenommen (${stored.status}). Reicht das Guthaben der App-Adresse für den Speicher? Das versiegelte Image bleibt in diesem Fenster erhalten; ein zweiter Versuch lädt es nur noch einmal hoch.`);
+		if (stored.status >= 300) throw new BuilderError(tr().ownImage.error.uploadRefused(stored.status));
 		// The node names the content address it made from what it received.
 		if (stored.cid && stored.cid !== cid) {
 			kept.current = null;
-			throw new BuilderError('Aleph hat ein anderes Image gespeichert als das versiegelte.');
+			throw new BuilderError(tr().ownImage.error.otherImage);
 		}
 		kept.current.message = message;
 	}
 
-	onProgress({ step: 'confirm', detail: 'Auf Aleph warten' });
+	onProgress({ step: 'confirm', detail: tr().ownImage.step.confirm });
 	try {
 		await awaitStore(message.item_hash, { read, sleep, tries: confirmTries, delayMs: pollMs });
 	} catch (error) {
 		// Refused: the next try signs and uploads anew. Not confirmed yet: it waits again.
-		if (/nicht angenommen/.test(String(error))) delete kept.current.message;
+		if (error instanceof BuilderError && error.code === 'store-rejected') delete kept.current.message;
 		throw error;
 	}
 	kept.current = null;
@@ -271,17 +275,17 @@ export async function buildOwnImage({ master, app, builder, open, onProgress = (
 
 	/** Has the builder seal the image and fetches it; the builder drops it afterwards, whatever happened. */
 	async function sealAndFetch() {
-		onProgress({ step: 'attest', detail: 'Build-Dienst prüfen (AMD)' });
+		onProgress({ step: 'attest', detail: tr().ownImage.step.attest });
 		let channel = await open();
 		const attested = typeof channel.measurement === 'string' && channel.measurement ? { measurement: channel.measurement, at: new Date(now()).toISOString() } : null;
 		let job = '';
 		try {
-			onProgress({ step: 'build', detail: 'Image wird versiegelt' });
+			onProgress({ step: 'build', detail: tr().ownImage.step.build });
 			// Sent once, over the channel that was just attested, and never again.
 			const started = await call(channel, 'POST', '/build', { sha256: plain.sha256, passphrase });
-			if (started.status === 503) throw new BuilderError('Der Build-Dienst baut gerade ein anderes Image. Bitte in ein paar Minuten noch einmal versuchen.');
+			if (started.status === 503) throw new BuilderError(tr().ownImage.error.busy);
 			job = started.answer?.job ?? '';
-			if (started.status !== 202 || !/^[0-9a-f]{48}$/.test(job)) throw refused('Der Build-Dienst hat den Auftrag nicht angenommen', started);
+			if (started.status !== 202 || !/^[0-9a-f]{48}$/.test(job)) throw refused('notAccepted', started);
 
 			// A relay ends a connection after two minutes: asking goes on over a new one.
 			let built = null;
@@ -296,25 +300,25 @@ export async function buildOwnImage({ master, app, builder, open, onProgress = (
 					channel?.close();
 					channel = null;
 					if (refusedAttestation(error)) throw error;
-					if (++drops > 5) throw new BuilderError('Die Verbindung zum Build-Dienst ist abgebrochen. Bitte später noch einmal versuchen.');
+					if (++drops > 5) throw new BuilderError(tr().ownImage.error.dropped);
 					continue;
 				}
 				drops = 0;
-				if (state.status !== 200) throw refused('Der Build-Dienst kennt den Auftrag nicht mehr', state);
-				if (state.answer?.state === 'failed') throw new BuilderError(`Der Bau ist fehlgeschlagen${state.answer.error ? `: ${String(state.answer.error).slice(0, 200)}` : ''}.`);
+				if (state.status !== 200) throw refused('jobUnknown', state);
+				if (state.answer?.state === 'failed') throw new BuilderError(tr().ownImage.error.buildFailed(state.answer.error ? String(state.answer.error).slice(0, 200) : ''));
 				if (state.answer?.state === 'built') built = state.answer;
 			}
-			if (!built) throw new BuilderError('Der Bau hat zu lange gedauert.');
+			if (!built) throw new BuilderError(tr().ownImage.error.buildSlow);
 			const size = Number(built.size);
-			if (!Number.isSafeInteger(size) || size <= 0 || size > 1024 ** 3) throw new BuilderError('Der Build-Dienst nennt keine gültige Größe für das Image.');
-			if (!CID.test(built.cid ?? '')) throw new BuilderError('Der Build-Dienst hat keine gültige Adresse für das Image genannt.');
+			if (!Number.isSafeInteger(size) || size <= 0 || size > 1024 ** 3) throw new BuilderError(tr().ownImage.error.badSize);
+			if (!CID.test(built.cid ?? '')) throw new BuilderError(tr().ownImage.error.badCid);
 			channel?.close();
 			channel = null;
 
 			// The sealed image holds nothing readable without the passphrase, and
 			// every run of it arrives over a channel attested like the first.
 			let got = 0;
-			const shown = () => onProgress({ step: 'fetch', detail: `Versiegeltes Image holen (${Math.floor((got / size) * 100)} %)` });
+			const shown = () => onProgress({ step: 'fetch', detail: tr().ownImage.step.fetch(Math.floor((got / size) * 100)) });
 			shown();
 			const image = await fetchImage({ open, job, size, pieceBytes, runBytes, lanes, runTries, sleep, retryMs, onBytes: (n) => { got += n; shown(); } });
 			return { key, cid: built.cid, size, image, attested };
@@ -350,7 +354,7 @@ export function builderOpener(builder, profile, { load = loadAttest } = {}) {
 	return async () => {
 		loaded ??= load(profile);
 		const { attestGuest, relayTransports, relays, wasm } = await loaded;
-		if (!relays.length) throw new BuilderError('Es ist kein Relay bekannt, der den Build-Dienst erreicht.');
+		if (!relays.length) throw new BuilderError(tr().ownImage.error.noRelay);
 		let last = null;
 		for (let i = 0; i < relays.length; i++) {
 			const index = (good + i) % relays.length;
@@ -364,7 +368,7 @@ export function builderOpener(builder, profile, { load = loadAttest } = {}) {
 				last = error;
 			}
 		}
-		throw new BuilderError(`Der Build-Dienst ist gerade nicht erreichbar. Bitte später noch einmal versuchen. (${String(last instanceof Error ? last.message : last).slice(0, 120)})`);
+		throw new BuilderError(tr().ownImage.error.unreachable(String(last instanceof Error ? last.message : last).slice(0, 120)));
 	};
 }
 

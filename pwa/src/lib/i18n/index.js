@@ -9,6 +9,7 @@
 // asks `tr()` at the moment it needs a text, for example when it throws.
 import { derived, get, writable } from 'svelte/store';
 import { app } from './app.js';
+import { ownImage } from './own-image.js';
 
 /** @typedef {'de' | 'en'} Lang */
 export const LANGS = /** @type {const} */ (['de', 'en']);
@@ -43,7 +44,7 @@ export function setLang(next) {
 }
 
 /** Every area's texts, by language. A new area is added here once. */
-export const catalogue = { de: { app: app.de }, en: { app: app.en } };
+export const catalogue = { de: { app: app.de, ownImage: ownImage.de }, en: { app: app.en, ownImage: ownImage.en } };
 
 /** The texts in the current language, for a component: `$t.app.lock`. */
 export const t = derived(lang, ($lang) => catalogue[$lang]);
