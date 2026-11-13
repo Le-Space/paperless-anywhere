@@ -67,7 +67,12 @@ jobs:
           pnpm exec playwright test --reporter=line
 
       - name: Install isolated Aleph deploy tooling
-        run: npm install --prefix "$RUNNER_TEMP/le-space-deployer" @le-space/node@0.9.9
+        # The exact packages of the lockfile in .github/deploy-tool: the next
+        # steps hold the key that signs and pays.
+        run: |
+          mkdir -p "$RUNNER_TEMP/le-space-deployer"
+          cp .github/deploy-tool/package.json .github/deploy-tool/package-lock.json "$RUNNER_TEMP/le-space-deployer/"
+          cd "$RUNNER_TEMP/le-space-deployer" && npm ci --no-audit --no-fund --loglevel=error
 
       - name: Publish to Aleph IPFS
         id: publish

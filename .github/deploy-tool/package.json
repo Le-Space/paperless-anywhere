@@ -1,0 +1,10 @@
+{
+	"name": "deploy-tool",
+	"private": true,
+	"description": "What the deploy workflow needs to publish the site to Aleph IPFS and point the domain at it (@le-space/node): pinned here with a lockfile, because the steps hold the key that signs and pays.",
+	"type": "module",
+	"license": "AGPL-3.0-or-later",
+	"dependencies": {
+		"@le-space/node": "0.9.9"
+	}
+}
