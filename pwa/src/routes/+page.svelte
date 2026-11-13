@@ -117,7 +117,10 @@
 
 	<section id="audience">
 		<h2>{t.audience.title}</h2>
-		<p class="lead" data-testid="audience">{t.audience.lead}</p>
+		<p class="lead">{t.audience.lead}</p>
+		<ul class="audience" data-testid="audience">
+			{#each t.audience.items as item}<li><strong>{item.who}</strong> {item.what}</li>{/each}
+		</ul>
 	</section>
 
 	<section id="how">
@@ -249,6 +252,8 @@
 	.vat { margin: 0.75rem 0 0; font-weight: 600; }
 	.legal, .depends { color: var(--text-2); font-size: 0.9rem; }
 	.lead { font-size: 1.1rem; color: var(--text-2); max-width: 46rem; }
+	.audience { max-width: 46rem; margin: 0.75rem 0 0; padding-left: 1.2rem; color: var(--text-2); display: grid; gap: 0.5rem; }
+	.audience strong { color: var(--text); }
 
 	.hero { padding-top: 3rem; }
 	.kicker { color: var(--accent-text); text-transform: uppercase; letter-spacing: 0.12em; margin: 0 0 1rem; }
