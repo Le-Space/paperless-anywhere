@@ -5,7 +5,7 @@
 	// lists something as withdrawable.
 	import { IMPRINT_URL, PROVIDER, creditsAccount, germanDate, germanDateTime, withdraw, withdrawableName, withdrawalRecord } from '$lib/credits.js';
 
-	/** @type {{ master: Uint8Array, withdrawable: { subject: 'subscription' | 'credits', what: string, concludedAt: string | null, until: string | null }[], ondone?: () => Promise<void> | void, onclose?: () => void }} */
+	/** @type {{ master: Uint8Array, withdrawable: { subject: 'subscription' | 'credits' | 'backup', what: string, concludedAt: string | null, until: string | null }[], ondone?: () => Promise<void> | void, onclose?: () => void }} */
 	let { master, withdrawable, ondone = () => {}, onclose = () => {} } = $props();
 
 	const address = $derived(creditsAccount(master).address);

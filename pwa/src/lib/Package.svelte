@@ -3,11 +3,11 @@
 	// up and the invoices (Le Space Credits, belege#591). No crypto here: Aleph
 	// credits, FIL and USDFC are under "Erweitert" (Balances).
 	import { loadProfile } from '$lib/profile.js';
-	import { amount } from '$lib/balances.js';
 	import { biggerPlan, planHours, creditsBalance, creditsCatalog, fewHoursLeft, hoursPerWeek, creditsPurchases, choosePlan, fundVm, planOf, PLANS, quoteVm, startSubscription, subscriptionPortal, waitForSubscription, creditsTerms, waiverOf, WaiverError } from '$lib/credits.js';
 	import StripeCheckout from '$lib/StripeCheckout.svelte';
 	import Cancel from '$lib/Cancel.svelte';
 	import Withdraw from '$lib/Withdraw.svelte';
+	import BackupLine from '$lib/BackupLine.svelte';
 	import { withdrawalQuote } from '$lib/credits.js';
 	import Waiver from '$lib/Waiver.svelte';
 	import TopUp from '$lib/TopUp.svelte';
@@ -36,7 +36,21 @@
 	let moreOpen = $state(false);
 	// The service's own list once it answered; until then the known one.
 	let plans = $state(/** @type {{ id: string, hours: number, priceCredits: number }[]} */ ([...PLANS]));
-	creditsCatalog().then((c) => c?.plans.length && (plans = c.plans)).catch(() => {});
+	// What the service sells of backups beside the plan (le-space-credits#69).
+	/** @type {ReturnType<typeof import('$lib/credits.js').backupOfferOf>} */
+	let backupOffer = $state(null);
+	creditsCatalog()
+		.then((c) => {
+			if (c?.plans.length) plans = c.plans;
+			backupOffer = c?.backup ?? null;
+		})
+		.catch(() => {});
+	// "mit Sicherung" at the plan choice: an extra that costs money, so it
+	// starts unticked (§ 312a Abs. 3 BGB) and is never set by the app.
+	let withBackup = $state(false);
+	const backupSold = $derived(Boolean(backupOffer?.planOffered));
+	const planTotal = (/** @type {{ priceCredits: number }} */ p) => p.priceCredits + (withBackup && backupSold && backupOffer ? backupOffer.monthCents : 0);
+	let ordering = $state('');
 	// The declaration on withdrawal before a payment (le-space-credits#51):
 	// null from an older service, which then gets no checkbox and no waiver.
 	// The pay buttons wait until the terms were read.
@@ -63,7 +77,8 @@
 	let withdrawable = $state([]);
 	let withdrawing = $state(false);
 
-	const euro = (/** @type {number} */ credits) => `${amount(credits / 100)} €`;
+	// Prices and balances always with cents: "4,90 €", never "4,9 €".
+	const euro = (/** @type {number} */ credits) => `${(credits / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 	const day = (/** @type {string | null} */ iso) => (iso ? new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : '');
 	const current = $derived(balance?.plan ? planOf(balance.plan.id, plans) : null);
 	const hoursLeft = $derived(balance?.plan?.hoursLeft == null ? null : Math.max(0, Math.floor(balance.plan.hoursLeft)));
@@ -117,8 +132,12 @@
 			let secret;
 			const waiver = waiverOf(withdrawal, waivedPlan);
 			waivedPlan = false;
+			const backup = withBackup && backupSold;
+			const chosen = planOf(id, plans);
+			// Plan, backup, total and the renewal in one line above the Checkout.
+			ordering = chosen ? `${planHours(chosen)} im Monat: ${euro(chosen.priceCredits)}${backup && backupOffer ? ` + Sicherung ${euro(backupOffer.monthCents)} = ${euro(chosen.priceCredits + backupOffer.monthCents)}` : backupSold ? ', ohne Sicherung' : ''}. Monatsabo, verlängert sich jeden Monat, kündbar zum Monatsende.` : '';
 			try {
-				secret = await startSubscription(master, id, waiver);
+				secret = await startSubscription(master, id, { ...waiver, backup });
 			} catch (e) {
 				if (e instanceof WaiverError) {
 					readWithdrawal();
@@ -232,17 +251,28 @@
 			<Withdraw {master} {withdrawable} ondone={read} onclose={() => { withdrawing = false; read(); }} />
 		{/if}
 
+		{#if balance.backup}
+			<BackupLine {master} backup={balance.backup} offer={backupOffer} plan={balance.plan} {withdrawal} {termsRead} disabled={busy} onchanged={read} onportal={portal} onwaiver={readWithdrawal} />
+		{/if}
+
 		<p class="line"><span class="label">Guthaben</span> <strong data-testid="balance-euro">{euro(balance.credits)}</strong>
 			<span class="hint">{#if balance.reserved}davon {euro(balance.reserved)} für die laufende Instanz vorgemerkt · {/if}daraus werden Paket und Zusatzstunden bezahlt</span></p>
 
 		{#if !balance.plan || choosing}
 			<p class="hint">{balance.plan ? 'Neues Paket wählen:' : 'Paket als Monatsabo per Karte wählen (Stripe, jederzeit zum Monatsende kündbar):'}</p>
+			{#if !balance.plan && backupSold && backupOffer}
+				<label class="with-backup" data-testid="plan-backup">
+					<input type="checkbox" bind:checked={withBackup} data-testid="plan-backup-box" />
+					<span><strong>mit Sicherung</strong> (+ {euro(backupOffer.monthCents)} im Monat){#if backupOffer.copies}: {backupOffer.copies} verschlüsselte Kopien deiner Dokumente{/if}
+						<br /><small class="hint">Ohne Sicherung sind deine Dokumente nach einem Stopp weg. Hinzubuchen geht auch später, hier in der App.</small></span>
+				</label>
+			{/if}
 			{#if !balance.plan}<Waiver {withdrawal} bind:checked={waivedPlan} testid="plan-waiver" />{/if}
 			<div class="plans">
 				{#each plans as p (p.id)}
 					<button class="plan-choice" class:current={balance.plan?.id === p.id} onclick={() => (balance?.plan ? plan(p.id) : subscribe(p.id))} disabled={busy || balance.plan?.id === p.id || (!balance.plan && planBlocked)} data-testid={`plan-${p.id}`}>
 						{#if recommended === p.id}<em class="badge">Empfehlung</em>{/if}
-						<span>{p.hours >= 720 ? 'Dauerbetrieb, rund um die Uhr' : `${p.hours} Stunden im Monat`}</span><strong>{euro(p.priceCredits)}</strong><small class="hint">{perWeek(p.hours)}</small>
+						<span>{p.hours >= 720 ? 'Dauerbetrieb, rund um die Uhr' : `${p.hours} Stunden im Monat`}</span><strong data-testid={`plan-price-${p.id}`}>{euro(balance.plan ? p.priceCredits : planTotal(p))}</strong><small class="hint">{perWeek(p.hours)}{!balance.plan && withBackup && backupSold ? ' · mit Sicherung' : ''}</small>
 					</button>
 				{/each}
 			</div>
@@ -299,7 +329,7 @@
 		<p class="hint">…</p>
 	{/if}
 </section>
-<StripeCheckout bind:this={checkout} label="Abo abschließen" />
+<StripeCheckout bind:this={checkout} label="Abo abschließen" summary={ordering} />
 
 <style>
 	.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; margin: 0 0 1rem; box-shadow: var(--shadow); }
@@ -329,6 +359,8 @@
 	.low p { margin: 0 0 0.5rem; }
 	.upgrade { padding: 0.5rem 1rem; font-weight: 600; }
 	.plan-choice small { font-size: 0.8rem; }
+	.with-backup { display: flex; gap: 0.5rem; align-items: flex-start; margin: 0.5rem 0; }
+	.with-backup input { width: auto; margin-top: 0.25rem; flex: none; }
 	.badge { font-style: normal; font-size: 0.75rem; font-weight: 600; padding: 0.05rem 0.5rem; border-radius: 999px; background: var(--accent); color: var(--cta-text, #0f1b2d); }
 	.purchases summary { color: var(--text-2); }
 	.purchases ul { list-style: none; padding: 0; margin: 0.3rem 0; }

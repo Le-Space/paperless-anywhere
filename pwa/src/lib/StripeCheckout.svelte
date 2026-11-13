@@ -4,8 +4,8 @@
 	// `pay(clientSecret)` resolves 'paid', 'failed' or 'closed'.
 	import { CREDITS_URL, payMessage, payUrl } from '$lib/credits.js';
 
-	/** @type {{ label?: string }} */
-	let { label = 'Bezahlen mit Stripe' } = $props();
+	/** @type {{ label?: string, summary?: string }} `summary`: what is ordered, in one line above the Checkout */
+	let { label = 'Bezahlen mit Stripe', summary = '' } = $props();
 	/** @type {HTMLDialogElement | undefined} */
 	let dialog = $state();
 	/** @type {string | null} */
@@ -39,12 +39,15 @@
 
 <dialog bind:this={dialog} onclose={() => settle && done('closed')} aria-label={label}>
 	<button class="quiet close" onclick={() => done('closed')} aria-label="Schließen">✕</button>
+	{#if summary && frame}<p class="summary" data-testid="checkout-summary">{summary}</p>{/if}
 	{#if frame}<iframe src={frame} title={label} allow="payment"></iframe>{/if}
 </dialog>
 
 <style>
 	dialog { width: min(36rem, 96vw); height: min(44rem, 90vh); padding: 0; border: none; border-radius: 6px; }
+	dialog[open] { display: flex; flex-direction: column; }
+	.summary { margin: 0; padding: 0.7rem 2.6rem 0.7rem 1rem; font-size: 0.9rem; border-bottom: 1px solid var(--line); flex: none; }
 	dialog::backdrop { background: rgb(0 0 0 / 0.4); }
-	iframe { width: 100%; height: 100%; border: 0; }
+	iframe { width: 100%; flex: 1; min-height: 0; border: 0; }
 	.close { position: absolute; top: 0.3rem; right: 0.4rem; }
 </style>

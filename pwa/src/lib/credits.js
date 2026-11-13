@@ -99,6 +99,19 @@ export function termsOf(t) {
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const NETWORKS = ['calibration', 'mainnet'];
 
+const NOTICE_KINDS = ['expires_soon', 'expired', 'retention_over'];
+/**
+ * The service's notice on a backup that runs out (le-space-credits#69): the
+ * service picks the moment, the app the words. Null without one.
+ * @param {any} n
+ * @returns {{ kind: 'expires_soon' | 'expired' | 'retention_over', fundedUntil: string | null, retentionUntil: string | null, daysLeft: number | null, retentionDaysLeft: number | null } | null}
+ */
+export function backupNoticeOf(n) {
+	if (!n || !NOTICE_KINDS.includes(n.kind)) return null;
+	const days = (/** @type {unknown} */ d) => (Number.isFinite(Number(d)) && d != null ? Number(d) : null);
+	return { kind: n.kind, fundedUntil: n.funded_until ? String(n.funded_until) : null, retentionUntil: n.retention_until ? String(n.retention_until) : null, daysLeft: days(n.days_left), retentionDaysLeft: days(n.retention_days_left) };
+}
+
 /**
  * Where this account's backups stand with the service (design 2.2): Le
  * Space's one Filecoin payer and the session key that signs for it, the
@@ -107,7 +120,7 @@ const NETWORKS = ['calibration', 'mainnet'];
  * strings; anything else is dropped). Null while the service pays no
  * backups, or when it names no payer.
  * @param {any} b
- * @returns {{ payer: string, signer: string | null, tag: string, network: 'calibration' | 'mainnet', fundedUntil: string | null, dataSets: string[] } | null}
+ * @returns {{ payer: string, signer: string | null, tag: string, network: 'calibration' | 'mainnet', fundedUntil: string | null, active: boolean | null, renewsWithPlan: boolean, retentionUntil: string | null, notice: ReturnType<typeof backupNoticeOf>, dataSets: string[] } | null}
  */
 export function backupOf(b) {
 	if (!b || !ADDRESS.test(String(b.payer ?? ''))) return null;
@@ -117,6 +130,11 @@ export function backupOf(b) {
 		tag: String(b.tag ?? ''),
 		network: b.network === 'mainnet' ? 'mainnet' : 'calibration',
 		fundedUntil: b.funded_until ? String(b.funded_until) : null,
+		// le-space-credits#69; null from a service that does not say.
+		active: typeof b.active === 'boolean' ? b.active : null,
+		renewsWithPlan: b.renews_with_plan === true,
+		retentionUntil: b.retention_until ? String(b.retention_until) : null,
+		notice: backupNoticeOf(b.notice),
 		dataSets: Array.isArray(b.data_sets) ? b.data_sets.map((id) => String(id)).filter((id) => /^\d{1,78}$/.test(id)) : []
 	};
 }
@@ -279,6 +297,22 @@ export const biggerPlan = (plan, plans = /** @type {any} */ (PLANS)) => (plan ? 
 export const hoursPerWeek = (/** @type {number} */ hours) => Math.max(1, Math.round(hours / 4.33));
 
 /**
+ * What the service sells of backups beside the months from the balance
+ * (le-space-credits#69): a line in the plan's subscription and a year at
+ * once. `planOffered` is false until the terms that name them are in force;
+ * null from a service that knows neither.
+ * @param {any} b
+ * @returns {{ monthCents: number, yearCents: number, yearDays: number, copies: number | null, quotaGib: number | null, retentionDays: number, planOffered: boolean } | null}
+ */
+export function backupOfferOf(b) {
+	const cents = (/** @type {unknown} */ v) => (Number.isInteger(v) && /** @type {number} */ (v) > 0 ? /** @type {number} */ (v) : null);
+	const monthCents = cents(b?.month_price_cents);
+	const yearCents = cents(b?.year_price_cents);
+	if (monthCents == null || yearCents == null) return null;
+	return { monthCents, yearCents, yearDays: cents(b.year_days) ?? 365, copies: cents(b.copies), quotaGib: cents(b.quota_gib), retentionDays: cents(b.retention_days) ?? 30, planOffered: b.plan_offered === true };
+}
+
+/**
  * The service's packages and top-ups for this product (public, unsigned).
  * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
  * @returns {Promise<{ plans: { id: string, hours: number, priceCredits: number }[], topups: { id: string, amountCents: number, credits: number }[] } | null>}
@@ -292,6 +326,7 @@ export async function creditsCatalog({ baseUrl = CREDITS_URL, fetch: fetchImpl =
 		// Where the service pays backups: calibration, mainnet, or null while off.
 		network: body?.network === 'mainnet' || body?.network === 'calibration' ? body.network : null,
 		plans: (body?.packages ?? []).map((p) => ({ id: String(p.id), hours: Number(p.hours), priceCredits: Number(p.price_credits), ...(p.backup_month_credits != null ? { backupMonthCredits: Number(p.backup_month_credits) } : {}) })),
+		backup: backupOfferOf(body?.backup),
 		topups: (body?.topups ?? []).map((t) => ({ id: String(t.id), amountCents: Number(t.amount_cents), credits: Number(t.credits) }))
 	};
 }
@@ -571,14 +606,91 @@ export async function backupRevoke(master, backupKey, options) {
  * Subscribe to a package with Stripe (card, monthly invoice): the service
  * answers a Checkout in subscription mode, mounted like a top-up on /pay.
  * `waiver`: the declaration's version, only when its box is ticked (waiverOf).
+ * `backup`: with the backup line (le-space-credits#69), only when its box is ticked.
  * @param {Uint8Array} master @param {string} packageId
+ * @param {{ waiver?: string, backup?: boolean, baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<string>} the client secret
+ */
+export async function startSubscription(master, packageId, { waiver, backup = false, ...options } = {}) {
+	const r = await send(master, 'POST', '/v1/subscribe', { package: packageId, locale: 'de', ...(waiver ? { waiver } : {}), ...(backup ? { backup: true } : {}) }, options);
+	if (typeof r?.client_secret !== 'string') throw new Error('Le Space Credits haben keine Bezahlseite für das Abo geliefert.');
+	return r.client_secret;
+}
+
+const BACKUP_PLAN_MESSAGES = {
+	NOT_YET: 'Die Sicherung im Abo und das Jahr Aufbewahrung gibt es erst mit den neuen AGB. Bis dahin: einen Monat Sicherungen aus dem Guthaben bezahlen (Einrichtung).',
+	BACKUP_ON: 'Die Sicherung ist schon Teil deines Abos.',
+	NO_SUBSCRIPTION: 'Dafür braucht es ein laufendes Abo per Karte.',
+	NO_BACKUP: 'Für dieses Produkt gibt es keine Sicherung.',
+	NO_BACKUP_LINE: 'Die Sicherung ist nicht Teil deines Abos.',
+	BACKUP_PRICE: 'Die Sicherung im Abo ist beim Credits-Dienst noch nicht fertig eingerichtet.',
+	STRIPE_OFF: 'Bezahlen ist beim Credits-Dienst noch nicht eingerichtet.'
+};
+
+/**
+ * Add the backup line to the running subscription: a purchase of its own,
+ * with its own declaration on withdrawal. Stripe charges the rest of the
+ * running month at once, and the line then renews with the plan.
+ * @param {Uint8Array} master
+ * @param {{ waiver?: string, baseUrl?: string, fetch?: typeof fetch }} [options]
+ * @returns {Promise<{ fundedUntil: string | null }>}
+ */
+export async function addBackupLine(master, { waiver, ...options } = {}) {
+	const r = await send(master, 'POST', '/v1/backup/subscription', waiver ? { waiver } : {}, options, { ...MESSAGES, ...BACKUP_PLAN_MESSAGES });
+	return { fundedUntil: r?.funded_until ? String(r.funded_until) : null };
+}
+
+/**
+ * A year of keeping the backups, paid once (365 days from the later of today
+ * and the paid end): its own embedded Checkout, with or without a plan.
+ * @param {Uint8Array} master
  * @param {{ waiver?: string, baseUrl?: string, fetch?: typeof fetch }} [options]
  * @returns {Promise<string>} the client secret
  */
-export async function startSubscription(master, packageId, { waiver, ...options } = {}) {
-	const r = await send(master, 'POST', '/v1/subscribe', { package: packageId, locale: 'de', ...(waiver ? { waiver } : {}) }, options);
-	if (typeof r?.client_secret !== 'string') throw new Error('Le Space Credits haben keine Bezahlseite für das Abo geliefert.');
+export async function startBackupYear(master, { waiver, ...options } = {}) {
+	const r = await send(master, 'POST', '/v1/backup/checkout', { locale: 'de', ...(waiver ? { waiver } : {}) }, options, { ...MESSAGES, ...BACKUP_PLAN_MESSAGES });
+	if (typeof r?.client_secret !== 'string') throw new Error('Le Space Credits haben keine Bezahlseite für das Jahr geliefert.');
 	return r.client_secret;
+}
+
+/**
+ * Read the balance until the backup is paid further than `before` (the
+ * webhook books it a moment after the payment), or give up.
+ * @param {Uint8Array} master @param {string | null} before the paid end before the purchase
+ * @param {{ tries?: number, delayMs?: number, read?: typeof creditsBalance }} [options]
+ */
+export async function waitForBackup(master, before, { tries = 30, delayMs = 2000, read = creditsBalance } = {}) {
+	const was = before ? Date.parse(before) : 0;
+	let last = null;
+	for (let i = 0; i < tries; i++) {
+		last = await read(master).catch(() => last);
+		const until = last?.backup?.fundedUntil ? Date.parse(last.backup.fundedUntil) : 0;
+		if (until > was) return { booked: true, balance: last };
+		await new Promise((r) => setTimeout(r, delayMs));
+	}
+	return { booked: false, balance: last };
+}
+
+/**
+ * Where the backup stands, in the app's words. The service says what is the
+ * case (paid until, renews, notice); nothing here compares clocks.
+ * `tone`: 'ok' a plain line, 'soon' a quiet hint, 'warn' a warning, 'over' the end.
+ * @param {NonNullable<ReturnType<typeof backupOf>>} backup
+ * @param {{ timeZone?: string }} [options]
+ * @returns {{ tone: 'none' | 'ok' | 'soon' | 'warn' | 'over', text: string }}
+ */
+export function backupStatus(backup, { timeZone } = {}) {
+	const date = (/** @type {string | null} */ iso) => germanDate(iso, timeZone);
+	const n = backup.notice;
+	if (n?.kind === 'retention_over') return { tone: 'over', text: 'Die Sicherungen sind abgelaufen. Der Speicher dafür kann beendet sein; eine neue Sicherung entsteht, sobald wieder eine bezahlt ist und Paperless anywhere läuft.' };
+	if (n?.kind === 'expired') return { tone: 'warn', text: `Seit dem ${date(n.fundedUntil ?? backup.fundedUntil)} entstehen keine neuen Sicherungen. Die vorhandenen bleiben bis zum ${date(n.retentionUntil ?? backup.retentionUntil)} abrufbar.` };
+	if (n?.kind === 'expires_soon') {
+		const week = n.daysLeft != null && n.daysLeft <= 7;
+		return { tone: week ? 'warn' : 'soon', text: `Die Sicherung ist bis zum ${date(n.fundedUntil ?? backup.fundedUntil)} bezahlt${week && n.daysLeft != null ? ` (noch ${n.daysLeft} ${n.daysLeft === 1 ? 'Tag' : 'Tage'})` : ''}. Danach entstehen keine neuen Sicherungen mehr.` };
+	}
+	if (backup.active && backup.renewsWithPlan) return { tone: 'ok', text: `Sicherung: Teil deines Abos, verlängert sich mit dem Paket. Bezahlt bis zum ${date(backup.fundedUntil)}.` };
+	if (backup.active) return { tone: 'ok', text: `Sicherung: bezahlt bis zum ${date(backup.fundedUntil)}.` };
+	return { tone: 'none', text: 'Sicherung: nicht gebucht. Ohne Sicherung sind deine Dokumente nach einem Stopp weg.' };
 }
 
 /**
@@ -695,16 +807,16 @@ const isoOrNull = (/** @type {unknown} */ v) => (typeof v === 'string' && !Numbe
  * One contract the service lists as withdrawable (or withdrawn), as the app
  * shows it. `what` is the service's own naming of it and is shown as text.
  * @param {any} w
- * @returns {{ subject: 'subscription' | 'credits', what: string, concludedAt: string | null, until: string | null } | null}
+ * @returns {{ subject: 'subscription' | 'credits' | 'backup', what: string, concludedAt: string | null, until: string | null } | null}
  */
 export function withdrawableOf(w) {
-	if (w?.subject !== 'subscription' && w?.subject !== 'credits') return null;
+	if (w?.subject !== 'subscription' && w?.subject !== 'credits' && w?.subject !== 'backup') return null;
 	return { subject: w.subject, what: typeof w.what === 'string' ? w.what.trim().slice(0, 200) : '', concludedAt: isoOrNull(w.concluded_at), until: isoOrNull(w.until) };
 }
 
 /** What a withdrawable contract is called when the service names none. */
-export const WITHDRAWAL_SUBJECTS = Object.freeze({ subscription: 'Paket im Monatsabo', credits: 'Guthaben-Kauf' });
-export const withdrawableName = (/** @type {{ subject: 'subscription' | 'credits', what: string }} */ w) => w.what || WITHDRAWAL_SUBJECTS[w.subject];
+export const WITHDRAWAL_SUBJECTS = Object.freeze({ subscription: 'Paket im Monatsabo', credits: 'Guthaben-Kauf', backup: '1 Jahr Aufbewahrung der Sicherungen' });
+export const withdrawableName = (/** @type {{ subject: 'subscription' | 'credits' | 'backup', what: string }} */ w) => w.what || WITHDRAWAL_SUBJECTS[w.subject];
 
 /**
  * What can be withdrawn right now (§ 356a BGB), without withdrawing: the
@@ -747,7 +859,7 @@ export async function withdraw(master, options) {
 /**
  * The confirmation of a withdrawal as a small text file: what the person
  * keeps as the durable record. Plain text, no remote resources.
- * @param {{ withdrawn: { subject: 'subscription' | 'credits', what: string, concludedAt: string | null }[], receivedAt: string, refundId?: string | null, address: string, timeZone?: string }} c
+ * @param {{ withdrawn: { subject: 'subscription' | 'credits' | 'backup', what: string, concludedAt: string | null }[], receivedAt: string, refundId?: string | null, address: string, timeZone?: string }} c
  * @returns {{ filename: string, text: string }}
  */
 export function withdrawalRecord({ withdrawn, receivedAt, refundId = null, address, timeZone }) {
