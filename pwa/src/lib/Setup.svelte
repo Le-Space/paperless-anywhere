@@ -9,7 +9,7 @@
 	import { findAttestRelays } from '$lib/relays.js';
 	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups } from '$lib/credits.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
-	import { BUILDER, buildOwnImage, hasOwnImage, openBuilder, sources } from '$lib/own-image.js';
+	import { BUILDER, buildOwnImage, builderOpener, hasOwnImage, sources } from '$lib/own-image.js';
 	import {
 		connectPayer,
 		isAuthorized,
@@ -248,7 +248,7 @@
 				master,
 				app: privateKeyToAccount(alephPrivateKey(master)),
 				builder: BUILDER,
-				open: () => openBuilder(BUILDER, profile),
+				open: builderOpener(BUILDER, profile),
 				onProgress: ({ detail }) => (ownStep = detail ?? '')
 			});
 			await save(built);
@@ -428,7 +428,7 @@
 		{@render feedback('image')}
 		{#if BUILDER}
 			<div class="own-image" data-testid="own-image">
-				<p class="hint">Oder ein Image nur für diesen Tresor: Ein geprüfter Build-Dienst versiegelt das öffentliche Image mit einer Passphrase, die aus deinem Tresor abgeleitet wird. Die App prüft den Hardware-Nachweis des Dienstes, bevor sie die Passphrase schickt, holt das versiegelte Image über denselben geprüften Kanal und lädt es selbst zu Aleph hoch (knapp 900 MiB; das dauert und braucht eine stabile Verbindung). Das Image liegt danach bei Aleph auf der Adresse dieser App (<code>{pwaAddress}</code>), die auch den Speicher bezahlt.</p>
+				<p class="hint">Oder ein Image nur für diesen Tresor: Ein geprüfter Build-Dienst versiegelt das öffentliche Image mit einer Passphrase, die aus deinem Tresor abgeleitet wird. Die App prüft den Hardware-Nachweis des Dienstes, bevor sie die Passphrase schickt, holt das versiegelte Image in Stücken über ebenso geprüfte Verbindungen zurück und lädt es selbst zu Aleph hoch (knapp 900 MiB; das dauert und braucht eine stabile Verbindung). Das Image liegt danach bei Aleph auf der Adresse dieser App (<code>{pwaAddress}</code>), die auch den Speicher bezahlt.</p>
 				<details class="sources" data-testid="own-image-sources">
 					<summary>Woraus und womit wird gebaut?</summary>
 					<p class="hint">Diese Werte sind in der App festgelegt und für alle gleich. Das öffentliche Image kann jeder laden und den Hash vergleichen; den Messwert bestätigt die Hardware, bevor die App die Passphrase schickt.</p>
