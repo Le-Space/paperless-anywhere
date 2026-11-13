@@ -26,7 +26,7 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(h1).not.toHaveAttribute('aria-live');
 	await expect(h1.locator('.word')).toHaveText(['ausfallsicher.', 'vertraulich.', 'nach deinem Takt.']);
 	await expect(page.locator('.hero .kicker')).toHaveText('Dezentral · vertraulich · auf Abruf');
-	await expect(page.locator('.points h3')).toHaveText(['Ausfallsicher', 'Vertraulich und nachprüfbar', 'Bezahlt nach Gebrauch']);
+	await expect(page.locator('.points h3')).toHaveText(['Ausfallsicher', 'Vertraulich und nachprüfbar', 'Rund um die Uhr oder auf Abruf']);
 	await expect(page).toHaveTitle('Paperless anywhere – ausfallsicher, vertraulich, nach deinem Takt');
 	await expect(page.locator('#nodes')).toContainText('2 TEE-Knoten, 1 davon mit Platz');
 	// Resilience, with the live numbers and without claiming more than is true.
@@ -41,9 +41,10 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(legal.getByRole('link', { name: 'Widerrufsbelehrung' })).toHaveAttribute('href', 'https://credits.le-space.de/agb');
 	await expect(page.getByTestId('footer-terms')).toHaveAttribute('href', 'https://credits.le-space.de/agb');
 	await expect(page.getByTestId('footer-withdrawal')).toHaveText('Widerrufsbelehrung');
-	await expect(page.locator('#prices .lead')).toHaveText('Wähle ein Monatspaket für die Stunden, die du im Monat brauchst. Rund um die Uhr nur, wenn du es wirklich brauchst.');
+	await expect(page.locator('#prices .lead')).toHaveText('Wähle ein Monatspaket: Dauerbetrieb rund um die Uhr, oder die Stunden, die du im Monat brauchst.');
 	// Who it is for, and the way to "Nachprüfbar" from the top.
-	await expect(page.getByTestId('audience')).toContainText('Buchhaltung und Steuerberatung');
+	await expect(page.getByTestId('audience')).toContainText('Für Unternehmen, die ihr Dokumentenarchiv rund um die Uhr brauchen');
+	await expect(page.getByTestId('audience')).toContainText('in etwa einer Viertelstunde bereit');
 	await expect(page.getByTestId('trust-hint')).toHaveAttribute('href', '#trust');
 	await expect(page.locator('#prices')).toContainText('4,90 €');
 	await expect(page.locator('#prices')).toContainText('Dauerbetrieb, rund um die Uhr');
