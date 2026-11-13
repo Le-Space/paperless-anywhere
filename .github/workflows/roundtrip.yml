@@ -315,6 +315,11 @@ jobs:
     runs-on: ${{ inputs.runner == 'aleph' && fromJSON('["self-hosted","aleph"]') || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
+      # Only for the lockfile of the tool that derives the address below.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: .github/eth-tool
+          persist-credentials: false
       - name: Install the aleph CLI
         run: |
           curl -fsSL -o "$RUNNER_TEMP/aleph" https://github.com/aleph-im/aleph-rs/releases/download/v0.22.0/aleph-cli-linux-x86_64
@@ -323,7 +328,11 @@ jobs:
       - name: Erase and forget every VM of this run
         run: |
           # Node is on both runners; pip is not usable on the Aleph runner's Debian.
-          npm install -q --prefix "$RUNNER_TEMP/eth" --no-audit --no-fund ethers@6.16.0 >/dev/null
+          # The exact packages of the lockfile in .github/eth-tool, and none of
+          # their install scripts: this step holds the key.
+          mkdir -p "$RUNNER_TEMP/eth"
+          cp "$GITHUB_WORKSPACE/.github/eth-tool/package.json" "$GITHUB_WORKSPACE/.github/eth-tool/package-lock.json" "$RUNNER_TEMP/eth/"
+          (cd "$RUNNER_TEMP/eth" && npm ci --ignore-scripts --no-audit --no-fund --loglevel=error >/dev/null)
           addr="$(node -e 'const { Wallet } = require(process.argv[1]); const k = process.env.ALEPH_PRIVATE_KEY.trim(); console.log(new Wallet(k.startsWith("0x") ? k : "0x" + k).address)' "$RUNNER_TEMP/eth/node_modules/ethers")"
           hashes="$(curl -fsS "https://api2.aleph.im/api/v0/messages.json?addresses=$addr&msgTypes=INSTANCE&pagination=50" \
             | jq -r --arg n "$NAME" '.messages[] | select((.content.metadata.name // "") | startswith($n)) | .item_hash')"

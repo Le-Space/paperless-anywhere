@@ -1,0 +1,9 @@
+{
+	"name": "eth-tool",
+	"private": true,
+	"description": "What the round-trip workflows need to derive the address of the key they clean up for (ethers): pinned here with a lockfile, because the step holds that key.",
+	"license": "AGPL-3.0-or-later",
+	"dependencies": {
+		"ethers": "6.16.0"
+	}
+}

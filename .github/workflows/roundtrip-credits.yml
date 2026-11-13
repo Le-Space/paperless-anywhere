@@ -407,7 +407,11 @@ jobs:
           sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
       - name: Erase and forget every VM of this run
         run: |
-          npm install -q --prefix "$RUNNER_TEMP/eth" --no-audit --no-fund ethers@6.16.0 >/dev/null
+          # The exact packages of the lockfile in .github/eth-tool, and none of
+          # their install scripts: this step holds the key.
+          mkdir -p "$RUNNER_TEMP/eth"
+          cp "$GITHUB_WORKSPACE/.github/eth-tool/package.json" "$GITHUB_WORKSPACE/.github/eth-tool/package-lock.json" "$RUNNER_TEMP/eth/"
+          (cd "$RUNNER_TEMP/eth" && npm ci --ignore-scripts --no-audit --no-fund --loglevel=error >/dev/null)
           addr="$(node -e 'const { Wallet } = require(process.argv[1]); const k = process.env.ALEPH_PRIVATE_KEY.trim(); console.log(new Wallet(k.startsWith("0x") ? k : "0x" + k).address)' "$RUNNER_TEMP/eth/node_modules/ethers")"
           hashes="$(curl -fsS "https://api2.aleph.im/api/v0/messages.json?addresses=$addr&msgTypes=INSTANCE&pagination=50" \
             | jq -r --arg n "$NAME" '.messages[] | select((.content.metadata.name // "") | startswith($n)) | .item_hash')"
