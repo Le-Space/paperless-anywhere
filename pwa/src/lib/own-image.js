@@ -195,7 +195,7 @@ const fetched = { current: null };
  * own address, and says which content address the node made.
  * @param {Blob} image @param {object} message
  */
-async function storeOnAleph(image, message) {
+export async function storeOnAleph(image, message) {
 	const form = new FormData();
 	form.append('file', image, 'rootfs');
 	form.append('metadata', JSON.stringify({ message, sync: true }));
