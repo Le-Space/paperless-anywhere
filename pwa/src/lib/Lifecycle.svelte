@@ -1,6 +1,6 @@
 <script>
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
-	import { AlephShortError, BackupPartialError, eraseStopped, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
+	import { AlephShortError, BackupPartialError, attestRunning, eraseStopped, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
 	import { vmStatus } from '$lib/vm.js';
 	import Storage from '$lib/Storage.svelte';
 	import { statusToken } from '$lib/keys/derive.js';
@@ -20,6 +20,11 @@
 	import TrialRestore from '$lib/TrialRestore.svelte';
 	import ProviderHealth from '$lib/ProviderHealth.svelte';
 	import { providerIdsIn } from '$lib/providers.js';
+	import Evidence from '$lib/Evidence.svelte';
+	import { evidenceRows } from '$lib/evidence.js';
+	import { appLang, evidenceTexts } from '$lib/evidence-i18n.js';
+	import { RUNTIME } from '$lib/runtime-pin.js';
+	import { ALEPH_API } from '$lib/aleph.js';
 
 	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void, onmissing?: (missing: string[]) => void, onglance?: (g: Glance) => void, onbusy?: (busy: boolean) => void }} */
 	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {}, onmissing = () => {}, onglance = () => {}, onbusy = () => {} } = $props();
@@ -130,6 +135,15 @@
 			now.lastGoodBackup?.at && new Date(now.lastGoodBackup.at) >= new Date(good.at) ? now : { ...now, lastGoodBackup: { at: good.at, copies: good.copies ?? null, requested: good.requested ?? null } }
 		);
 	}
+	// The evidence of the running VM: what the app checked, what was only reported.
+	const evidenceT = evidenceTexts[appLang()];
+	const evidence = $derived(
+		profile.running ? evidenceRows({ running: profile.running, rootfsItemHash: profile.rootfsItemHash, runtime: RUNTIME, alephApi: ALEPH_API, lastGood, backupsOn: Boolean(profile.backupConfig) }) : []
+	);
+	const checkAgain = async () => {
+		await attestRunning(master, $state.snapshot(profile));
+		profile = await loadProfile(master);
+	};
 	const healthIds = $derived([...new Set([...providerIdsIn(errorLog), ...(profile.backupConfig?.providerIds ?? [])])]);
 	// A stop whose backup reached fewer providers than requested: Paperless is
 	// paused and the VM waits for the person to erase it anyway or keep it.
@@ -532,6 +546,7 @@
 				</div>
 			</div>
 			{#if profile.backupConfig}<BackupNow {master} {profile} known={lastGood} disabled={busy} onbusy={(b) => (backingUp = b)} ongood={rememberGood} />{/if}
+			<Evidence rows={evidence} t={evidenceT} onagain={busy ? null : checkAgain} />
 			<button class="secondary stop" onclick={stop} disabled={busy || backingUp}>Sichern und beenden</button>
 			<Storage {master} {profile} />
 			{#if profile.ageIdentity && backupListing(profile)}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
@@ -578,6 +593,7 @@
 			{#if profile.running.restore?.status === 'failed'}<p class="error" data-testid="restore-failed">Wiederherstellung fehlgeschlagen ({profile.running.restore.reason ?? 'ohne Grund'}{profile.running.restore.error ? `: ${profile.running.restore.error}` : ''}). Paperless-ngx läuft leer. Diese VM nicht sichern, sondern unter „Meine VMs“ löschen: sonst wird die leere Paperless zur neuesten Sicherung.</p>{/if}
 			{#if profile.running.dataDisk === 'encrypted'}<p class="hint" data-testid="data-disk">Was diese VM schreibt, liegt auf einer eigenen Platte, verschlüsselt mit einem Schlüssel, den nur die VM kennt.</p>
 			{:else if profile.running.dataDisk === 'plain'}<p class="warn" data-testid="data-disk">Diese VM schreibt auf die gemeinsame Image-Platte, ohne eigenen Schlüssel. Die eigene Datenplatte ist vorerst ausgeschaltet (zu wenig Platz, bis die Container-Images flach sind).</p>{/if}
+			<Evidence rows={evidence} t={evidenceT} onagain={busy ? null : checkAgain} />
 			<p data-testid="paperless-login">Anmeldung: <code>admin</code>,
 				{#if showPassword}<code data-testid="admin-password">{adminPassword}</code>{:else}<span>••••••••</span>{/if}
 				<button type="button" class="small" onclick={() => (showPassword = !showPassword)}>{showPassword ? 'Verbergen' : 'Passwort anzeigen'}</button>
