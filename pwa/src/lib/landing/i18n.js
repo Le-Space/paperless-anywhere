@@ -423,7 +423,7 @@ export const texts = {
 						'Use a browser profile of its own, without extensions, for Paperless anywhere, and install the app there.',
 						'Or take a private window, a phone or a tablet.',
 						'Enter the 24 words only in the app at paperless.le-space.de and keep them on paper. The passkey works for this address only; a fake page can still ask for the words.',
-						'Lock the vault when you are done, with “Sperren”.'
+						'Lock the vault when you are done, with the “Sperren” (lock) button; the app itself is in German.'
 					],
 					more: { text: 'The details are in the security model.', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/security-model.md#your-own-device' }
 				},
