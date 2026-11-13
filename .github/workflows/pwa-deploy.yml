@@ -67,12 +67,12 @@ jobs:
           pnpm exec playwright test --reporter=line
 
       - name: Install isolated Aleph deploy tooling
-        # The exact packages of the lockfile in .github/deploy-tool: the next
-        # steps hold the key that signs and pays.
+        # The exact packages of the lockfile in .github/deploy-tool, and none of
+        # their install scripts: the next steps hold the key that signs and pays.
         run: |
           mkdir -p "$RUNNER_TEMP/le-space-deployer"
           cp .github/deploy-tool/package.json .github/deploy-tool/package-lock.json "$RUNNER_TEMP/le-space-deployer/"
-          cd "$RUNNER_TEMP/le-space-deployer" && npm ci --no-audit --no-fund --loglevel=error
+          cd "$RUNNER_TEMP/le-space-deployer" && npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
 
       - name: Publish to Aleph IPFS
         id: publish
@@ -83,11 +83,22 @@ jobs:
           ALEPH_SITE_NAME: paperless-anywhere
           ALEPH_SITE_RETENTION_KEEP_COUNT: '3'
           ALEPH_SITE_CHANNEL: ALEPH-CLOUDSOLUTIONS
+          # Three API nodes for the CAR upload, each with its gateway, tried in
+          # this order (as Belege's deploy and relay-button's defaults since
+          # 0.12.3). On 2026-11-13 api2 answered every upload with 502 for
+          # hours, because its IPFS backend could not be reached; api3.aleph.im
+          # is a core channel node with a backend of its own. One host is one
+          # point of failure for the whole release. Waiting for the STORE and
+          # the retention then use the host that took the upload.
+          ALEPH_SITE_ENDPOINT_PAIRS: '[{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api2.aleph.im"},{"ipfsGateway":"https://ipfs.aleph.cloud","apiHost":"https://api.aleph.im"},{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api3.aleph.im"}]'
+          # Wait up to 20 minutes for Aleph to process the STORE (default: 5).
           ALEPH_SITE_ALEPH_MESSAGE_WAIT_ATTEMPTS: '240'
           ALEPH_SITE_ALEPH_MESSAGE_WAIT_DELAY_MS: '5000'
           ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: |
-          for attempt in 1 2 3; do
+          # One attempt goes through all three hosts. A second one covers a
+          # short outage of all of them; a pending STORE is never uploaded again.
+          for attempt in 1 2; do
             if node --input-type=module -e "import('$RUNNER_TEMP/le-space-deployer/node_modules/@le-space/node/index.js').then((m) => m.runSiteMode())" 2> >(tee "$RUNNER_TEMP/publish-err.txt" >&2); then
               exit 0
             fi
@@ -95,8 +106,9 @@ jobs:
               echo "::error::Aleph did not process the STORE within 20 minutes. The files are on IPFS; run this workflow again later instead of re-uploading now."
               exit 1
             fi
-            echo "::warning::publish attempt $attempt failed, retrying in 30 s"
-            sleep 30
+            [ "$attempt" = 2 ] && break
+            echo "::warning::publish attempt $attempt failed on every host, once more in 60 s"
+            sleep 60
           done
           exit 1
 
@@ -108,6 +120,10 @@ jobs:
           ALEPH_SITE_IPFS_CID: ${{ steps.publish.outputs.ipfs_cid }}
           ALEPH_SITE_DOMAIN: ${{ env.SITE_DOMAIN }}
           ALEPH_SITE_DOMAIN_CATCH_ALL_PATH: /200.html
+          # The host that took the upload first: it knows the STORE at once.
+          # The others follow, should it fail in the meantime.
+          # (The tool drops an empty entry and doubles.)
+          ALEPH_SITE_ALEPH_API_HOSTS: ${{ steps.publish.outputs.aleph_api_host }},https://api2.aleph.im,https://api.aleph.im,https://api3.aleph.im
           # The gateway may serve the previous CID from its cache for a while
           # (v0.1.1: longer than the default 5 minutes); wait up to 20.
           ALEPH_SITE_GATEWAY_WAIT_ATTEMPTS: '120'
@@ -118,6 +134,7 @@ jobs:
       - name: Summary
         run: |
           echo "CID: ${{ steps.publish.outputs.ipfs_cid }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Uploaded through: ${{ steps.publish.outputs.aleph_api_host }}" >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ github.event_name == 'release' || inputs.link_domain }}" = true ]; then echo "**Live:** https://${SITE_DOMAIN}" >> "$GITHUB_STEP_SUMMARY"; fi
 
       # Through the API: the Aleph runner has no gh.
