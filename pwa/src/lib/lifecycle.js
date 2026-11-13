@@ -18,6 +18,7 @@ import { backupFacts, vmBackupSecrets } from './backups.js';
 import { attestRelaysFor } from './relays.js';
 import { updateProfile, vmPayer } from './profile.js';
 import { ALEPH_API, readFetch } from './aleph.js';
+import { format, tr } from './i18n/index.js';
 import { crnAddress, credits, estimateCreditsPerHour, FIXED_HOST_DOMAIN, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
 /** Aleph would refuse the start: the payer holds less than a day of reserve. */
@@ -36,7 +37,7 @@ export class AlephShortError extends Error {
 export class BackupFailedError extends Error {
 	/** @param {string} reason @param {string[]} log @param {string[]} [facts] */
 	constructor(reason, log, facts = []) {
-		super(`Die letzte Sicherung ist fehlgeschlagen; die VM bleibt. Grund: ${reason}`);
+		super(tr().life.errors.backupFailed(reason));
 		this.name = 'BackupFailedError';
 		this.reason = reason;
 		this.log = log;
@@ -55,7 +56,7 @@ export class BackupPartialError extends Error {
 		const b = status?.stop?.backup ?? status?.backup;
 		const have = b?.backup?.copies?.length ?? 0;
 		const want = b?.backup?.requestedCopies ?? have;
-		super(`Gesichert, aber nur ${have} von ${want} Kopien sind angekommen: ein Anbieter hat die Sicherung abgelehnt. Paperless ist angehalten.`);
+		super(tr().life.errors.backupPartial(have, want));
 		this.name = 'BackupPartialError';
 		this.status = status;
 		this.copies = have;
@@ -139,7 +140,7 @@ export async function revokeBackupKey(master, profile, deletedHash, { revoke = (
 	try {
 		await revoke(master);
 	} catch (e) {
-		onProgress({ step: 'forget', detail: `VM gelöscht; den Schlüssel der VM für die Sicherungen nimmt die App beim nächsten Öffnen zurück (${e instanceof Error ? e.message : String(e)})` });
+		onProgress({ step: 'forget', detail: tr().life.progress.revokeLater(e instanceof Error ? e.message : String(e)) });
 		await update(master, (p) => ({ ...p, backupRevokePending: true })).catch(() => {});
 		return 'pending';
 	}
@@ -182,22 +183,23 @@ export const passphraseFitsImage = (profile) => !profile?.luksFor || profile.luk
 
 /** What a start needs from the profile; throws with a reason a person can act on. */
 export function startRequirements(profile) {
+	const m = tr().life.missing;
 	const missing = [];
 	// The wallet pays the VM, or only the backups when the app pays (appPays).
-	if (!profile.payer && !profile.appPays && !profile.leSpacePays) missing.push('zahlendes Konto');
+	if (!profile.payer && !profile.appPays && !profile.leSpacePays) missing.push(m.payer);
 	// Backups paid through Le Space Credits need no wallet: Le Space's payer
 	// pays them, once the service has the VM's backup key.
-	if (!profile.payer && profile.backupConfig && !profile.backupsByCredits) missing.push('Wallet für die Sicherungen');
+	if (!profile.payer && profile.backupConfig && !profile.backupsByCredits) missing.push(m.backupWallet);
 	const signerNetwork = profile.network === 'mainnet' ? 'mainnet' : 'calibration';
-	if (profile.backupConfig && profile.backupsByCredits && (!profile.backupSigner?.payer || profile.backupSigner.network !== signerNetwork)) missing.push('Sicherungen über Le Space Credits freigeben');
-	if (!profile.rootfsItemHash) missing.push('Paperless-Image');
-	if (!profile.luksPassphrase) missing.push('Image-Passphrase');
-	else if (!passphraseFitsImage(profile)) missing.push('Passphrase für dieses Image (die hinterlegte gehört zu einem anderen)');
-	if (!profile.crnHash) missing.push('Knoten');
+	if (profile.backupConfig && profile.backupsByCredits && (!profile.backupSigner?.payer || profile.backupSigner.network !== signerNetwork)) missing.push(m.backupSigner);
+	if (!profile.rootfsItemHash) missing.push(m.image);
+	if (!profile.luksPassphrase) missing.push(m.passphrase);
+	else if (!passphraseFitsImage(profile)) missing.push(m.passphraseOther);
+	if (!profile.crnHash) missing.push(m.node);
 	// The guest backs up a primary to mainnet only and refuses any other network.
-	if (profile.role === 'primary' && profile.network !== 'mainnet') missing.push('Netz Mainnet für die Rolle „Produktiv“');
+	if (profile.role === 'primary' && profile.network !== 'mainnet') missing.push(m.mainnetForPrimary);
 	// …and backs up to mainnet only as a primary: a test there runs without backups.
-	if (profile.backupConfig && profile.network === 'mainnet' && profile.role !== 'primary') missing.push('Rolle „Produktiv“ für Sicherungen auf Mainnet (oder Sicherungen aus)');
+	if (profile.backupConfig && profile.network === 'mainnet' && profile.role !== 'primary') missing.push(m.primaryForMainnet);
 	return missing;
 }
 
@@ -216,15 +218,15 @@ export function startRequirements(profile) {
  */
 export async function startPaperless(master, profile, onProgress, { onRequested } = {}) {
 	const missing = startRequirements(profile);
-	if (missing.length) throw new Error(`Für den Start fehlt: ${missing.join(', ')}`);
+	if (missing.length) throw new Error(tr().life.errors.startMissing(missing.join(', ')));
 	const app = privateKeyToAccount(alephPrivateKey(master));
-	onProgress({ step: 'measure', detail: 'Messwerte für diesen Start berechnen' });
+	onProgress({ step: 'measure', detail: tr().life.progress.measure });
 	const wasm = await loadWasm();
 	const trustedExecution = await pinnedTrustedExecution({ wasm, owner: app.address, vcpus: PAPERLESS_VM.vcpus });
 
-	onProgress({ step: 'instance', detail: 'VM anfordern' });
+	onProgress({ step: 'instance', detail: tr().life.progress.request });
 	const payer = vmPayer(profile, app.address);
-	if (!payer) throw new Error('Es ist noch kein Konto bekannt, das die VM bezahlt.');
+	if (!payer) throw new Error(tr().life.errors.noPayer);
 	const message = await instanceMessage({ app, payer, rootfsItemHash: profile.rootfsItemHash, crnHash: profile.crnHash, trustedExecution, name: `paperless-${new Date().toISOString().slice(0, 16)}` });
 	// Aleph takes the VM only when the account holds a day of the VM's price
 	// plus a day of what it already pays for; checked here so an account short
@@ -236,9 +238,11 @@ export async function startPaperless(master, profile, onProgress, { onRequested 
 	]);
 	const reserve = profile.minCredits ?? RESERVE_HOURS * (vmPerHour + runningPerHour);
 	if (balance < reserve) {
-		const running = runningPerHour ? ` und ${runningPerHour.toLocaleString('de-DE')} Credits/h für das, was schon läuft` : '';
+		const e = tr().life.errors;
+		const n = (/** @type {number} */ value) => format.number(value);
+		const running = runningPerHour ? e.alephShortRunning(n(runningPerHour)) : '';
 		throw new AlephShortError(
-			`Für einen Start fehlen noch ${(reserve - balance).toLocaleString('de-DE')} Aleph-Credits auf ${profile.leSpacePays ? 'dem Konto, mit dem Le Space deine VM bezahlt' : profile.appPays ? 'der Adresse der App' : 'deiner Wallet'}. Aleph nimmt die VM erst mit einem Tag Reserve an: ${reserve.toLocaleString('de-DE')} (${vmPerHour.toLocaleString('de-DE')} Credits/h für Paperless${running}), da sind ${balance.toLocaleString('de-DE')}.`,
+			e.alephShort({ missing: n(reserve - balance), where: e.payerAccount[profile.leSpacePays ? 'lespace' : profile.appPays ? 'app' : 'wallet'], reserve: n(reserve), vmPerHour: n(vmPerHour), running, balance: n(balance) }),
 			{ balance, reserve, vmPerHour }
 		);
 	}
@@ -261,11 +265,11 @@ export async function startPaperless(master, profile, onProgress, { onRequested 
 export async function resumeStart(master, profile, onProgress) {
 	/** @type {Starting} */
 	const starting = profile.starting;
-	if (!starting?.instanceHash) throw new Error('Es gibt keinen unterbrochenen Start.');
-	onProgress({ step: 'instance', detail: 'VM bei Aleph nachsehen', instanceHash: starting.instanceHash });
+	if (!starting?.instanceHash) throw new Error(tr().life.errors.noInterruptedStart);
+	onProgress({ step: 'instance', detail: tr().life.progress.lookUp, instanceHash: starting.instanceHash });
 	const res = await readFetch(`${ALEPH_API}/api/v0/messages/${starting.instanceHash}`, 'VM nachsehen');
 	const status = res.ok ? (await res.json())?.status : null;
-	if (status !== 'processed') throw new Error(`Die VM ${starting.instanceHash.slice(0, 12)} gibt es bei Aleph nicht mehr (${status ?? res.status}).`);
+	if (status !== 'processed') throw new Error(tr().life.errors.vmGone(starting.instanceHash.slice(0, 12), status ?? res.status));
 	return bringUp(master, { ...profile, restoreEntry: starting.restoreEntry }, starting, await loadWasm(), onProgress);
 }
 
@@ -279,7 +283,7 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	const { instanceHash, payer, trustedExecution } = starting;
 	const crnUrl = await crnAddress(starting.crnHash);
 
-	onProgress({ step: 'network', detail: 'Port 443 und Adresse', instanceHash });
+	onProgress({ step: 'network', detail: tr().life.progress.network, instanceHash });
 	if (!(await mapped443(crnUrl, instanceHash).catch(() => null))) {
 		await forward443(app, payer, instanceHash);
 		await until('port 443', () => mapped443(crnUrl, instanceHash), { tries: 60 });
@@ -327,7 +331,7 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 			);
 		} catch (e) {
 			// Paperless starts anyway; the VM reports "no backup_config".
-			onProgress({ step: 'unlock', detail: `Ohne Sicherungen: ${e instanceof Error ? e.message : String(e)}` });
+			onProgress({ step: 'unlock', detail: tr().life.progress.withoutBackups(e instanceof Error ? e.message : String(e)) });
 		}
 	}
 	const keys = debugKeysFor(profile);
@@ -337,7 +341,7 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 		secrets.age_identity = profile.ageIdentity;
 	}
 
-	onProgress({ step: 'unlock', detail: 'VM prüfen (AMD) und entsperren' });
+	onProgress({ step: 'unlock', detail: tr().life.progress.unlock });
 	const relays = await attestRelaysFor(profile);
 	const unlock = () =>
 		unlockInstance({
@@ -359,12 +363,12 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	/** @type {import('./evidence.js').Attestation | null} */
 	let attestation = null;
 	if (already?.phase) {
-		onProgress({ step: 'unlock', detail: 'schon entsperrt', already: true });
+		onProgress({ step: 'unlock', detail: tr().life.progress.alreadyUnlocked, already: true });
 	} else {
 		const unlocked = await unlock();
 		attestation = attestationOf(unlocked);
 		// Which secrets the guest's agent says it stored (names only).
-		onProgress({ step: 'unlock', detail: 'entsperrt', injected: unlocked?.injected ?? [], attestation });
+		onProgress({ step: 'unlock', detail: tr().life.progress.unlocked, injected: unlocked?.injected ?? [], attestation });
 	}
 
 	// Sometimes the guest's init never sees the passphrase the agent stored and
@@ -373,7 +377,7 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	// reachable, so when the status page has not answered after a while, the
 	// app attests and hands the secrets over again. A VM that is already up
 	// is not affected by that.
-	onProgress({ step: 'ready', detail: 'Paperless startet' });
+	onProgress({ step: 'ready', detail: tr().life.progress.starting });
 	const unlockedAt = Date.now();
 	// The fixed name exists only once the VM has set its records; asked
 	// earlier, a wildcard in the zone answers with another address, and the
@@ -388,18 +392,18 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 		const status = await vmStatus(host, statusToken(master)).catch(() => null);
 		if (status?.phase) {
 			answered = true;
-			onProgress({ step: 'ready', detail: `Paperless startet (${status.phase})`, status });
+			onProgress({ step: 'ready', detail: tr().life.progress.startingPhase(status.phase), status });
 			// A failed restore is final too: Paperless runs (empty), and says why.
 			if (status.phase === 'ready' || (status.phase === 'restore-failed' && status.paperless)) ready = status;
 			// The image refuses to run Paperless without its sealed data area.
-			if (status.phase === 'data-disk-failed') throw new Error(`Die VM konnte ihre verschlüsselte Datenplatte nicht anlegen (${status.dataDisk?.reason ?? 'ohne Angabe'}); Paperless startet darauf nicht. Die VM unter „Meine VMs“ löschen und neu starten.`);
+			if (status.phase === 'data-disk-failed') throw new Error(tr().life.errors.dataDiskFailed(status.dataDisk?.reason ?? tr().life.errors.noReason));
 		}
 		if (!ready && !answered && again.length && Date.now() - unlockedAt > again[0]) {
 			again.shift();
-			onProgress({ step: 'ready', detail: 'Noch keine Antwort der VM: Passphrase erneut übergeben' });
+			onProgress({ step: 'ready', detail: tr().life.progress.passphraseAgain });
 			await unlock()
 				.then((unlocked) => (attestation = attestationOf(unlocked) ?? attestation))
-				.catch((e) => onProgress({ step: 'ready', detail: `Erneute Übergabe fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}` }));
+				.catch((e) => onProgress({ step: 'ready', detail: tr().life.progress.passphraseAgainFailed(e instanceof Error ? e.message : String(e)) }));
 		}
 		if (!ready) await sleep(10_000);
 	}
@@ -446,7 +450,7 @@ export function attestationOf(verified, at = Date.now()) {
  */
 export async function attestRunning(master, profile, { attest = attestRunningGuest, update = updateProfile } = {}) {
 	const instanceHash = profile.running?.instanceHash;
-	if (!instanceHash) throw new Error('Es läuft keine VM.');
+	if (!instanceHash) throw new Error(tr().life.errors.noVm);
 	const attested = await attest(profile);
 	let attestation;
 	try {
@@ -454,7 +458,7 @@ export async function attestRunning(master, profile, { attest = attestRunningGue
 	} finally {
 		attested.channel.close();
 	}
-	if (!attestation) throw new Error('Die Prüfung hat kein Ergebnis geliefert.');
+	if (!attestation) throw new Error(tr().life.errors.noAttestation);
 	// Only for the VM that was checked: it may have been stopped meanwhile.
 	await update(master, (now) => (now.running?.instanceHash === instanceHash ? { ...now, running: { ...now.running, attestation } } : now));
 	return attestation;
@@ -496,11 +500,11 @@ async function attestRunningGuest(profile, wasm) {
  */
 export async function requestBackup(master, profile, onProgress, { send = sendToGuest, status: read = vmStatus, delayMs = 5000, tries = 360 } = {}) {
 	const run = profile.running;
-	if (!run?.instanceHash) throw new Error('Es läuft keine VM.');
+	if (!run?.instanceHash) throw new Error(tr().life.errors.noVm);
 	const token = statusToken(master);
 	const before = await read(run.host, token).catch(() => null);
 	// An image without the request would take it and never answer.
-	if (before && !('backupSchedule' in before)) throw new Error('Diese VM kennt „Jetzt sichern“ noch nicht (älteres Image).');
+	if (before && !('backupSchedule' in before)) throw new Error(tr().life.errors.noBackupNow);
 	const earlier = before?.backupRequest?.at ?? null;
 	await send(master, profile, { backup_request: String(Date.now()) });
 	onProgress({ detail: 'requested' });
@@ -513,7 +517,7 @@ export async function requestBackup(master, profile, onProgress, { send = sendTo
 	}, { tries, delayMs });
 	if (!['done', 'partial'].includes(done.backupRequest.status)) {
 		const b = done.backupRequest.backup ?? done.backup;
-		throw new BackupFailedError(b?.reason ?? ({ interrupted: 'unterbrochen', stopping: 'Paperless wird gerade gesichert und beendet' }[done.backupRequest.mode] ?? 'ohne Angabe'), b?.log ?? [], backupFacts(b));
+		throw new BackupFailedError(b?.reason ?? (/** @type {Record<string, string>} */ (tr().life.errors.backupModes)[done.backupRequest.mode] ?? tr().life.errors.noReason), b?.log ?? [], backupFacts(b));
 	}
 	return done;
 }
@@ -525,10 +529,10 @@ export async function requestBackup(master, profile, onProgress, { send = sendTo
  */
 export async function stopPaperless(master, profile, onProgress, { send = sendToGuest, status: read = vmStatus, delayMs = 10_000, tries = 180, erase = eraseStopped } = {}) {
 	const run = profile.running;
-	if (!run?.instanceHash) throw new Error('Es läuft keine VM.');
+	if (!run?.instanceHash) throw new Error(tr().life.errors.noVm);
 	const token = statusToken(master);
 
-	onProgress({ step: 'stop', detail: 'Stopp anfordern (letzte Sicherung)' });
+	onProgress({ step: 'stop', detail: tr().life.progress.stop });
 	// Only the answer to this request counts: the status page may still show an
 	// earlier stop's outcome until the VM picks the new one up (within seconds).
 	// An image that names no request in stop.json is told apart by the time.
@@ -547,7 +551,7 @@ export async function stopPaperless(master, profile, onProgress, { send = sendTo
 	if (status.phase === 'stop-partial') throw new BackupPartialError(status);
 	if (status.phase !== 'stopped') {
 		const b = status.stop?.backup ?? status.backup;
-		throw new BackupFailedError(b?.reason ?? 'ohne Angabe', b?.log ?? [], backupFacts(b));
+		throw new BackupFailedError(b?.reason ?? tr().life.errors.noReason, b?.log ?? [], backupFacts(b));
 	}
 	return erase(master, profile, status, onProgress);
 }
@@ -563,7 +567,7 @@ export async function stopPaperless(master, profile, onProgress, { send = sendTo
 export async function eraseStopped(master, profile, status, onProgress) {
 	const run = profile.running;
 	const app = privateKeyToAccount(alephPrivateKey(master));
-	onProgress({ step: 'forget', detail: 'VM löschen' });
+	onProgress({ step: 'forget', detail: tr().life.progress.forget });
 	const crnUrl = await crnAddress(run.crnHash).catch(() => null);
 	if (crnUrl) await eraseOnNode(app, run.instanceHash, crnUrl);
 	// Who paid at the start, also when the profile changed since.
@@ -582,12 +586,12 @@ export async function eraseStopped(master, profile, status, onProgress) {
  */
 export async function resumeAfterPartial(master, profile, { send = sendToGuest, status: read = vmStatus, delayMs = 5000, tries = 36 } = {}) {
 	const run = profile.running;
-	if (!run?.instanceHash) throw new Error('Es läuft keine VM.');
+	if (!run?.instanceHash) throw new Error(tr().life.errors.noVm);
 	// The resume names the stop it answers: an old one never restarts
 	// Paperless after a later stop.
 	const page = await read(run.host, statusToken(master)).catch(() => null);
 	const request = page?.stop?.status === 'partial' ? page.stop.request : null;
-	if (!request) throw new Error('Die VM wartet auf keine Antwort mehr; bitte die Seite neu laden.');
+	if (!request) throw new Error(tr().life.errors.noPendingAnswer);
 	await send(master, profile, { stop_resume: String(request) });
 	return until('Paperless wieder starten', async () => {
 		const s = await read(run.host, statusToken(master));
@@ -616,7 +620,7 @@ export function trialProfile(profile, entry) {
  * @param {{ onRequested?: (starting: Starting) => Promise<void> | void }} [options]
  */
 export async function startTrial(master, profile, entry, onProgress, options) {
-	if (!profile.ageIdentity) throw new Error('Ohne den Schlüssel der Sicherungen lässt sich keine Sicherung prüfen.');
+	if (!profile.ageIdentity) throw new Error(tr().life.errors.noBackupKey);
 	const run = await startPaperless(master, trialProfile(profile, entry), onProgress, options);
 	// How the restore went: the status page's restore.json (documents, seconds).
 	const status = await vmStatus(run.host, statusToken(master)).catch(() => null);

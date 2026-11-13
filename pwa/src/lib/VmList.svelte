@@ -7,6 +7,7 @@
 	import { startingInstance } from '$lib/starting.js';
 	import { crnAddress, eraseOnNode, FIXED_HOST_DOMAIN, forgetInstance, hostname, listVms, nodeState, ownInstance, PAPERLESS_VM, publicAddress, vmStatus } from '$lib/vm.js';
 	import { pinsOf } from '@le-space/attest-wasm/instance';
+	import { format, lang, t, tr } from '$lib/i18n/index.js';
 
 	/** @type {{ master: Uint8Array, version?: number, onchange?: () => void }} */
 	let { master, version = 0, onchange = () => {} } = $props();
@@ -39,7 +40,8 @@
 					const crnUrl = vm.crnHash ? await crnAddress(vm.crnHash).catch(() => null) : null;
 					const onNode = crnUrl ? await nodeState(crnUrl, vm.itemHash) : null;
 					// The VM's own page when it answers, otherwise what its node says.
-					const phase = status?.phase ?? (onNode === 'stopping' ? 'wird gestoppt' : onNode ? `auf dem Knoten: ${onNode}` : host ? 'nicht erreichbar' : 'ohne Adresse');
+					const p = tr().life.vms.phases;
+					const phase = status?.phase ?? (onNode === 'stopping' ? p.stopping : onNode ? p.onNode(onNode) : host ? p.unreachable : p.noAddress);
 					vms = (vms ?? []).map((v) => (v.itemHash === vm.itemHash ? { ...v, host, phase, up: status?.paperless === true } : v));
 				})
 				.catch(() => {});
@@ -53,8 +55,8 @@
 	async function remove(vm) {
 		const isRunning = profile.running?.instanceHash === vm.itemHash;
 		const question = isRunning
-			? `${vm.name} löschen, ohne letzte Sicherung? (Zum Sichern oben „Sichern und beenden“.)`
-			: `${vm.name} löschen? Die VM wird gestoppt und kostet danach nichts mehr.`;
+			? tr().life.vms.removeRunning(vm.name)
+			: tr().life.vms.removeOther(vm.name);
 		if (!confirm(question)) return;
 		busy = vm.itemHash;
 		error = '';
@@ -89,7 +91,7 @@
 	// signed (checked here), its address from 2n6, and it must answer as a
 	// paperless-anywhere guest.
 	async function adopt(vm) {
-		if (!confirm(`${vm.name} als laufende Instanz übernehmen? Danach geht „Sichern und beenden“ wieder.`)) return;
+		if (!confirm(tr().life.vms.adoptConfirm(vm.name))) return;
 		busy = vm.itemHash;
 		error = '';
 		try {
@@ -97,15 +99,15 @@
 			const trustedExecution = content.environment?.trusted_execution;
 			pinsOf(trustedExecution);
 			const crnHash = content.requirements?.node?.node_hash;
-			if (!crnHash) throw new Error('Die VM nennt keinen Knoten.');
+			if (!crnHash) throw new Error(tr().life.vms.noNode);
 			// With a fixed address the VM answers there (name:port), not on its 2n6 name.
 			const fixed = profile.dnsToken ? await publicAddress(await crnAddress(crnHash), vm.itemHash).catch(() => null) : null;
 			const host = fixed ? `${fixedHostLabel(master)}.${FIXED_HOST_DOMAIN}:${fixed.port}` : await hostname(vm.itemHash);
-			if (!host) throw new Error('Die VM hat noch keine Adresse (2n6).');
+			if (!host) throw new Error(tr().life.vms.noAddressYet);
 			const status = await vmStatus(host, statusToken(master));
-			if (!status?.phase) throw new Error('Die VM antwortet nicht als Paperless-ngx (noch kein Zertifikat oder nicht entsperrt).');
+			if (!status?.phase) throw new Error(tr().life.vms.notPaperless);
 			profile = await updateProfile(master, (fresh) => {
-				if (fresh.running) throw new Error('Es ist schon eine Instanz als laufend bekannt.');
+				if (fresh.running) throw new Error(tr().life.vms.alreadyRunning);
 				// Adopting the VM of an interrupted start ends that start.
 				const { starting, ...rest } = fresh;
 				return { ...rest, ...(starting && starting.instanceHash !== vm.itemHash ? { starting } : {}), running: { instanceHash: vm.itemHash, crnHash, host, trustedExecution, payer: vm.payer } };
@@ -117,31 +119,32 @@
 			busy = '';
 		}
 	}
-	const when = (ms) => new Date(ms).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+	const when = (ms) => format.dateTime(ms, { dateStyle: 'short', timeStyle: 'short' }, $lang);
+	const v = $derived($t.life.vms);
 </script>
 
 <section class="vms" data-testid="vm-list">
-	<h2>Meine VMs <button type="button" class="small" onclick={() => load().catch((e) => (error = e.message))}>Aktualisieren</button></h2>
+	<h2>{v.title} <button type="button" class="small" onclick={() => load().catch((e) => (error = e.message))}>{v.refresh}</button></h2>
 	{#if vms === null}
-		<p class="hint">lese …</p>
+		<p class="hint">{v.reading}</p>
 	{:else if vms.length === 0}
-		<p class="hint">Keine VM läuft.</p>
+		<p class="hint">{v.none}</p>
 	{:else}
 		{#if strays > 0}
-			<p class="warn" data-testid="vm-stray">Es laufen VMs, die nicht als gestartet bekannt sind (z. B. ein abgebrochener Start oder ein neu geladener Tab). Sie kosten Credits, bis sie gelöscht sind. Läuft Paperless-ngx darin, „Übernehmen“: dann sichert „Sichern und beenden“ sie wie gewohnt.</p>
+			<p class="warn" data-testid="vm-stray">{v.stray}</p>
 		{/if}
 		<ul>
 			{#each vms as vm (vm.itemHash)}
 				<li data-testid="vm-row">
 					<strong>{vm.name}</strong>
-					{#if profile.running?.instanceHash === vm.itemHash}<small>(gestartet)</small>{:else if $startingInstance === vm.itemHash}<small data-testid="vm-starting">(startet gerade)</small>{:else if profile.starting?.instanceHash === vm.itemHash}<small data-testid="vm-interrupted">(Start unterbrochen)</small>{/if}
-					<br /><small>seit {when(vm.createdAt)} · {#if perHour}kostet ca. {perHour.toLocaleString('de-DE')} Credits/h ·{/if} {vm.phase ?? 'prüfe …'}
+					{#if profile.running?.instanceHash === vm.itemHash}<small>{v.started}</small>{:else if $startingInstance === vm.itemHash}<small data-testid="vm-starting">{v.startingNow}</small>{:else if profile.starting?.instanceHash === vm.itemHash}<small data-testid="vm-interrupted">{v.interrupted}</small>{/if}
+					<br /><small>{v.since(when(vm.createdAt))} · {#if perHour}{v.costs(format.number(perHour, undefined, $lang))} ·{/if} {vm.phase ?? v.checking}
 						{#if vm.host && vm.up} · <a href={`https://${vm.host}/`} target="_blank" rel="noopener">{vm.host}</a>{/if}
 						· <code>{vm.itemHash.slice(0, 12)}</code></small>
 					{#if !profile.running && $startingInstance !== vm.itemHash}
-						<button type="button" onclick={() => adopt(vm)} disabled={busy === vm.itemHash} data-testid="vm-adopt">Übernehmen</button>
+						<button type="button" onclick={() => adopt(vm)} disabled={busy === vm.itemHash} data-testid="vm-adopt">{v.adopt}</button>
 					{/if}
-					<button type="button" onclick={() => remove(vm)} disabled={busy === vm.itemHash}>Löschen</button>
+					<button type="button" onclick={() => remove(vm)} disabled={busy === vm.itemHash} data-testid="vm-remove">{v.remove}</button>
 				</li>
 			{/each}
 		</ul>

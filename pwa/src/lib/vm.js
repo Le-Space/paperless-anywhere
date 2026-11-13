@@ -17,6 +17,7 @@ import {
 } from '@le-space/core';
 import { recoverMessageAddress } from 'viem';
 import { ALEPH_API, broadcast as broadcastAndWait, CHANNEL, readFetch } from './aleph.js';
+import { tr } from './i18n/index.js';
 
 // A confidential instance includes 40 GiB of rootfs; each GiB beyond costs
 // about 184 credits/h (Aleph's price estimate, 2026-10-29: 20, 30 and 40 GiB
@@ -67,7 +68,7 @@ async function broadcast(message) {
 
 /** A node's https address from the corechannel aggregate. */
 export async function crnAddress(crnHash) {
-	const res = await readFetch(`${ALEPH_API}/api/v0/aggregates/${CORECHANNEL}.json?keys=corechannel`, 'Knotenliste lesen');
+	const res = await readFetch(`${ALEPH_API}/api/v0/aggregates/${CORECHANNEL}.json?keys=corechannel`, tr().life.vm.readNodes);
 	const node = (await res.json())?.data?.corechannel?.resource_nodes?.find((n) => n.hash === crnHash);
 	if (!node?.address?.startsWith('https://')) throw new Error(`node ${crnHash.slice(0, 12)} has no https address`);
 	return node.address.replace(/\/+$/, '');
@@ -75,7 +76,7 @@ export async function crnAddress(crnHash) {
 
 /** The payer's Aleph credits. */
 export async function credits(payer) {
-	const res = await readFetch(`${ALEPH_API}/api/v0/addresses/${payer}/balance`, 'Guthaben abfragen');
+	const res = await readFetch(`${ALEPH_API}/api/v0/addresses/${payer}/balance`, tr().life.vm.readBalance);
 	return Number((await res.json())?.credit_balance ?? 0);
 }
 
@@ -208,8 +209,8 @@ export async function listVms(appAddress, payer) {
 	url.searchParams.set('addresses', appAddress);
 	url.searchParams.set('message_statuses', 'processed,pending');
 	url.searchParams.set('pagination', '50');
-	const res = await readFetch(String(url), 'VM-Liste lesen');
-	if (!res.ok) throw new Error(`Aleph: VM-Liste nicht lesbar (${res.status})`);
+	const res = await readFetch(String(url), tr().life.vm.readList);
+	if (!res.ok) throw new Error(tr().life.vm.listUnreadable(res.status));
 	return ownVms((await res.json()).messages ?? [], appAddress, payer);
 }
 
@@ -221,17 +222,17 @@ export async function listVms(appAddress, payer) {
  * @param {string} appAddress @param {string} itemHash
  */
 export async function ownInstance(appAddress, itemHash) {
-	const res = await readFetch(`${ALEPH_API}/api/v0/messages/${itemHash}`, 'VM nachsehen');
-	if (!res.ok) throw new Error(`Aleph: VM ${itemHash.slice(0, 12)} nicht lesbar (${res.status})`);
+	const res = await readFetch(`${ALEPH_API}/api/v0/messages/${itemHash}`, tr().life.vm.lookUp);
+	if (!res.ok) throw new Error(tr().life.vm.vmUnreadable(itemHash.slice(0, 12), res.status));
 	return checkOwnInstance(appAddress, itemHash, (await res.json())?.message);
 }
 
 /** @param {string} appAddress @param {string} itemHash @param {any} m the message as Aleph returns it */
 export async function checkOwnInstance(appAddress, itemHash, m) {
-	if (m?.type !== 'INSTANCE' || m.item_hash !== itemHash || typeof m.item_content !== 'string') throw new Error('Keine INSTANCE mit diesem Hash.');
-	if ((await sha256Hex(m.item_content)) !== itemHash) throw new Error('Der Inhalt der INSTANCE passt nicht zu ihrem Hash.');
+	if (m?.type !== 'INSTANCE' || m.item_hash !== itemHash || typeof m.item_content !== 'string') throw new Error(tr().life.vm.noInstance);
+	if ((await sha256Hex(m.item_content)) !== itemHash) throw new Error(tr().life.vm.contentMismatch);
 	const signer = await recoverMessageAddress({ message: [m.chain, m.sender, m.type, m.item_hash].join('\n'), signature: m.signature });
-	if (signer.toLowerCase() !== appAddress.toLowerCase()) throw new Error('Diese VM hat nicht der Schlüssel dieser App gestartet.');
+	if (signer.toLowerCase() !== appAddress.toLowerCase()) throw new Error(tr().life.vm.notOurs);
 	return JSON.parse(m.item_content);
 }
 

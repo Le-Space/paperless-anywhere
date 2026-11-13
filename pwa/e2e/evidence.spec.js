@@ -87,3 +87,18 @@ test('the evidence follows the language chosen on the landing page', async ({ pa
 	await open(page, {});
 	await expect(page.getByTestId('evidence').first().locator('summary')).toContainText('Evidence of this VM', { timeout: 30_000 });
 });
+
+test('the evidence, the VM list and what a start needs follow the language switch at once', async ({ page }) => {
+	await open(page, {});
+	const summary = page.getByTestId('evidence').first().locator('summary');
+	await expect(summary).toContainText('Nachweis dieser VM', { timeout: 30_000 });
+	await page.getByTestId('app-lang-en').click();
+	await expect(summary).toContainText('Evidence of this VM');
+	await page.getByTestId('tab-advanced').click();
+	await page.getByTestId('tech-vms').locator('summary').click();
+	await expect(page.getByTestId('vm-list').getByRole('heading')).toContainText('My VMs');
+	await expect(page.getByTestId('vm-list').getByRole('button', { name: 'Refresh' })).toBeVisible();
+	await page.getByTestId('app-lang-de').click();
+	await expect(page.getByTestId('vm-list').getByRole('heading')).toContainText('Meine VMs');
+	await expect(summary).toContainText('Nachweis dieser VM');
+});

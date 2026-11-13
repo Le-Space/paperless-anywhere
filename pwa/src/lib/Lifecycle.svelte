@@ -22,7 +22,8 @@
 	import { providerIdsIn } from '$lib/providers.js';
 	import Evidence from '$lib/Evidence.svelte';
 	import { evidenceRows } from '$lib/evidence.js';
-	import { appLang, evidenceTexts, panelTexts } from '$lib/evidence-i18n.js';
+	import { evidenceTexts, panelTexts } from '$lib/evidence-i18n.js';
+	import { lang as appLanguage } from '$lib/i18n/index.js';
 	import StartPanel from '$lib/StartPanel.svelte';
 	import { startPanel } from '$lib/start-panel.js';
 	import { RUNTIME } from '$lib/runtime-pin.js';
@@ -154,11 +155,12 @@
 		);
 	}
 	// The evidence of the running VM: what the app checked, what was only reported.
-	const evidenceT = evidenceTexts[appLang()];
+	// Both follow the language switch in the header.
+	const evidenceT = $derived(evidenceTexts[$appLanguage]);
 	const evidence = $derived(
 		profile.running ? evidenceRows({ running: profile.running, rootfsItemHash: profile.rootfsItemHash, runtime: RUNTIME, alephApi: ALEPH_API, lastGood, backupsOn: Boolean(profile.backupConfig) }) : []
 	);
-	const panelT = panelTexts[appLang()];
+	const panelT = $derived(panelTexts[$appLanguage]);
 	const startShown = $derived(action === 'start' && (busy || Object.keys(times).length > 0));
 	const panel = $derived(
 		startShown ? startPanel({ step: current, libPhase, unlock: unlockSeen, status: vmPage, restore: startRestores, finished: !busy && Boolean(profile.running), failed: !busy && !profile.running && Boolean(error) }) : []
@@ -488,7 +490,8 @@
 		);
 		onchange();
 	}
-	const missing = $derived(startRequirements(profile));
+	// In the language shown: what a start still needs is named in words.
+	const missing = $derived(($appLanguage, startRequirements(profile)));
 	// Tells the page, which opens the setup when something is missing.
 	$effect(() => {
 		if (loaded) onmissing(missing);
