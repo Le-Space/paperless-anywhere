@@ -76,6 +76,18 @@ export const pkg = {
 		selfPays: 'Du zahlst die Anbieter selbst.',
 		selfSee: 'Pakete von Le Space ansehen',
 		selfHint: (/** @type {'app' | 'wallet'} */ who) => `${who === 'app' ? 'Die Adresse der App' : 'Deine Wallet'} bezahlt die VM bei Aleph direkt; ein Paket brauchst du dafür nicht. Ein Paket von Le Space ist der Weg ohne Wallet und ohne Kryptowerte.`,
+		voucher: {
+			fold: 'Gutschein einlösen',
+			hint: 'Ein Gutschein gibt dir einen Zeitraum mit Laufzeit und Sicherung, ohne Zahlung. Er verlängert sich nicht.',
+			label: 'Gutschein-Code',
+			placeholder: 'PA-XXXX-XXXX-XXXX',
+			button: 'Einlösen',
+			redeemed: (/** @type {{ what: string, until: string, backupUntil: string }} */ v) => `Gutschein eingelöst: ${v.what}${v.until ? ` bis ${v.until}` : ''}${v.backupUntil ? `, Sicherung bis ${v.backupUntil}` : ''}.`,
+			always: 'Dauerbetrieb',
+			pending: ' Die Stunden erscheinen in Kürze.',
+			period: (/** @type {string} */ until) => `Gutschein-Zeitraum bis ${until}.`,
+			periodEnds: 'Er verlängert sich nicht; danach kannst du ein Paket wählen.'
+		},
 		checkoutLabel: 'Abo abschließen',
 		payWithStripe: 'Bezahlen mit Stripe',
 		close: 'Schließen'
@@ -150,6 +162,18 @@ export const pkg = {
 		selfPays: 'You pay the providers yourself.',
 		selfSee: 'See Le Space’s packages',
 		selfHint: (/** @type {'app' | 'wallet'} */ who) => `${who === 'app' ? 'The app’s address' : 'Your wallet'} pays the VM on Aleph directly; you need no package for that. A package from Le Space is the way without a wallet and without crypto.`,
+		voucher: {
+			fold: 'Redeem a voucher',
+			hint: 'A voucher gives you a period of running time with backups, without a payment. It does not renew.',
+			label: 'Voucher code',
+			placeholder: 'PA-XXXX-XXXX-XXXX',
+			button: 'Redeem',
+			redeemed: (/** @type {{ what: string, until: string, backupUntil: string }} */ v) => `Voucher redeemed: ${v.what}${v.until ? ` until ${v.until}` : ''}${v.backupUntil ? `, backups until ${v.backupUntil}` : ''}.`,
+			always: 'always on',
+			pending: ' The hours appear shortly.',
+			period: (/** @type {string} */ until) => `Voucher period until ${until}.`,
+			periodEnds: 'It does not renew; after it you can choose a package.'
+		},
 		checkoutLabel: 'Take out the subscription',
 		payWithStripe: 'Pay with Stripe',
 		close: 'Close'

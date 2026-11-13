@@ -19,7 +19,7 @@ const RECEIVED_AT = '2026-11-11T10:15:00.000Z';
 const PAYER = '0x' + '5'.repeat(40);
 const OFFER = { month_credits: 150, month_price_cents: 150, year_price_cents: 1800, year_days: 365, copies: 3, quota_gib: 32, retention_days: 30 };
 // `backup`: null (the service pays no backups), 'none', 'line', 'paid', 'soon', 'week', 'ended' or 'over'.
-let state = { plan: true, cancelled: false, withdrawable: false, backup: null, offered: false, included: false };
+let state = { plan: true, cancelled: false, withdrawable: false, backup: null, offered: false, included: false, vouchers: false, termsDue: false, voucherRunning: false, voucherGranted: false };
 // With `included`, the packages offered carry the backup in their price (le-space-credits#72).
 const PACKAGES_INCLUDED = [{ id: 'paperless-15-backup', hours: 15, price_credits: 640, backup_included: true }, { id: 'paperless-100-backup', hours: 100, price_credits: 1640, backup_included: true }, { id: 'paperless-always-backup', hours: 730, price_credits: 9050, backup_included: true }];
 const BACKUPS = {
@@ -29,19 +29,23 @@ const BACKUPS = {
 	soon: { funded_until: '2026-12-06T00:00:00.000Z', active: true, renews_with_plan: false, retention_until: '2027-01-05T00:00:00.000Z', notice: { kind: 'expires_soon', funded_until: '2026-12-06T00:00:00.000Z', retention_until: '2027-01-05T00:00:00.000Z', days_left: 23, retention_days_left: 53 } },
 	week: { funded_until: '2026-11-18T00:00:00.000Z', active: true, renews_with_plan: false, retention_until: '2026-12-18T00:00:00.000Z', notice: { kind: 'expires_soon', funded_until: '2026-11-18T00:00:00.000Z', retention_until: '2026-12-18T00:00:00.000Z', days_left: 5, retention_days_left: 35 } },
 	ended: { funded_until: '2026-11-03T00:00:00.000Z', active: false, renews_with_plan: false, retention_until: '2026-12-03T00:00:00.000Z', notice: { kind: 'expired', funded_until: '2026-11-03T00:00:00.000Z', retention_until: '2026-12-03T00:00:00.000Z', days_left: -10, retention_days_left: 20 } },
+	voucher: { funded_until: '2026-11-20T10:15:00.000Z', active: true, renews_with_plan: false, retention_until: '2026-12-20T10:15:00.000Z', notice: { kind: 'expires_soon', funded_until: '2026-11-20T10:15:00.000Z', retention_until: '2026-12-20T10:15:00.000Z', days_left: 7, retention_days_left: 37 } },
 	over: { funded_until: '2026-09-01T00:00:00.000Z', active: false, renews_with_plan: false, retention_until: '2026-10-01T00:00:00.000Z', notice: { kind: 'retention_over', funded_until: '2026-09-01T00:00:00.000Z', retention_until: '2026-10-01T00:00:00.000Z', days_left: -73, retention_days_left: -43 } }
 };
 const backup = () => (state.backup ? { payer: PAYER, signer: null, tag: 'mock', network: 'calibration', data_sets: [], ...BACKUPS[state.backup] } : null);
 /** @type {{ method: string, path: string, body: any }[]} */
 let requests = [];
 
-const plan = () => ({ id: 'paperless-30', period_start: '2026-11-01T00:00:00.000Z', period_end: RENEWS_AT, hours_left: 20, billing: 'stripe', renews_at: RENEWS_AT, cancel_at_period_end: state.cancelled });
+// A voucher's period (le-space-credits#73): no renewal, ends by itself.
+const VOUCHER_END = '2026-11-20T10:15:00.000Z';
+const voucherPlan = () => ({ id: 'paperless-voucher', period_start: RECEIVED_AT, period_end: VOUCHER_END, hours_left: state.voucherGranted ? 168 : 0, billing: 'voucher', state: 'ending', renews_at: null, cancel_at_period_end: false });
+const plan = () => (state.voucherRunning ? voucherPlan() : { id: 'paperless-30', period_start: '2026-11-01T00:00:00.000Z', period_end: RENEWS_AT, hours_left: 20, billing: 'stripe', renews_at: RENEWS_AT, cancel_at_period_end: state.cancelled });
 
 /** @type {Record<string, (body: any) => [number, any]>} */
 const routes = {
 	'GET /v1/terms': () => [200, { current: null, pending: null, withdrawal: WITHDRAWAL }],
-	'GET /v1/packages': () => [200, { network: null, backup: { ...OFFER, plan_offered: state.offered, included_in_plans: state.included }, packages: state.included ? PACKAGES_INCLUDED : [{ id: 'paperless-10', hours: 10, price_credits: 400 }, { id: 'paperless-30', hours: 30, price_credits: 600 }, { id: 'paperless-80', hours: 80, price_credits: 1000 }], topups: [] }],
-	'GET /v1/balance': () => [200, { credits: 1234, reserved: 0, lines_this_month: {}, package: state.plan ? plan() : null, terms: {}, backup: backup() }],
+	'GET /v1/packages': () => [200, { network: null, backup: { ...OFFER, plan_offered: state.offered, included_in_plans: state.included }, voucher: { offered: state.vouchers, prefix: 'PA' }, packages: state.included ? PACKAGES_INCLUDED : [{ id: 'paperless-10', hours: 10, price_credits: 400 }, { id: 'paperless-30', hours: 30, price_credits: 600 }, { id: 'paperless-80', hours: 80, price_credits: 1000 }], topups: [] }],
+	'GET /v1/balance': () => [200, { credits: 1234, reserved: 0, lines_this_month: {}, package: state.plan || state.voucherRunning ? plan() : null, terms: {}, backup: backup() }],
 	'GET /v1/purchases': () => [200, { purchases: [] }],
 	'POST /v1/checkout': () => [200, { client_secret: 'cs_test_mock_secret', session_id: 'cs_test_mock' }],
 	'POST /v1/subscribe': () => [200, { client_secret: 'cs_test_mock_secret' }],
@@ -56,6 +60,20 @@ const routes = {
 	'POST /v1/backup/checkout': () => (state.offered ? [200, { client_secret: 'cs_test_mock_year' }] : [409, { error: 'not sold yet', code: 'NOT_YET' }]),
 	// The start asks for the delegation; the mock has none, so a start ends here.
 	'POST /v1/vm/authorize': () => [503, { error: 'no VM account in the mock', code: 'VM_OFF' }],
+	// Made-up codes: one that works, one already redeemed by this account, one
+	// whose hours are still to come; anything else does not exist.
+	'POST /v1/voucher/redeem': (body) => {
+		if (!state.vouchers) return [409, { error: 'not yet', code: 'NOT_YET' }];
+		if (state.termsDue) return [412, { error: 'terms', code: 'TERMS' }];
+		if (state.plan || state.voucherRunning) return [409, { error: 'a period runs', code: 'PERIOD_RUNNING' }];
+		if (!/^PA-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(String(body?.code ?? ''))) return [400, { error: 'format', code: 'VOUCHER_FORMAT' }];
+		if (body.code === 'PA-USED-USED-USED') return [409, { error: 'redeemed', code: 'VOUCHER_REDEEMED' }];
+		if (body.code !== 'PA-ABCD-EFGH-JKLM' && body.code !== 'PA-WAIT-WAIT-WAIT') return [404, { error: 'unknown voucher', code: 'VOUCHER' }];
+		state.voucherRunning = true;
+		state.voucherGranted = body.code === 'PA-ABCD-EFGH-JKLM';
+		state.backup = 'voucher';
+		return [200, { redeemed: true, package: 'paperless-voucher', days: 7, hours: 168, always: true, period_start: RECEIVED_AT, period_end: VOUCHER_END, backup_until: VOUCHER_END, granted: state.voucherGranted }];
+	},
 	'POST /v1/portal': () => [200, { url: 'https://billing.stripe.com/p/session/test_mock' }],
 	// The withdrawal function: a quote lists what can be withdrawn and changes
 	// nothing; without `quote` it withdraws, ends the plan and names a refund.
@@ -86,7 +104,7 @@ const server = createServer(async (req, res) => {
 	const send = (status, json) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(json));
 	if (url.pathname === '/__requests') return send(200, requests);
 	if (url.pathname === '/__state' && req.method === 'POST') {
-		state = { plan: Boolean(body?.plan), cancelled: false, withdrawable: Boolean(body?.withdrawable), backup: body?.backup in BACKUPS ? body.backup : null, offered: Boolean(body?.offered), included: Boolean(body?.included) };
+		state = { plan: Boolean(body?.plan), cancelled: false, withdrawable: Boolean(body?.withdrawable), backup: body?.backup in BACKUPS ? body.backup : null, offered: Boolean(body?.offered), included: Boolean(body?.included), vouchers: Boolean(body?.vouchers), termsDue: Boolean(body?.termsDue), voucherRunning: false, voucherGranted: false };
 		requests = [];
 		return send(200, state);
 	}
