@@ -112,16 +112,49 @@ const storeStatus = async (itemHash) => {
 	return res?.ok ? ((await res.json().catch(() => null))?.status ?? null) : null;
 };
 
-/** The sealed image comes back in pieces of this size, each one request over an attested channel. */
-export const PIECE_BYTES = 1024 * 1024;
+/**
+ * The sealed image comes back in pieces of this size, each one request over
+ * an attested channel. The channel collects an answer by joining what
+ * arrives, so its cost grows with the square of the piece: a quarter MiB
+ * keeps that small and still needs few round trips.
+ */
+export const PIECE_BYTES = 256 * 1024;
+/**
+ * The TLS session in the WASM keeps at most 16 KiB of received data until the
+ * channel takes it, and takes it only after each delivery from the relay. A
+ * relay delivers far more at once when a large answer arrives ("received
+ * plaintext buffer full", the first fetch through a relay, 2026-11-13), so
+ * what arrives is handed on in slices that stay below that.
+ */
+export const SLICE_BYTES = 4 * 1024;
+
+/**
+ * `transport`, delivering what arrives in slices of at most `size` bytes.
+ * @template {{ onData: (callback: (bytes: Uint8Array) => void) => void }} T
+ * @param {T} transport @param {number} [size]
+ * @returns {T}
+ */
+export function inSlices(transport, size = SLICE_BYTES) {
+	return {
+		...transport,
+		onData: (callback) =>
+			transport.onData((bytes) => {
+				for (let start = 0; start < bytes.length; start += size) callback(bytes.subarray(start, start + size));
+			})
+	};
+}
 /**
  * What one connection carries. An attest relay closes a connection after
  * 4 MiB in one direction or 120 seconds, so the image comes in runs of this
  * size, each over a connection of its own, attested like the first.
  */
 export const RUN_BYTES = 3 * 1024 * 1024;
-/** Connections side by side; a relay allows one client four. */
-export const LANES = 4;
+/**
+ * Connections side by side. A relay allows one client four at a time, and a
+ * closed one counts until the relay has seen it close: three leave room for
+ * that, and for the next run's connection while the last one closes.
+ */
+export const LANES = 3;
 /** How often one run is tried before the fetch gives up. */
 export const RUN_TRIES = 4;
 
@@ -159,7 +192,10 @@ async function fetchImage({ open, job, size, pieceBytes, runBytes, lanes, runTri
 				}
 				return pieces;
 			} catch (error) {
-				if (error instanceof BuilderError || refusedAttestation(error)) throw error;
+				// The image gone, or an attestation refused: trying again cannot help.
+				// A builder or relay not answering for a moment can (2026-11-13: a
+				// relay closed two connections during their attestation).
+				if (refusedAttestation(error) || (error instanceof BuilderError && error.code !== 'unreachable')) throw error;
 				last = error instanceof Error ? error.message : String(error);
 			} finally {
 				channel?.close();
@@ -333,13 +369,17 @@ export async function buildOwnImage({ master, app, builder, open, onProgress = (
 		} finally {
 			channel?.close();
 			// Whatever happened: the builder need not keep this vault's image.
-			if (job) {
+			// Tried a few times: an image left behind keeps the builder busy for
+			// everyone until it expires (30 minutes; seen 2026-11-13).
+			for (let attempt = 0; job && attempt < 4; attempt++) {
+				if (attempt) await sleep(retryMs * attempt);
 				let last = null;
 				try {
 					last = await open();
-					await call(last, 'DELETE', `/job/${job}`);
+					const dropped = await call(last, 'DELETE', `/job/${job}`);
+					if (dropped.status === 200 || dropped.status === 404) job = '';
 				} catch {
-					/* it removes an image nobody touched by itself */
+					/* tried again; at worst the builder removes it after 30 minutes */
 				} finally {
 					last?.close();
 				}
@@ -367,7 +407,7 @@ export function builderOpener(builder, profile, { load = loadAttest } = {}) {
 		for (let i = 0; i < relays.length; i++) {
 			const index = (good + i) % relays.length;
 			try {
-				const attested = await attestGuest({ wasm, transport: relayTransports([relays[index]])(builder.route), expectedMeasurements: builder.measurements, expectedPolicy: builder.policy });
+				const attested = await attestGuest({ wasm, transport: inSlices(relayTransports([relays[index]])(builder.route)), expectedMeasurements: builder.measurements, expectedPolicy: builder.policy });
 				good = index;
 				const measurement = attested.freshVerified?.measurement;
 				return Object.assign(attested.channel, measurement ? { measurement: String(measurement) } : {});
@@ -376,7 +416,7 @@ export function builderOpener(builder, profile, { load = loadAttest } = {}) {
 				last = error;
 			}
 		}
-		throw new BuilderError(tr().ownImage.error.unreachable(String(last instanceof Error ? last.message : last).slice(0, 120)));
+		throw new BuilderError(tr().ownImage.error.unreachable(String(last instanceof Error ? last.message : last).slice(0, 120)), 'unreachable');
 	};
 }
 
