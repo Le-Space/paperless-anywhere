@@ -4,6 +4,7 @@
 	// starts unticked. Its own box, apart from the terms (AGB). Nothing at all
 	// while the service sends no declaration (an older service).
 	import { withdrawalText } from '$lib/credits.js';
+	import { lang } from '$lib/i18n/index.js';
 
 	/** @type {{ withdrawal: { version: string, de: string, en: string } | null, checked?: boolean, testid?: string }} */
 	let { withdrawal, checked = $bindable(false), testid = 'waiver' } = $props();
@@ -12,7 +13,7 @@
 {#if withdrawal}
 	<label class="check" data-testid={testid}>
 		<input type="checkbox" bind:checked data-testid={`${testid}-box`} />
-		<span>{withdrawalText(withdrawal, 'de')}</span>
+		<span>{withdrawalText(withdrawal, $lang)}</span>
 	</label>
 {/if}
 

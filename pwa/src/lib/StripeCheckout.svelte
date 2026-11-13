@@ -3,9 +3,11 @@
 	// Stripe.js never runs in this app's origin, which holds the unlocked vault.
 	// `pay(clientSecret)` resolves 'paid', 'failed' or 'closed'.
 	import { CREDITS_URL, payMessage, payUrl } from '$lib/credits.js';
+	import { t } from '$lib/i18n/index.js';
 
 	/** @type {{ label?: string, summary?: string }} `summary`: what is ordered, in one line above the Checkout */
-	let { label = 'Bezahlen mit Stripe', summary = '' } = $props();
+	let { label = '', summary = '' } = $props();
+	const title = $derived(label || $t.pkg.payWithStripe);
 	/** @type {HTMLDialogElement | undefined} */
 	let dialog = $state();
 	/** @type {string | null} */
@@ -37,10 +39,10 @@
 	});
 </script>
 
-<dialog bind:this={dialog} onclose={() => settle && done('closed')} aria-label={label}>
-	<button class="quiet close" onclick={() => done('closed')} aria-label="Schließen">✕</button>
+<dialog bind:this={dialog} onclose={() => settle && done('closed')} aria-label={title}>
+	<button class="quiet close" onclick={() => done('closed')} aria-label={$t.pkg.close}>✕</button>
 	{#if summary && frame}<p class="summary" data-testid="checkout-summary">{summary}</p>{/if}
-	{#if frame}<iframe src={frame} title={label} allow="payment"></iframe>{/if}
+	{#if frame}<iframe src={frame} title={title} allow="payment"></iframe>{/if}
 </dialog>
 
 <style>

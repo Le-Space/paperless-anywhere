@@ -12,6 +12,7 @@ import { app } from './app.js';
 import { card } from './card.js';
 import { credits } from './credits.js';
 import { life } from './lifecycle.js';
+import { pkg } from './package.js';
 import { ownImage } from './own-image.js';
 
 /** @typedef {'de' | 'en'} Lang */
@@ -53,7 +54,8 @@ const AREAS = {
 	card,
 	credits,
 	life,
-	ownImage
+	ownImage,
+	pkg
 };
 export const catalogue = {
 	de: /** @type {{ [K in keyof typeof AREAS]: (typeof AREAS)[K]['de'] }} */ (Object.fromEntries(Object.entries(AREAS).map(([name, area]) => [name, area.de]))),
