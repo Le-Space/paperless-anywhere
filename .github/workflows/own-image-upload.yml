@@ -1,0 +1,81 @@
+name: "Own image: upload from a browser"
+
+# Step 5 of #202: how long Chromium takes to upload a file the size of a
+# sealed image (868 MiB of random bytes, as incompressible as an encrypted
+# disk) to Aleph through the app's own upload code (storeOnAleph in
+# pwa/src/lib/own-image.js), and until Aleph has processed the STORE. The
+# test forgets the file again at once, whatever happened.
+#
+# A GitHub runner has a far faster uplink than a person at home: this run
+# shows whether Aleph takes an upload of that size from a browser at all and
+# how long its node needs, not how long a person waits.
+#
+# Secret: ALEPH_PRIVATE_KEY signs the STORE and the FORGET and pays the
+# storage for the minutes the file lies there. "dry" signs with a throwaway
+# key and uploads nothing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      size_mib:
+        description: Size of the test file in MiB (868 is a sealed image).
+        required: true
+        default: '868'
+      dry:
+        description: Sign with a throwaway key and stop before the upload (costs nothing).
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: own-image-upload
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.x
+
+      - name: Check the inputs
+        env:
+          SIZE: ${{ inputs.size_mib }}
+        run: '[[ "$SIZE" =~ ^[0-9]{1,4}$ ]] && [ "$SIZE" -ge 1 ] && [ "$SIZE" -le 1000 ] || { echo "::error::size_mib: 1 to 1000"; exit 1; }'
+
+      - name: Install
+        working-directory: pwa
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium > /dev/null
+
+      - name: Upload from Chromium, wait for Aleph, forget
+        working-directory: pwa
+        env:
+          UPLOAD_KEY: ${{ inputs.dry && '' || secrets.ALEPH_PRIVATE_KEY }}
+          UPLOAD_MIB: ${{ inputs.size_mib }}
+          UPLOAD_RESULT: ${{ runner.temp }}/upload.json
+        run: pnpm exec playwright test -c playwright.upload.config.js --reporter=line
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Own image: upload from a browser"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/upload.json" 2>/dev/null || echo "no result"
+            echo
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # No artifact: test-results of a failed run could hold the page's state.
