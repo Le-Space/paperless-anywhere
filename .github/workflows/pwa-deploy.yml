@@ -25,6 +25,19 @@ on:
         type: choice
         options: [ubuntu-24.04, aleph]
         default: ubuntu-24.04
+      first_host:
+        description: The Aleph host the upload is tried at first (the other two follow)
+        type: choice
+        options: [api2, api, api3]
+        default: api2
+      item_hash:
+        description: Link an upload that is on Aleph already, without building or uploading again (the STORE's item hash, from a failed run's summary). Needs ipfs_cid.
+        type: string
+        default: ''
+      ipfs_cid:
+        description: The CID of that upload (bafy…)
+        type: string
+        default: ''
 
 permissions:
   contents: write # the CID goes onto the release
@@ -50,6 +63,7 @@ jobs:
           node-version: 24.x
 
       - name: Unit tests, build, browser tests (mocked Aleph)
+        if: inputs.item_hash == ''
         working-directory: pwa
         env:
           # Shown in the app's footer; a dispatch builds show "dev".
@@ -76,6 +90,7 @@ jobs:
 
       - name: Publish to Aleph IPFS
         id: publish
+        if: inputs.item_hash == ''
         env:
           ALEPH_VM_MODE: site-publish
           ALEPH_SITE_DIRECTORY: ${{ github.workspace }}/pwa/build
@@ -90,14 +105,28 @@ jobs:
           # is a core channel node with a backend of its own. One host is one
           # point of failure for the whole release. Waiting for the STORE and
           # the retention then use the host that took the upload.
-          ALEPH_SITE_ENDPOINT_PAIRS: '[{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api2.aleph.im"},{"ipfsGateway":"https://ipfs.aleph.cloud","apiHost":"https://api.aleph.im"},{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api3.aleph.im"}]'
+          # A run by hand can put another host first (first_host): the tool
+          # moves on only when an upload fails, not when the gateway does not
+          # serve what a host took.
+          ALEPH_SITE_ENDPOINT_PAIRS: ${{ inputs.first_host == 'api3' && '[{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api3.aleph.im"},{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api2.aleph.im"},{"ipfsGateway":"https://ipfs.aleph.cloud","apiHost":"https://api.aleph.im"}]' || inputs.first_host == 'api' && '[{"ipfsGateway":"https://ipfs.aleph.cloud","apiHost":"https://api.aleph.im"},{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api3.aleph.im"},{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api2.aleph.im"}]' || '[{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api2.aleph.im"},{"ipfsGateway":"https://ipfs.aleph.cloud","apiHost":"https://api.aleph.im"},{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api3.aleph.im"}]' }}
+          # After the STORE the tool asks <cid>.ipfs.aleph.sh for the site: the
+          # gateway that also serves the domain. It may need a while to fetch a
+          # new upload from the node that took it; wait up to 20 minutes
+          # (default: 5).
+          ALEPH_SITE_GATEWAY_WAIT_ATTEMPTS: '240'
+          ALEPH_SITE_GATEWAY_WAIT_DELAY_MS: '5000'
           # Wait up to 20 minutes for Aleph to process the STORE (default: 5).
           ALEPH_SITE_ALEPH_MESSAGE_WAIT_ATTEMPTS: '240'
           ALEPH_SITE_ALEPH_MESSAGE_WAIT_DELAY_MS: '5000'
           ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: |
           # One attempt goes through all three hosts. A second one covers a
-          # short outage of all of them; a pending STORE is never uploaded again.
+          # short outage of all of them. Once Aleph has taken an upload, nothing
+          # is uploaded again: neither when the STORE stays pending, nor when
+          # the gateway does not serve the site yet (2026-11-13: a second
+          # upload to the same host paid a second STORE and changed nothing).
+          # The upload can be linked later, see "Link an upload that is on
+          # Aleph already".
           for attempt in 1 2; do
             if node --input-type=module -e "import('$RUNNER_TEMP/le-space-deployer/node_modules/@le-space/node/index.js').then((m) => m.runSiteMode())" 2> >(tee "$RUNNER_TEMP/publish-err.txt" >&2); then
               exit 0
@@ -106,18 +135,43 @@ jobs:
               echo "::error::Aleph did not process the STORE within 20 minutes. The files are on IPFS; run this workflow again later instead of re-uploading now."
               exit 1
             fi
+            if grep -q 'did not serve expected CID' "$RUNNER_TEMP/publish-err.txt"; then
+              echo "::error::The upload is on Aleph, but the gateway that serves the domain does not have it yet. Nothing was linked; the site is unchanged. Run this workflow by hand later with item_hash and ipfs_cid from the summary: that links this upload without uploading again."
+              exit 1
+            fi
             [ "$attempt" = 2 ] && break
             echo "::warning::publish attempt $attempt failed on every host, once more in 60 s"
             sleep 60
           done
           exit 1
 
+      # An upload from an earlier run: the domain is served by Aleph's gateway at
+      # aleph.sh, so that gateway must serve this CID before the domain may
+      # point at it. Otherwise the live site would go dark.
+      - name: Link an upload that is on Aleph already
+        if: inputs.item_hash != ''
+        env:
+          ITEM_HASH: ${{ inputs.item_hash }}
+          CID: ${{ inputs.ipfs_cid }}
+        run: |
+          echo "$ITEM_HASH" | grep -Eq '^[0-9a-f]{64}$' || { echo "::error::item_hash is not a STORE's item hash (64 hex characters)"; exit 1; }
+          echo "$CID" | grep -Eq '^bafy[a-z2-7]{50,}$' || { echo "::error::ipfs_cid is not a CID (bafy…)"; exit 1; }
+          status="$(curl -fsS "https://api2.aleph.im/api/v0/messages/$ITEM_HASH" | jq -r '[.status, .message.type, .message.content.item_hash] | @tsv')"
+          [ "$status" = "$(printf 'processed\tSTORE\t%s' "$CID")" ] || { echo "::error::Aleph does not know a processed STORE $ITEM_HASH for this CID (got: $status)"; exit 1; }
+          for i in $(seq 1 60); do
+            roots="$(curl -sS -m 30 -o /dev/null -D - "https://$CID.ipfs.aleph.sh/" 2>/dev/null | tr -d '\r' | awk 'tolower($1)=="x-ipfs-roots:"{print $2}')"
+            [ "$roots" = "$CID" ] && { echo "the gateway serves $CID"; exit 0; }
+            sleep 10
+          done
+          echo "::error::https://$CID.ipfs.aleph.sh does not serve the site yet. Nothing was linked; try again later."
+          exit 1
+
       - name: Link the custom domain
-        if: github.event_name == 'release' || inputs.link_domain
+        if: github.event_name == 'release' || inputs.link_domain || inputs.item_hash != ''
         env:
           ALEPH_VM_MODE: site-domain-link
-          ALEPH_SITE_ITEM_HASH: ${{ steps.publish.outputs.item_hash }}
-          ALEPH_SITE_IPFS_CID: ${{ steps.publish.outputs.ipfs_cid }}
+          ALEPH_SITE_ITEM_HASH: ${{ inputs.item_hash || steps.publish.outputs.item_hash }}
+          ALEPH_SITE_IPFS_CID: ${{ inputs.ipfs_cid || steps.publish.outputs.ipfs_cid }}
           ALEPH_SITE_DOMAIN: ${{ env.SITE_DOMAIN }}
           ALEPH_SITE_DOMAIN_CATCH_ALL_PATH: /200.html
           # The host that took the upload first: it knows the STORE at once.
@@ -132,10 +186,19 @@ jobs:
         run: node --input-type=module -e "import('$RUNNER_TEMP/le-space-deployer/node_modules/@le-space/node/index.js').then((m) => m.runSiteMode())"
 
       - name: Summary
+        if: always()
+        env:
+          CID: ${{ inputs.ipfs_cid || steps.publish.outputs.ipfs_cid }}
+          ITEM_HASH: ${{ inputs.item_hash || steps.publish.outputs.item_hash }}
+          OUTCOME: ${{ job.status }}
         run: |
-          echo "CID: ${{ steps.publish.outputs.ipfs_cid }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "CID: ${CID:-none}" >> "$GITHUB_STEP_SUMMARY"
+          echo "STORE item hash: ${ITEM_HASH:-none}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$OUTCOME" != success ] && [ -n "$ITEM_HASH" ] && [ -n "$CID" ]; then
+            echo "The upload is on Aleph. To link it later without uploading again, run this workflow by hand with item_hash \`$ITEM_HASH\` and ipfs_cid \`$CID\`." >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "Uploaded through: ${{ steps.publish.outputs.aleph_api_host }}" >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ github.event_name == 'release' || inputs.link_domain }}" = true ]; then echo "**Live:** https://${SITE_DOMAIN}" >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ "$OUTCOME" = success ] && [ "${{ github.event_name == 'release' || inputs.link_domain || inputs.item_hash != '' }}" = true ]; then echo "**Live:** https://${SITE_DOMAIN}" >> "$GITHUB_STEP_SUMMARY"; fi
 
       # Through the API: the Aleph runner has no gh.
       - name: Note the CID on the release
