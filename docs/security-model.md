@@ -108,10 +108,10 @@ the guest's ([workflow](workflow.md), sections 3 and 5).
 
 - **Not attested.** The relay runs in an ordinary VM on Aleph. Nobody checks a
   measurement of it, and nothing in the design needs to.
-- **What it cannot do.** Read or change what passes. The TLS connection ends
+- **What it cannot do.** Read what passes, or change it unnoticed. The TLS connection ends
   inside the guest, the AMD report binds the guest's TLS key, and every check
   runs in the browser (`@le-space/attest-wasm`). A relay that tampered would
-  make the attestation fail; it would not get a secret.
+  make the TLS connection or the attestation fail; it would not get a secret.
 - **What it can do.** Refuse or delay connections, and so block a start, an
   unlock or a check.
 - **What it sees.** The browser's IP address, which VM on which node is asked

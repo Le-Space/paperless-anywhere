@@ -380,3 +380,18 @@ test('the footers of /, /en/ and /lizenzen/ name the build: release, time in UTC
 	await expect(page.getByTestId('landing-build')).toBeVisible();
 	expect(complaints).toEqual([]);
 });
+
+test('the FAQ says what happens when the relay is down, and how to run one', async ({ page }) => {
+	await page.context().route(/^https?:\/\/(?!localhost)/, (route) => route.abort());
+	await page.goto('/');
+	const item = page.locator('#faq details', { hasText: 'Was, wenn der Relay ausfällt oder blockiert ist?' });
+	await item.locator('summary').click();
+	await expect(item).toContainText('versucht sie nacheinander; fällt einer aus, nimmt sie den nächsten');
+	await expect(item).toContainText('ein Relay sieht nur verschlüsselte Daten');
+	await expect(item.locator('li')).toHaveText([/relay-button: einen orbitdb-relay, der den Prüfweg unter \/attest anbietet/, /braucht dafür eigene Aleph-Credits/, /„Eigene Relays“/]);
+	await expect(item.getByRole('link', { name: 'relay-button: Quelltext und Anleitung' })).toHaveAttribute('href', 'https://github.com/NiKrause/relay-button');
+	await expect(item.getByRole('link', { name: 'Der Relay im Sicherheitsmodell' })).toHaveAttribute('href', /docs\/security-model\.md#the-relay$/);
+	// The same entry on the English page.
+	await page.goto('/en/');
+	await expect(page.locator('#faq details', { hasText: 'What if the relay is down or blocked?' })).toHaveCount(1);
+});

@@ -170,7 +170,7 @@ export const texts = {
 				'Der Inhalt des Images wird nicht mitgemessen. Dass in der VM das veröffentlichte Image läuft, stützt sich bisher darauf, dass sich seine Platte nur mit der Image-Passphrase öffnet, nicht auf einen Messwert der Hardware.',
 				'Die Image-Passphrase ist für alle VMs eines Images gleich, und Le Space kennt sie. Darum liegt alles, was deine VM schreibt, im eigenen Datenbereich. Ein Image, dessen Passphrase nur dein Tresor kennt, ist in Vorbereitung.',
 				'Der Bau ist nicht Bit für Bit wiederholbar, weil Debian-Pakete beim Bau geladen werden. Nachlesen lässt sich, was hineinkommt.',
-				'Der Relay, über den die App die VM erreicht, läuft in einer gewöhnlichen VM und wird nicht attestiert. Lesen oder ändern kann er nichts; er kann aber Verbindungen verzögern oder verweigern, und er sieht, von welcher IP-Adresse wann welche VM angesprochen wird.',
+				'Der Relay, über den die App die VM erreicht, läuft in einer gewöhnlichen VM und wird nicht attestiert. Lesen oder unbemerkt ändern kann er nichts; er kann aber Verbindungen verzögern oder verweigern, und er sieht, von welcher IP-Adresse wann welche VM angesprochen wird.',
 				'Weitere Punkte aus dem laufenden Sicherheits-Audit sind noch offen.'
 			],
 			verifyTitle: 'Selbst nachprüfen',
@@ -218,6 +218,19 @@ export const texts = {
 						'Was auch dann von Le Space kommt: die App, das Image samt seiner heutigen Image-Passphrase und der Relay, über den die App den Nachweis der VM prüft.'
 					],
 					after: 'Einrichten kannst du das in der App unter „Einrichtung“.'
+				},
+				{
+					q: 'Was, wenn der Relay ausfällt oder blockiert ist?',
+					a: 'Die App sucht bei jedem Start die laufenden Relays von Le Space und versucht sie nacheinander; fällt einer aus, nimmt sie den nächsten. Ist gerade keiner erreichbar, hilft ein eigener. An der Sicherheit ändert das nichts: Geprüft wird in deinem Browser, und ein Relay sieht nur verschlüsselte Daten, ob er von Le Space ist, von dir oder von jemand anderem. Es geht allein darum, dass die Verbindung zustande kommt.',
+					tips: [
+						'Einen eigenen Relay startet jeder mit dem offenen Projekt relay-button: einen orbitdb-relay, der den Prüfweg unter /attest anbietet.',
+						'Er läuft als VM bei Aleph Cloud und braucht dafür eigene Aleph-Credits.',
+						'In der App trägst du ihn unter „Einrichtung“ bei „Eigene Relays“ ein. Die App versucht ihn dann vor denen von Le Space.'
+					],
+					links: [
+						{ text: 'relay-button: Quelltext und Anleitung', href: 'https://github.com/NiKrause/relay-button' },
+						{ text: 'Der Relay im Sicherheitsmodell', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/security-model.md#the-relay' }
+					]
 				},
 				{
 					q: 'Wie sicher ist mein eigenes Gerät dabei?',
@@ -405,7 +418,7 @@ export const texts = {
 				'The image’s content is not measured. That the VM runs the published image rests, for now, on its disk opening only with the image passphrase, not on a measurement by the hardware.',
 				'The image passphrase is the same for every VM of an image, and Le Space knows it. That is why everything your VM writes goes into its own data area. An image whose passphrase only your vault knows is in preparation.',
 				'The build cannot be repeated bit for bit, because Debian packages are fetched while it runs. What goes in can be read.',
-				'The relay through which the app reaches the VM runs in an ordinary VM and is not attested. It can read or change nothing; it can delay or refuse connections, though, and it sees from which IP address which VM is called and when.',
+				'The relay through which the app reaches the VM runs in an ordinary VM and is not attested. It can read nothing and change nothing unnoticed; it can delay or refuse connections, though, and it sees from which IP address which VM is called and when.',
 				'Further points from the ongoing security audit are still open.'
 			],
 			verifyTitle: 'Check it yourself',
@@ -453,6 +466,19 @@ export const texts = {
 						'What still comes from Le Space: the app, the image with its present image passphrase, and the relay through which the app checks the VM’s attestation.'
 					],
 					after: 'You set this up in the app, under “Einrichtung” (the app itself is in German).'
+				},
+				{
+					q: 'What if the relay is down or blocked?',
+					a: 'At every start the app looks up Le Space’s running relays and tries them in turn; if one fails, it takes the next. If none can be reached right now, one of your own helps. This changes nothing about security: the checking happens in your browser, and a relay sees encrypted data only, whether it is Le Space’s, yours or someone else’s. All that matters is that the connection comes about.',
+					tips: [
+						'Anyone can start a relay of their own with the open project relay-button: an orbitdb-relay that offers the attestation path at /attest.',
+						'It runs as a VM on Aleph Cloud and needs Aleph credits of its own for that.',
+						'In the app you enter it in the setup under “Eigene Relays” (own relays). The app then tries it before Le Space’s.'
+					],
+					links: [
+						{ text: 'relay-button: source and instructions', href: 'https://github.com/NiKrause/relay-button' },
+						{ text: 'The relay in the security model', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/security-model.md#the-relay' }
+					]
 				},
 				{
 					q: 'How safe is my own device in this?',
