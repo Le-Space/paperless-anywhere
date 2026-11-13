@@ -28,6 +28,7 @@
 		"@noble/hashes": "2.4.0",
 		"@scure/base": "1.2.6",
 		"@scure/bip39": "2.4.0",
+		"age-encryption": "0.3.1",
 		"libp2p": "3.3.6",
 		"viem": "2.57.2"
 	},
