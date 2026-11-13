@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 const SRC = fileURLToPath(new URL('../../', import.meta.url));
 
 /** Where German is at home. */
-const CATALOGUES = [/^lib\/i18n\//, /^lib\/landing\/i18n\.js$/, /^lib\/evidence-i18n\.js$/, /^lib\/landing\/evidence-sample\.js$/, /^lib\/licences\//];
+const CATALOGUES = [/^lib\/i18n\//, /^lib\/landing\/i18n\.js$/, /^lib\/evidence-i18n\.js$/, /^lib\/landing\/evidence-sample\.js$/, /^lib\/licences\//, /^lib\/legal-texts\.js$/];
 
 /** Files whose texts have not moved yet. Remove a line with the PR that moves them. */
 const NOT_YET = new Set([
@@ -38,7 +38,6 @@ const NOT_YET = new Set([
 	'lib/backup-overview.js',
 	'lib/backups.js',
 	'lib/balances.js',
-	'lib/credits.js',
 	'lib/keys/age.js',
 	'lib/keys/passkey.js',
 	'lib/keys/vault.js',

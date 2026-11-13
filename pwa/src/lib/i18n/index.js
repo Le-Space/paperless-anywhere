@@ -10,6 +10,7 @@
 import { derived, get, writable } from 'svelte/store';
 import { app } from './app.js';
 import { card } from './card.js';
+import { credits } from './credits.js';
 import { life } from './lifecycle.js';
 import { ownImage } from './own-image.js';
 
@@ -50,6 +51,7 @@ export function setLang(next) {
 const AREAS = {
 	app,
 	card,
+	credits,
 	life,
 	ownImage
 };
