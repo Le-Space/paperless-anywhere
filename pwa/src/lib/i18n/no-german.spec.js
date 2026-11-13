@@ -25,7 +25,6 @@ const NOT_YET = new Set([
 	'lib/Balances.svelte',
 	'lib/Cancel.svelte',
 	'lib/HourQuote.svelte',
-	'lib/Lifecycle.svelte',
 	'lib/Package.svelte',
 	'lib/ProviderHealth.svelte',
 	'lib/Setup.svelte',

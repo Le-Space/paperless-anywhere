@@ -23,7 +23,7 @@
 	import Evidence from '$lib/Evidence.svelte';
 	import { evidenceRows } from '$lib/evidence.js';
 	import { evidenceTexts, panelTexts } from '$lib/evidence-i18n.js';
-	import { lang as appLanguage } from '$lib/i18n/index.js';
+	import { format, lang as appLanguage, t as i18n, tr } from '$lib/i18n/index.js';
 	import StartPanel from '$lib/StartPanel.svelte';
 	import { startPanel } from '$lib/start-panel.js';
 	import { RUNTIME } from '$lib/runtime-pin.js';
@@ -43,18 +43,18 @@
 	// without a restore; a restore of about 1 GB adds about 5 min.
 	const STEPS = {
 		start: [
-			{ step: 'measure', label: 'Messwerte berechnen', typical: 10 },
-			{ step: 'instance', label: 'VM anfordern und platzieren', typical: 90 },
-			{ step: 'network', label: 'Port 443 und Adresse', typical: 25 },
-			{ step: 'unlock', label: 'VM prüfen (AMD) und entsperren', typical: 180 },
-			{ step: 'ready', label: 'Paperless-ngx startet (Container, Zertifikat)', typical: 300, typicalWithRestore: 600 }
+			{ step: 'measure', typical: 10 },
+			{ step: 'instance', typical: 90 },
+			{ step: 'network', typical: 25 },
+			{ step: 'unlock', typical: 180 },
+			{ step: 'ready', typical: 300, typicalWithRestore: 600 }
 		],
 		stop: [
 			// With backups on, the stop waits for one: export, encryption, upload
 			// to two providers and their confirmation on chain (about 6-8 min,
 			// mostly fixed costs). Erasing waits for the node to confirm.
-			{ step: 'stop', label: 'Stopp anfordern (letzte Sicherung)', typical: 10, typicalWithBackup: 540 },
-			{ step: 'forget', label: 'VM löschen', typical: 60 }
+			{ step: 'stop', typical: 10, typicalWithBackup: 540 },
+			{ step: 'forget', typical: 60 }
 		]
 	};
 	/** @type {'start' | 'stop' | ''} */
@@ -67,11 +67,11 @@
 	let vmStart = $state(null);
 	// What the VM reports about its own start (status page v2), in order.
 	const SUBSTEPS = [
-		{ key: 'docker', label: 'Docker bereit' },
-		{ key: 'images', label: 'Container-Images geladen' },
-		{ key: 'containers', label: 'Container laufen' },
-		{ key: 'cert', label: 'Zertifikat ausgestellt' },
-		{ key: 'paperless', label: 'Paperless-ngx antwortet' }
+		{ key: 'docker' },
+		{ key: 'images' },
+		{ key: 'containers' },
+		{ key: 'cert' },
+		{ key: 'paperless' }
 	];
 	// What the start panel's lights are lit from: the library's phase within
 	// the unlock, what the unlock returned, the VM's status page, and whether
@@ -137,14 +137,15 @@
 	const goodStale = $derived(Boolean(lastGood && profile.running && !newerOnChain && nowTick - new Date(lastGood.at).getTime() > STALE_HOURS * 3600_000));
 	const ago = (/** @type {number} */ ms) => {
 		const minutes = Math.floor(ms / 60_000);
-		if (minutes < 60) return minutes <= 1 ? 'gerade eben' : `vor ${minutes} Minuten`;
+		const a = c.ago;
+		if (minutes < 60) return minutes <= 1 ? a.now : a.minutes(minutes);
 		const hours = Math.floor(minutes / 60);
-		if (hours < 48) return `vor ${hours} ${hours === 1 ? 'Stunde' : 'Stunden'}`;
-		return `vor ${Math.floor(hours / 24)} Tagen`;
+		if (hours < 48) return a.hours(hours);
+		return a.days(Math.floor(hours / 24));
 	};
 	const goodWhen = (/** @type {string} */ at) => {
 		const d = new Date(at);
-		const time = d.toLocaleString('de-DE', d.toDateString() === new Date(nowTick).toDateString() ? { hour: '2-digit', minute: '2-digit' } : { dateStyle: 'medium', timeStyle: 'short' });
+		const time = format.dateTime(d, d.toDateString() === new Date(nowTick).toDateString() ? { hour: '2-digit', minute: '2-digit' } : { dateStyle: 'medium', timeStyle: 'short' }, $appLanguage);
 		return `${time} (${ago(nowTick - d.getTime())})`;
 	};
 	/** A backup that reached providers: remember it if newer. @param {{ at: string, copies?: number, requested?: number }} good */
@@ -208,10 +209,10 @@
 	let gapAccepted = $state('');
 	const gapOpen = $derived(Boolean(gap) && gapAccepted !== gapKey);
 	// The date of a backup, where the profile knows it (the chain has none).
-	const whenOf = (b) => (b && lastGood?.pieceCid === b.pieceCid && lastGood.at ? `, vom ${new Date(lastGood.at).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })}` : '');
-	const wherePlaces = (b) => b.copies.map((c) => c.place || `Anbieter ${c.providerId}`).join(' und ');
+	const whenOf = (b) => (b && lastGood?.pieceCid === b.pieceCid && lastGood.at ? c.dated(format.dateTime(lastGood.at, undefined, $appLanguage)) : '');
+	const wherePlaces = (b) => b.copies.map((c) => c.place || tr().card.provider(c.providerId)).join(tr().card.and);
 	// Size, and the parts a large backup went up in: shown as one backup.
-	const sizeOf = (b) => [backupSize(b.size), b.parts?.length > 1 ? `in ${b.parts.length} Teilen` : ''].filter(Boolean).join(' ');
+	const sizeOf = (b) => [backupSize(b.size), b.parts?.length > 1 ? c.inParts(b.parts.length) : ''].filter(Boolean).join(' ');
 	const sizePart = (b) => (sizeOf(b) ? `, ${sizeOf(b)}` : '');
 	// The admin password is derived from the master secret; it is shown only on request.
 	let showPassword = $state(false);
@@ -239,7 +240,7 @@
 			backupsError = '';
 			listBackups({ network: profile.network ?? 'calibration', ...listing })
 				.then((list) => ((backups = list), (choice = defaultChoice(list))))
-				.catch(() => ((backups = []), (backupsError = 'Die Sicherungen ließen sich gerade nicht lesen.')));
+				.catch(() => ((backups = []), (backupsError = tr().card.backupsUnreadable)));
 		}
 	};
 	// Again whenever the setup saved something (`version` changes).
@@ -267,7 +268,7 @@
 	const fromPackage = $derived(Boolean(short && CREDITS_URL && profile.appPays && !profile.leSpacePays && packageHours != null && packageHours >= 1));
 	// Le Space pays the VM from the package from now on (model A), then start.
 	const startFromPackage = () => run(async () => {
-		progress = 'Le Space bezahlt die VM jetzt aus deinem Paket';
+		progress = tr().card.progress.packagePays;
 		profile = await updateProfile(master, (now) => ({ ...now, appPays: false, leSpacePays: true }));
 		onchange();
 		await startNow();
@@ -346,7 +347,7 @@
 	 * shows the delegation (an INSTANCE before that would be refused).
 	 */
 	async function leSpaceOwner() {
-		progress = 'Le Space Credits: Freigabe für die VM holen';
+		progress = tr().card.progress.authorize;
 		const a = await vmAuthorize(master);
 		if (profile.vmOwner !== a.owner) profile = await updateProfile(master, (now) => ({ ...now, vmOwner: a.owner }));
 		const app = privateKeyToAccount(alephPrivateKey(master)).address;
@@ -354,7 +355,7 @@
 			if (isAuthorized(await readAuthorizations(a.owner).catch(() => []), app)) return a.owner;
 			await new Promise((r) => setTimeout(r, 4000));
 		}
-		throw new Error('Aleph zeigt die Freigabe von Le Space noch nicht. In ein paar Minuten noch einmal starten.');
+		throw new Error(tr().card.errors.noDelegation);
 	}
 	async function startNow() {
 		// A retried revoke first: the start authorizes the key again after it.
@@ -363,7 +364,7 @@
 		await revoking;
 		if (profile.leSpacePays) await leSpaceOwner();
 		const chosen = chosenBackup;
-		if (gapOpen) throw new Error('Der Start wartet auf deine Bestätigung: die letzte bekannte Sicherung würde nicht eingespielt.');
+		if (gapOpen) throw new Error(tr().card.errors.gapOpen);
 		const forStart = { ...$state.snapshot(profile), restoreEntry: chosen ? restoreEntry(chosen) : null };
 		startRestores = Boolean(forStart.restoreEntry);
 		// Once Aleph has the VM, the profile knows it: a reload carries on from there.
@@ -384,16 +385,16 @@
 		// Read before run() clears `short`.
 		const need = short?.reserve ?? 0;
 		return run(async () => {
-			progress = 'Le Space Credits: Stunden kaufen';
+			progress = tr().card.progress.buyHours;
 			const app = privateKeyToAccount(alephPrivateKey(master)).address;
 			const before = profile.leSpacePays ? null : (await alephBalance(app).catch(() => null))?.credits ?? null;
 			const funded = await fundVm(master, hours);
 			// What the account holds now, from the service itself.
 			const now = await creditsBalance(master).catch(() => null);
-			bought = `${hours} Stunden gekauft für ${amount(funded.chargedCredits / 100)} €.${now ? ` Guthaben jetzt ${amount(now.credits / 100)} €.` : ''}${quote?.hoursAfter != null ? ` VM-Stunden: ${amount(quote.hoursAfter, 1)} h.` : ''}`;
+			bought = tr().card.bought({ hours, price: amount(funded.chargedCredits / 100), balance: now ? amount(now.credits / 100) : null, vmHours: quote?.hoursAfter != null ? amount(quote.hoursAfter, 1) : null });
 			let payer = profile.leSpacePays ? (profile.vmOwner ?? app) : app;
 			if (funded.to && funded.to.toLowerCase() !== app.toLowerCase()) payer = funded.to;
-			progress = 'Warte, bis Aleph die Gutschrift zeigt';
+			progress = tr().card.progress.waitCredit;
 			const enough = (/** @type {number} */ c) => c >= need && (before == null || payer !== app || c > before);
 			for (let i = 0; i < 36; i++) {
 				const b = await alephBalance(payer).catch(() => null);
@@ -405,12 +406,12 @@
 					const owner = await vmAuthorize(master).then((a) => a.owner).catch(() => null);
 					if (owner) payer = owner;
 				}
-				if (i === 35) throw new Error('Die Gutschrift ist bei Aleph noch nicht zu sehen. In ein paar Minuten noch einmal starten – nicht noch einmal kaufen, sonst werden die Stunden doppelt gekauft.');
+				if (i === 35) throw new Error(tr().card.errors.creditNotSeen);
 				await new Promise((res) => setTimeout(res, 5000));
 			}
 			if (payer.toLowerCase() !== app.toLowerCase() && !profile.leSpacePays) {
 				// The hours are on the sub-account: from now on Le Space pays the VM from the package.
-				progress = 'Le Space bezahlt die VM jetzt aus deinem Paket';
+				progress = tr().card.progress.packagePays;
 				profile = await updateProfile(master, (now) => ({ ...now, appPays: false, leSpacePays: true, vmOwner: payer }));
 			}
 			onchange();
@@ -425,7 +426,7 @@
 		const chosen = profile.starting?.restoreEntry;
 		const listing = chosen && profile.ageIdentity ? await listingNow() : null;
 		if (listing) {
-			progress = 'Sicherungen nachsehen';
+			progress = tr().card.progress.lookBackups;
 			const newer = newerBackup(await listBackups({ network: profile.network ?? 'calibration', ...listing }), chosen);
 			if (newer) profile = await updateProfile(master, (now) => (now.starting ? { ...now, starting: { ...now.starting, restoreEntry: restoreEntry(newer) } } : now));
 		}
@@ -470,7 +471,7 @@
 		finishStop(await eraseStopped(master, $state.snapshot(profile), p.status, track('stop')));
 	});
 	const keepVm = () => answer(async () => {
-		progress = 'Paperless-ngx wieder starten';
+		progress = tr().card.progress.restart;
 		await resumeAfterPartial(master, $state.snapshot(profile));
 	});
 	/** @param {any} status the VM's status page at the end of the stop */
@@ -492,6 +493,8 @@
 	}
 	// In the language shown: what a start still needs is named in words.
 	const missing = $derived(($appLanguage, startRequirements(profile)));
+	// The card's texts in the language shown.
+	const c = $derived($i18n.card);
 	// Tells the page, which opens the setup when something is missing.
 	$effect(() => {
 		if (loaded) onmissing(missing);
@@ -520,49 +523,42 @@
 		: loaded ? 'off' : 'loading'
 	);
 	// The short state for the card's chip and "Auf einen Blick".
-	const CHIPS = { loading: '…', off: 'aus', starting: 'startet', stopping: 'wird beendet', running: 'läuft', interrupted: 'Start unterbrochen' };
-	const TITLES = {
-		loading: 'Einen Moment …',
-		off: 'Paperless-ngx ist aus',
-		starting: 'Paperless-ngx startet',
-		stopping: 'Paperless-ngx wird gesichert und beendet',
-		running: 'Paperless-ngx läuft',
-		interrupted: 'Start unterbrochen'
-	};
+	const CHIPS = $derived(/** @type {Record<string, string>} */ (c.chips));
+	const TITLES = $derived(/** @type {Record<string, string>} */ (c.titles));
 	const backupsPending = $derived(Boolean(profile.ageIdentity && backupListing(profile) && backups === null));
 	const typicalTotal = $derived(action ? STEPS[action].reduce((a, s) => a + typicalOf(s), 0) : 0);
 	const elapsed = $derived(Math.max(0, (now - startedAt) / 1000));
 	const share = $derived(typicalTotal ? Math.min(0.95, elapsed / typicalTotal) : 0);
 	const leftMinutes = $derived(Math.max(1, Math.ceil((typicalTotal - elapsed) / 60)));
-	const stepLabel = $derived(action ? (STEPS[action].find((s) => s.step === current)?.label ?? 'Vorbereiten') : '');
+	const stepLabel = $derived(action ? (/** @type {Record<string, string>} */ (c.steps)[STEPS[action].find((s) => s.step === current)?.step ?? 'preparing']) : '');
 </script>
 
 {#snippet fundOffer()}
 	{@const locked = busy || purchaseLocked(buying)}
 	{#if fromPackage}
 		<div class="fund" data-testid="package-offer">
-			<p class="hint">In deinem Paket liegen noch {packageHours} {packageHours === 1 ? 'Stunde' : 'Stunden'}. Le Space bezahlt die VM dann daraus; die Zahlweise wechselt auf „Le Space, aus meinem Paket“. Nichts wird gekauft.</p>
-			<button onclick={startFromPackage} disabled={locked} data-testid="start-from-package">Aus dem Paket starten ({packageHours} h)</button>
+			<p class="hint">{c.fund.inPackage(packageHours ?? 0)}</p>
+			<button onclick={startFromPackage} disabled={locked} data-testid="start-from-package">{c.fund.startFromPackage(packageHours ?? 0)}</button>
 		</div>
 	{:else}
 	<div class="fund" data-testid="fund-offer">
-		<label>Stunden aus Le Space Credits kaufen
+		<label>{c.fund.buyLabel}
 			<select bind:value={fundHours} disabled={locked} data-testid="fund-hours">{#each [5, 10, 30] as h (h)}<option value={h}>{h} h</option>{/each}</select></label>
-		<button onclick={askToBuy} disabled={locked} data-testid="fund-start">{buying.phase === 'quoting' ? 'Preis wird abgefragt …' : 'Kaufen und starten'}</button>
+		<button onclick={askToBuy} disabled={locked} data-testid="fund-start">{buying.phase === 'quoting' ? c.fund.quoting : c.fund.buyAndStart}</button>
 	</div>
-	<HourQuote quote={buying.phase === 'open' ? buying.quote : null} short={buying.phase === 'short'} hoursAsked={buying.hours} topUpHint="Erst Guthaben aufladen, unter „Aufladen, Stunden dazukaufen, Paket ändern“, dann noch einmal kaufen." confirmLabel="Kaufen und starten" disabled={busy || buying.phase === 'buying'} onconfirm={() => purchase.confirm()} oncancel={() => purchase.cancel()} />
+	<HourQuote quote={buying.phase === 'open' ? buying.quote : null} short={buying.phase === 'short'} hoursAsked={buying.hours} topUpHint={c.fund.topUpHint} confirmLabel={c.fund.buyAndStart} disabled={busy || buying.phase === 'buying'} onconfirm={() => purchase.confirm()} oncancel={() => purchase.cancel()} />
 	{#if buying.error}<p class="error" role="alert" data-testid="fund-error">{buying.error}</p>{/if}
 	{/if}
 {/snippet}
 
 {#snippet unpaidQuestion()}
 	{#if unpaidBackup}
-		<div class="warn gap" role="alertdialog" aria-label="Start ohne Sicherung" data-testid="start-unpaid-backup">
-			<p><strong>Für heute ist keine Sicherung bezahlt.</strong> Paperless anywhere würde ohne Sicherung laufen: Was du in dieser Sitzung hinzufügst oder änderst, ist nach dem Stopp weg.</p>
+		<div class="warn gap" role="alertdialog" aria-label={c.unpaid.label} data-testid="start-unpaid-backup">
+			<p><strong>{c.unpaid.strong}</strong> {c.unpaid.text}</p>
 			<p class="row">
-				<button class="secondary" onclick={toPackage} data-testid="start-book-backup">Erst die Sicherung buchen (im Paket)</button>
-				<button class="quiet" onclick={startWithoutBackup} disabled={busy} data-testid="start-without-backup">Ohne Sicherung starten</button>
-				<button class="quiet" onclick={() => (unpaidBackup = false)}>Doch nicht starten</button>
+				<button class="secondary" onclick={toPackage} data-testid="start-book-backup">{c.unpaid.book}</button>
+				<button class="quiet" onclick={startWithoutBackup} disabled={busy} data-testid="start-without-backup">{c.unpaid.without}</button>
+				<button class="quiet" onclick={() => (unpaidBackup = false)}>{c.unpaid.cancel}</button>
 			</p>
 		</div>
 	{/if}
@@ -572,11 +568,11 @@
 	{#if gap}
 		<div class="warn gap" data-testid="restore-gap">
 			<p>
-				{#if gap === 'missing'}Die letzte Sicherung, die diese App kennt ({known?.slice(-12)}{lastGood?.pieceCid === known && lastGood?.at ? `, vom ${new Date(lastGood.at).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}), steht gerade nicht in der Liste der Sicherungen. Ein Start jetzt beginnt {chosenBackup ? 'mit einem anderen Stand' : 'ohne Daten'}.
-				{:else}Die gewählte Sicherung ist älter als die letzte, die diese App kennt ({known?.slice(-12)}). Was danach dazukam, fehlt nach dem Start.{/if}
-				Wenn du das nicht erwartest, versuche es später noch einmal.
+				{#if gap === 'missing'}{c.gap.missing(known?.slice(-12) ?? '', lastGood?.pieceCid === known && lastGood?.at ? c.dated(format.dateTime(lastGood.at, undefined, $appLanguage)) : '', Boolean(chosenBackup))}
+				{:else}{c.gap.older(known?.slice(-12) ?? '')}{/if}
+				{c.gap.later}
 			</p>
-			<label><input type="checkbox" data-testid="restore-gap-accept" checked={!gapOpen} onchange={(e) => (gapAccepted = e.currentTarget.checked ? gapKey : '')} /> Trotzdem so starten</label>
+			<label><input type="checkbox" data-testid="restore-gap-accept" checked={!gapOpen} onchange={(e) => (gapAccepted = e.currentTarget.checked ? gapKey : '')} /> {c.gap.accept}</label>
 		</div>
 	{/if}
 {/snippet}
@@ -587,69 +583,69 @@
 			<span class="dot" aria-hidden="true"></span>
 			<div>
 				<h1>{TITLES[phase]}</h1>
-				{#if phase === 'off'}<p class="sub">Der Start dauert etwa {minutes(STEPS.start.reduce((a, s) => a + typicalOf(s), 0))}.</p>
-				{:else if phase === 'starting'}<p class="sub">Lass dieses Fenster offen, bis Paperless-ngx bereit ist.</p>
-				{:else if phase === 'stopping'}<p class="sub">Erst die Sicherung, dann geht die Maschine aus. Lass dieses Fenster offen.</p>
+				{#if phase === 'off'}<p class="sub">{c.simple.startTakes(minutes(STEPS.start.reduce((a, s) => a + typicalOf(s), 0)))}</p>
+				{:else if phase === 'starting'}<p class="sub">{c.simple.keepOpenStart}</p>
+				{:else if phase === 'stopping'}<p class="sub">{c.simple.keepOpenStop}</p>
 				{:else if phase === 'running'}<p class="sub data">{profile.running.host}</p>
-				{:else if phase === 'interrupted'}<p class="sub">Die Maschine läuft schon und kostet, bis sie fertig gestartet ist.</p>{/if}
+				{:else if phase === 'interrupted'}<p class="sub">{c.simple.interruptedCosts}</p>{/if}
 				{#if profile.backupConfig}
 					<!-- The answer people look for first: when the documents were last safe. -->
-					<p class="good" class:stale={goodStale} data-testid="last-good-backup">{#if lastGood}{fromStop ? 'Letzte Sicherung beim Beenden' : 'Letzte erfolgreiche Sicherung'}: <strong>{goodWhen(lastGood.at)}</strong>{lastGood.copies ? ` · ${lastGood.copies} ${lastGood.copies === 1 ? 'Kopie' : 'Kopien'}` : ''}{#if newerOnChain}<br /><span data-testid="newer-on-chain">Auf Filecoin liegt eine neuere ({backups?.[0]?.copies.length} {backups?.[0]?.copies.length === 1 ? 'Kopie' : 'Kopien'}); ihre Uhrzeit meldet erst das neue Image.</span>{/if}{:else}Noch keine erfolgreiche Sicherung bekannt{/if}</p>
+					<p class="good" class:stale={goodStale} data-testid="last-good-backup">{#if lastGood}{fromStop ? c.simple.lastAtStop : c.simple.lastGood}: <strong>{goodWhen(lastGood.at)}</strong>{lastGood.copies ? ` · ${c.simple.copies(lastGood.copies)}` : ''}{#if newerOnChain}<br /><span data-testid="newer-on-chain">{c.simple.newerOnChain(c.simple.copies(backups?.[0]?.copies.length ?? 0))}</span>{/if}{:else}{c.simple.noneKnown}{/if}</p>
 				{/if}
 			</div>
 		</div>
 
 		{#if phase === 'starting' || phase === 'stopping'}
 			<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(share * 100)} aria-label={TITLES[phase]}><span style="width: {Math.round(share * 100)}%"></span></div>
-			<p class="calm" data-testid="simple-progress">{stepLabel} · noch etwa {leftMinutes} min</p>
+			<p class="calm" data-testid="simple-progress">{c.simple.left(stepLabel, leftMinutes)}</p>
 			{#if startShown}<StartPanel rows={panel} t={panelT} />{/if}
 		{:else if phase === 'running'}
-			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="simple-open">Paperless-ngx öffnen</a>
-			{#if profile.running.restore?.status === 'failed'}<p class="error">Die Sicherung ließ sich nicht wiederherstellen; Paperless-ngx läuft leer. Details unter „Erweitert“.</p>{/if}
+			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="simple-open">{c.simple.open}</a>
+			{#if profile.running.restore?.status === 'failed'}<p class="error">{c.simple.restoreFailed}</p>{/if}
 			<div class="login" data-testid="simple-login">
-				<p class="label">Anmeldung in Paperless-ngx</p>
-				<p>Benutzer <code>admin</code></p>
-				<p>Passwort {#if showPassword}<code data-testid="simple-password">{adminPassword}</code>{:else}<code>••••••••</code>{/if}</p>
+				<p class="label">{c.simple.login}</p>
+				<p>{c.simple.user} <code>admin</code></p>
+				<p>{c.simple.password} {#if showPassword}<code data-testid="simple-password">{adminPassword}</code>{:else}<code>••••••••</code>{/if}</p>
 				<div class="row">
-					<button type="button" class="small" onclick={() => (showPassword = !showPassword)}>{showPassword ? 'Verbergen' : 'Passwort anzeigen'}</button>
-					<button type="button" class="small" onclick={copyPassword}>Kopieren</button>
+					<button type="button" class="small" onclick={() => (showPassword = !showPassword)}>{showPassword ? c.simple.hide : c.simple.show}</button>
+					<button type="button" class="small" onclick={copyPassword}>{c.simple.copy}</button>
 				</div>
 			</div>
 			{#if profile.backupConfig}<BackupNow {master} {profile} known={lastGood} disabled={busy} onbusy={(b) => (backingUp = b)} ongood={rememberGood} />{/if}
 			<Evidence rows={evidence} t={evidenceT} onagain={busy ? null : checkAgain} />
-			<button class="secondary stop" onclick={stop} disabled={busy || backingUp}>Sichern und beenden</button>
+			<button class="secondary stop" onclick={stop} disabled={busy || backingUp} data-testid="simple-stop">{c.simple.stop}</button>
 			<Storage {master} {profile} />
 			{#if profile.ageIdentity && backupListing(profile)}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{:else if phase === 'interrupted'}
-			<button class="cta" onclick={resume} disabled={busy}>Start fortsetzen</button>
+			<button class="cta" onclick={resume} disabled={busy}>{c.simple.resume}</button>
 		{:else if phase === 'off'}
 			{#if missing.length}
-				<p class="hint">Paperless anywhere ist hier noch nicht fertig eingerichtet.</p>
-				<button class="secondary" onclick={onadvanced}>Einrichtung öffnen</button>
+				<p class="hint">{c.simple.notSetUp}</p>
+				<button class="secondary" onclick={onadvanced}>{c.simple.openSetup}</button>
 			{:else}
-				<button class="cta" onclick={start} disabled={busy || backupsPending || Boolean(backupsError) || gapOpen}>Paperless anywhere starten</button>
+				<button class="cta" onclick={start} disabled={busy || backupsPending || Boolean(backupsError) || gapOpen} data-testid="start">{c.simple.start}</button>
 				{@render unpaidQuestion()}
-				{#if backupsPending}<p class="hint">Sicherungen werden gelesen …</p>
-				{:else if backupsError}<p class="warn">{backupsError} Bitte gleich noch einmal versuchen.</p>
-				{:else if profile.ageIdentity}<p class="hint" data-testid="simple-restore">{choice === 'latest' || choice === 'own' ? `Startet mit der neuesten Sicherung (${pick(choice === 'latest' ? backups ?? [] : split.own)?.pieceCid.slice(-12)}${whenOf(chosenBackup)}).` : 'Startet ohne Daten: es gibt noch keine eigene Sicherung.'}</p>{/if}
+				{#if backupsPending}<p class="hint">{c.simple.readingBackups}</p>
+				{:else if backupsError}<p class="warn">{backupsError} {c.simple.tryAgain}</p>
+				{:else if profile.ageIdentity}<p class="hint" data-testid="simple-restore">{choice === 'latest' || choice === 'own' ? c.simple.startsWith(pick(choice === 'latest' ? backups ?? [] : split.own)?.pieceCid.slice(-12) ?? '', whenOf(chosenBackup)) : c.simple.startsEmpty}</p>{/if}
 				{@render gapWarning()}
 				<Storage {master} {profile} />
 			{/if}
 		{/if}
 		{#if phase !== 'running' && profile.trial}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
-		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">Der Schlüssel der gelöschten VM für die Sicherungen ist bei Le Space Credits noch freigegeben; die App versucht die Rücknahme beim nächsten Öffnen erneut.</p>{/if}
+		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
 		{#if partial}
 			<div class="partial" role="alert" data-testid="stop-partial">
 				<p class="warn">{partial.message}</p>
-				<p class="hint">Die angekommenen Kopien reichen zum Wiederherstellen. Wird die VM jetzt gelöscht, fehlt diese Sicherung bei {partial.requested - partial.copies === 1 ? 'einem Anbieter' : `${partial.requested - partial.copies} Anbietern`}. Bleibt sie, versucht die nächste Prüfung wieder alle.</p>
+				<p class="hint">{c.partial.hint(partial.requested - partial.copies)}</p>
 				<div class="row">
-					<button onclick={eraseAnyway} disabled={busy} data-testid="stop-partial-erase">VM trotzdem löschen</button>
-					<button class="secondary" onclick={keepVm} disabled={busy} data-testid="stop-partial-keep">VM behalten, Paperless-ngx weiter</button>
+					<button onclick={eraseAnyway} disabled={busy} data-testid="stop-partial-erase">{c.partial.erase}</button>
+					<button class="secondary" onclick={keepVm} disabled={busy} data-testid="stop-partial-keep">{c.partial.keep}</button>
 				</div>
 			</div>
 		{/if}
-		{#if errorLog.length}<details class="log" data-testid="simple-backup-log"><summary>Details aus der VM</summary><pre>{errorLog.join('\n')}</pre><ProviderHealth network={profile.network ?? 'calibration'} ids={healthIds} /></details>{/if}
+		{#if errorLog.length}<details class="log" data-testid="simple-backup-log"><summary>{c.simple.vmDetails}</summary><pre>{errorLog.join('\n')}</pre><ProviderHealth network={profile.network ?? 'calibration'} ids={healthIds} /></details>{/if}
 		{#if short && CREDITS_URL && (profile.appPays || profile.leSpacePays)}{@render fundOffer()}{/if}
 		{#if bought}<p class="hint" role="status" data-testid="fund-bought">{bought}</p>{/if}
 	{:else}
@@ -657,42 +653,42 @@
 			<h2>Paperless-ngx</h2>
 			<span class="chip" class:on={phase === 'running'} data-testid="paperless-chip">{CHIPS[phase]}</span>
 		</header>
-		<p class="purpose">Deine Paperless-ngx-Maschine: starten, öffnen, sichern und beenden.</p>
+		<p class="purpose">{c.advanced.purpose}</p>
 		{#if profile.running}
-			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener">Paperless-ngx öffnen</a>
-			<p>Paperless-ngx läuft: <a href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="paperless-link">{profile.running.host}</a></p>
-			{#if profile.running.restore?.status === 'failed'}<p class="error" data-testid="restore-failed">Wiederherstellung fehlgeschlagen ({profile.running.restore.reason ?? 'ohne Grund'}{profile.running.restore.error ? `: ${profile.running.restore.error}` : ''}). Paperless-ngx läuft leer. Diese VM nicht sichern, sondern unter „Meine VMs“ löschen: sonst wird die leere Paperless zur neuesten Sicherung.</p>{/if}
-			{#if profile.running.dataDisk === 'encrypted'}<p class="hint" data-testid="data-disk">Was diese VM schreibt, liegt auf einer eigenen Platte, verschlüsselt mit einem Schlüssel, den nur die VM kennt.</p>
-			{:else if profile.running.dataDisk === 'plain'}<p class="warn" data-testid="data-disk">Diese VM schreibt auf die gemeinsame Image-Platte, ohne eigenen Schlüssel. Die eigene Datenplatte ist vorerst ausgeschaltet (zu wenig Platz, bis die Container-Images flach sind).</p>{/if}
+			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener">{c.simple.open}</a>
+			<p>{c.advanced.runs} <a href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="paperless-link">{profile.running.host}</a></p>
+			{#if profile.running.restore?.status === 'failed'}<p class="error" data-testid="restore-failed">{c.advanced.restoreFailed(`${profile.running.restore.reason ?? c.advanced.noReason}${profile.running.restore.error ? `: ${profile.running.restore.error}` : ''}`)}</p>{/if}
+			{#if profile.running.dataDisk === 'encrypted'}<p class="hint" data-testid="data-disk">{c.advanced.diskEncrypted}</p>
+			{:else if profile.running.dataDisk === 'plain'}<p class="warn" data-testid="data-disk">{c.advanced.diskPlain}</p>{/if}
 			<Evidence rows={evidence} t={evidenceT} onagain={busy ? null : checkAgain} />
-			<p data-testid="paperless-login">Anmeldung: <code>admin</code>,
+			<p data-testid="paperless-login">{c.advanced.login} <code>admin</code>,
 				{#if showPassword}<code data-testid="admin-password">{adminPassword}</code>{:else}<span>••••••••</span>{/if}
-				<button type="button" class="small" onclick={() => (showPassword = !showPassword)}>{showPassword ? 'Verbergen' : 'Passwort anzeigen'}</button>
-				<button type="button" class="small" onclick={copyPassword}>Kopieren</button>
+				<button type="button" class="small" onclick={() => (showPassword = !showPassword)}>{showPassword ? c.simple.hide : c.simple.show}</button>
+				<button type="button" class="small" onclick={copyPassword}>{c.simple.copy}</button>
 			</p>
-			<button class="secondary stop" onclick={stop} disabled={busy}>Sichern und beenden</button>
+			<button class="secondary stop" onclick={stop} disabled={busy} data-testid="stop">{c.simple.stop}</button>
 		{:else}
 			{#if profile.ageIdentity}
 				<fieldset class="restore">
-					<legend>Beim Start</legend>
+					<legend>{c.advanced.atStart}</legend>
 					{#if production && backups?.length}
 						<label><input type="radio" bind:group={choice} value="latest" data-testid="restore-latest" />
-							Neueste Sicherung wiederherstellen
-							<small data-testid="latest-backup">({pick(backups).pieceCid.slice(-12)}{whenOf(pick(backups))}{sizePart(pick(backups))}, {pick(backups).copies.length} Kopien: {wherePlaces(pick(backups))})</small>
+							{c.advanced.restoreLatest}
+							<small data-testid="latest-backup">({pick(backups).pieceCid.slice(-12)}{whenOf(pick(backups))}{sizePart(pick(backups))}, {c.advanced.copiesAt(pick(backups).copies.length, wherePlaces(pick(backups)))})</small>
 						</label>
 					{/if}
 					<label><input type="radio" bind:group={choice} value="own" disabled={!split.own.length} />
-						Neueste eigene Sicherung wiederherstellen
-						{#if split.own.length}<small data-testid="newest-backup">({pick(split.own).pieceCid.slice(-12)}{whenOf(pick(split.own))}{sizePart(pick(split.own))}, {pick(split.own).copies.length} Kopien: {wherePlaces(pick(split.own))})</small>
-						{:else if backups}<small>(dieser Tresor hat noch keine gemacht)</small>{:else}<small>(lese …)</small>{/if}
+						{c.advanced.restoreOwn}
+						{#if split.own.length}<small data-testid="newest-backup">({pick(split.own).pieceCid.slice(-12)}{whenOf(pick(split.own))}{sizePart(pick(split.own))}, {c.advanced.copiesAt(pick(split.own).copies.length, wherePlaces(pick(split.own)))})</small>
+						{:else if backups}<small>{c.advanced.noneOwn}</small>{:else}<small>{c.advanced.reading}</small>{/if}
 					</label>
 					{#if split.other.length}
 						<label><input type="radio" bind:group={choice} value="any" />
-							Neueste andere Sicherung des Kontos ({pick(split.other).pieceCid.slice(-12)}{sizePart(pick(split.other))}, {wherePlaces(pick(split.other))})
-							<small>– nicht von diesem Tresor ({split.other.length}); nur wenn sie mit deinem Schlüssel verschlüsselt ist, z. B. vom Mac mit eingefügtem Schlüssel</small>
+							{c.advanced.restoreOther} ({pick(split.other).pieceCid.slice(-12)}{sizePart(pick(split.other))}, {wherePlaces(pick(split.other))})
+							<small>{c.advanced.otherHint(split.other.length)}</small>
 						</label>
 					{/if}
-					<label><input type="radio" bind:group={choice} value="empty" /> Leeres Paperless-ngx</label>
+					<label><input type="radio" bind:group={choice} value="empty" /> {c.advanced.empty}</label>
 					{#if backupsError}<small class="hint">{backupsError}</small>{/if}
 				</fieldset>
 				{@render gapWarning()}
@@ -700,15 +696,15 @@
 			{/if}
 			{#if profile.starting && !busy}
 				<div class="interrupted" data-testid="start-interrupted">
-					<p>Ein Start wurde unterbrochen: VM <code>{profile.starting.instanceHash.slice(0, 12)}</code>, angefordert {new Date(profile.starting.at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}. Sie läuft auf Aleph und kostet, bis sie fertig gestartet oder gelöscht ist.</p>
-					<button class="cta" onclick={resume} disabled={busy}>Start fortsetzen</button>
-					<button class="quiet" onclick={discard} disabled={busy}>Verwerfen (die VM dann unten unter „Meine VMs“ löschen)</button>
+					<p>{c.advanced.interrupted.before} <code>{profile.starting.instanceHash.slice(0, 12)}</code>{c.advanced.interrupted.requested(format.dateTime(profile.starting.at, { dateStyle: 'short', timeStyle: 'short' }, $appLanguage))}</p>
+					<button class="cta" onclick={resume} disabled={busy}>{c.simple.resume}</button>
+					<button class="quiet" onclick={discard} disabled={busy}>{c.advanced.discard}</button>
 				</div>
 			{:else}
-				<p class="role-line" data-testid="role-line">{profile.role === 'primary' ? 'Startet produktiv: Mail-Regeln an, Sicherungen auf Mainnet.' : 'Startet als Test: Mail-Regeln aus, Sicherungen ins Testnetz.'}</p>
-				<button class="cta" onclick={start} disabled={busy || missing.length > 0 || gapOpen}>Paperless anywhere starten</button>
+				<p class="role-line" data-testid="role-line">{profile.role === 'primary' ? c.advanced.rolePrimary : c.advanced.roleTest}</p>
+				<button class="cta" onclick={start} disabled={busy || missing.length > 0 || gapOpen} data-testid="start">{c.simple.start}</button>
 				{@render unpaidQuestion()}
-				{#if missing.length}<p class="hint">Es fehlt noch: {missing.join(', ')}</p>{/if}
+				{#if missing.length}<p class="hint">{c.advanced.stillMissing(missing.join(', '))}</p>{/if}
 			{/if}
 		{/if}
 		{#if startShown}<StartPanel rows={panel} t={panelT} />{/if}
@@ -718,10 +714,10 @@
 					{@const t = times[s.step]}
 					<li class:done={t?.to} class:active={t && !t.to}>
 						<span class="mark">{t?.to ? '✓' : t ? '▶' : '·'}</span>
-						{s.label}
+						{/** @type {Record<string, string>} */ (c.steps)[s.step]}
 						<small>
 							{#if t}{seconds((t.to ?? now) - t.from)}{/if}
-							(üblich ca. {minutes(typicalOf(s))})
+							{c.advanced.usual(minutes(typicalOf(s)))}
 						</small>
 						{#if s.step === 'ready' && t}
 							{#if vmStart?.timeline}
@@ -729,58 +725,57 @@
 									{#each SUBSTEPS as sub (sub.key)}
 										{@const at = vmStart.timeline[sub.key]}
 										<li class:done={at}>
-											<span class="mark">{at ? '✓' : '·'}</span>{sub.label}
+											<span class="mark">{at ? '✓' : '·'}</span>{/** @type {Record<string, string>} */ (c.substeps)[sub.key]}
 											{#if sub.key === 'images' && vmStart.imagesTotal}<small>{vmStart.images}/{vmStart.imagesTotal}</small>{/if}
-											{#if at}<small>nach {at - vmStart.timeline.unlocked} s</small>{/if}
+											{#if at}<small>{c.advanced.after(at - vmStart.timeline.unlocked)}</small>{/if}
 										</li>
 									{/each}
 								</ul>
 							{:else if !t.to}
-								<p class="hint">Die Status-Seite der VM antwortet erst, wenn ihr Zertifikat da ist. Bis dahin lädt sie die Container-Images (der längste Teil); die Einzelschritte erscheinen dann hier.</p>
+								<p class="hint">{c.advanced.statusLater}</p>
 							{/if}
 						{/if}
 					</li>
 				{/each}
 			</ol>
-			<p class="hint">Gesamt: {seconds((busy ? now : Object.values(times).reduce((m, t) => Math.max(m, t.to ?? 0), startedAt)) - startedAt)}
-				· üblich ca. {minutes(STEPS[action].reduce((a, s) => a + typicalOf(s), 0))}</p>
+			<p class="hint">{c.advanced.total(seconds((busy ? now : Object.values(times).reduce((m, t) => Math.max(m, t.to ?? 0), startedAt)) - startedAt), minutes(STEPS[action].reduce((a, s) => a + typicalOf(s), 0)))}</p>
 		{/if}
 		{#if progress}<p data-testid="progress">{progress} …</p>{/if}
-		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">Der Schlüssel der gelöschten VM für die Sicherungen ist bei Le Space Credits noch freigegeben; die App versucht die Rücknahme beim nächsten Öffnen erneut.</p>{/if}
+		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
 		{#if partial}
 			<div class="partial" role="alert" data-testid="stop-partial">
 				<p class="warn">{partial.message}</p>
-				<p class="hint">Die angekommenen Kopien reichen zum Wiederherstellen. Wird die VM jetzt gelöscht, fehlt diese Sicherung bei {partial.requested - partial.copies === 1 ? 'einem Anbieter' : `${partial.requested - partial.copies} Anbietern`}. Bleibt sie, versucht die nächste Prüfung wieder alle.</p>
+				<p class="hint">{c.partial.hint(partial.requested - partial.copies)}</p>
 				<div class="row">
-					<button onclick={eraseAnyway} disabled={busy} data-testid="stop-partial-erase">VM trotzdem löschen</button>
-					<button class="secondary" onclick={keepVm} disabled={busy} data-testid="stop-partial-keep">VM behalten, Paperless-ngx weiter</button>
+					<button onclick={eraseAnyway} disabled={busy} data-testid="stop-partial-erase">{c.partial.erase}</button>
+					<button class="secondary" onclick={keepVm} disabled={busy} data-testid="stop-partial-keep">{c.partial.keep}</button>
 				</div>
 			</div>
 		{/if}
 		{#if short && CREDITS_URL && profile.appPays}{@render fundOffer()}{/if}
 		{#if bought}<p class="hint" role="status" data-testid="fund-bought">{bought}</p>{/if}
 		{#if errorLog.length}
-			<details open class="log"><summary>Was die VM zur Sicherung meldet</summary><pre data-testid="backup-log">{errorLog.join('\n')}</pre><ProviderHealth network={profile.network ?? 'calibration'} ids={healthIds} /></details>
+			<details open class="log"><summary>{c.advanced.vmSays}</summary><pre data-testid="backup-log">{errorLog.join('\n')}</pre><ProviderHealth network={profile.network ?? 'calibration'} ids={healthIds} /></details>
 		{/if}
 		{#if !profile.running && profile.lastBackup}
 			{@const b = profile.lastBackup}
 			<details class="backup-card" data-testid="last-backup">
-				<summary>Letzte Sicherung: {b.date ? new Date(b.date).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : b.name} · {b.copies?.length ?? 0}/{b.requestedCopies ?? b.copies?.length} Kopien{b.complete ? '' : ' (unvollständig)'}</summary>
+				<summary>{c.last.title(b.date ? format.dateTime(b.date, undefined, $appLanguage) : b.name, b.copies?.length ?? 0, b.requestedCopies ?? b.copies?.length, Boolean(b.complete))}</summary>
 				<dl>
-					<dt>Netz</dt><dd>Filecoin {b.network === 'mainnet' ? 'Mainnet' : 'Calibration (Testnetz)'}</dd>
-					<dt>Bezahlt von</dt><dd><code>{b.payer}</code></dd>
+					<dt>{c.last.network}</dt><dd>Filecoin {b.network === 'mainnet' ? 'Mainnet' : c.last.testnet}</dd>
+					<dt>{c.last.paidBy}</dt><dd><code>{b.payer}</code></dd>
 					<dt>Piece CID</dt><dd><code>{b.pieceCid}</code></dd>
-					{#if b.size}<dt>Größe</dt><dd>{(b.size / 1048576).toFixed(1)} MiB (verschlüsselt){b.parts?.length > 1 ? `, in ${b.parts.length} Teilen` : ''}</dd>{/if}
-					{#if b.seconds}<dt>Dauer</dt><dd>{b.seconds} s</dd>{/if}
+					{#if b.size}<dt>{c.last.size}</dt><dd>{format.number(b.size / 1048576, { minimumFractionDigits: 1, maximumFractionDigits: 1 }, $appLanguage)} MiB {c.last.encrypted}{b.parts?.length > 1 ? c.last.inParts(b.parts.length) : ''}</dd>{/if}
+					{#if b.seconds}<dt>{c.last.duration}</dt><dd>{b.seconds} s</dd>{/if}
 				</dl>
 				<ul>
-					{#each b.copies ?? [] as c (c.providerId + c.dataSetId)}
-						<li>Anbieter {c.providerId}{c.location ? ` (${place(c.location)})` : ''} · Datensatz {c.dataSetId}, Piece {c.pieceId}{c.isNewDataSet ? ' (neuer Datensatz)' : ''}
-							{#if c.retrievalUrl}<br /><a href={c.retrievalUrl} target="_blank" rel="noopener">abrufen</a> <small>(verschlüsselt; nur dein Schlüssel öffnet sie)</small>{/if}</li>
+					{#each b.copies ?? [] as copy (copy.providerId + copy.dataSetId)}
+						<li>{c.last.copy({ provider: copy.providerId, place: copy.location ? place(copy.location) : '', dataSet: copy.dataSetId, piece: copy.pieceId, isNew: Boolean(copy.isNewDataSet) })}
+							{#if copy.retrievalUrl}<br /><a href={copy.retrievalUrl} target="_blank" rel="noopener">{c.last.fetch}</a> <small>{c.last.fetchHint}</small>{/if}</li>
 					{/each}
 				</ul>
-				{#if b.failedAttempts}<p class="hint">{b.failedAttempts} Fehlversuch(e) bei Anbietern, ersetzt.</p>{/if}
+				{#if b.failedAttempts}<p class="hint">{c.last.failed(b.failedAttempts)}</p>{/if}
 			</details>
 		{/if}
 	{/if}
