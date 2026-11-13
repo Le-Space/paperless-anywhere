@@ -24,12 +24,16 @@ export const DISCLAIMER = {
 	en: 'Paperless-ngx is an independent open source project (GPL-3.0). Paperless anywhere is offered by Le Space, is not affiliated with the project and is neither endorsed nor sponsored by it.'
 };
 
+// The terms of the paid service (Le Space Credits). The instruction on
+// withdrawal is their § 9; the page is in German.
+export const TERMS_URL = 'https://credits.le-space.de/agb';
+
 export const texts = {
 	de: {
 		title: 'Paperless anywhere – Paperless-ngx auf Abruf, vertraulich',
 		description: 'Paperless-ngx auf Abruf in einer vertraulichen VM. Kostet nur, solange es läuft; danach verschlüsselt gesichert und aus.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx auf Abruf, betrieben von Le Space: Deine Dokumente. Nur wach, wenn du sie brauchst.',
-		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Knoten', storage: 'Backups', trust: 'Nachprüfbar', prices: 'Preise', faq: 'FAQ' },
+		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Ausfallsicher', storage: 'Backups', trust: 'Nachprüfbar', prices: 'Preise', faq: 'FAQ' },
 		tagline: 'Paperless-ngx auf Abruf, betrieben von Le Space',
 		disclaimer: DISCLAIMER.de,
 		open: 'Paperless anywhere starten',
@@ -44,10 +48,15 @@ export const texts = {
 			{ t: 'Vertraulich', d: 'Speicher und Platte der VM sind verschlüsselt. Der Betreiber des Knotens kann sie nicht lesen.' },
 			{ t: 'Dezentral gesichert', d: 'Backups werden in der VM verschlüsselt und an mehreren Orten abgelegt, die du wählst.' }
 		],
+		trustHint: 'Nachprüfbar: wer welchen Schlüssel hat, was die Hardware bestätigt und was noch offen ist',
+		audience: {
+			title: 'Für wen?',
+			lead: 'Für alle, die Paperless-ngx nur stundenweise brauchen: Buchhaltung und Steuerberatung, Kanzleien, kleine Firmen und Selbstständige, die ihre Belege einmal in der Woche oder zum Monatsabschluss ablegen und sonst keine Maschine laufen lassen wollen.'
+		},
 		how: {
 			title: 'So geht’s',
 			steps: [
-				{ t: 'Tresor anlegen', d: 'Ein Passkey auf deinem Gerät öffnet deinen Tresor. Dazu bekommst du 24 Wörter zum Aufschreiben: damit kommst du auch ohne das Gerät wieder hinein. Kein Konto, keine E-Mail.' },
+				{ t: 'Tresor anlegen', d: 'Ein Passkey auf deinem Gerät öffnet deinen Tresor. Dazu bekommst du 24 Wörter zum Aufschreiben: damit kommst du auch ohne das Gerät wieder hinein. Für den Tresor brauchst du kein Konto und keine E-Mail-Adresse. Erst beim Kauf eines Pakets fragt der Zahlungsdienst Stripe nach einer E-Mail-Adresse, für Beleg und Abo.' },
 				{ t: 'Starten', d: 'Die App sucht einen freien TEE-Knoten, prüft dessen Hardware-Nachweis und gibt erst dann den Schlüssel für die Platte heraus. Das Backup wird eingespielt.' },
 				{ t: 'Arbeiten', d: 'Paperless-ngx wie gewohnt im Browser: hochladen, verschlagworten, suchen.' },
 				{ t: 'Sichern und beenden', d: 'Ein Klick: Die VM verschlüsselt ein Backup, legt es dezentral ab und fährt herunter. Ab dann läuft keine Rechenzeit mehr.' }
@@ -82,11 +91,14 @@ export const texts = {
 				{ who: 'Der Betreiber des Knotens', v: 'no' },
 				{ who: 'GitHub', v: 'no' }
 			],
-			compare: 'Öffentlich vergleichen lassen sich dann der Hash des Images und der Messwert des Build-Dienstes. Dein verschlüsseltes Image sieht bei jeder Person anders aus. Was noch fehlt: Der Build-Dienst läuft noch nicht bei Aleph, und die App nennt ihn noch nicht; erst dann erscheint „Mein Image bauen“ in der Einrichtung.'
+			compare: 'Öffentlich vergleichen lassen sich dann der Hash des Images und der Messwert des Build-Dienstes. Dein verschlüsseltes Image sieht bei jeder Person anders aus. Stand: Der Build-Dienst ist gebaut. Zur Probe lief er bei Aleph als gemessene VM, bestand dort die Prüfung durch die Hardware und versiegelte das echte Image. In Betrieb ist er nicht: Es läuft kein Dienst auf Dauer, und die App nennt keinen; erst dann erscheint „Mein Image bauen“ in der Einrichtung.'
 		},
 		nodes: {
-			title: 'Vertrauliche Rechenknoten, jetzt gerade',
-			lead: 'Auf diesen Knoten kann dein Paperless anywhere gerade starten. Die Liste ist live.',
+			title: 'Ausfallsicher: kein einzelnes Rechenzentrum',
+			lead: 'Dein Paperless anywhere hängt an keinem bestimmten Rechner: Es kann auf jedem dieser vertraulichen Knoten starten. Fällt einer aus, startest du auf einem anderen und spielst dein Backup ein. Die Liste ist live.',
+			resilience: (n, o, c) => `${n} vertrauliche Knoten von ${o} ${o === 1 ? 'Betreiber' : 'Betreibern'}${c ? ` in ${c} ${c === 1 ? 'Land' : 'Ländern'}` : ''}`,
+			storageNote: 'Die Sicherungen liegen dazu bei mehreren unabhängigen Speicheranbietern, in den Ländern, die du wählst.',
+			dependsNote: 'Was noch an Le Space hängt: Guthaben und Abrechnung, der Relay, über den die App den Nachweis der VM prüft, und die Auslieferung der App.',
 			loading: 'Knotenliste wird geladen …',
 			error: 'Die Knotenliste ist gerade nicht erreichbar.',
 			count: (n, fit) => `${n} TEE-Knoten, ${fit} davon mit Platz für eine Paperless-anywhere-VM (2 vCPU, 4 GiB, 40 GiB)`,
@@ -161,8 +173,10 @@ export const texts = {
 		},
 		prices: {
 			title: 'Preise',
-			lead: 'Monatspakete mit Rechenstunden. Du zahlst nur Stunden, in denen Paperless-ngx läuft.',
+			lead: 'Wähle ein Monatspaket für die Stunden, die du im Monat brauchst. Rund um die Uhr nur, wenn du es wirklich brauchst.',
 			perMonth: 'pro Monat',
+			vat: 'Alle Preise inkl. 19 % USt.',
+			legal: { before: 'Es gelten die ', terms: 'AGB', between: '; dort steht auch die ', withdrawal: 'Widerrufsbelehrung', after: ' (§ 9).' },
 			hours: (h) => (h >= 720 ? 'Dauerbetrieb, rund um die Uhr' : `${h} Stunden`),
 			example: 'Beispiel: zwei Stunden pro Woche sind rund 8,7 Stunden im Monat und passen in das kleinste Paket.',
 			included: 'In jedem Paket enthalten: bis 8 GB Dokumente und ihre verschlüsselten Sicherungen in drei Kopien.',
@@ -173,8 +187,8 @@ export const texts = {
 				{ q: 'Gehört Paperless anywhere zum Projekt Paperless-ngx?', a: DISCLAIMER.de },
 				{ q: 'Was ist Paperless-ngx?', a: 'Paperless-ngx ist die Open-Source-Software, die in deiner VM läuft: Sie liest Dokumente ein, erkennt den Text und macht sie durchsuchbar. Paperless anywhere startet sie für dich auf Abruf in einer vertraulichen VM und sichert sie danach.' },
 				{ q: 'Bekommen alle dieselbe Software?', a: 'Ja. Das System ist für alle gleich. Heute öffnet eine Passphrase je Image die Platte; alle VMs dieses Images teilen sie, und Le Space kennt sie. Was deine VM schreibt, liegt deshalb in einem Datenbereich mit einem Schlüssel, den nur sie hat. In Vorbereitung ist, dass ein geprüfter Build-Dienst das Image für jede Person einzeln versiegelt, mit einer Passphrase aus ihrem Tresor. Wie man Image und Dienst dann nachprüft, beschreibt die Dokumentation.' },
-				{ q: 'Brauche ich ein Konto?', a: 'Nein. Ein Passkey auf deinem Gerät öffnet deinen Tresor; die 24 Wörter sind der Weg zurück, falls das Gerät fehlt. Le Space kann den Tresor weder öffnen noch wiederherstellen.' },
-				{ q: 'Was kostet es, wenn Paperless anywhere nicht läuft?', a: 'Keine Rechenzeit. Die Sicherungen liegen verschlüsselt bei den Speicheranbietern; sie sind im Paket enthalten.' }
+				{ q: 'Brauche ich ein Konto?', a: 'Für den Tresor nicht. Ein Passkey auf deinem Gerät öffnet ihn; die 24 Wörter sind der Weg zurück, falls das Gerät fehlt. Le Space kann den Tresor weder öffnen noch wiederherstellen. Beim Kauf eines Pakets fragt der Zahlungsdienst Stripe nach einer E-Mail-Adresse, für Beleg und Abo.' },
+				{ q: 'Was kostet es, wenn Paperless anywhere nicht läuft?', a: 'Stunden verbraucht nur eine laufende Instanz. Dein Monatspaket läuft aber weiter und wird jeden Monat berechnet, bis du kündigst. Die verschlüsselten Sicherungen bleiben bei den Speicheranbietern liegen; sie sind im Paket enthalten.' }
 			]
 		},
 		licences: {
@@ -208,13 +222,13 @@ export const texts = {
 			back: 'Zur Startseite'
 		},
 		cta: { title: 'Bereit?', lead: 'Tresor anlegen dauert eine Minute. Kein Konto, kein Passwort.' },
-		footer: { by: 'Ein Projekt von Le Space', belege: 'Le Space Belege', imprint: 'Impressum', imprintUrl: 'https://le-space.de/#impressum', privacy: 'Datenschutz', privacyUrl: 'https://le-space.de/#datenschutz', built: 'Paperless anywhere rechnet auf vertraulichen Knoten von Aleph Cloud und sichert auf Filecoin.', ngxLink: 'Paperless-ngx auf GitHub' }
+		footer: { by: 'Ein Projekt von Le Space', belege: 'Le Space Belege', imprint: 'Impressum', imprintUrl: 'https://le-space.de/#impressum', privacy: 'Datenschutz', privacyUrl: 'https://le-space.de/#datenschutz', built: 'Paperless anywhere rechnet auf vertraulichen Knoten von Aleph Cloud und sichert auf Filecoin.', ngxLink: 'Paperless-ngx auf GitHub', terms: 'AGB', withdrawal: 'Widerrufsbelehrung' }
 	},
 	en: {
 		title: 'Paperless anywhere – Paperless-ngx on demand, confidential',
 		description: 'Paperless-ngx on demand in a confidential VM. Costs only while it runs; then backed up, encrypted, and shut down.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx on demand, run by Le Space: Your documents. Awake only when you need them.',
-		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Nodes', storage: 'Backups', trust: 'Verify', prices: 'Prices', faq: 'FAQ' },
+		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Resilient', storage: 'Backups', trust: 'Verify', prices: 'Prices', faq: 'FAQ' },
 		tagline: 'Paperless-ngx on demand, run by Le Space',
 		disclaimer: DISCLAIMER.en,
 		open: 'Open the app',
@@ -229,10 +243,15 @@ export const texts = {
 			{ t: 'Confidential', d: 'The VM’s memory and disk are encrypted. The node’s operator cannot read them.' },
 			{ t: 'Decentralised backups', d: 'Backups are encrypted inside the VM and stored in several places you choose.' }
 		],
+		trustHint: 'Checkable: who holds which key, what the hardware confirms and what is still open',
+		audience: {
+			title: 'Who is it for?',
+			lead: 'For everyone who needs Paperless-ngx by the hour only: bookkeeping and tax advisers, law firms, small companies and the self-employed, who file their receipts once a week or at the month’s end and want no machine running in between.'
+		},
 		how: {
 			title: 'How it works',
 			steps: [
-				{ t: 'Create your vault', d: 'A passkey on your device opens your vault. You also get 24 words to write down: they get you back in without the device. No account, no e-mail.' },
+				{ t: 'Create your vault', d: 'A passkey on your device opens your vault. You also get 24 words to write down: they get you back in without the device. The vault needs no account and no e-mail address. Only when you buy a package does the payment service Stripe ask for an e-mail address, for the receipt and the subscription.' },
 				{ t: 'Start', d: 'The app finds a free TEE node, checks its hardware attestation and only then hands over the disk key. The backup is restored.' },
 				{ t: 'Work', d: 'Paperless-ngx in your browser as usual: upload, tag, search.' },
 				{ t: 'Back up and shut down', d: 'One click: the VM encrypts a backup, stores it decentrally and shuts down. From then on no compute time runs.' }
@@ -267,11 +286,14 @@ export const texts = {
 				{ who: 'The node’s operator', v: 'no' },
 				{ who: 'GitHub', v: 'no' }
 			],
-			compare: 'What can then be compared in public: the image’s hash and the builder’s measurement. Your encrypted image looks different for every person. Still missing: the builder does not run on Aleph yet and the app does not name it yet; only then does “Mein Image bauen” appear in the setup.'
+			compare: 'What can then be compared in public: the image’s hash and the builder’s measurement. Your encrypted image looks different for every person. Where it stands: the builder is built. In a trial it ran on Aleph as a measured VM, passed the hardware’s check there and sealed the real image. It is not in operation: no builder runs permanently and the app names none; only then does “Mein Image bauen” appear in the setup.'
 		},
 		nodes: {
-			title: 'Confidential compute nodes, right now',
-			lead: 'Your Paperless anywhere can start on these nodes right now. The list is live.',
+			title: 'Resilient: no single data centre',
+			lead: 'Your Paperless anywhere depends on no particular machine: it can start on any of these confidential nodes. If one fails, you start on another and restore your backup. The list is live.',
+			resilience: (n, o, c) => `${n} confidential nodes of ${o} ${o === 1 ? 'operator' : 'operators'}${c ? ` in ${c} ${c === 1 ? 'country' : 'countries'}` : ''}`,
+			storageNote: 'The backups, in turn, lie with several independent storage providers, in the countries you choose.',
+			dependsNote: 'What still depends on Le Space: balance and billing, the relay through which the app checks the VM’s attestation, and the delivery of the app.',
 			loading: 'Loading the node list …',
 			error: 'The node list cannot be reached right now.',
 			count: (n, fit) => `${n} TEE nodes, ${fit} of them with room for a Paperless anywhere VM (2 vCPU, 4 GiB, 40 GiB)`,
@@ -346,8 +368,10 @@ export const texts = {
 		},
 		prices: {
 			title: 'Prices',
-			lead: 'Monthly packages of compute hours. You only use hours while Paperless-ngx runs.',
+			lead: 'Choose a monthly package for the hours you need in a month. Around the clock only if you really need it.',
 			perMonth: 'per month',
+			vat: 'All prices include 19% VAT.',
+			legal: { before: 'The ', terms: 'terms', between: ' apply (in German); they also hold the ', withdrawal: 'instruction on withdrawal', after: ' (§ 9).' },
 			hours: (h) => (h >= 720 ? 'Always on, around the clock' : `${h} hours`),
 			example: 'Example: two hours a week are about 8.7 hours a month and fit in the smallest package.',
 			included: 'Included in every package: up to 8 GB of documents and their encrypted backups in three copies.',
@@ -358,8 +382,8 @@ export const texts = {
 				{ q: 'Is Paperless anywhere part of the Paperless-ngx project?', a: DISCLAIMER.en },
 				{ q: 'What is Paperless-ngx?', a: 'Paperless-ngx is the open source software that runs in your VM: it takes in documents, recognises their text and makes them searchable. Paperless anywhere starts it for you on demand in a confidential VM and backs it up afterwards.' },
 				{ q: 'Does everyone get the same software?', a: 'Yes. The system is the same for everyone. Today one passphrase per image opens the disk; every VM of that image shares it, and Le Space knows it. That is why what your VM writes goes into a data area with a key only the VM has. In preparation: an attested builder seals the image for each person separately, with a passphrase from their vault. The documentation says how image and builder can then be checked.' },
-				{ q: 'Do I need an account?', a: 'No. A passkey on your device opens your vault; the 24 words are the way back in if the device is missing. Le Space can neither open nor recover the vault.' },
-				{ q: 'What does it cost while Paperless anywhere is not running?', a: 'No compute time. The backups are stored encrypted with the storage providers; they are included in the package.' }
+				{ q: 'Do I need an account?', a: 'Not for the vault. A passkey on your device opens it; the 24 words are the way back in if the device is missing. Le Space can neither open nor recover the vault. When you buy a package, the payment service Stripe asks for an e-mail address, for the receipt and the subscription.' },
+				{ q: 'What does it cost while Paperless anywhere is not running?', a: 'Only a running instance uses hours. Your monthly package runs on, though, and is billed every month until you cancel. The encrypted backups stay with the storage providers; they are included in the package.' }
 			]
 		},
 		licences: {
@@ -393,6 +417,6 @@ export const texts = {
 			back: 'Back to the start page'
 		},
 		cta: { title: 'Ready?', lead: 'Creating a vault takes a minute. No account, no password.' },
-		footer: { by: 'A Le Space project', belege: 'Le Space Belege', imprint: 'Imprint', imprintUrl: 'https://le-space.de/#imprint', privacy: 'Privacy', privacyUrl: 'https://le-space.de/#privacy', built: 'Paperless anywhere computes on confidential nodes of Aleph Cloud and backs up to Filecoin.', ngxLink: 'Paperless-ngx on GitHub' }
+		footer: { by: 'A Le Space project', belege: 'Le Space Belege', imprint: 'Imprint', imprintUrl: 'https://le-space.de/#imprint', privacy: 'Privacy', privacyUrl: 'https://le-space.de/#privacy', built: 'Paperless anywhere computes on confidential nodes of Aleph Cloud and backs up to Filecoin.', ngxLink: 'Paperless-ngx on GitHub', terms: 'Terms', withdrawal: 'Withdrawal' }
 	}
 };

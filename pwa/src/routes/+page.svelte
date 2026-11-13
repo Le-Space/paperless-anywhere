@@ -6,7 +6,7 @@
 	import TeeNodes from '$lib/landing/TeeNodes.svelte';
 	import StorageProviders from '$lib/landing/StorageProviders.svelte';
 	import OwnImage from '$lib/landing/OwnImage.svelte';
-	import { LANGS, initialLang, texts } from '$lib/landing/i18n.js';
+	import { LANGS, TERMS_URL, initialLang, texts } from '$lib/landing/i18n.js';
 	import { CREDITS_URL, PLANS, creditsCatalog } from '$lib/credits.js';
 	import Trust from '$lib/landing/Trust.svelte';
 
@@ -101,6 +101,12 @@
 		<ul class="points">
 			{#each t.points as p}<li><h3>{p.t}</h3><p>{p.d}</p></li>{/each}
 		</ul>
+		<p class="trust-hint"><a href="#trust" data-testid="trust-hint">{t.trustHint} →</a></p>
+	</section>
+
+	<section id="audience">
+		<h2>{t.audience.title}</h2>
+		<p class="lead" data-testid="audience">{t.audience.lead}</p>
 	</section>
 
 	<section id="how">
@@ -122,6 +128,8 @@
 		<h2>{t.nodes.title}</h2>
 		<p class="lead">{t.nodes.lead}</p>
 		<TeeNodes t={t.nodes} {lang} />
+		<p>{t.nodes.storageNote}</p>
+		<p class="depends" data-testid="nodes-depends">{t.nodes.dependsNote}</p>
 	</section>
 
 	<section id="storage">
@@ -155,8 +163,10 @@
 				</li>
 			{/each}
 		</ul>
+		<p class="vat" data-testid="prices-vat">{t.prices.vat}</p>
 		<p class="included" data-testid="prices-included">{t.prices.included}</p>
 		<p>{t.prices.example}</p>
+		<p class="legal" data-testid="prices-legal">{t.prices.legal.before}<a href={TERMS_URL}>{t.prices.legal.terms}</a>{t.prices.legal.between}<a href={TERMS_URL}>{t.prices.legal.withdrawal}</a>{t.prices.legal.after}</p>
 	</section>
 
 	<section id="faq">
@@ -183,6 +193,8 @@
 	<a href="https://le-space.de/">le-space.de</a>
 	<a href={t.footer.imprintUrl}>{t.footer.imprint}</a>
 	<a href={t.footer.privacyUrl}>{t.footer.privacy}</a>
+	<a href={TERMS_URL} data-testid="footer-terms">{t.footer.terms}</a>
+	<a href={TERMS_URL} data-testid="footer-withdrawal">{t.footer.withdrawal}</a>
 	<a href="/lizenzen/">{t.licences.link}</a>
 </footer>
 
@@ -200,6 +212,9 @@
 	section { padding: 3.5rem 0 1rem; scroll-margin-top: 1rem; }
 	h2 { font-size: 1.75rem; margin: 0 0 0.75rem; }
 	.included { font-weight: 600; }
+	.trust-hint { margin: 1.25rem 0 0; font-size: 0.95rem; }
+	.vat { margin: 0.75rem 0 0; font-weight: 600; }
+	.legal, .depends { color: var(--text-2); font-size: 0.9rem; }
 	.lead { font-size: 1.1rem; color: var(--text-2); max-width: 46rem; }
 
 	.hero { padding-top: 3rem; }
