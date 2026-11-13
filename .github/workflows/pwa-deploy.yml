@@ -6,9 +6,10 @@ name: PWA deploy
 # link_domain) moves the domain; a dispatch without it publishes for a look.
 # The site holds no secret: keys come from the passkey in the browser.
 #
-# One job on an Aleph runner (the repository is private, hosted minutes are
-# billed): start one before a release with
-# `pnpm relay-button gh-runner up --repo Le-Space/paperless-anywhere --count 1`.
+# One job on a GitHub-hosted runner: the repository is public, so hosted
+# minutes cost nothing, and a release never waits for a runner someone has to
+# start. A dispatch may still choose a self-hosted Aleph runner; a release
+# cannot.
 
 on:
   release:
@@ -20,10 +21,10 @@ on:
         type: boolean
         default: false
       runner:
-        description: Where the job runs ("aleph" needs a runner started with relay-button's gh-runner up)
+        description: Where the job runs ("aleph" is a self-hosted runner from relay-button's gh-runner; since the repository is public it starts only with --allow-public and is rarely needed)
         type: choice
-        options: [aleph, ubuntu-24.04]
-        default: aleph
+        options: [ubuntu-24.04, aleph]
+        default: ubuntu-24.04
 
 permissions:
   contents: write # the CID goes onto the release
@@ -37,7 +38,7 @@ env:
 
 jobs:
   deploy:
-    runs-on: ${{ (github.event_name == 'release' || inputs.runner == 'aleph') && fromJSON('["self-hosted","aleph"]') || 'ubuntu-24.04' }}
+    runs-on: ${{ (github.event_name == 'workflow_dispatch' && inputs.runner == 'aleph') && fromJSON('["self-hosted","aleph"]') || 'ubuntu-24.04' }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

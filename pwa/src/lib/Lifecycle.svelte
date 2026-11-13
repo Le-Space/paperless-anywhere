@@ -22,7 +22,9 @@
 	import { providerIdsIn } from '$lib/providers.js';
 	import Evidence from '$lib/Evidence.svelte';
 	import { evidenceRows } from '$lib/evidence.js';
-	import { appLang, evidenceTexts } from '$lib/evidence-i18n.js';
+	import { appLang, evidenceTexts, panelTexts } from '$lib/evidence-i18n.js';
+	import StartPanel from '$lib/StartPanel.svelte';
+	import { startPanel } from '$lib/start-panel.js';
 	import { RUNTIME } from '$lib/runtime-pin.js';
 	import { ALEPH_API } from '$lib/aleph.js';
 
@@ -70,18 +72,34 @@
 		{ key: 'cert', label: 'Zertifikat ausgestellt' },
 		{ key: 'paperless', label: 'Paperless-ngx antwortet' }
 	];
+	// What the start panel's lights are lit from: the library's phase within
+	// the unlock, what the unlock returned, the VM's status page, and whether
+	// this start restores a backup.
+	let libPhase = $state('');
+	/** @type {{ already?: boolean, injected?: string[], attestation?: any } | null} */
+	let unlockSeen = $state(null);
+	/** @type {any} */
+	let vmPage = $state(null);
+	let startRestores = $state(false);
 	let now = $state(Date.now());
 	let ticker = 0;
 	const track = (/** @type {'start' | 'stop'} */ kind) => {
 		action = kind;
 		times = {};
 		vmStart = null;
+		libPhase = '';
+		unlockSeen = null;
+		vmPage = null;
 		current = '';
 		startedAt = Date.now();
 		clearInterval(ticker);
 		ticker = setInterval(() => (now = Date.now()), 1000);
-		return (/** @type {{ step: string, detail?: string, status?: any, instanceHash?: string }} */ { step, detail, status, instanceHash }) => {
+		return (/** @type {{ step: string, detail?: string, status?: any, instanceHash?: string, phase?: string, already?: boolean, injected?: string[], attestation?: any }} */ { step, detail, status, instanceHash, phase, already, injected, attestation }) => {
 			progress = detail ?? step;
+			if (step === 'unlock' && phase) libPhase = phase;
+			if (already) unlockSeen = { already: true };
+			if (injected) unlockSeen = { injected, attestation };
+			if (status) vmPage = status;
 			if (instanceHash) startingInstance.set(instanceHash);
 			if (status?.start) vmStart = status.start;
 			if (step !== current) {
@@ -139,6 +157,11 @@
 	const evidenceT = evidenceTexts[appLang()];
 	const evidence = $derived(
 		profile.running ? evidenceRows({ running: profile.running, rootfsItemHash: profile.rootfsItemHash, runtime: RUNTIME, alephApi: ALEPH_API, lastGood, backupsOn: Boolean(profile.backupConfig) }) : []
+	);
+	const panelT = panelTexts[appLang()];
+	const startShown = $derived(action === 'start' && (busy || Object.keys(times).length > 0));
+	const panel = $derived(
+		startShown ? startPanel({ step: current, libPhase, unlock: unlockSeen, status: vmPage, restore: startRestores, finished: !busy && Boolean(profile.running), failed: !busy && !profile.running && Boolean(error) }) : []
 	);
 	const checkAgain = async () => {
 		await attestRunning(master, $state.snapshot(profile));
@@ -286,7 +309,35 @@
 		}
 	}
 
-	const start = () => run(startNow);
+	// A package pays the VM, but the service says no backup period covers today
+	// (Le-Space/paperless-anywhere#175): the start asks once instead of running
+	// on without backups. A test instance is not asked, and neither is someone
+	// whose backups are paid from their own wallet.
+	let unpaidBackup = $state(false);
+	async function backupUnpaid() {
+		if (!CREDITS_URL || !profile.leSpacePays || profile.role !== 'primary') return false;
+		if (profile.backupConfig && !profile.backupsByCredits) return false;
+		return (await creditsBalance(master).catch(() => null))?.backup?.active === false;
+	}
+	let asking = false;
+	const start = async () => {
+		if (asking) return;
+		asking = true;
+		try {
+			unpaidBackup = await backupUnpaid();
+		} finally {
+			asking = false;
+		}
+		if (!unpaidBackup) run(startNow);
+	};
+	const startWithoutBackup = () => {
+		unpaidBackup = false;
+		run(startNow);
+	};
+	const toPackage = () => {
+		unpaidBackup = false;
+		document.getElementById('paket')?.scrollIntoView({ behavior: 'smooth' });
+	};
 	/**
 	 * Model A: ask Le Space Credits for this app's delegation on the account
 	 * that pays the VM, keep that account in the profile, and wait until Aleph
@@ -312,6 +363,7 @@
 		const chosen = chosenBackup;
 		if (gapOpen) throw new Error('Der Start wartet auf deine Bestätigung: die letzte bekannte Sicherung würde nicht eingespielt.');
 		const forStart = { ...$state.snapshot(profile), restoreEntry: chosen ? restoreEntry(chosen) : null };
+		startRestores = Boolean(forStart.restoreEntry);
 		// Once Aleph has the VM, the profile knows it: a reload carries on from there.
 		const onRequested = async (starting) => {
 			profile = await updateProfile(master, (now) => ({ ...now, starting }));
@@ -375,6 +427,7 @@
 			const newer = newerBackup(await listBackups({ network: profile.network ?? 'calibration', ...listing }), chosen);
 			if (newer) profile = await updateProfile(master, (now) => (now.starting ? { ...now, starting: { ...now.starting, restoreEntry: restoreEntry(newer) } } : now));
 		}
+		startRestores = Boolean(profile.starting?.restoreEntry);
 		await finishStart(() => resumeStart(master, $state.snapshot(profile), track('start')));
 	});
 	/** @param {() => Promise<any>} bringUp */
@@ -499,6 +552,19 @@
 	{/if}
 {/snippet}
 
+{#snippet unpaidQuestion()}
+	{#if unpaidBackup}
+		<div class="warn gap" role="alertdialog" aria-label="Start ohne Sicherung" data-testid="start-unpaid-backup">
+			<p><strong>Für heute ist keine Sicherung bezahlt.</strong> Paperless anywhere würde ohne Sicherung laufen: Was du in dieser Sitzung hinzufügst oder änderst, ist nach dem Stopp weg.</p>
+			<p class="row">
+				<button class="secondary" onclick={toPackage} data-testid="start-book-backup">Erst die Sicherung buchen (im Paket)</button>
+				<button class="quiet" onclick={startWithoutBackup} disabled={busy} data-testid="start-without-backup">Ohne Sicherung starten</button>
+				<button class="quiet" onclick={() => (unpaidBackup = false)}>Doch nicht starten</button>
+			</p>
+		</div>
+	{/if}
+{/snippet}
+
 {#snippet gapWarning()}
 	{#if gap}
 		<div class="warn gap" data-testid="restore-gap">
@@ -533,6 +599,7 @@
 		{#if phase === 'starting' || phase === 'stopping'}
 			<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(share * 100)} aria-label={TITLES[phase]}><span style="width: {Math.round(share * 100)}%"></span></div>
 			<p class="calm" data-testid="simple-progress">{stepLabel} · noch etwa {leftMinutes} min</p>
+			{#if startShown}<StartPanel rows={panel} t={panelT} />{/if}
 		{:else if phase === 'running'}
 			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="simple-open">Paperless-ngx öffnen</a>
 			{#if profile.running.restore?.status === 'failed'}<p class="error">Die Sicherung ließ sich nicht wiederherstellen; Paperless-ngx läuft leer. Details unter „Erweitert“.</p>{/if}
@@ -558,6 +625,7 @@
 				<button class="secondary" onclick={onadvanced}>Einrichtung öffnen</button>
 			{:else}
 				<button class="cta" onclick={start} disabled={busy || backupsPending || Boolean(backupsError) || gapOpen}>Paperless anywhere starten</button>
+				{@render unpaidQuestion()}
 				{#if backupsPending}<p class="hint">Sicherungen werden gelesen …</p>
 				{:else if backupsError}<p class="warn">{backupsError} Bitte gleich noch einmal versuchen.</p>
 				{:else if profile.ageIdentity}<p class="hint" data-testid="simple-restore">{choice === 'latest' || choice === 'own' ? `Startet mit der neuesten Sicherung (${pick(choice === 'latest' ? backups ?? [] : split.own)?.pieceCid.slice(-12)}${whenOf(chosenBackup)}).` : 'Startet ohne Daten: es gibt noch keine eigene Sicherung.'}</p>{/if}
@@ -636,9 +704,11 @@
 			{:else}
 				<p class="role-line" data-testid="role-line">{profile.role === 'primary' ? 'Startet produktiv: Mail-Regeln an, Sicherungen auf Mainnet.' : 'Startet als Test: Mail-Regeln aus, Sicherungen ins Testnetz.'}</p>
 				<button class="cta" onclick={start} disabled={busy || missing.length > 0 || gapOpen}>Paperless anywhere starten</button>
+				{@render unpaidQuestion()}
 				{#if missing.length}<p class="hint">Es fehlt noch: {missing.join(', ')}</p>{/if}
 			{/if}
 		{/if}
+		{#if startShown}<StartPanel rows={panel} t={panelT} />{/if}
 		{#if action && (busy || Object.keys(times).length)}
 			<ol class="steps" data-testid="progress-steps">
 				{#each STEPS[action] as s (s.step)}

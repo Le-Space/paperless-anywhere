@@ -5,6 +5,10 @@ virtual machine (AMD SEV-SNP) on Aleph. Everyone runs the same image. This
 page describes where a VM's secrets come from, what the image contains, and
 why one person's VM, balance and backups stay separate from another's.
 
+How this design compares with others (a measured root filesystem, a virtual
+TPM, Intel TDX, the large clouds), and what each one proves:
+[confidential VMs, the variants](confidential-vm-variants.md).
+
 ## One vault, one identity
 
 A vault is opened with a passkey or with its 24 words

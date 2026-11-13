@@ -41,13 +41,13 @@ on:
         default: bb0aa1a9fc75
         type: string
       runner:
-        description: Where the jobs run. "aleph" needs runners started with `pnpm relay-button gh-runner up --repo Le-Space/paperless-anywhere --count 2` (full uses two jobs one after the other, address one); they use no hosted minutes.
+        description: Where the jobs run. "aleph" is a self-hosted runner from relay-button's gh-runner; since the repository is public it starts only with --allow-public and is rarely needed.
         required: true
-        default: aleph
+        default: github-hosted
         type: choice
         options:
-          - aleph
           - github-hosted
+          - aleph
       allow_network:
         description: The Filecoin network the service must back up on; the run stops on any other. "calibration" also makes VM 1 a test VM.
         required: false

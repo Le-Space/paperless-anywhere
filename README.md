@@ -59,6 +59,8 @@ What a VM gets and from whom, what the image contains, and why one vault's VM, b
 
 In preparation, an image sealed with a passphrase only your vault knows, made by a measured builder: [docs/own-image.md](docs/own-image.md).
 
+The variants of confidential VMs we know, what each measures and who holds which key: [docs/confidential-vm-variants.md](docs/confidential-vm-variants.md).
+
 ## What this does not protect against
 
 - A bug in the CPU's SEV-SNP or in the hypervisor that breaks confidentiality.
@@ -74,7 +76,9 @@ In preparation, an image sealed with a passphrase only your vault knows, made by
 
 ## License
 
-MIT — by [Le Space](https://github.com/Le-Space).
+Copyright © 2026 [Le Space](https://github.com/Le-Space).
+
+Paperless anywhere (the web app, the image builder and the VM image's own files) is free software under the **GNU Affero General Public License, version 3 or later** (`AGPL-3.0-or-later`), see [LICENSE](LICENSE). The app at paperless.le-space.de is built from this repository; its source is here. What the VM runs beside it (Paperless-ngx and the rest of the stack) keeps its own licences, listed in the app under *Lizenzen*.
 
 ## The rootfs (step 2, #1)
 

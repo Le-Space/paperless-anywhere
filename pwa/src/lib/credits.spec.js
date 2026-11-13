@@ -250,10 +250,10 @@ describe('packages and hours (belege#591 draft 2)', () => {
 	it('reads balance.backup: payer, signer, tag, network, paid until, the data sets\' client ids', async () => {
 		const backup = { payer: '0x' + '0'.repeat(39) + '1', signer: '0x' + '0'.repeat(39) + '2', tag: 'ab'.repeat(16), network: 'mainnet', funded_until: '2027-01-01T00:00:00.000Z', data_sets: ['1', '18446744073709551617'] };
 		const fetch = async () => new Response(JSON.stringify({ credits: 600, reserved: 0, backup }));
-		expect((await creditsBalance(master, { baseUrl, fetch }))?.backup).toEqual({ payer: backup.payer, signer: backup.signer, tag: backup.tag, network: 'mainnet', fundedUntil: '2027-01-01T00:00:00.000Z', dataSets: ['1', '18446744073709551617'] });
+		expect((await creditsBalance(master, { baseUrl, fetch }))?.backup).toEqual({ payer: backup.payer, signer: backup.signer, tag: backup.tag, network: 'mainnet', fundedUntil: '2027-01-01T00:00:00.000Z', active: null, renewsWithPlan: false, retentionUntil: null, notice: null, dataSets: ['1', '18446744073709551617'] });
 		expect(backupOf(null)).toBeNull();
 		expect(backupOf({ payer: 'nope' })).toBeNull();
-		expect(backupOf({ payer: backup.payer })).toEqual({ payer: backup.payer, signer: null, tag: '', network: 'calibration', fundedUntil: null, dataSets: [] });
+		expect(backupOf({ payer: backup.payer })).toEqual({ payer: backup.payer, signer: null, tag: '', network: 'calibration', fundedUntil: null, active: null, renewsWithPlan: false, retentionUntil: null, notice: null, dataSets: [] });
 		// The old count, and anything that is not a decimal id, gives no ids.
 		expect(backupOf({ payer: backup.payer, data_sets: 2 })?.dataSets).toEqual([]);
 		expect(backupOf({ payer: backup.payer, data_sets: ['7', '0x1f', '-3', 12] })?.dataSets).toEqual(['7', '12']);
@@ -267,7 +267,7 @@ describe('packages and hours (belege#591 draft 2)', () => {
 
 	it('reads the catalog the service lists', async () => {
 		const fetch = async (url) => (String(url).endsWith('/v1/packages?product=paperless-anywhere') ? new Response(JSON.stringify({ product: 'paperless-anywhere', topups: [{ id: 'topup-20', amount_cents: 2000, credits: 2000 }], packages: [{ id: 'paperless-10', hours: 10, price_credits: 400 }, { id: 'paperless-30', hours: 30, price_credits: 600, backup_month_credits: 150 }] })) : new Response('{}', { status: 404 }));
-		expect(await creditsCatalog({ baseUrl, fetch })).toEqual({ network: null, plans: [{ id: 'paperless-10', hours: 10, priceCredits: 400 }, { id: 'paperless-30', hours: 30, priceCredits: 600, backupMonthCredits: 150 }], topups: [{ id: 'topup-20', amountCents: 2000, credits: 2000 }] });
+		expect(await creditsCatalog({ baseUrl, fetch })).toEqual({ network: null, backup: null, plans: [{ id: 'paperless-10', hours: 10, priceCredits: 400 }, { id: 'paperless-30', hours: 30, priceCredits: 600, backupMonthCredits: 150 }], topups: [{ id: 'topup-20', amountCents: 2000, credits: 2000 }] });
 	});
 });
 

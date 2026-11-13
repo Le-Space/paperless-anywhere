@@ -30,13 +30,13 @@ on:
         default: bb0aa1a9fc75
         type: string
       runner:
-        description: Where the jobs run. "aleph" needs two runners started with `pnpm relay-button gh-runner up --repo Le-Space/paperless-anywhere --count 2` (one per job); they use no hosted minutes.
+        description: Where the jobs run. "aleph" is a self-hosted runner from relay-button's gh-runner; since the repository is public it starts only with --allow-public and is rarely needed.
         required: true
-        default: aleph
+        default: github-hosted
         type: choice
         options:
-          - aleph
           - github-hosted
+          - aleph
       check_by:
         description: How VM 2 checks the downloaded piece (sha256 = the ledger's, as from the Mac; piece-cid = its content address, as from the PWA)
         required: false
