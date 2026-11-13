@@ -14,7 +14,7 @@
 	// Link previews need absolute addresses.
 	const SITE = 'https://paperless.le-space.de/';
 	// Bump ?v= when the image changes: platforms cache previews by URL.
-	const OG_IMAGE = `${SITE}og.png?v=3`;
+	const OG_IMAGE = `${SITE}og.png?v=4`;
 	// German in the prerendered HTML (what link previews read); the visitor's
 	// language is picked once the page runs.
 	let lang = $state(/** @type {'de' | 'en'} */ ('de'));
