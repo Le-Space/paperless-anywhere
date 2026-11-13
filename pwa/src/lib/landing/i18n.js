@@ -170,6 +170,7 @@ export const texts = {
 				'Der Inhalt des Images wird nicht mitgemessen. Dass in der VM das veröffentlichte Image läuft, stützt sich bisher darauf, dass sich seine Platte nur mit der Image-Passphrase öffnet, nicht auf einen Messwert der Hardware.',
 				'Die Image-Passphrase ist für alle VMs eines Images gleich, und Le Space kennt sie. Darum liegt alles, was deine VM schreibt, im eigenen Datenbereich. Ein Image, dessen Passphrase nur dein Tresor kennt, ist in Vorbereitung.',
 				'Der Bau ist nicht Bit für Bit wiederholbar, weil Debian-Pakete beim Bau geladen werden. Nachlesen lässt sich, was hineinkommt.',
+				'Der Relay, über den die App die VM erreicht, läuft in einer gewöhnlichen VM und wird nicht attestiert. Lesen oder ändern kann er nichts; er kann aber Verbindungen verzögern oder verweigern, und er sieht, von welcher IP-Adresse wann welche VM angesprochen wird.',
 				'Weitere Punkte aus dem laufenden Sicherheits-Audit sind noch offen.'
 			],
 			verifyTitle: 'Selbst nachprüfen',
@@ -180,6 +181,7 @@ export const texts = {
 				image: { t: 'Das Image', d: 'Den STORE-Hash zeigt die App in der Einrichtung. Gebaut wird es vom Workflow rootfs.yml aus rootfs/build-image.sh; die Zusammenfassung jedes Laufs nennt den Hash und den Quelltext-Stand.', links: ['build-image.sh', 'rootfs.yml', 'Läufe'] },
 				data: { t: 'Der Datenbereich', d: 'Die App zeigt, ob eine laufende VM ihren Datenbereich versiegelt hat. Gelingt das nicht, startet Paperless-ngx nicht.', links: ['paperless-data-disk'] },
 				backups: { t: 'Die Sicherungen', d: 'Datensätze und Stücke sind bei Filecoin öffentlich einsehbar, ihr Inhalt verschlüsselt. Beim Wiederherstellen prüft die VM jedes Stück gegen seine Inhaltsadresse (Piece-CID).', links: ['Filfox'] },
+				relay: { t: 'Der Relay', d: 'Er leitet zwischen deinem Browser und der VM weiter, ohne etwas lesen zu können, und ist selbst nicht attestiert. Sein Quelltext ist offen: der Relay selbst und die Brücke, über die er per libp2p erreichbar ist. Die App nutzt nur Relays, die Aleph als laufende Instanz eines der beiden Relay-Konten von Le Space führt, oder einen, den du selbst einträgst.', links: ['attest-relay (relay-button)', 'Brücke (orbitdb-relay)', 'Im Sicherheitsmodell'] },
 				app: { t: 'Diese Web-App', d: 'Sie liegt auf IPFS. Welche Version die Domain ausliefert, zeigt ihr DNSLink-Eintrag (dig TXT _dnslink.paperless.le-space.de); jedes Release nennt seine CID.', links: ['Releases'] },
 				docs: { t: 'Im Detail', d: 'Die Beschreibung, nach der diese Seite geschrieben ist.', links: ['Sicherheitsmodell', 'Schlüssel und Wiederherstellung', 'Eigenes Image', 'Ablauf', 'Varianten vertraulicher VMs im Vergleich'] }
 			},
@@ -403,6 +405,7 @@ export const texts = {
 				'The image’s content is not measured. That the VM runs the published image rests, for now, on its disk opening only with the image passphrase, not on a measurement by the hardware.',
 				'The image passphrase is the same for every VM of an image, and Le Space knows it. That is why everything your VM writes goes into its own data area. An image whose passphrase only your vault knows is in preparation.',
 				'The build cannot be repeated bit for bit, because Debian packages are fetched while it runs. What goes in can be read.',
+				'The relay through which the app reaches the VM runs in an ordinary VM and is not attested. It can read or change nothing; it can delay or refuse connections, though, and it sees from which IP address which VM is called and when.',
 				'Further points from the ongoing security audit are still open.'
 			],
 			verifyTitle: 'Check it yourself',
@@ -413,6 +416,7 @@ export const texts = {
 				image: { t: 'The image', d: 'The app shows the STORE hash in the setup. The workflow rootfs.yml builds it from rootfs/build-image.sh; every run’s summary names the hash and the source commit.', links: ['build-image.sh', 'rootfs.yml', 'Runs'] },
 				data: { t: 'The data area', d: 'The app shows whether a running VM sealed its data area. If that fails, Paperless-ngx does not start.', links: ['paperless-data-disk'] },
 				backups: { t: 'The backups', d: 'Data sets and pieces are public on Filecoin, their content encrypted. At a restore the VM checks every piece against its content address (piece CID).', links: ['Filfox'] },
+				relay: { t: 'The relay', d: 'It forwards between your browser and the VM without being able to read anything, and is not attested itself. Its source is open: the relay, and the bridge through which it is reached over libp2p. The app uses only relays that Aleph lists as a running instance of one of Le Space’s two relay accounts, or one you enter yourself.', links: ['attest-relay (relay-button)', 'bridge (orbitdb-relay)', 'In the security model'] },
 				app: { t: 'This web app', d: 'It is served from IPFS. Which version the domain serves, its DNSLink record shows (dig TXT _dnslink.paperless.le-space.de); every release names its CID.', links: ['Releases'] },
 				docs: { t: 'In detail', d: 'The description this page is written from.', links: ['Security model', 'Keys and recovery', 'Your own image', 'Workflow', 'Variants of confidential VMs compared'] }
 			},

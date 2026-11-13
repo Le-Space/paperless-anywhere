@@ -27,6 +27,7 @@
 		image: [`${REPO}/blob/main/rootfs/build-image.sh`, `${REPO}/blob/main/.github/workflows/rootfs.yml`, `${REPO}/actions/workflows/rootfs.yml`],
 		data: [`${REPO}/blob/main/rootfs/files/paperless-data-disk`],
 		backups: ['https://filfox.info/'],
+		relay: ['https://github.com/NiKrause/relay-button/tree/main/packages/attest-relay', 'https://github.com/NiKrause/orbitdb-relay/blob/main/src/services/attest-bridge-service.ts', `${DOC('security-model.md')}#the-relay`],
 		app: [`${REPO}/releases`],
 		docs: [DOC('security-model.md'), DOC('keys-and-recovery.md'), DOC('own-image.md'), DOC('workflow.md'), DOC('confidential-vm-variants.md')]
 	};
