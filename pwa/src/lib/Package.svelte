@@ -25,6 +25,9 @@
 	let purchases = $state(null);
 	let appPays = $state(false);
 	let ownBackups = $state(false);
+	// Someone who pays the VM themselves and has no package: the card is one
+	// line until they want to see Le Space's offer; the terms are asked for only there.
+	let selfOpen = $state(false);
 	// Who pays the running VM: the package (Le Space, model A), the app's own
 	// address, or the person's wallet. Only for the package do its hours count.
 	let pays = $state(/** @type {'lespace' | 'app' | 'wallet' | null} */ (null));
@@ -86,6 +89,7 @@
 	// Few hours left in a package that is in use: say so, and name the next
 	// larger package as the recommendation.
 	const usesPackage = $derived(pays !== 'app' && pays !== 'wallet');
+	const selfPays = $derived((pays === 'app' || pays === 'wallet') && !balance?.plan);
 	const low = $derived(usesPackage && fewHoursLeft(hoursLeft, current));
 	const bigger = $derived(biggerPlan(current, plans));
 	const recommended = $derived(low && bigger ? bigger.id : null);
@@ -204,7 +208,8 @@
 	$effect(() => onglance(balance ? { plan: Boolean(balance.plan), hoursLeft, pays, low } : null));
 </script>
 
-<section class="card package" data-testid="package">
+<!-- The card's content: as it is for a customer of Le Space, folded for someone who pays the providers themselves. -->
+{#snippet content()}
 	{#if balance}
 		<Terms {master} terms={balance.terms} onaccepted={read} />
 		{#if balance.plan}
@@ -326,6 +331,18 @@
 		{#if note}<p class="hint" role="status" data-testid="plan-note">{note}</p>{/if}
 		{#if justBought && after}<p class="hint" data-testid="buy-after">{after}</p>{/if}
 		{#if error}<p class="warn" role="alert" data-testid="plan-error">{error}</p>{/if}
+	{/if}
+{/snippet}
+
+<section class="card package" data-testid="package">
+	{#if balance && selfPays}
+		<details class="self" bind:open={selfOpen} data-testid="package-self">
+			<summary><strong>Du zahlst die Anbieter selbst.</strong> <span class="hint">Pakete von Le Space ansehen</span></summary>
+			<p class="hint">{pays === 'app' ? 'Die Adresse der App' : 'Deine Wallet'} bezahlt die VM bei Aleph direkt; ein Paket brauchst du dafür nicht. Ein Paket von Le Space ist der Weg ohne Wallet und ohne Kryptowerte.</p>
+			{@render content()}
+		</details>
+	{:else if balance}
+		{@render content()}
 	{:else if balanceError}
 		<p class="warn">{balanceError}</p>
 	{:else}
@@ -362,6 +379,8 @@
 	.low p { margin: 0 0 0.5rem; }
 	.upgrade { padding: 0.5rem 1rem; font-weight: 600; }
 	.plan-choice small { font-size: 0.8rem; }
+	.self > summary { cursor: pointer; }
+	.self[open] > summary { margin-bottom: 0.75rem; }
 	.with-backup { display: flex; gap: 0.5rem; align-items: flex-start; margin: 0.5rem 0; }
 	.with-backup input { width: auto; margin-top: 0.25rem; flex: none; }
 	.badge { font-style: normal; font-size: 0.75rem; font-weight: 600; padding: 0.05rem 0.5rem; border-radius: 999px; background: var(--accent); color: var(--cta-text, #0f1b2d); }
