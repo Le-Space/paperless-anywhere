@@ -15,21 +15,19 @@ import { describe, expect, it } from 'vitest';
 const SRC = fileURLToPath(new URL('../../', import.meta.url));
 
 /** Where German is at home. */
-const CATALOGUES = [/^lib\/i18n\//, /^lib\/landing\/i18n\.js$/, /^lib\/evidence-i18n\.js$/, /^lib\/landing\/evidence-sample\.js$/, /^lib\/licences\//, /^lib\/legal-texts\.js$/];
+const CATALOGUES = [/^lib\/i18n\//, /^lib\/landing\/i18n\.js$/, /^lib\/evidence-i18n\.js$/, /^lib\/landing\/evidence-sample\.js$/, /^lib\/licences\//, /^lib\/legal-texts\.js$/,
+	// The views of cancelling (§ 312k BGB) and withdrawing (§ 356a BGB): legal wording, German until approved English texts exist.
+	/^lib\/Cancel\.svelte$/,
+	/^lib\/Withdraw\.svelte$/
+];
 
 /** Files whose texts have not moved yet. Remove a line with the PR that moves them. */
 const NOT_YET = new Set([
 	'lib/BackupExport.svelte',
-	'lib/BackupLine.svelte',
 	'lib/BackupPlaces.svelte',
 	'lib/Balances.svelte',
-	'lib/Cancel.svelte',
-	'lib/HourQuote.svelte',
 	'lib/ProviderHealth.svelte',
 	'lib/Setup.svelte',
-	'lib/Terms.svelte',
-	'lib/TopUp.svelte',
-	'lib/Withdraw.svelte',
 	'lib/aleph.js',
 	'lib/attest-p2p.js',
 	'lib/backup-fetch.js',

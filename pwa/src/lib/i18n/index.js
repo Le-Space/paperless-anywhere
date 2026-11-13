@@ -13,6 +13,7 @@ import { card } from './card.js';
 import { credits } from './credits.js';
 import { life } from './lifecycle.js';
 import { pkg } from './package.js';
+import { buy } from './purchase.js';
 import { ownImage } from './own-image.js';
 
 /** @typedef {'de' | 'en'} Lang */
@@ -51,6 +52,7 @@ export function setLang(next) {
 // One area a line, so two changes at once do not meet in the same line.
 const AREAS = {
 	app,
+	buy,
 	card,
 	credits,
 	life,

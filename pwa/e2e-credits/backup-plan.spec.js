@@ -265,3 +265,21 @@ test('with a running subscription in English, cancelling and withdrawing keep th
 	await page.getByTestId('package-more').click();
 	await expect(page.getByTestId('plan-portal')).toHaveText('Manage subscription (change, card, invoices)');
 });
+
+test('the backup line, topping up and the terms notice in English', async ({ page }) => {
+	await openApp(page, { plan: true, backup: 'week', offered: true });
+	await page.getByTestId('app-lang-en').click();
+	await expect(page.getByTestId('backup-status')).toHaveText('The backup is paid until 18/11/2026 (5 days left). After that no new backups are made.');
+	await expect(page.getByTestId('backup-add-summary')).toHaveText('Add the backup to the subscription (€1.50 a month)');
+	await expect(page.getByTestId('backup-year-summary')).toHaveText('Book 1 year of keeping (€18.00, once)');
+	await page.getByTestId('backup-year-summary').click();
+	await expect(page.getByTestId('backup-year-fold')).toContainText('Keeping is not opening: Restoring needs compute time, that is a running package or extra hours.');
+	await expect(page.getByTestId('backup-year')).toHaveText('Pay €18.00 for 1 year');
+	await expect(page.getByTestId('backup-mail-note')).toContainText('A reminder also comes by e-mail');
+	await page.getByTestId('package-more').click();
+	await expect(page.getByTestId('topup-topup-20')).toHaveText('Top up €20');
+	// German again, word for word as before.
+	await page.getByTestId('app-lang-de').click();
+	await expect(page.getByTestId('topup-topup-20')).toHaveText('20 € aufladen');
+	await expect(page.getByTestId('backup-year-summary')).toHaveText('1 Jahr Aufbewahrung buchen (18,00 €, einmalig)');
+});

@@ -3,6 +3,7 @@
 	// announced one before it takes effect (§ 9 of the terms). Shows nothing
 	// while no version is published.
 	import { acceptTerms, creditsTerms } from '$lib/credits.js';
+	import { format, lang, t } from '$lib/i18n/index.js';
 
 	/** @type {{ master: Uint8Array, terms: ReturnType<typeof import('$lib/credits.js').termsOf> | null, onaccepted?: () => void }} */
 	let { master, terms, onaccepted = () => {} } = $props();
@@ -16,7 +17,8 @@
 		if (terms?.due || terms?.announced) creditsTerms().then((t) => (published = t)).catch(() => {});
 	});
 	const target = $derived(terms?.due ? published?.current : terms?.announced ? published?.pending : null);
-	const day = (/** @type {string | null} */ iso) => (iso ? new Date(iso).toLocaleDateString('de-DE') : '');
+	const day = (/** @type {string | null} */ iso) => (iso ? format.date(iso, undefined, $lang) : '');
+	const x = $derived($t.buy.terms);
 
 	async function agree() {
 		if (!target) return;
@@ -34,17 +36,18 @@
 </script>
 
 {#if target}
-	<div class="terms" class:due={terms?.due} role="region" aria-label="Bedingungen" data-testid="terms">
-		<p class="title">{terms?.due ? 'Neue Bedingungen (AGB): bitte zustimmen' : `Neue Bedingungen (AGB) ab ${day(target.effectiveAt)}`}</p>
-		<p class="hint">{terms?.due ? 'Bis zur Zustimmung sind keine Käufe möglich; ein laufendes Paket endet zum Monatsende, statt sich zu verlängern.' : 'Dein Paket läuft bis dahin zu den bisherigen Bedingungen. Stimmst du nicht zu, endet es zum Ende des Zeitraums; du kannst auch vorher kostenlos kündigen.'}</p>
-		{#if target.changes.length}<ul>{#each target.changes as c (c)}<li>{c}</li>{/each}</ul>{/if}
-		{#if target.url}<p><a href={target.url} target="_blank" rel="noopener noreferrer" data-testid="terms-link">Fassung {target.version} vom {day(target.date)} lesen und herunterladen</a></p>{/if}
-		<label class="check"><input type="checkbox" bind:checked={read} data-testid="terms-read" /> Ich habe die Fassung {target.version} gelesen und stimme ihr zu.</label>
-		<button type="button" class="small" onclick={agree} disabled={busy || !read} data-testid="terms-accept">Zustimmen</button>
+	<div class="terms" class:due={terms?.due} role="region" aria-label={x.label} data-testid="terms">
+		<p class="title">{terms?.due ? x.due : x.announced(day(target.effectiveAt))}</p>
+		{#if $lang !== 'de'}<p class="hint" data-testid="terms-german-note">{x.germanNote}</p>{/if}
+		<p class="hint" lang="de">{terms?.due ? x.legal.dueHint : x.legal.announcedHint}</p>
+		{#if target.changes.length}<ul lang="de">{#each target.changes as c (c)}<li>{c}</li>{/each}</ul>{/if}
+		{#if target.url}<p><a href={target.url} target="_blank" rel="noopener noreferrer" data-testid="terms-link">{x.read(target.version, day(target.date))}</a></p>{/if}
+		<label class="check"><input type="checkbox" bind:checked={read} data-testid="terms-read" /> <span lang="de">{x.legal.consent(target.version)}</span></label>
+		<button type="button" class="small" onclick={agree} disabled={busy || !read} data-testid="terms-accept">{x.agree}</button>
 		{#if error}<p class="warn" role="alert">{error}</p>{/if}
 	</div>
 {:else if terms?.accepted}
-	<p class="hint small-print" data-testid="terms-accepted">Bedingungen: Fassung {terms.accepted.version}, zugestimmt am {day(terms.accepted.acceptedAt)}{#if terms.accepted.url} · <a href={terms.accepted.url} target="_blank" rel="noopener noreferrer">lesen</a>{/if}</p>
+	<p class="hint small-print" data-testid="terms-accepted">{x.accepted(terms.accepted.version, day(terms.accepted.acceptedAt))}{#if terms.accepted.url} · <a href={terms.accepted.url} target="_blank" rel="noopener noreferrer">{x.readLink}</a>{/if}</p>
 {/if}
 
 <style>

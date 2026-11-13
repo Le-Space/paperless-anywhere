@@ -2,9 +2,9 @@
 	// Top up Le Space Credits by card. The payment form is Stripe's embedded
 	// Checkout on the credits service's /pay page, framed here: Stripe.js never
 	// runs in this app's origin, which holds the unlocked vault.
-	import { amount } from '$lib/balances.js';
 	import { CREDITS_URL, PACKAGES, WaiverError, payMessage, payUrl, startCheckout, waitForTopUp, waiverOf } from '$lib/credits.js';
 	import Waiver from '$lib/Waiver.svelte';
+	import { format, t, tr } from '$lib/i18n/index.js';
 
 	// `withdrawal`: the declaration before a payment, null from an older
 	// service; `ready` once the service's terms were read (or failed to be).
@@ -23,7 +23,7 @@
 
 	async function buy(/** @type {string} */ packageId) {
 		busy = true;
-		status = 'Bezahlung wird vorbereitet …';
+		status = tr().buy.topup.preparing;
 		try {
 			const clientSecret = await startCheckout(master, packageId, waiverOf(withdrawal, waived));
 			waived = false;
@@ -45,9 +45,9 @@
 
 	async function paid() {
 		close();
-		status = 'Bezahlt – das Guthaben wird gebucht …';
+		status = tr().buy.topup.booking;
 		const { booked, balance } = await waitForTopUp(master, credits);
-		status = booked ? `Gebucht: jetzt ${amount((balance?.credits ?? 0) / 100)} €.` : 'Bezahlt, aber noch nicht gebucht. Das Guthaben erscheint in Kürze – „Aktualisieren“.';
+		status = booked ? tr().buy.topup.booked(format.euro(balance?.credits ?? 0)) : tr().buy.topup.notBooked;
 		onbooked();
 	}
 
@@ -58,7 +58,7 @@
 			if (what === 'paid') paid();
 			else if (what === 'failed') {
 				close();
-				status = 'Die Bezahlseite ließ sich nicht laden. Bitte später noch einmal.';
+				status = tr().buy.topup.payPageFailed;
 			}
 		};
 		window.addEventListener('message', listen);
@@ -69,14 +69,14 @@
 <div class="topup" data-testid="topup">
 	<Waiver {withdrawal} bind:checked={waived} testid="topup-waiver" />
 	{#each PACKAGES as p (p.id)}
-		<button class="small" onclick={() => buy(p.id)} disabled={busy || blocked} data-testid={`topup-${p.id}`}>{p.name} aufladen</button>
+		<button class="small" onclick={() => buy(p.id)} disabled={busy || blocked} data-testid={`topup-${p.id}`}>{$t.buy.topup.button(p.credits / 100)}</button>
 	{/each}
 	{#if status}<p class="hint" data-testid="topup-status">{status}</p>{/if}
 </div>
 
-<dialog bind:this={dialog} onclose={() => (frame = null)} aria-label="Guthaben aufladen">
-	<button class="quiet close" onclick={close} aria-label="Schließen">✕</button>
-	{#if frame}<iframe src={frame} title="Bezahlen mit Stripe" allow="payment"></iframe>{/if}
+<dialog bind:this={dialog} onclose={() => (frame = null)} aria-label={$t.buy.topup.dialog}>
+	<button class="quiet close" onclick={close} aria-label={$t.buy.topup.close}>✕</button>
+	{#if frame}<iframe src={frame} title={$t.buy.topup.frame} allow="payment"></iframe>{/if}
 </dialog>
 
 <style>
