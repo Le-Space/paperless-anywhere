@@ -252,9 +252,9 @@ export function stripeLink(url) {
  * what the app shows until it has asked.
  */
 export const PLANS = Object.freeze([
-	{ id: 'paperless-15', hours: 15, priceCredits: 490 },
-	{ id: 'paperless-100', hours: 100, priceCredits: 1490 },
-	{ id: 'paperless-always', hours: 730, priceCredits: 8900 }
+	{ id: 'paperless-15-backup', hours: 15, priceCredits: 640, backupIncluded: true },
+	{ id: 'paperless-100-backup', hours: 100, priceCredits: 1640, backupIncluded: true },
+	{ id: 'paperless-always-backup', hours: 730, priceCredits: 9050, backupIncluded: true }
 ]);
 /**
  * What a month of backups costs, in credits, until the service's own list has

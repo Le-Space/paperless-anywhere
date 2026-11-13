@@ -50,18 +50,19 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	if (process.env.SHOTS) await page.locator('#audience').screenshot({ path: `${process.env.SHOTS}/audience.png` });
 	await expect(page.getByTestId('trust-hint')).toHaveAttribute('href', '#trust');
 	await expect(page.getByTestId('trust-hint')).toContainText('Vertrauen ist gut, nachprüfen ist besser:');
-	await expect(page.locator('#prices')).toContainText('4,90 €');
+	await expect(page.locator('#prices .price')).toHaveText(['6,40 €', '16,40 €', '90,50 €']);
+	await expect(page.getByTestId('prices-plan-backup')).toHaveText(['Sicherung inklusive', 'Sicherung inklusive', 'Sicherung inklusive']);
 	await expect(page.locator('#prices')).toContainText('Dauerbetrieb, rund um die Uhr');
-	// The package holds the documents' room; the backup is a price of its own.
+	// The package holds the documents' room, and the backup with it.
 	await expect(page.getByTestId('prices-included')).toHaveText('In jedem Paket enthalten: bis 8 GB Dokumente.');
-	await expect(page.getByTestId('prices-backup')).toContainText('ist nicht im Paket enthalten: Sie kostet 1,50 € im Monat dazu');
-	await expect(page.getByTestId('prices-backup')).toContainText('als weitere Zeile deines Monatsabos');
+	await expect(page.getByTestId('prices-backup')).toContainText('Die verschlüsselte Sicherung in drei Kopien ist in jedem Paket enthalten.');
+	await expect(page.locator('#prices')).not.toContainText('1,50');
 	await expect(page.getByTestId('prices-backup')).not.toContainText('Guthaben');
 	await expect(page.getByTestId('prices-backup')).toContainText('damit deine Dokumente nach einem Stopp zurückkommen');
-	await expect(page.getByTestId('prices-backup-year')).toContainText('Oder einmalig 18 € für ein Jahr Aufbewahrung, mit oder ohne Paket.');
-	await expect(page.getByTestId('prices-backup-total')).toHaveText('15 Stunden mit Sicherung: 4,90 € + 1,50 € = 6,40 € im Monat.');
+	await expect(page.getByTestId('prices-backup-year')).toContainText('Ohne Paket kannst du deine Sicherungen für einmalig 18 € ein Jahr aufbewahren lassen.');
+	await expect(page.getByTestId('prices-backup-total')).toHaveCount(0);
 	await expect(page.getByTestId('prices-backup-after')).toContainText('mindestens 30 Tage abrufbar');
-	await expect(page.locator('#faq')).toContainText('Die Sicherung ist nicht im Paket enthalten');
+	await expect(page.locator('#faq')).toContainText('Die Sicherung ist im Paket enthalten und läuft mit ihm weiter.');
 	await expect(page.locator('main')).not.toContainText('Sicherungen in drei Kopien.');
 
 	await expect(page.getByRole('link', { name: 'Impressum' })).toHaveAttribute('href', 'https://le-space.de/#impressum');
