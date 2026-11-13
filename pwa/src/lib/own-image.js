@@ -200,8 +200,16 @@ export async function storeOnAleph(image, message) {
 	form.append('file', image, 'rootfs');
 	form.append('metadata', JSON.stringify({ message, sync: true }));
 	const response = await fetch(`${ALEPH_API}/api/v0/ipfs/add_file`, { method: 'POST', body: form });
-	const answer = await response.json().catch(() => null);
-	return { status: response.status, cid: answer?.hash ?? null };
+	const text = await response.text().catch(() => '');
+	let answer = null;
+	try {
+		answer = JSON.parse(text);
+	} catch {
+		/* not JSON: kept as the reason below */
+	}
+	// What Aleph said when it refused, for the message and for a measurement.
+	const reason = response.ok ? '' : String(answer?.error ?? answer?.message ?? text).replace(/\s+/g, ' ').slice(0, 300);
+	return { status: response.status, cid: answer?.hash ?? null, reason };
 }
 
 /**
