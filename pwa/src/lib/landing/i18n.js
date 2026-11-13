@@ -32,9 +32,9 @@ export const texts = {
 	de: {
 		title: 'Paperless anywhere – ausfallsicher, vertraulich, nach deinem Takt',
 		description: 'Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt: Paperless-ngx in einer vertraulichen VM, auf Knoten mehrerer Betreiber, im Monatspaket rund um die Uhr oder auf Abruf.',
-		ogImageAlt: 'Paperless anywhere, Paperless-ngx, vertraulich betrieben von Le Space: Ausfallsicher. Vertraulich. Nach deinem Takt.',
+		ogImageAlt: 'Paperless anywhere, Paperless-ngx in vertraulichen VMs, ein Angebot von Le Space: Ausfallsicher. Vertraulich. Nach deinem Takt.',
 		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Ausfallsicher', storage: 'Sicherungen', trust: 'Nachprüfbar', prices: 'Preise', faq: 'FAQ' },
-		tagline: 'Paperless-ngx, vertraulich betrieben von Le Space',
+		tagline: 'Paperless-ngx in vertraulichen VMs · ein Angebot von Le Space',
 		disclaimer: DISCLAIMER.de,
 		open: 'Paperless anywhere starten',
 		openHint: 'Mit Passkey, ohne Konto.',
@@ -204,7 +204,7 @@ export const texts = {
 			title: 'Häufige Fragen',
 			items: [
 				{ q: 'Gehört Paperless anywhere zum Projekt Paperless-ngx?', a: DISCLAIMER.de },
-				{ q: 'Was ist Paperless-ngx?', a: 'Paperless-ngx ist die Open-Source-Software, die in deiner VM läuft: Sie liest Dokumente ein, erkennt den Text und macht sie durchsuchbar. Paperless anywhere betreibt sie für dich in einer vertraulichen VM, rund um die Uhr oder auf Abruf, und sichert sie.' },
+				{ q: 'Was ist Paperless-ngx?', a: 'Paperless-ngx ist die Open-Source-Software, die in deiner VM läuft: Sie liest Dokumente ein, erkennt den Text und macht sie durchsuchbar. Mit Paperless anywhere läuft sie in deiner eigenen vertraulichen VM, rund um die Uhr oder auf Abruf, und wird gesichert.' },
 				{ q: 'Bekommen alle dieselbe Software?', a: 'Ja. Das System ist für alle gleich. Heute öffnet eine Passphrase je Image die Platte; alle VMs dieses Images teilen sie, und Le Space kennt sie. Was deine VM schreibt, liegt deshalb in einem Datenbereich mit einem Schlüssel, den nur sie hat. In Vorbereitung ist, dass ein geprüfter Build-Dienst das Image für jede Person einzeln versiegelt, mit einer Passphrase aus ihrem Tresor. Wie man Image und Dienst dann nachprüft, beschreibt die Dokumentation.' },
 				{ q: 'Brauche ich ein Konto?', a: 'Für den Tresor nicht. Ein Passkey auf deinem Gerät öffnet ihn; die 24 Wörter sind der Weg zurück, falls das Gerät fehlt. Le Space kann den Tresor weder öffnen noch wiederherstellen. Beim Kauf eines Pakets fragt der Zahlungsdienst Stripe nach einer E-Mail-Adresse, für Beleg und Abo.' },
 				{
@@ -257,9 +257,9 @@ export const texts = {
 	en: {
 		title: 'Paperless anywhere – resilient, confidential, on your schedule',
 		description: 'Paperless anywhere runs resilient, confidential and on your schedule: Paperless-ngx in a confidential VM, on nodes of several operators, in a monthly package around the clock or on demand.',
-		ogImageAlt: 'Paperless anywhere, Paperless-ngx, run confidentially by Le Space. The image is in German: resilient, confidential, on your schedule.',
+		ogImageAlt: 'Paperless anywhere, Paperless-ngx in confidential VMs, offered by Le Space. The image is in German: resilient, confidential, on your schedule.',
 		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Resilient', storage: 'Backups', trust: 'Verify', prices: 'Prices', faq: 'FAQ' },
-		tagline: 'Paperless-ngx, run confidentially by Le Space',
+		tagline: 'Paperless-ngx in confidential VMs · offered by Le Space',
 		disclaimer: DISCLAIMER.en,
 		open: 'Open the app',
 		openHint: 'With a passkey, no account. The app itself is in German for now.',
@@ -427,7 +427,7 @@ export const texts = {
 			title: 'Frequently asked questions',
 			items: [
 				{ q: 'Is Paperless anywhere part of the Paperless-ngx project?', a: DISCLAIMER.en },
-				{ q: 'What is Paperless-ngx?', a: 'Paperless-ngx is the open source software that runs in your VM: it takes in documents, recognises their text and makes them searchable. Paperless anywhere runs it for you in a confidential VM, around the clock or on demand, and backs it up.' },
+				{ q: 'What is Paperless-ngx?', a: 'Paperless-ngx is the open source software that runs in your VM: it takes in documents, recognises their text and makes them searchable. With Paperless anywhere it runs in a confidential VM of your own, around the clock or on demand, and is backed up.' },
 				{ q: 'Does everyone get the same software?', a: 'Yes. The system is the same for everyone. Today one passphrase per image opens the disk; every VM of that image shares it, and Le Space knows it. That is why what your VM writes goes into a data area with a key only the VM has. In preparation: an attested builder seals the image for each person separately, with a passphrase from their vault. The documentation says how image and builder can then be checked.' },
 				{ q: 'Do I need an account?', a: 'Not for the vault. A passkey on your device opens it; the 24 words are the way back in if the device is missing. Le Space can neither open nor recover the vault. When you buy a package, the payment service Stripe asks for an e-mail address, for the receipt and the subscription.' },
 				{
