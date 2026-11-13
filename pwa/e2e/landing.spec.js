@@ -49,6 +49,7 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.getByTestId('audience')).toContainText('in etwa einer Viertelstunde bereit');
 	if (process.env.SHOTS) await page.locator('#audience').screenshot({ path: `${process.env.SHOTS}/audience.png` });
 	await expect(page.getByTestId('trust-hint')).toHaveAttribute('href', '#trust');
+	await expect(page.getByTestId('trust-hint')).toContainText('Vertrauen ist gut, nachprüfen ist besser:');
 	await expect(page.locator('#prices')).toContainText('4,90 €');
 	await expect(page.locator('#prices')).toContainText('Dauerbetrieb, rund um die Uhr');
 	// The package holds the documents' room; the backup is a price of its own.
@@ -122,7 +123,13 @@ test('the landing page shows who holds which key, what is attested and where to 
 
 	await page.goto('/');
 	const trust = page.locator('#trust');
-	await expect(trust.getByRole('heading', { level: 2 })).toHaveText('Nachprüfbar: wer welchen Schlüssel hat');
+	await expect(trust.getByRole('heading', { level: 2 })).toHaveText('Vertrauen ist gut. Nachprüfen ist besser.');
+	// The claim keeps its company: the old heading as a subline, and the way to what is not confirmed yet.
+	await expect(page.getByTestId('trust-sub')).toContainText('Nachprüfbar: wer welchen Schlüssel hat');
+	await expect(page.getByTestId('trust-sub').getByRole('link')).toHaveAttribute('href', '#trust-open');
+	await expect(page.locator('#trust-open')).toBeVisible();
+	await expect(page.locator('#trust-open h3')).toHaveText('Noch nicht bestätigt');
+	if (process.env.SHOTS) await page.locator('#trust').screenshot({ path: `${process.env.SHOTS}/trust-claim.png` });
 	// The diagram, wide on a desktop, tall on a phone, with a text for screen readers.
 	await expect(page.getByTestId('trust-diagram').getByRole('img')).toHaveCount(1);
 	await expect(page.getByTestId('trust-diagram').locator('svg:visible')).toHaveAttribute('class', /trust-wide/);
@@ -161,7 +168,9 @@ test('the landing page shows who holds which key, what is attested and where to 
 	await expect(page.getByTestId('trust-verify').getByRole('link', { name: 'Varianten vertraulicher VMs im Vergleich' })).toHaveAttribute('href', /docs\/confidential-vm-variants\.md$/);
 
 	await page.getByRole('button', { name: 'EN' }).click();
-	await expect(trust.getByRole('heading', { level: 2 })).toHaveText('Checkable: who holds which key');
+	await expect(trust.getByRole('heading', { level: 2 })).toHaveText('Don’t trust. Verify.');
+	await expect(page.getByTestId('trust-sub')).toContainText('Checkable: who holds which key');
+	await expect(page.getByTestId('trust-sub').getByRole('link')).toHaveText('Not confirmed yet ↓');
 	await expect(page.getByTestId('trust-gaps')).toContainText('The image’s content is not measured.');
 
 	await page.setViewportSize({ width: 375, height: 812 });

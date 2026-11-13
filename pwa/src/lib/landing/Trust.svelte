@@ -120,7 +120,7 @@
 		<h3>{t.attestTitle}</h3>
 		<ul data-testid="trust-proves">{#each t.proves as p}<li>{p}</li>{/each}</ul>
 	</div>
-	<div class="gaps">
+	<div class="gaps" id="trust-open">
 		<h3>{t.gapsTitle}</h3>
 		<ul data-testid="trust-gaps">{#each t.gaps as g}<li>{g}</li>{/each}</ul>
 	</div>

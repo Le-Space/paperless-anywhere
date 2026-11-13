@@ -155,6 +155,8 @@
 
 	<section id="trust">
 		<h2>{t.trust.title}</h2>
+		<!-- The claim never stands alone: what is not confirmed yet is one click below it. -->
+		<p class="claim-sub" data-testid="trust-sub">{t.trust.sub} · <a href="#trust-open">{t.trust.gapsTitle} ↓</a></p>
 		<p class="lead">{t.trust.lead}</p>
 		<Trust t={t.trust} {lang} />
 	</section>
@@ -252,6 +254,8 @@
 	.vat { margin: 0.75rem 0 0; font-weight: 600; }
 	.legal, .depends { color: var(--text-2); font-size: 0.9rem; }
 	.lead { font-size: 1.1rem; color: var(--text-2); max-width: 46rem; }
+	.claim-sub { margin: -0.25rem 0 0.75rem; font-weight: 600; }
+	.claim-sub a { font-weight: 400; }
 	.audience { max-width: 46rem; margin: 0.75rem 0 0; padding-left: 1.2rem; color: var(--text-2); display: grid; gap: 0.5rem; }
 	.audience strong { color: var(--text); }
 
