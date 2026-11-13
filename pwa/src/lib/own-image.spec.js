@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { recoverMessageAddress } from 'viem';
 import { imagePassphrase } from './keys/derive.js';
-import { BUILDER, BuilderError, LANES, RUN_BYTES, buildOwnImage, builderOpener, checkBuilder, hasOwnImage, sources, storeMessage } from './own-image.js';
+import { BUILDER, BuilderError, LANES, PIECE_BYTES, RUN_BYTES, buildOwnImage, builderOpener, checkBuilder, hasOwnImage, sources, storeMessage } from './own-image.js';
 import { sha256Hex } from './vm.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -158,7 +158,7 @@ describe('an image of one\'s own', () => {
 	 * at most `maxBytes` down, and one client may hold `maxOpen` at a time.
 	 * `breakAt` lists connections (by number, from 1) that die at their first image piece.
 	 */
-	function relayedBuilder(big, { maxBytes = 4 * 1024 * 1024, maxOpen = 4, breakAt = [], refuseAt = 0, gone = false } = {}) {
+	function relayedBuilder(big, { maxBytes = RELAY_BYTES / SCALE, maxOpen = 4, breakAt = [], refuseAt = 0, gone = false } = {}) {
 		const seen = { opened: 0, open: 0, mostOpen: 0, builds: 0, deleted: 0, polls: 0 };
 		const answer = (status, body) => ({ status, body: encoder.encode(JSON.stringify(body)) });
 		const open = async () => {
@@ -195,8 +195,22 @@ describe('an image of one\'s own', () => {
 		};
 		return { seen, open };
 	}
-	const big = new Uint8Array(10 * 1024 * 1024 + 4321).map((_, n) => (n * 31 + (n >> 11)) % 256);
-	const real = () => ({ sleep: async () => {}, read: async () => 'processed', now: () => 1_800_000_000_000, kept: { current: null } });
+	// The relay's limits as deployed, and everything a sixteenth of its size so
+	// the tests stay quick: the image, the relay's limit, a run and a piece
+	// keep the proportions the app has.
+	const RELAY_BYTES = 4 * 1024 * 1024;
+	const SCALE = 16;
+	const big = new Uint8Array((10 * 1024 * 1024) / SCALE + 4321);
+	for (let n = 0; n < big.length; n++) big[n] = (n * 31 + (n >> 11)) & 255;
+	const real = () => ({ sleep: async () => {}, read: async () => 'processed', now: () => 1_800_000_000_000, kept: { current: null }, runBytes: RUN_BYTES / SCALE, pieceBytes: PIECE_BYTES / SCALE });
+
+	it('asks a relay for less than it carries: a run with its attestation fits one connection', () => {
+		// The attestation and TLS take a few hundred KiB of a connection at most.
+		expect(RUN_BYTES).toBeLessThanOrEqual(RELAY_BYTES - 512 * 1024);
+		expect(RUN_BYTES % PIECE_BYTES).toBe(0);
+		expect(LANES).toBeLessThanOrEqual(4);
+	});
+
 
 	it('fetches through a relay that carries 4 MiB a connection and four connections a client', async () => {
 		const { seen, open } = relayedBuilder(big);
@@ -206,7 +220,7 @@ describe('an image of one\'s own', () => {
 		expect(got.bytes.length).toBe(big.length);
 		expect(await sha256Hex(got.bytes)).toBe(await sha256Hex(big));
 		// One connection for the build, one per run of the image, one to have it dropped.
-		expect(seen.opened).toBe(1 + Math.ceil(big.length / RUN_BYTES) + 1);
+		expect(seen.opened).toBe(1 + Math.ceil(big.length / (RUN_BYTES / SCALE)) + 1);
 		expect(seen.mostOpen).toBeLessThanOrEqual(LANES);
 		expect(seen.open).toBe(0);
 		expect(seen.deleted).toBe(1);

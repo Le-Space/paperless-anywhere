@@ -10,6 +10,7 @@
 import { derived, get, writable } from 'svelte/store';
 import { app } from './app.js';
 import { life } from './lifecycle.js';
+import { ownImage } from './own-image.js';
 
 /** @typedef {'de' | 'en'} Lang */
 export const LANGS = /** @type {const} */ (['de', 'en']);
@@ -44,7 +45,16 @@ export function setLang(next) {
 }
 
 /** Every area's texts, by language. A new area is added here once. */
-export const catalogue = { de: { app: app.de, life: life.de }, en: { app: app.en, life: life.en } };
+// One area a line, so two changes at once do not meet in the same line.
+const AREAS = {
+	app,
+	life,
+	ownImage
+};
+export const catalogue = {
+	de: /** @type {{ [K in keyof typeof AREAS]: (typeof AREAS)[K]['de'] }} */ (Object.fromEntries(Object.entries(AREAS).map(([name, area]) => [name, area.de]))),
+	en: /** @type {{ [K in keyof typeof AREAS]: (typeof AREAS)[K]['en'] }} */ (Object.fromEntries(Object.entries(AREAS).map(([name, area]) => [name, area.en])))
+};
 
 /** The texts in the current language, for a component: `$t.app.lock`. */
 export const t = derived(lang, ($lang) => catalogue[$lang]);
