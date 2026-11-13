@@ -16,7 +16,7 @@ export const SAMPLE = Object.freeze({
 		host: 'paperless.example',
 		payer: '0xExample-0000000000000000',
 		trustedExecution: { mode: 'sev_snp', measurements: [{ platform: 'sev_snp', registers: { launch: MEASUREMENT } }] },
-		attestation: { measurement: MEASUREMENT, policy: '0x30000', launchTcb: { bootloader: 0, tee: 0, snp: 0, microcode: 0 }, at: Date.UTC(2026, 0, 1, 12, 0, 0) },
+		attestation: { measurement: MEASUREMENT, policy: '0x30000', launchTcb: { bootloader: 0, tee: 0, snp: 0, microcode: 0 }, at: Date.UTC(2026, 0, 1, 12, 0, 0), relay: { host: 'relay.example', own: false } },
 		dataDisk: 'encrypted'
 	},
 	rootfsItemHash: 'example-image-0000000000000000',

@@ -5,7 +5,7 @@
 // Nothing here fetches anything, and nothing here knows a language: the
 // texts are in evidence-i18n.js, by the ids below.
 
-/** @typedef {{ measurement: string, policy: string | null, launchTcb: { fmc?: number | null, bootloader: number, tee: number, snp: number, microcode: number } | null, at: number }} Attestation */
+/** @typedef {{ measurement: string, policy: string | null, launchTcb: { fmc?: number | null, bootloader: number, tee: number, snp: number, microcode: number } | null, at: number, relay?: { host: string, own: boolean } | null }} Attestation */
 /**
  * How the app knows a row:
  *   app       it computed, signed or verified it itself
@@ -98,6 +98,19 @@ export function evidenceRows({ running, rootfsItemHash = null, runtime, alephApi
 					]
 				}
 			: { id: 'attestation', mark: 'open', note: att ? 'mismatch' : 'notKept', values: att ? [{ k: 'reportMeasurement', v: att.measurement, mono: true }] : [], links: [] },
+		// The relay that carried the attestation. It is an ordinary server, not
+		// attested, so it is never more than "not confirmed"; what protects the
+		// exchange is the check above, in the browser.
+		{
+			id: 'relay',
+			mark: 'open',
+			note: att?.relay?.host ? (att.relay.own ? 'relayOwn' : 'relayLeSpace') : 'relayUnknown',
+			values: att?.relay?.host ? [{ k: 'relayHost', v: String(att.relay.host), mono: true }] : [],
+			links: [
+				{ k: 'relayWs', href: 'https://github.com/NiKrause/relay-button/tree/main/packages/attest-relay' },
+				{ k: 'relayP2p', href: 'https://github.com/NiKrause/orbitdb-relay/blob/main/src/services/attest-bridge-service.ts' }
+			]
+		},
 		{
 			id: 'image',
 			mark: 'open',

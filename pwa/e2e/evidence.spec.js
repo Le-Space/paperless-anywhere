@@ -48,10 +48,10 @@ test.describe('German', () => {
 	test.use({ locale: 'de-DE' });
 
 	test('a running VM shows its evidence, folded, with the attestation the app kept', async ({ page }) => {
-		await open(page, { attestation: { measurement: LAUNCH, policy: '0x30000', launchTcb: { bootloader: 4, tee: 0, snp: 22, microcode: 213 }, at: Date.UTC(2026, 0, 2, 3, 4, 5) } });
+		await open(page, { attestation: { measurement: LAUNCH, policy: '0x30000', launchTcb: { bootloader: 4, tee: 0, snp: 22, microcode: 213 }, at: Date.UTC(2026, 0, 2, 3, 4, 5), relay: { host: 'relay.example.test', own: false } } });
 		const evidence = page.getByTestId('evidence').first();
 		await expect(evidence).toBeVisible({ timeout: 30_000 });
-		await expect(evidence.getByTestId('evidence-tally')).toHaveText('4 von der App geprüft · 2 gemeldet · 2 nicht bestätigt');
+		await expect(evidence.getByTestId('evidence-tally')).toHaveText('4 von der App geprüft · 2 gemeldet · 3 nicht bestätigt');
 		await expect(evidence.getByTestId('evidence-attestation')).toBeHidden();
 		await evidence.locator('summary').focus();
 		await page.keyboard.press('Enter');
@@ -60,6 +60,12 @@ test.describe('German', () => {
 		await expect(attestation).toContainText(LAUNCH);
 		await expect(attestation).toContainText('2026-01-02T03:04:05.000Z');
 		await expect(attestation.getByRole('button', { name: 'Jetzt erneut prüfen' })).toBeVisible();
+		// The relay that carried the check is named, and said to be not attested.
+		const relay = evidence.getByTestId('evidence-relay');
+		await expect(relay).toHaveAttribute('data-mark', 'open');
+		await expect(relay).toContainText('relay.example.test');
+		await expect(relay).toContainText('Ein Relay von Le Space, nicht attestiert');
+		await expect(relay.getByRole('link', { name: 'Quelltext des Relays (WebSocket)' })).toHaveAttribute('href', /relay-button\/tree\/main\/packages\/attest-relay$/);
 		// The image is never called confirmed; what the VM says is marked as reported.
 		await expect(evidence.getByTestId('evidence-image')).toHaveAttribute('data-mark', 'open');
 		await expect(evidence.getByTestId('evidence-image')).toContainText('Der Inhalt des Images wird nicht mitgemessen.');
@@ -75,10 +81,11 @@ test.describe('German', () => {
 		await open(page, {});
 		const evidence = page.getByTestId('evidence').first();
 		await expect(evidence).toBeVisible({ timeout: 30_000 });
-		await expect(evidence.getByTestId('evidence-tally')).toHaveText('3 von der App geprüft · 2 gemeldet · 3 nicht bestätigt');
+		await expect(evidence.getByTestId('evidence-tally')).toHaveText('3 von der App geprüft · 2 gemeldet · 4 nicht bestätigt');
 		await evidence.locator('summary').click();
 		await expect(evidence.getByTestId('evidence-attestation')).toHaveAttribute('data-mark', 'open');
 		await expect(evidence.getByTestId('evidence-attestation')).toContainText('Für diese VM ist kein Ergebnis vermerkt');
+		await expect(evidence.getByTestId('evidence-relay')).toContainText('nicht vermerkt, welcher Relay');
 	});
 });
 

@@ -11,7 +11,7 @@
 // trusting it is about availability, not secrets.
 import { wordlist } from '@scure/bip39/wordlists/english.js';
 import { ALEPH_API } from './aleph.js';
-import { relayList } from './attest-p2p.js';
+import { isMultiaddr, relayList } from './attest-p2p.js';
 
 export const RELAY_REGISTRATION = Object.freeze({ channel: 'simple-todo', ref: 'simple-todo-bootstrap', type: 'relay-bootstrap-v2' });
 
@@ -95,6 +95,29 @@ export async function findAttestRelays({ fetch: fetchImpl = fetch } = {}) {
 	} catch {
 		return [];
 	}
+}
+
+/**
+ * A relay as the evidence view names it: its host, and whether the person
+ * entered it (else it is one of Le Space's, found on Aleph).
+ * @param {string} relay a wss:// URL or a multiaddr @param {{ attestRelay?: string | null }} profile
+ * @returns {{ host: string, own: boolean } | null}
+ */
+export function relayUsed(relay, profile) {
+	if (!relay) return null;
+	let own = false;
+	try {
+		own = Boolean(profile.attestRelay) && relayList(profile.attestRelay).includes(relay);
+	} catch {
+		// an entry that is no relay: not this one
+	}
+	let host = '';
+	try {
+		host = isMultiaddr(relay) ? (relay.split('/')[2] ?? '') : new URL(relay).host;
+	} catch {
+		// no host to name
+	}
+	return host ? { host, own } : null;
 }
 
 /**
