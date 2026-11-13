@@ -75,9 +75,9 @@ test('a passkey and a seed phrase open the same vault, also on another device; n
 	await install(other);
 	const phone = await other.newPage();
 	await phone.goto('/app/');
-	await phone.getByText('Auf diesem Gerät mit Wiederherstellungsphrase öffnen').click();
+	await phone.getByTestId('open-with-phrase').click();
 	await phone.locator('textarea').fill(words.join(' '));
-	await phone.getByRole('button', { name: 'Öffnen', exact: true }).click();
+	await phone.getByTestId('open-phrase').click();
 	await expect(phone.getByTestId('address')).toHaveText(address);
 
 	// There, a passkey of its own: a third box in Aleph, and the vault opens with it.
@@ -97,9 +97,34 @@ test('a passkey and a seed phrase open the same vault, also on another device; n
 	await phone.getByRole('button', { name: 'Sperren' }).click();
 	await phone.evaluate(() => localStorage.clear());
 	await phone.reload();
-	await phone.getByText('Auf diesem Gerät mit Wiederherstellungsphrase öffnen').click();
+	await phone.getByTestId('open-with-phrase').click();
 	await phone.locator('textarea').fill(words.slice().reverse().join(' '));
-	await phone.getByRole('button', { name: 'Öffnen', exact: true }).click();
+	await phone.getByTestId('open-phrase').click();
 	await expect(phone.getByRole('alert')).toBeVisible();
 	await other.close();
+});
+
+test('the app speaks English when asked, from the first screen on, and changes without a reload', async ({ page }) => {
+	const install = alephMock();
+	await install(page.context());
+	await page.context().route(/^https?:\/\/(?!localhost|api2\.aleph\.im)/, (route) => route.abort());
+	await page.goto('/app/');
+	// German without a choice.
+	await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Neu hier? Tresor anlegen');
+	await expect(page.getByTestId('app-lang-de')).toHaveAttribute('aria-pressed', 'true');
+	await page.getByTestId('app-lang-en').click();
+	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('New here? Create your vault');
+	await expect(page.getByTestId('key-loss')).toContainText('Only you hold the key.');
+	await expect(page.getByTestId('create-vault')).toHaveText('Create passkey');
+	await expect(page.getByTestId('open-with-phrase')).toHaveText('Open with the recovery phrase on this device');
+	await expect(page.getByTestId('brand-sub').or(page.locator('header .sub')).first()).toContainText('offered by Le Space');
+	// The choice is remembered: the next visit starts in English, and so does the way home.
+	await page.reload();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('New here? Create your vault');
+	await expect(page.getByTestId('logo-home')).toHaveAttribute('href', '/en/');
+	await page.getByTestId('app-lang-de').click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Neu hier? Tresor anlegen');
+	await expect(page.getByTestId('logo-home')).toHaveAttribute('href', '/');
 });

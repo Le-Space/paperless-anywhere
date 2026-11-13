@@ -119,9 +119,9 @@ test('the paying account authorizes this app on Aleph; the sealed profile follow
 	const phone = await other.newPage();
 	await phone.goto('/app/');
 	await expect(phone.getByTestId('state')).toHaveText('new');
-	await phone.getByText('Auf diesem Gerät mit Wiederherstellungsphrase öffnen').click();
+	await phone.getByTestId('open-with-phrase').click();
 	await phone.locator('textarea').first().fill(words.join(' '));
-	await phone.getByRole('button', { name: 'Öffnen', exact: true }).click();
+	await phone.getByTestId('open-phrase').click();
 	await phone.getByTestId('tab-advanced').click();
 	await expect(phone.getByTestId('payer')).toHaveText(payer.address);
 	await expect(phone.getByTestId('aleph-status')).toHaveText('freigegeben (INSTANCE, FORGET, Port-Freigaben)');

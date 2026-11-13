@@ -41,7 +41,8 @@ test('the logo and the name in the app lead back to the landing page', async ({ 
 
 	// Nothing is under way, so it leaves without a question, to the landing
 	// page in the language chosen there.
-	await page.evaluate(() => localStorage.setItem('paperless-lang', 'en'));
+	await page.getByTestId('app-lang-en').click();
+	await expect(home).toHaveAccessibleName('To the start page (this locks the app)');
 	let asked = false;
 	page.on('dialog', (d) => { asked = true; d.dismiss(); });
 	await home.click();

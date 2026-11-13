@@ -22,9 +22,9 @@ async function openApp(page, state) {
 	await page.context().route(/^https?:\/\/(?!localhost|127\.0\.0\.1|api2\.aleph\.im)/, (route) => route.abort());
 	await fetch(`${MOCK}/__state`, { method: 'POST', body: JSON.stringify(state) });
 	await page.goto('/app/');
-	await page.getByText('Auf diesem Gerät mit Wiederherstellungsphrase öffnen').click();
+	await page.getByTestId('open-with-phrase').click();
 	await page.locator('textarea').first().fill(phrase);
-	await page.getByRole('button', { name: 'Öffnen', exact: true }).click();
+	await page.getByTestId('open-phrase').click();
 	await expect(page.getByTestId('package')).toBeVisible();
 }
 const received = async (path) => (await (await fetch(`${MOCK}/__requests`)).json()).filter((r) => r.path === path);
@@ -153,9 +153,9 @@ test.describe('a start without a paid backup', () => {
 		await page.context().route(/^https?:\/\/(?!localhost|127\.0\.0\.1|api2\.aleph\.im)/, (route) => route.abort());
 		await fetch(`${MOCK}/__state`, { method: 'POST', body: JSON.stringify(state) });
 		await page.goto('/app/');
-		await page.getByText('Auf diesem Gerät mit Wiederherstellungsphrase öffnen').click();
+		await page.getByTestId('open-with-phrase').click();
 		await page.locator('textarea').first().fill(phrase);
-		await page.getByRole('button', { name: 'Öffnen', exact: true }).click();
+		await page.getByTestId('open-phrase').click();
 		await expect(page.getByTestId('package')).toBeVisible();
 	}
 	const startButton = (page) => page.getByRole('button', { name: 'Paperless anywhere starten' }).first();
