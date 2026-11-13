@@ -222,7 +222,7 @@ export const texts = {
 			vm: { title: 'Weitere Software in der VM', lead: 'Ebenfalls unverändert eingesetzt; die Container-Images als einschichtige Kopien wie oben.', name: 'Software', version: 'Version', licence: 'Lizenz', source: 'Quellcode' },
 			app: {
 				title: 'Diese Web-App',
-				own: 'Der Code von Paperless anywhere (Web-App und VM-Image) steht unter der MIT-Lizenz.',
+				own: 'Der Code von Paperless anywhere (Web-App und VM-Image) steht unter der GNU Affero General Public License, Version 3 oder später (AGPL-3.0-or-later). Der Quelltext des Dienstes, der hier läuft, liegt im öffentlichen Repository.',
 				ownLink: 'Quellcode und Lizenz',
 				third: 'Die Web-App enthält Bibliotheken und Schriften anderer; ihre Namen, Versionen, Lizenzen und Lizenztexte stehen in einer eigenen Datei.',
 				thirdLink: 'Lizenzen der Bibliotheken und Schriften'
@@ -424,7 +424,7 @@ export const texts = {
 			vm: { title: 'Other software in the VM', lead: 'Also used unchanged; the container images as one-layer copies as above.', name: 'Software', version: 'Version', licence: 'Licence', source: 'Source code' },
 			app: {
 				title: 'This web app',
-				own: 'The code of Paperless anywhere (web app and VM image) is under the MIT licence.',
+				own: 'The code of Paperless anywhere (web app and VM image) is under the GNU Affero General Public License, version 3 or later (AGPL-3.0-or-later). The source of the service running here is in the public repository.',
 				ownLink: 'Source code and licence',
 				third: 'The web app contains libraries and fonts by others; their names, versions, licences and licence texts are in a file of their own.',
 				thirdLink: 'Licences of the libraries and fonts'
