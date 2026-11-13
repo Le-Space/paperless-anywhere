@@ -139,6 +139,7 @@ export const texts = {
 				legend: 'Schlüssel',
 				keys: { image: 'Image-Passphrase: eine je Image', data: 'Datenbereich: je Start, nur in der VM', vault: 'Tresor: nur bei dir' }
 			},
+			fold: { secrets: (n) => `${n} Geheimnisse`, verify: (n) => `${n} Stellen mit Links` },
 			secretsTitle: 'Wer welches Geheimnis kennt',
 			cols: { what: 'Geheimnis', has: 'Wer es kennt', not: 'Wer nicht' },
 			secrets: [
@@ -340,6 +341,7 @@ export const texts = {
 				legend: 'Keys',
 				keys: { image: 'Image passphrase: one per image', data: 'Data area: per start, in the VM only', vault: 'Vault: with you only' }
 			},
+			fold: { secrets: (n) => `${n} secrets`, verify: (n) => `${n} places with links` },
 			secretsTitle: 'Who knows which secret',
 			cols: { what: 'Secret', has: 'Who knows it', not: 'Who does not' },
 			secrets: [
