@@ -59,6 +59,8 @@ What a VM gets and from whom, what the image contains, and why one vault's VM, b
 
 In preparation, an image sealed with a passphrase only your vault knows, made by a measured builder: [docs/own-image.md](docs/own-image.md).
 
+The variants of confidential VMs we know, what each measures and who holds which key: [docs/confidential-vm-variants.md](docs/confidential-vm-variants.md).
+
 ## What this does not protect against
 
 - A bug in the CPU's SEV-SNP or in the hypervisor that breaks confidentiality.

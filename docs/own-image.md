@@ -12,7 +12,8 @@ of the boot (firmware, kernel, initrd) opens that image with a passphrase the
 app hands over after the attestation, and then starts what it finds inside.
 
 With an image of your own, that passphrase comes from your vault and nobody
-else has it. The disk your VM opens is then the image that was sealed for
+else has it. (How this compares with a shared passphrase and with a
+measured root filesystem: [the variants](confidential-vm-variants.md).) The disk your VM opens is then the image that was sealed for
 you, and nothing else: a disk that was not sealed with your passphrase does
 not open, and the VM does not start.
 
