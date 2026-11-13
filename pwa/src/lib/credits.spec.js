@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { recoverMessageAddress } from 'viem';
-import { backupAuthorize, backupKeyAddress, backupOf, backupRevoke, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, quoteVm, QuoteUnsupportedError, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp, creditsTerms, withdrawalOf, withdrawalText, waiverOf, WaiverError, cancelSubscription, CancelUnsupportedError, cancellationRecord, contractName } from './credits.js';
+import { backupAuthorize, backupKeyAddress, backupOf, backupRevoke, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, quoteVm, QuoteUnsupportedError, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp, creditsTerms, withdrawalOf, withdrawalText, waiverOf, WaiverError, cancelSubscription, CancelUnsupportedError, cancellationRecord, contractName, cancelMailto, withdraw, withdrawableOf, withdrawalQuote, withdrawalRecord, WithdrawalUnsupportedError } from './credits.js';
 
 // A made-up vault: the ledger knows it by the address its Aleph key has.
 const master = new Uint8Array(32).fill(7);
@@ -550,5 +550,63 @@ describe('package ladder (le-space-credits#53)', () => {
 		expect(planHours({ hours: 15 })).toBe('15 Stunden');
 		expect(planHours({ hours: 730 })).toBe('Dauerbetrieb');
 		expect(contractName(planOf('paperless-always'))).toBe('Paperless anywhere, Paket Dauerbetrieb, Monatsabo');
+	});
+});
+
+describe('the withdrawal function (§ 356a BGB)', () => {
+	const baseUrl = 'https://credits.example.com';
+	const listed = [{ subject: 'subscription', what: 'Paket 30 Stunden, Monatsabo', concluded_at: '2026-11-05T09:00:00.000Z', until: '2026-11-19T09:00:00.000Z' }];
+
+	it('asks what can be withdrawn without withdrawing', async () => {
+		const svc = jsonService(() => [200, { quote: true, withdrawable: [...listed, { subject: 'something-else', what: 'x' }] }]);
+		expect(await withdrawalQuote(master, { baseUrl, fetch: svc.fetch })).toEqual([{ subject: 'subscription', what: 'Paket 30 Stunden, Monatsabo', concludedAt: '2026-11-05T09:00:00.000Z', until: '2026-11-19T09:00:00.000Z' }]);
+		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, quote: true });
+		expect(svc.seen.last?.line.startsWith(`ls-credits/v1\nPOST\n/v1/withdrawal\n${CREDITS_PRODUCT}\n${account.address}\n`)).toBe(true);
+		expect(await withdrawalQuote(master, { baseUrl, fetch: jsonService(() => [200, { quote: true, withdrawable: [] }]).fetch })).toEqual([]);
+	});
+
+	it('takes no answer for a quote that does not say it is one', async () => {
+		// An older service that ignored `quote` would have withdrawn: the app must not go on as if it had only asked.
+		await expect(withdrawalQuote(master, { baseUrl, fetch: jsonService(() => [200, { received_at: '2026-11-11T10:15:00.000Z' }]).fetch })).rejects.toBeInstanceOf(WithdrawalUnsupportedError);
+		await expect(withdrawalQuote(master, { baseUrl, fetch: async () => new Response('Not Found', { status: 404 }) })).rejects.toBeInstanceOf(WithdrawalUnsupportedError);
+	});
+
+	it('withdraws, and reads the receipt and the refund', async () => {
+		const svc = jsonService(() => [200, { received_at: '2026-11-11T10:15:00.000Z', withdrawn: listed, refund: { refund_id: 'refund_1', state: 'requested' } }]);
+		const r = await withdraw(master, { baseUrl, fetch: svc.fetch });
+		expect(r).toEqual({ receivedAt: '2026-11-11T10:15:00.000Z', withdrawn: [withdrawableOf(listed[0])], refund: { id: 'refund_1', state: 'requested' } });
+		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address });
+		expect(await recoverMessageAddress({ message: svc.seen.last?.line ?? '', signature: svc.seen.last?.signature })).toBe(account.address);
+		expect((await withdraw(master, { baseUrl, fetch: jsonService(() => [200, { received_at: '2026-11-11T10:15:00.000Z', withdrawn: [], refund: null }]).fetch })).refund).toBeNull();
+	});
+
+	it('says when the 14 days are over, and refuses an answer without a receipt time', async () => {
+		await expect(withdraw(master, { baseUrl, fetch: jsonService(() => [409, { error: 'nothing to withdraw', code: 'NOTHING_TO_WITHDRAW' }]).fetch })).rejects.toThrow('Es gibt nichts mehr, das sich widerrufen ließe: Die 14 Tage sind vorbei.');
+		await expect(withdraw(master, { baseUrl, fetch: jsonService(() => [200, {}]).fetch })).rejects.toThrow(/nicht bestätigt/);
+	});
+
+	it('builds the confirmation file', () => {
+		const { filename, text } = withdrawalRecord({ withdrawn: [/** @type {any} */ (withdrawableOf(listed[0])), { subject: 'credits', what: '', concludedAt: null }], receivedAt: '2026-11-11T10:15:00.000Z', refundId: 'refund_1', address: '0x' + 'ab'.repeat(20), timeZone: 'Europe/Berlin' });
+		expect(filename).toBe('widerruf-paperless-anywhere-2026-11-11.txt');
+		expect(text).toContain('Widerrufen: Paket 30 Stunden, Monatsabo, geschlossen am 05.11.2026');
+		expect(text).toContain('Widerrufen: Guthaben-Kauf');
+		expect(text).toContain('Widerruf eingegangen am: 11.11.2026, 11:15 MEZ (2026-11-11T10:15:00.000Z)');
+		expect(text).toContain('Erstattung: refund_1');
+		expect(text).toContain('Anbieter: Le Space UG (haftungsbeschränkt), info@le-space.de');
+	});
+});
+
+describe('cancelling without the key (§ 312k BGB)', () => {
+	it('opens a mail to Le Space that names the contract and asks for what identifies it', () => {
+		const url = new URL(cancelMailto());
+		expect(url.protocol).toBe('mailto:');
+		expect(url.pathname).toBe('info@le-space.de');
+		expect(url.searchParams.get('subject')).toBe('Kündigung Paperless anywhere');
+		const body = url.searchParams.get('body') ?? '';
+		expect(body).toContain('Ich kündige mein Abo von Paperless anywhere');
+		expect(body).toContain('E-Mail-Adresse, die bei der Zahlung angegeben wurde:');
+		expect(body).toContain('Rechnungsnummer');
+		// Spaces as %20: a mail program shows a "+" as a plus.
+		expect(cancelMailto()).not.toContain('+');
 	});
 });

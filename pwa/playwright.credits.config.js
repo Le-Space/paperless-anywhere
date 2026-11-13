@@ -7,6 +7,8 @@ import { defineConfig } from '@playwright/test';
 // and serves it on 4421. Never the real service.
 export default defineConfig({
 	testDir: 'e2e-credits',
+	// One mock with one state for all specs: one at a time.
+	workers: 1,
 	use: { baseURL: 'http://localhost:4421', acceptDownloads: true },
 	webServer: [
 		{ command: 'node e2e-credits/mock-credits.js', url: 'http://127.0.0.1:4422/__requests', reuseExistingServer: false },

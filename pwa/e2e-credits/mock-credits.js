@@ -1,7 +1,8 @@
 // A local stand-in for le-space-credits, on 127.0.0.1 only: the routes the
 // package card uses, with made-up answers. It checks no signature; the unit
 // tests do. GET /__requests lists what it received, POST /__state sets
-// whether a Stripe-billed plan runs. Never the real service.
+// whether a Stripe-billed plan runs and whether it can still be withdrawn.
+// Never the real service.
 import { createServer } from 'node:http';
 
 const PORT = Number(process.env.MOCK_CREDITS_PORT ?? 4422);
@@ -15,7 +16,7 @@ const WITHDRAWAL = {
 const RENEWS_AT = '2026-12-01T00:00:00.000Z';
 const RECEIVED_AT = '2026-11-11T10:15:00.000Z';
 
-let state = { plan: true, cancelled: false };
+let state = { plan: true, cancelled: false, withdrawable: false };
 /** @type {{ method: string, path: string, body: any }[]} */
 let requests = [];
 
@@ -30,6 +31,16 @@ const routes = {
 	'POST /v1/checkout': () => [200, { client_secret: 'cs_test_mock_secret', session_id: 'cs_test_mock' }],
 	'POST /v1/subscribe': () => [200, { client_secret: 'cs_test_mock_secret' }],
 	'POST /v1/portal': () => [200, { url: 'https://billing.stripe.com/p/session/test_mock' }],
+	// The withdrawal function: a quote lists what can be withdrawn and changes
+	// nothing; without `quote` it withdraws, ends the plan and names a refund.
+	'POST /v1/withdrawal': (body) => {
+		const listed = state.withdrawable && state.plan ? [{ subject: 'subscription', what: 'Paket 30 Stunden, Monatsabo', concluded_at: '2026-11-05T09:00:00.000Z', until: '2026-11-19T09:00:00.000Z' }] : [];
+		if (body?.quote === true) return [200, { quote: true, withdrawable: listed }];
+		if (!listed.length) return [409, { error: 'nothing to withdraw', code: 'NOTHING_TO_WITHDRAW' }];
+		state.plan = false;
+		state.withdrawable = false;
+		return [200, { received_at: RECEIVED_AT, withdrawn: listed, refund: { refund_id: 'refund_mock_1', state: 'requested' } }];
+	},
 	'POST /v1/subscription/cancel': () => {
 		if (!state.plan || state.cancelled) return [409, { error: 'no running subscription to cancel', code: 'NO_SUBSCRIPTION' }];
 		state.cancelled = true;
@@ -49,7 +60,7 @@ const server = createServer(async (req, res) => {
 	const send = (status, json) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(json));
 	if (url.pathname === '/__requests') return send(200, requests);
 	if (url.pathname === '/__state' && req.method === 'POST') {
-		state = { plan: Boolean(body?.plan), cancelled: false };
+		state = { plan: Boolean(body?.plan), cancelled: false, withdrawable: Boolean(body?.withdrawable) };
 		requests = [];
 		return send(200, state);
 	}
