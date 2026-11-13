@@ -135,6 +135,13 @@ every password manager that runs in a browser.
   24 words or the backup key. If the passkeys and the words are lost, nobody
   can open the vault or decrypt its backups.
 
+What the app does on its side: every page carries a content security policy
+(`pwa/svelte.config.js`). It runs only the scripts of its own build (no inline
+script except the start-up one, by hash; no `eval`), loads no script, style,
+font or plugin from elsewhere, connects only over TLS, and frames nothing but
+the credits service's payment page. That narrows what an injected script
+could do; it does not stop an extension, which runs outside the page's policy.
+
 What helps, in this order:
 
 1. A browser profile of its own, without extensions, for Paperless anywhere;

@@ -51,6 +51,10 @@ jobs:
 
       - name: Build the PWA
         working-directory: pwa
+        env:
+          # The relay of this run listens on this machine without TLS; the
+          # app's content security policy lets a build name such addresses.
+          CSP_CONNECT_LOCAL: ws://127.0.0.1:8787
         run: |
           pnpm install --frozen-lockfile
           pnpm build
