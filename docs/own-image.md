@@ -155,7 +155,7 @@ check each link of the chain:
    The image lies on Aleph gzipped; the SHA-256 is that of the image itself.
 
 2. **It was built from this repository.** The image workflow's summary names
-   the commit, and, once this repository is public, GitHub signs that the
+   the commit, and for an image built since this repository is public, GitHub signs that the
    file with this SHA-256 was built by that workflow at that commit:
 
    ```sh

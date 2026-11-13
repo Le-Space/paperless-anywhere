@@ -20,7 +20,14 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await page.addInitScript(() => Object.defineProperty(navigator, 'language', { get: () => 'de-DE' }));
 
 	await page.goto('/');
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Deine Dokumente. Nur wach, wenn du sie brauchst.');
+	// The headline: one sentence with one changing word. Its name holds all three.
+	const h1 = page.getByRole('heading', { level: 1 });
+	await expect(h1).toHaveAccessibleName('Paperless anywhere läuft ausfallsicher, vertraulich und nur bei Bedarf.');
+	await expect(h1).not.toHaveAttribute('aria-live');
+	await expect(h1.locator('.word')).toHaveText(['ausfallsicher.', 'vertraulich.', 'nur bei Bedarf.']);
+	await expect(page.locator('.hero .kicker')).toHaveText('Dezentral · vertraulich · auf Abruf');
+	await expect(page.locator('.points h3')).toHaveText(['Ausfallsicher', 'Vertraulich und nachprüfbar', 'Bezahlt nach Gebrauch']);
+	await expect(page).toHaveTitle('Paperless anywhere – ausfallsicher, vertraulich, nur bei Bedarf');
 	await expect(page.locator('#nodes')).toContainText('2 TEE-Knoten, 1 davon mit Platz');
 	// Resilience, with the live numbers and without claiming more than is true.
 	await expect(page.locator('#nodes h2')).toHaveText('Ausfallsicher: kein einzelnes Rechenzentrum');
@@ -62,13 +69,13 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.getByTestId('own-image-knows').getByRole('listitem')).toHaveText([/Dein Tresor: ja/, /Der Build-Dienst: nur kurz/, /Deine VM: nur kurz/, /Le Space: nein/, /Der Betreiber des Knotens: nein/, /GitHub: nein/]);
 
 	await page.getByRole('button', { name: 'EN' }).click();
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Your documents. Awake only when you need them.');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName('Paperless anywhere runs resilient, confidential and only when you need it.');
 	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 	await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', 'https://le-space.de/#privacy');
 	await expect(page.getByTestId('hero-disclaimer')).toHaveText('Paperless-ngx is an independent open source project (GPL-3.0). Paperless anywhere is offered by Le Space, is not affiliated with the project and is neither endorsed nor sponsored by it.');
 	await expect(page.getByTestId('brand')).toContainText('Paperless-ngx on demand, run by Le Space');
 	await page.reload();
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Your documents. Awake only when you need them.');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName('Paperless anywhere runs resilient, confidential and only when you need it.');
 
 	await page.getByRole('link', { name: /Open the app/ }).first().click();
 	await expect(page).toHaveURL(/\/app\/$/);
@@ -78,12 +85,12 @@ test('the landing page at / speaks German and English and leads to the app at /a
 
 test('link previews find title, description and image in the HTML itself, without scripts', async ({ request }) => {
 	const html = await (await request.get('/')).text();
-	expect(html).toContain('<title>Paperless anywhere – Paperless-ngx auf Abruf, vertraulich</title>');
+	expect(html).toContain('<title>Paperless anywhere – ausfallsicher, vertraulich, nur bei Bedarf</title>');
 	for (const tag of ['og:title', 'og:description', 'og:url', 'og:image', 'og:image:alt', 'twitter:card', 'twitter:image']) expect(html).toMatch(new RegExp(`(property|name)="${tag}"`));
 	expect(html).toContain('content="https://paperless.le-space.de/og.png?v=3"');
 	expect(html).toContain('rel="manifest"');
 	expect(html).toContain('rel="apple-touch-icon"');
-	expect(html).toContain('Deine Dokumente. Nur wach, wenn du sie brauchst.');
+	expect(html).toContain('Paperless anywhere läuft ausfallsicher, vertraulich und nur bei Bedarf.');
 	const image = await request.get('/og.png');
 	expect(image.ok()).toBe(true);
 	expect(image.headers()['content-type']).toContain('image/png');
@@ -148,4 +155,30 @@ test('the section links stay at the top while the page scrolls', async ({ page }
 	await page.goto('/#faq');
 	await expect(nav).toBeHidden();
 	await expect(header).not.toBeInViewport();
+});
+
+test('the headline changes one word without moving the page, three times, and stands still for reduced motion', async ({ page }) => {
+	await page.context().route(/^https?:\/\/(?!localhost)/, (route) => route.abort());
+	await page.addInitScript(() => Object.defineProperty(navigator, 'language', { get: () => 'de-DE' }));
+	await page.goto('/');
+	const words = page.locator('h1 .word');
+	const look = () => words.evaluateAll((els) => els.map((e) => { const c = getComputedStyle(e); return { name: c.animationName, turns: c.animationIterationCount, opacity: Number(c.opacity) }; }));
+	// Three turns each, then it stops.
+	expect((await look()).map((w) => [w.name === 'none', w.turns])).toEqual([[false, '3'], [false, '3'], [false, '3']]);
+	// All three words share one cell: its size is the largest word's, whichever shows.
+	const boxes = await words.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; }));
+	expect(new Set(boxes.map(String)).size).toBe(1);
+	const slot = await page.locator('h1 .swap').evaluate((e) => e.getBoundingClientRect().width);
+	for (const w of await words.evaluateAll((els) => els.map((e) => e.scrollWidth))) expect(Math.ceil(slot) + 1).toBeGreaterThanOrEqual(w);
+	const leadTop = () => page.locator('.hero .lead').evaluate((e) => Math.round(e.getBoundingClientRect().top));
+	const before = await leadTop();
+	// The second word's turn comes after three seconds; the lead has not moved.
+	await expect.poll(async () => (await look())[1].opacity, { timeout: 8000 }).toBeGreaterThan(0.9);
+	expect((await look())[0].opacity).toBeLessThan(0.1);
+	expect(await leadTop()).toBe(before);
+
+	// With reduced motion nothing moves: the first word stands from the start.
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await page.reload();
+	expect(await look()).toEqual([{ name: 'none', turns: '1', opacity: 1 }, { name: 'none', turns: '1', opacity: 0 }, { name: 'none', turns: '1', opacity: 0 }]);
 });

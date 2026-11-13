@@ -30,8 +30,8 @@ export const TERMS_URL = 'https://credits.le-space.de/agb';
 
 export const texts = {
 	de: {
-		title: 'Paperless anywhere – Paperless-ngx auf Abruf, vertraulich',
-		description: 'Paperless-ngx auf Abruf in einer vertraulichen VM. Kostet nur, solange es läuft; danach verschlüsselt gesichert und aus.',
+		title: 'Paperless anywhere – ausfallsicher, vertraulich, nur bei Bedarf',
+		description: 'Paperless anywhere läuft ausfallsicher, vertraulich und nur bei Bedarf: Paperless-ngx in einer vertraulichen VM, auf Knoten mehrerer Betreiber, im Monatspaket nach Gebrauch.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx auf Abruf, betrieben von Le Space: Deine Dokumente. Nur wach, wenn du sie brauchst.',
 		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Ausfallsicher', storage: 'Backups', trust: 'Nachprüfbar', prices: 'Preise', faq: 'FAQ' },
 		tagline: 'Paperless-ngx auf Abruf, betrieben von Le Space',
@@ -39,14 +39,18 @@ export const texts = {
 		open: 'Paperless anywhere starten',
 		openHint: 'Mit Passkey, ohne Konto.',
 		hero: {
-			kicker: 'Paperless-ngx · auf Abruf · vertraulich',
-			title: 'Deine Dokumente. Nur wach, wenn du sie brauchst.',
-			lead: 'Paperless-ngx startet auf Knopfdruck in einer vertraulichen VM (AMD SEV-SNP). Es kostet nur, solange es läuft. Danach wird verschlüsselt gesichert und die VM gestoppt; beim nächsten Start kommt alles aus dem Backup zurück.'
+			kicker: 'Dezentral · vertraulich · auf Abruf',
+			// The headline: a fixed sentence in which one word changes. `full` is what
+			// a screen reader says and what the page's title holds: all three.
+			before: 'Paperless anywhere läuft',
+			words: ['ausfallsicher.', 'vertraulich.', 'nur bei Bedarf.'],
+			full: 'Paperless anywhere läuft ausfallsicher, vertraulich und nur bei Bedarf.',
+			lead: 'Darin läuft Paperless-ngx, auf vertraulichen Knoten mehrerer Betreiber und mit Sicherungen bei mehreren unabhängigen Speicheranbietern: kein einzelnes Rechenzentrum. Die VM ist vertraulich (AMD SEV-SNP); bei jedem Start bestätigt der Prozessor Firmware, Kernel und Initrd, und die App prüft das, bevor sie einen Schlüssel herausgibt. Du wählst ein Paket nach deinem tatsächlichen Gebrauch, etwa für Buchhaltung oder Steuerberatung; Dauerbetrieb nur, wenn du ihn brauchst.'
 		},
 		points: [
-			{ t: 'Auf Abruf', d: 'Starten, arbeiten, stoppen. Keine Maschine, die rund um die Uhr läuft und bezahlt werden will.' },
-			{ t: 'Vertraulich', d: 'Speicher und Platte der VM sind verschlüsselt. Der Betreiber des Knotens kann sie nicht lesen.' },
-			{ t: 'Dezentral gesichert', d: 'Backups werden in der VM verschlüsselt und an mehreren Orten abgelegt, die du wählst.' }
+			{ t: 'Ausfallsicher', d: 'Kein einzelnes Rechenzentrum: gerechnet wird auf Knoten mehrerer Betreiber, gesichert bei mehreren unabhängigen Speicheranbietern. Fällt ein Knoten aus, startest du auf einem anderen.' },
+			{ t: 'Vertraulich und nachprüfbar', d: 'Speicher und Platte der VM sind verschlüsselt; der Betreiber des Knotens kann sie nicht lesen. Was der Prozessor bestätigt und was noch offen ist, steht unter „Nachprüfbar“.' },
+			{ t: 'Bezahlt nach Gebrauch', d: 'Ein Monatspaket für die Stunden, die du brauchst: starten, arbeiten, stoppen. Dauerbetrieb nur, wenn du ihn wirklich brauchst.' }
 		],
 		trustHint: 'Nachprüfbar: wer welchen Schlüssel hat, was die Hardware bestätigt und was noch offen ist',
 		audience: {
@@ -169,7 +173,7 @@ export const texts = {
 				app: { t: 'Diese Web-App', d: 'Sie liegt auf IPFS. Welche Version die Domain ausliefert, zeigt ihr DNSLink-Eintrag (dig TXT _dnslink.paperless.le-space.de); jedes Release nennt seine CID.', links: ['Releases'] },
 				docs: { t: 'Im Detail', d: 'Die Beschreibung, nach der diese Seite geschrieben ist.', links: ['Sicherheitsmodell', 'Schlüssel und Wiederherstellung', 'Eigenes Image', 'Ablauf'] }
 			},
-			repoNote: 'Der Quelltext liegt bei GitHub. Das Repository ist noch nicht öffentlich; bis dahin öffnen die GitHub-Links nur für Berechtigte.'
+			repoNote: 'Der Quelltext liegt offen bei GitHub: github.com/Le-Space/paperless-anywhere.'
 		},
 		prices: {
 			title: 'Preise',
@@ -225,8 +229,8 @@ export const texts = {
 		footer: { by: 'Ein Projekt von Le Space', belege: 'Le Space Belege', imprint: 'Impressum', imprintUrl: 'https://le-space.de/#impressum', privacy: 'Datenschutz', privacyUrl: 'https://le-space.de/#datenschutz', built: 'Paperless anywhere rechnet auf vertraulichen Knoten von Aleph Cloud und sichert auf Filecoin.', ngxLink: 'Paperless-ngx auf GitHub', terms: 'AGB', withdrawal: 'Widerrufsbelehrung' }
 	},
 	en: {
-		title: 'Paperless anywhere – Paperless-ngx on demand, confidential',
-		description: 'Paperless-ngx on demand in a confidential VM. Costs only while it runs; then backed up, encrypted, and shut down.',
+		title: 'Paperless anywhere – resilient, confidential, only when you need it',
+		description: 'Paperless anywhere runs resilient, confidential and only when you need it: Paperless-ngx in a confidential VM, on nodes of several operators, in a monthly package by use.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx on demand, run by Le Space: Your documents. Awake only when you need them.',
 		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Resilient', storage: 'Backups', trust: 'Verify', prices: 'Prices', faq: 'FAQ' },
 		tagline: 'Paperless-ngx on demand, run by Le Space',
@@ -234,14 +238,16 @@ export const texts = {
 		open: 'Open the app',
 		openHint: 'With a passkey, no account.',
 		hero: {
-			kicker: 'Paperless-ngx · on demand · confidential',
-			title: 'Your documents. Awake only when you need them.',
-			lead: 'Paperless-ngx starts at the press of a button in a confidential VM (AMD SEV-SNP). It costs only while it runs. Afterwards it is backed up, encrypted, and the VM is stopped; the next start restores everything from the backup.'
+			kicker: 'Decentralised · confidential · on demand',
+			before: 'Paperless anywhere runs',
+			words: ['resilient.', 'confidential.', 'only when you need it.'],
+			full: 'Paperless anywhere runs resilient, confidential and only when you need it.',
+			lead: 'Inside it runs Paperless-ngx, on confidential nodes of several operators and with backups at several independent storage providers: no single data centre. The VM is confidential (AMD SEV-SNP); at every start the processor confirms firmware, kernel and initrd, and the app checks that before it hands over a key. You choose a package by what you actually use, for bookkeeping or tax advice, say; around the clock only if you need it.'
 		},
 		points: [
-			{ t: 'On demand', d: 'Start, work, stop. No machine running around the clock that wants to be paid for.' },
-			{ t: 'Confidential', d: 'The VM’s memory and disk are encrypted. The node’s operator cannot read them.' },
-			{ t: 'Decentralised backups', d: 'Backups are encrypted inside the VM and stored in several places you choose.' }
+			{ t: 'Resilient', d: 'No single data centre: it computes on nodes of several operators and backs up to several independent storage providers. If a node fails, you start on another.' },
+			{ t: 'Confidential and checkable', d: 'The VM’s memory and disk are encrypted; the node’s operator cannot read them. What the processor confirms and what is still open is under “Verify”.' },
+			{ t: 'Paid by use', d: 'A monthly package for the hours you need: start, work, stop. Around the clock only if you really need it.' }
 		],
 		trustHint: 'Checkable: who holds which key, what the hardware confirms and what is still open',
 		audience: {
@@ -364,7 +370,7 @@ export const texts = {
 				app: { t: 'This web app', d: 'It is served from IPFS. Which version the domain serves, its DNSLink record shows (dig TXT _dnslink.paperless.le-space.de); every release names its CID.', links: ['Releases'] },
 				docs: { t: 'In detail', d: 'The description this page is written from.', links: ['Security model', 'Keys and recovery', 'Your own image', 'Workflow'] }
 			},
-			repoNote: 'The source code is on GitHub. The repository is not public yet; until then the GitHub links open for authorised people only.'
+			repoNote: 'The source code is public on GitHub: github.com/Le-Space/paperless-anywhere.'
 		},
 		prices: {
 			title: 'Prices',
