@@ -99,9 +99,11 @@ it, or not: that is where the variants part.
   The app attests the builder before it sends the passphrase.
 - *State, exactly:* the builder is built. It has run once on Aleph as a
   measured VM, was verified by attestation there, and sealed the real image
-  in a trial. It is not in operation: the app names no builder. Fetching the
-  sealed image by the app through the relay, and uploading it from the
-  browser, have never run.
+  in a trial. It is not in operation: no builder is published at the moment,
+  and the app names none. Fetching the sealed image by the app through the
+  relay, and uploading it from the browser, have never run. Open before it
+  can go live: how the relay reaches the builder, moving nearly 900 MiB
+  through it, and fixing the builder in the app.
 - *What it still does not give:* a measurement of the image's content at each
   start. The proof is indirect: measured builder, plus a secret only the
   vault has.
