@@ -43,8 +43,11 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.getByTestId('footer-withdrawal')).toHaveText('Widerrufsbelehrung');
 	await expect(page.locator('#prices .lead')).toHaveText('Wähle ein Monatspaket: Dauerbetrieb rund um die Uhr, oder die Stunden, die du im Monat brauchst.');
 	// Who it is for, and the way to "Nachprüfbar" from the top.
-	await expect(page.getByTestId('audience')).toContainText('Für Unternehmen, die ihr Dokumentenarchiv rund um die Uhr brauchen');
+	await expect(page.locator('#audience .lead')).toHaveText('Für alle, die ihr Dokumentenarchiv nicht einem einzelnen Rechenzentrum anvertrauen wollen:');
+	await expect(page.getByTestId('audience').locator('li strong')).toHaveText(['Wer nicht vom Ausfall eines Hosters oder Speicheranbieters abhängen will:', 'Wem die Vertraulichkeit seiner Dokumente wichtig ist:', 'Unternehmen, die ihr Archiv rund um die Uhr brauchen:', 'Selbstständige und kleine Firmen, die es nur ab und zu brauchen:']);
+	await expect(page.getByTestId('audience')).toContainText('Was dabei noch offen ist, steht unter „Nachprüfbar“.');
 	await expect(page.getByTestId('audience')).toContainText('in etwa einer Viertelstunde bereit');
+	if (process.env.SHOTS) await page.locator('#audience').screenshot({ path: `${process.env.SHOTS}/audience.png` });
 	await expect(page.getByTestId('trust-hint')).toHaveAttribute('href', '#trust');
 	await expect(page.locator('#prices')).toContainText('4,90 €');
 	await expect(page.locator('#prices')).toContainText('Dauerbetrieb, rund um die Uhr');

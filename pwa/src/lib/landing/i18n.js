@@ -55,7 +55,13 @@ export const texts = {
 		trustHint: 'Nachprüfbar: wer welchen Schlüssel hat, was die Hardware bestätigt und was noch offen ist',
 		audience: {
 			title: 'Für wen?',
-			lead: 'Für Unternehmen, die ihr Dokumentenarchiv rund um die Uhr brauchen: Paperless anywhere läuft im Dauerbetrieb, vertraulich und an keinen einzelnen Betreiber gebunden. Und für Selbstständige und kleine Firmen, die es nur ab und zu brauchen: Deine eigene VM ist in etwa einer Viertelstunde bereit, zum Beispiel einmal in der Woche oder zum Monatsabschluss für die Buchhaltung, und kostet dazwischen keine Rechenzeit.'
+			lead: 'Für alle, die ihr Dokumentenarchiv nicht einem einzelnen Rechenzentrum anvertrauen wollen:',
+			items: [
+				{ who: 'Wer nicht vom Ausfall eines Hosters oder Speicheranbieters abhängen will:', what: 'Gerechnet wird auf Knoten mehrerer Betreiber, gesichert bei mehreren unabhängigen Speicheranbietern. Fällt einer aus, startest du auf einem anderen Knoten und spielst deine Sicherung ein.' },
+				{ who: 'Wem die Vertraulichkeit seiner Dokumente wichtig ist:', what: 'Der Prozessor verschlüsselt den Arbeitsspeicher der VM, und ihre Platte und die Sicherungen sind verschlüsselt. Der Betreiber des Knotens und seine Mitarbeiter sehen nur verschlüsselte Daten, ebenso, wer in ein Rechenzentrum einbricht. Was dabei noch offen ist, steht unter „Nachprüfbar“.' },
+				{ who: 'Unternehmen, die ihr Archiv rund um die Uhr brauchen:', what: 'Paperless anywhere läuft im Dauerbetrieb.' },
+				{ who: 'Selbstständige und kleine Firmen, die es nur ab und zu brauchen:', what: 'Die eigene VM ist in etwa einer Viertelstunde bereit, zum Beispiel einmal in der Woche oder zum Monatsabschluss für die Buchhaltung, und kostet dazwischen keine Rechenzeit.' }
+			]
 		},
 		how: {
 			title: 'So geht’s',
@@ -271,7 +277,13 @@ export const texts = {
 		trustHint: 'Checkable: who holds which key, what the hardware confirms and what is still open',
 		audience: {
 			title: 'Who is it for?',
-			lead: 'For companies that need their document archive around the clock: Paperless anywhere runs always on, confidential and tied to no single operator. And for freelancers and small businesses that need it only now and then: your own VM is ready in about a quarter of an hour, say once a week or at the month’s end for the bookkeeping, and uses no compute time in between.'
+			lead: 'For everyone who does not want to entrust their document archive to a single data centre:',
+			items: [
+				{ who: 'If you do not want to depend on one host or one storage provider staying up:', what: 'the computing runs on nodes of several operators, the backups lie with several independent storage providers. If one fails, you start on another node and restore your backup.' },
+				{ who: 'If the confidentiality of your documents matters to you:', what: 'the processor encrypts the VM’s memory, and its disk and the backups are encrypted. The node’s operator and its staff see encrypted data only, and so does whoever breaks into a data centre. What is still open here is listed under “Verify”.' },
+				{ who: 'Companies that need their archive around the clock:', what: 'Paperless anywhere runs always on.' },
+				{ who: 'Freelancers and small businesses that need it only now and then:', what: 'your own VM is ready in about a quarter of an hour, say once a week or at the month’s end for the bookkeeping, and uses no compute time in between.' }
+			]
 		},
 		how: {
 			title: 'How it works',
