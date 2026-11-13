@@ -217,12 +217,12 @@
 	/* Where the section links show, the header stays at the top while the page
 	   scrolls, so they are always at hand. Its background reaches the window's
 	   edges although the header itself is as wide as the text. */
-	@media (min-width: 821px) {
+	@media (min-width: 981px) {
 		.top { position: sticky; top: 0; z-index: 10; padding-top: 0.75rem; padding-bottom: 0.75rem; background: var(--bg); box-shadow: 0 0 0 100vmax var(--bg), 0 1px 0 100vmax var(--line); clip-path: inset(0 -100vmax -1px); }
 	}
 	.brand { min-width: 0; }
 	nav { display: flex; gap: 1.1rem; margin-left: auto; font-size: 0.9rem; }
-	nav a { color: var(--text-2); text-decoration: none; }
+	nav a { color: var(--text-2); text-decoration: none; white-space: nowrap; }
 	nav a:hover { color: var(--text); }
 	.langs { display: flex; gap: 0.25rem; }
 	.lang { font-family: var(--mono); font-size: 0.75rem; padding: 0.25rem 0.55rem; background: transparent; color: var(--text-2); border-color: var(--line); }
@@ -231,8 +231,9 @@
 	section { padding: 3.5rem 0 1rem; scroll-margin-top: 1rem; }
 	/* Below the header that stays at the top: a section a link jumps to begins
 	   under it otherwise. */
-	@media (min-width: 821px) {
-		section { scroll-margin-top: 5.5rem; }
+	@media (min-width: 981px) {
+		/* Up to 108 px of header where the name wraps to two lines. */
+		section { scroll-margin-top: 7.25rem; }
 	}
 	h2 { font-size: 1.75rem; margin: 0 0 0.75rem; }
 	.included { font-weight: 600; }
@@ -293,7 +294,7 @@
 
 	footer { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; padding-top: 2rem; padding-bottom: 2.5rem; border-top: 1px solid var(--line); color: var(--text-2); font-size: 0.85rem; }
 
-	@media (max-width: 820px) {
+	@media (max-width: 980px) {
 		nav { display: none; }
 		.langs { margin-left: auto; }
 	}
