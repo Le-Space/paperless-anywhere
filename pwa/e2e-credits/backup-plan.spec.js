@@ -233,3 +233,35 @@ test.describe('a start without a paid backup', () => {
 		await expect(page.getByTestId('backup-add-fold')).toHaveCount(0);
 	});
 });
+
+test('the package card in English: prices, the declaration in English, legal buttons in German', async ({ page }) => {
+	await openApp(page, { plan: false, backup: 'none', offered: true, included: true });
+	await page.getByTestId('app-lang-en').click();
+	await expect(page.getByTestId('plan-none')).toHaveText('No package yet');
+	await expect(page.getByTestId('plan-none-hint')).toHaveText('A package gives you hours for your Paperless anywhere every month, backup included. It is paid as a monthly subscription by card.');
+	await expect(page.getByTestId('plan-backup-included')).toHaveText('Backup included: 3 encrypted copies, up to 32 GiB, retrievable for 30 more days after the end.');
+	await expect(page.getByTestId('plan-price-paperless-15-backup')).toHaveText('€6.40');
+	await expect(page.getByTestId('plan-paperless-always-backup')).toContainText('Always on, around the clock');
+	await expect(page.getByTestId('balance-euro')).toHaveText('€12.34');
+	// The declaration on withdrawal comes from the service, in the language shown.
+	await expect(page.getByTestId('plan-waiver')).toContainText('Example withdrawal text');
+	await shot(page, 'package-en', page.getByTestId('package'));
+	await page.getByTestId('plan-waiver-box').check();
+	await page.getByTestId('plan-paperless-15-backup').click();
+	// The payment page is asked for in English, and the order is summed up in English.
+	await expect.poll(async () => (await received('/v1/subscribe')).map((r) => r.body.locale)).toEqual(['en']);
+	await expect(page.getByTestId('checkout-summary')).toHaveText('15 hours a month: €6.40, backup included. Monthly subscription, renews every month, can be cancelled to the month’s end.');
+	await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
+	await expect(page.getByTestId('plan-note')).toHaveText('No subscription was taken out.');
+});
+
+test('with a running subscription in English, cancelling and withdrawing keep their German wording', async ({ page }) => {
+	await fetch(`${MOCK}/__state`, { method: 'POST', body: JSON.stringify({ plan: true, withdrawable: true }) });
+	await openApp(page, { plan: true, withdrawable: true });
+	await page.getByTestId('app-lang-en').click();
+	await expect(page.getByTestId('plan-left')).toContainText('20 hours of running time left');
+	await expect(page.getByTestId('plan-cancel')).toHaveText('Verträge hier kündigen');
+	await expect(page.getByTestId('withdraw-open')).toHaveText('Vertrag widerrufen');
+	await page.getByTestId('package-more').click();
+	await expect(page.getByTestId('plan-portal')).toHaveText('Manage subscription (change, card, invoices)');
+});

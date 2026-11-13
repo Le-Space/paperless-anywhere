@@ -14,6 +14,7 @@
 	import Terms from '$lib/Terms.svelte';
 	import HourQuote from '$lib/HourQuote.svelte';
 	import { hourPurchase, purchaseLocked } from '$lib/purchase.js';
+	import { format, lang, t, tr } from '$lib/i18n/index.js';
 
 	/** @type {{ master: Uint8Array, version?: number, onglance?: (g: { plan: boolean, hoursLeft: number | null, pays: string | null, low: boolean } | null) => void }} */
 	let { master, version = 0, onglance = () => {} } = $props();
@@ -59,7 +60,9 @@
 	const boxOffered = $derived(backupSold && plans.some((p) => !included(p)));
 	const allIncluded = $derived(plans.length > 0 && plans.every(included));
 	const planTotal = (/** @type {{ priceCredits: number, backupIncluded?: boolean }} */ p) => p.priceCredits + (!included(p) && withBackup && backupSold && backupOffer ? backupOffer.monthCents : 0);
-	const includedText = $derived(`Sicherung inklusive${backupOffer ? `: ${backupOffer.copies ? `${backupOffer.copies} verschlüsselte Kopien` : 'verschlüsselte Kopien'}${backupOffer.quotaGib ? `, bis ${backupOffer.quotaGib} GiB` : ''}, nach dem Ende noch ${backupOffer.retentionDays} Tage abrufbar` : ''}.`);
+	// The card's texts in the language shown.
+	const x = $derived($t.pkg);
+	const includedText = $derived(x.included(backupOffer));
 	let ordering = $state('');
 	// The declaration on withdrawal before a payment (le-space-credits#51):
 	// null from an older service, which then gets no checkbox and no waiver.
@@ -88,8 +91,8 @@
 	let withdrawing = $state(false);
 
 	// Prices and balances always with cents: "4,90 €", never "4,9 €".
-	const euro = (/** @type {number} */ credits) => `${(credits / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-	const day = (/** @type {string | null} */ iso) => (iso ? new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : '');
+	const euro = (/** @type {number} */ credits) => format.euro(credits, $lang);
+	const day = (/** @type {string | null} */ iso) => (iso ? format.date(iso, { day: '2-digit', month: '2-digit' }, $lang) : '');
 	const current = $derived(balance?.plan ? planOf(balance.plan.id, plans) : null);
 	const hoursLeft = $derived(balance?.plan?.hoursLeft == null ? null : Math.max(0, Math.floor(balance.plan.hoursLeft)));
 	// Few hours left in a package that is in use: say so, and name the next
@@ -99,7 +102,7 @@
 	const low = $derived(usesPackage && fewHoursLeft(hoursLeft, current));
 	const bigger = $derived(biggerPlan(current, plans));
 	const recommended = $derived(low && bigger ? bigger.id : null);
-	const perWeek = (/** @type {number} */ hours) => `≈ ${hoursPerWeek(hours)} h pro Woche`;
+	const perWeek = (/** @type {number} */ hours) => x.perWeek(hoursPerWeek(hours));
 	const share = $derived(current && hoursLeft != null ? Math.min(1, hoursLeft / current.hours) : null);
 
 	async function read() {
@@ -127,10 +130,10 @@
 		}
 	}
 	const plan = (/** @type {string | null} */ id) => {
-		if (id === null && !confirm('Paket zum Ende des Zeitraums beenden? Es wird nichts zurückerstattet.')) return;
+		if (id === null && !confirm(tr().pkg.endConfirm)) return;
 		act(async () => {
 			const r = await choosePlan(master, id);
-			return id ? `Paket gewählt${r.periodEnd ? `, läuft bis ${day(r.periodEnd)}` : ''}.` : 'Das Paket endet mit dem Zeitraum.';
+			return id ? tr().pkg.chosen(day(r.periodEnd)) : tr().pkg.endsWithPeriod;
 		});
 	};
 	/** @type {StripeCheckout | undefined} */
@@ -146,7 +149,7 @@
 			const chosen = planOf(id, plans);
 			const backup = !included(chosen) && withBackup && backupSold;
 			// Plan, backup, total and the renewal in one line above the Checkout.
-			ordering = chosen ? `${planHours(chosen)} im Monat: ${euro(chosen.priceCredits)}${included(chosen) ? ', Sicherung inklusive' : backup && backupOffer ? ` + Sicherung ${euro(backupOffer.monthCents)} = ${euro(chosen.priceCredits + backupOffer.monthCents)}` : backupSold ? ', ohne Sicherung' : ''}. Monatsabo, verlängert sich jeden Monat, kündbar zum Monatsende.` : '';
+			ordering = chosen ? tr().pkg.order({ hours: planHours(chosen), price: euro(chosen.priceCredits), backup: included(chosen) ? 'included' : backup && backupOffer ? 'with' : backupSold ? 'without' : 'none', ...(backup && backupOffer ? { backupPrice: euro(backupOffer.monthCents), total: euro(chosen.priceCredits + backupOffer.monthCents) } : {}) }) : '';
 			try {
 				secret = await startSubscription(master, id, { ...waiver, backup });
 			} catch (e) {
@@ -155,22 +158,24 @@
 					throw e;
 				}
 				const msg = e instanceof Error ? e.message : String(e);
-				if (!/noch nicht fertig eingerichtet|gerade abgeschaltet|antwortet 404/.test(msg)) throw e;
-				if (!confirm(`Das Abo per Karte geht gerade noch nicht (${msg}). Das Paket stattdessen aus deinem Guthaben bezahlen?`)) return '';
+				// By the service's code, not by the words of its message: those follow the language.
+				const failure = /** @type {{ code?: string, status?: number } | null} */ (e);
+				if (!(failure?.code === 'PRICE_TAX' || failure?.code === 'STRIPE_OFF' || failure?.status === 404)) throw e;
+				if (!confirm(tr().pkg.fromBalanceConfirm(msg))) return '';
 				const r = await choosePlan(master, id);
-				return `Paket gewählt, aus dem Guthaben bezahlt${r.periodEnd ? `, läuft bis ${day(r.periodEnd)}` : ''}.`;
+				return tr().pkg.chosenFromBalance(day(r.periodEnd));
 			}
 			const outcome = await checkout?.pay(secret);
-			if (outcome === 'closed') return 'Abo nicht abgeschlossen.';
-			if (outcome === 'failed') throw new Error('Die Bezahlseite ließ sich nicht laden. Bitte später noch einmal.');
-			note = 'Bezahlt – das Abo wird eingerichtet …';
+			if (outcome === 'closed') return tr().pkg.notSubscribed;
+			if (outcome === 'failed') throw new Error(tr().pkg.payPageFailed);
+			note = tr().pkg.settingUp;
 			const { booked } = await waitForSubscription(master);
-			return booked ? 'Abo abgeschlossen. Die Rechnung kommt von Stripe per E-Mail.' : 'Bezahlt; das Abo erscheint in Kürze.';
+			return booked ? tr().pkg.subscribed : tr().pkg.subscribedSoon;
 		});
 	const portal = () =>
 		act(async () => {
 			location.href = await subscriptionPortal(master);
-			return 'Stripe öffnet …';
+			return tr().pkg.stripeOpens;
 		});
 	const byStripe = $derived(balance?.plan?.billing === 'stripe');
 	// Extra hours: a quote first, the confirmation shows it, and only its
@@ -182,7 +187,7 @@
 		buy: async (hours) => {
 			await act(async () => {
 				const r = await fundVm(master, hours);
-				return `${hours} Stunden dazugekauft für ${euro(r.chargedCredits)}${r.expiration ? `, nutzbar bis ${day(r.expiration)}` : ''}.`;
+				return tr().pkg.boughtHours(hours, euro(r.chargedCredits), day(r.expiration));
 			});
 			justBought = !error;
 		},
@@ -195,7 +200,7 @@
 		purchase.ask(hours);
 	};
 	// What the balance and the package's hours are after a purchase.
-	const after = $derived(balance ? `Guthaben jetzt ${euro(balance.credits)}${hoursLeft != null ? `, ${hoursLeft} ${hoursLeft === 1 ? 'Stunde' : 'Stunden'} im Paket` : ''}.` : '');
+	const after = $derived(balance ? x.after(euro(balance.credits), hoursLeft != null ? x.hours(hoursLeft) : null) : '');
 
 	// Again whenever the profile changed (setup, start, stop).
 	$effect(() => {
@@ -222,35 +227,35 @@
 			<!-- One answer first: how long Paperless can run. Money and changes below. -->
 			{#if pays === 'app' || pays === 'wallet'}
 				<!-- The VM is not paid from the package: say what pays it, so 0 hours do not alarm. -->
-				<p class="big" data-testid="plan-left"><strong>Paperless anywhere läuft über {pays === 'app' ? 'die Adresse der App' : 'deine Wallet'}</strong></p>
-				<p class="hint" data-testid="plan-source">Das Paket wird dafür nicht verbraucht{hoursLeft != null ? ` (darin ${hoursLeft} ${hoursLeft === 1 ? 'Stunde' : 'Stunden'})` : ''}. Es zählt erst, wenn du beim Start „Le Space, aus meinem Paket“ wählst. Was {pays === 'app' ? 'die Adresse der App' : 'deine Wallet'} hält, steht unter „Erweitert“.</p>
+				<p class="big" data-testid="plan-left"><strong>{x.runsOver(pays)}</strong></p>
+				<p class="hint" data-testid="plan-source">{x.notUsed(hoursLeft != null ? x.hours(hoursLeft) : null, pays)}</p>
 			{:else}
 				<p class="big" data-testid="plan-left">
-					{#if hoursLeft != null}<strong>{hoursLeft} {hoursLeft === 1 ? 'Stunde' : 'Stunden'}</strong> Laufzeit übrig{balance.plan.periodEnd ? `, bis ${day(balance.plan.periodEnd)}` : ''}{:else}Paket aktiv{/if}
+					{#if hoursLeft != null}<strong>{x.hours(hoursLeft)}</strong> {x.left}{balance.plan.periodEnd ? x.until(day(balance.plan.periodEnd)) : ''}{:else}{x.active}{/if}
 				</p>
 			{/if}
 			{#if pays !== 'app' && pays !== 'wallet' && hoursLeft != null && current && hoursLeft <= current.hours}
-				<div class="meter" role="meter" aria-valuemin="0" aria-valuemax={current.hours} aria-valuenow={hoursLeft} aria-label="Verbleibende Stunden">
+				<div class="meter" role="meter" aria-valuemin="0" aria-valuemax={current.hours} aria-valuenow={hoursLeft} aria-label={x.meter}>
 					<span style="width: {(share ?? 1) * 100}%"></span>
 				</div>
 			{/if}
 			{#if low}
 				<div class="low" role="status" data-testid="plan-low">
-					<p>Nur noch {hoursLeft} {hoursLeft === 1 ? 'Stunde' : 'Stunden'} in diesem Monat. Reicht das nicht, nimm ein größeres Paket{appPays ? ' oder kauf Stunden dazu' : ''}.</p>
-					{#if bigger}<button class="upgrade" onclick={() => (byStripe ? portal() : plan(bigger.id))} disabled={busy} data-testid="plan-upgrade">{bigger.hours >= 720 ? 'Dauerbetrieb' : `${bigger.hours} Stunden im Monat`} für {euro(bigger.priceCredits)}</button>{/if}
+					<p>{x.low(x.hours(hoursLeft ?? 0), appPays)}</p>
+					{#if bigger}<button class="upgrade" onclick={() => (byStripe ? portal() : plan(bigger.id))} disabled={busy} data-testid="plan-upgrade">{x.upgrade(bigger.hours, bigger.hours >= 720, euro(bigger.priceCredits))}</button>{/if}
 				</div>
 			{/if}
 			<p class="hint" data-testid="plan-current">
-				{#if current && byStripe}Dein Abo: {planHours(current)} für {euro(current.priceCredits)} im Monat, per Karte über Stripe. {balance.plan.cancelAtPeriodEnd ? `Gekündigt, endet am ${day(balance.plan.renewsAt ?? balance.plan.periodEnd)}.` : `Es verlängert sich am ${day(balance.plan.renewsAt ?? balance.plan.periodEnd)}; jede Abbuchung mit Rechnung.`}{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}
-				{:else if current}Dein Paket: {planHours(current)} für {euro(current.priceCredits)} im Monat. {balance.plan.periodEnd ? `Es verlängert sich am ${day(balance.plan.periodEnd)} und wird dann aus deinem Guthaben bezahlt, solange es reicht.` : 'Es verlängert sich monatlich und wird aus deinem Guthaben bezahlt, solange es reicht.'} Beenden kannst du es jederzeit zum Monatsende.{#if hoursLeft != null && hoursLeft > current.hours}{' '}Mehr übrig als im Paket, weil du Stunden dazugekauft hast.{/if}{:else}Paket {balance.plan.id}{/if}
+				{#if current && byStripe}{x.yourSubscription(planHours(current), euro(current.priceCredits))} {balance.plan.cancelAtPeriodEnd ? x.cancelledEnds(day(balance.plan.renewsAt ?? balance.plan.periodEnd)) : x.renewsInvoice(day(balance.plan.renewsAt ?? balance.plan.periodEnd))}{#if hoursLeft != null && hoursLeft > current.hours}{' '}{x.moreThanPackage}{/if}
+				{:else if current}{x.yourPackage(planHours(current), euro(current.priceCredits))} {x.renewsFromBalance(day(balance.plan.periodEnd))} {x.endAnyMonth}{#if hoursLeft != null && hoursLeft > current.hours}{' '}{x.moreThanPackage}{/if}{:else}{x.packageId(balance.plan.id)}{/if}
 			</p>
 			{#if byStripe && !cancelling}
 				<!-- The cancel button (§ 312k BGB): always in sight, no fold, no portal. -->
-				<p class="row"><button class="small" onclick={() => balance?.plan && (cancelling = { plan: balance.plan, current })} disabled={busy} data-testid="plan-cancel">Verträge hier kündigen</button></p>
+				<p class="row"><button class="small" onclick={() => balance?.plan && (cancelling = { plan: balance.plan, current })} disabled={busy} data-testid="plan-cancel">{x.legal.cancel}</button></p>
 			{/if}
 		{:else}
-			<p class="big" data-testid="plan-none"><strong>Noch kein Paket</strong></p>
-			<p class="hint" data-testid="plan-none-hint">Ein Paket gibt dir jeden Monat Stunden für dein Paperless anywhere, die Sicherung inklusive. Bezahlt wird es als Monatsabo per Karte.</p>
+			<p class="big" data-testid="plan-none"><strong>{x.none}</strong></p>
+			<p class="hint" data-testid="plan-none-hint">{x.noneHint}</p>
 		{/if}
 
 		{#if cancelling}
@@ -259,7 +264,7 @@
 
 		{#if withdrawable.length && !withdrawing}
 			<!-- The withdrawal button (§ 356a BGB): in sight for as long as something can be withdrawn. -->
-			<p class="row"><button class="small" onclick={() => (withdrawing = true)} disabled={busy} data-testid="withdraw-open">Vertrag widerrufen</button></p>
+			<p class="row"><button class="small" onclick={() => (withdrawing = true)} disabled={busy} data-testid="withdraw-open">{x.legal.withdraw}</button></p>
 		{/if}
 		{#if withdrawing}
 			<Withdraw {master} {withdrawable} ondone={read} onclose={() => { withdrawing = false; read(); }} />
@@ -269,52 +274,52 @@
 			<BackupLine {master} backup={balance.backup} own={ownBackups} offer={backupOffer} plan={balance.plan} included={included(current)} {withdrawal} {termsRead} disabled={busy} onchanged={read} onportal={portal} onwaiver={readWithdrawal} />
 		{/if}
 
-		<p class="line"><span class="label">Guthaben</span> <strong data-testid="balance-euro">{euro(balance.credits)}</strong>
-			<span class="hint">{#if balance.reserved}davon {euro(balance.reserved)} für die laufende Instanz vorgemerkt · {/if}daraus werden Paket und Zusatzstunden bezahlt</span></p>
+		<p class="line"><span class="label">{x.balance}</span> <strong data-testid="balance-euro">{euro(balance.credits)}</strong>
+			<span class="hint">{#if balance.reserved}{x.reserved(euro(balance.reserved))}{/if}{x.balanceUse}</span></p>
 
 		{#if !balance.plan || choosing}
-			<p class="hint">{balance.plan ? 'Neues Paket wählen:' : 'Paket als Monatsabo per Karte wählen (Stripe, jederzeit zum Monatsende kündbar):'}</p>
+			<p class="hint">{balance.plan ? x.chooseNew : x.chooseFirst}</p>
 			{#if !balance.plan && allIncluded}
 				<p class="hint" data-testid="plan-backup-included">{includedText}</p>
 			{:else if !balance.plan && boxOffered && backupOffer}
 				<label class="with-backup" data-testid="plan-backup">
 					<input type="checkbox" bind:checked={withBackup} data-testid="plan-backup-box" />
-					<span><strong>mit Sicherung</strong> (+ {euro(backupOffer.monthCents)} im Monat){#if backupOffer.copies}: {backupOffer.copies} verschlüsselte Kopien deiner Dokumente{/if}
-						<br /><small class="hint">Ohne Sicherung sind deine Dokumente nach einem Stopp weg. Hinzubuchen geht auch später, hier in der App.</small></span>
+					<span><strong>{x.withBackup}</strong> {x.withBackupPrice(euro(backupOffer.monthCents))}{#if backupOffer.copies}{x.withBackupCopies(backupOffer.copies)}{/if}
+						<br /><small class="hint">{x.withBackupHint}</small></span>
 				</label>
 			{/if}
 			{#if !balance.plan}<Waiver {withdrawal} bind:checked={waivedPlan} testid="plan-waiver" />{/if}
 			<div class="plans">
 				{#each plans as p (p.id)}
 					<button class="plan-choice" class:current={balance.plan?.id === p.id} onclick={() => (balance?.plan ? plan(p.id) : subscribe(p.id))} disabled={busy || balance.plan?.id === p.id || (!balance.plan && planBlocked)} data-testid={`plan-${p.id}`}>
-						{#if recommended === p.id}<em class="badge">Empfehlung</em>{/if}
-						<span>{p.hours >= 720 ? 'Dauerbetrieb, rund um die Uhr' : `${p.hours} Stunden im Monat`}</span><strong data-testid={`plan-price-${p.id}`}>{euro(balance.plan ? p.priceCredits : planTotal(p))}</strong><small class="hint">{perWeek(p.hours)}{included(p) ? ' · Sicherung inklusive' : !balance.plan && withBackup && backupSold ? ' · mit Sicherung' : ''}</small>
+						{#if recommended === p.id}<em class="badge">{x.recommended}</em>{/if}
+						<span>{x.planName(p.hours, p.hours >= 720)}</span><strong data-testid={`plan-price-${p.id}`}>{euro(balance.plan ? p.priceCredits : planTotal(p))}</strong><small class="hint">{perWeek(p.hours)}{included(p) ? x.tagIncluded : !balance.plan && withBackup && backupSold ? x.tagWith : ''}</small>
 					</button>
 				{/each}
 			</div>
 		{/if}
 
 		<details class="more" bind:open={moreOpen}>
-			<summary>Aufladen, Stunden dazukaufen, Paket ändern</summary>
+			<summary data-testid="package-more">{x.more}</summary>
 			<div class="group">
-				<p class="label">Guthaben aufladen (per Karte)</p>
+				<p class="label">{x.topUp}</p>
 				<TopUp {master} credits={balance.credits} {withdrawal} ready={termsRead} onbooked={read} onwaiver={readWithdrawal} />
 			</div>
 			{#if balance.plan && appPays}
 				<div class="group">
-					<p class="label">Mehr Stunden für diesen Monat, aus dem Guthaben</p>
-					<p class="row">{#each [5, 10, 30] as h (h)}<button class="chip" onclick={() => buyHours(h)} disabled={busy || purchaseLocked(buying)} data-testid={`buy-${h}`}>{buying.phase === 'quoting' && buying.hours === h ? 'Preis …' : `+${h} Stunden`}</button>{/each}</p>
-					<HourQuote quote={buying.phase === 'open' ? buying.quote : null} short={buying.phase === 'short'} hoursAsked={buying.hours} topUpHint="Erst Guthaben aufladen (oben, per Karte), dann noch einmal kaufen." confirmLabel="Kaufen" disabled={busy || buying.phase === 'buying'} onconfirm={() => purchase.confirm()} oncancel={() => purchase.cancel()} />
+					<p class="label">{x.moreHours}</p>
+					<p class="row">{#each [5, 10, 30] as h (h)}<button class="chip" onclick={() => buyHours(h)} disabled={busy || purchaseLocked(buying)} data-testid={`buy-${h}`}>{buying.phase === 'quoting' && buying.hours === h ? x.quoting : x.plusHours(h)}</button>{/each}</p>
+					<HourQuote quote={buying.phase === 'open' ? buying.quote : null} short={buying.phase === 'short'} hoursAsked={buying.hours} topUpHint={x.topUpHint} confirmLabel={x.buy} disabled={busy || buying.phase === 'buying'} onconfirm={() => purchase.confirm()} oncancel={() => purchase.cancel()} />
 					{#if buying.error}<p class="warn" role="alert" data-testid="buy-error">{buying.error}</p>{/if}
 				</div>
 			{/if}
 			{#if balance.plan}
 				<p class="row">
 					{#if byStripe}
-						<button class="link" onclick={portal} disabled={busy} data-testid="plan-portal">Abo verwalten (wechseln, Karte, Rechnungen)</button>
+						<button class="link" onclick={portal} disabled={busy} data-testid="plan-portal">{x.manage}</button>
 					{:else}
-						<button class="link" onclick={() => (choosing = !choosing)} data-testid="plan-change">{choosing ? 'Doch nicht wechseln' : 'Paket wechseln'}</button>
-						<button class="link" onclick={() => plan(null)} disabled={busy} data-testid="plan-end">Paket beenden</button>
+						<button class="link" onclick={() => (choosing = !choosing)} data-testid="plan-change">{choosing ? x.changeBack : x.change}</button>
+						<button class="link" onclick={() => plan(null)} disabled={busy} data-testid="plan-end">{x.end}</button>
 					{/if}
 				</p>
 			{/if}
@@ -322,19 +327,19 @@
 		<!-- Always there and outside the fold, so the invoices are found: the list,
 		     or why it is empty; the subscription's own invoices are at Stripe. -->
 		<details class="purchases" data-testid="purchases">
-			<summary>Aufladungen und Rechnungen{purchases?.length ? ` (${purchases.length})` : ''}</summary>
-			{#if purchasesError}<p class="warn">Die Aufladungen ließen sich gerade nicht lesen: {purchasesError}</p>
+			<summary>{x.purchases(purchases?.length ?? 0)}</summary>
+			{#if purchasesError}<p class="warn">{x.purchasesError(purchasesError)}</p>
 			{:else if purchases === null}<p class="hint">…</p>
-			{:else if !purchases.length}<p class="hint">Noch keine Aufladung.</p>
+			{:else if !purchases.length}<p class="hint">{x.noPurchases}</p>
 			{:else}
 				<ul>
 					{#each purchases as p (p.id)}
-						<li data-testid="purchase">{p.at ? new Date(p.at).toLocaleDateString('de-DE') : '–'} · {euro(p.cents)}
-							{#if p.invoiceUrl}· <a href={p.invoiceUrl} target="_blank" rel="noopener noreferrer">Rechnung (Stripe)</a>{:else}<small class="hint">· Rechnung folgt</small>{/if}</li>
+						<li data-testid="purchase">{p.at ? format.date(p.at, undefined, $lang) : '–'} · {euro(p.cents)}
+							{#if p.invoiceUrl}· <a href={p.invoiceUrl} target="_blank" rel="noopener noreferrer">{x.invoice}</a>{:else}<small class="hint">{x.invoiceLater}</small>{/if}</li>
 					{/each}
 				</ul>
 			{/if}
-			{#if byStripe}<p><button class="link" onclick={portal} disabled={busy} data-testid="purchases-portal">Rechnungen des Abos bei Stripe</button></p>{/if}
+			{#if byStripe}<p><button class="link" onclick={portal} disabled={busy} data-testid="purchases-portal">{x.subscriptionInvoices}</button></p>{/if}
 		</details>
 		{#if note}<p class="hint" role="status" data-testid="plan-note">{note}</p>{/if}
 		{#if justBought && after}<p class="hint" data-testid="buy-after">{after}</p>{/if}
@@ -345,8 +350,8 @@
 <section class="card package" data-testid="package">
 	{#if balance && selfPays}
 		<details class="self" bind:open={selfOpen} data-testid="package-self">
-			<summary><strong>Du zahlst die Anbieter selbst.</strong> <span class="hint">Pakete von Le Space ansehen</span></summary>
-			<p class="hint">{pays === 'app' ? 'Die Adresse der App' : 'Deine Wallet'} bezahlt die VM bei Aleph direkt; ein Paket brauchst du dafür nicht. Ein Paket von Le Space ist der Weg ohne Wallet und ohne Kryptowerte.</p>
+			<summary><strong>{x.selfPays}</strong> <span class="hint">{x.selfSee}</span></summary>
+			<p class="hint">{x.selfHint(pays === 'app' ? 'app' : 'wallet')}</p>
 			{@render content()}
 		</details>
 	{:else if balance}
@@ -357,7 +362,7 @@
 		<p class="hint">…</p>
 	{/if}
 </section>
-<StripeCheckout bind:this={checkout} label="Abo abschließen" summary={ordering} />
+<StripeCheckout bind:this={checkout} label={x.checkoutLabel} summary={ordering} />
 
 <style>
 	.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; margin: 0 0 1rem; box-shadow: var(--shadow); }
