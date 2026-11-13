@@ -6,6 +6,17 @@ import { expect, test } from '@playwright/test';
 
 const PAGES = ['/', '/en/', '/lizenzen/', '/app/'];
 
+// The credits service this build was given, as svelte.config.js reads it: a
+// release build has one, and the policy then names it for connections and as
+// the only thing that may be framed. A build without one frames nothing.
+const credits = (() => {
+	try {
+		return new URL(process.env.VITE_CREDITS_URL ?? '').origin;
+	} catch {
+		return null;
+	}
+})();
+
 test('every page carries the policy in its HTML, and it allows no inline script, eval or foreign source', async ({ request }) => {
 	// The fallback page for unknown paths is checked as the file the build wrote.
 	const sources = [...PAGES.map((path) => ({ path, html: request.get(path).then((r) => r.text()) })), { path: 'build/200.html', html: readFile(new URL('../build/200.html', import.meta.url), 'utf8') }];
@@ -20,9 +31,10 @@ test('every page carries the policy in its HTML, and it allows no inline script,
 		expect(directive('object-src'), path).toBe("'none'");
 		expect(directive('base-uri'), path).toBe("'self'");
 		expect(directive('form-action'), path).toBe("'self'");
-		// Connections only over TLS; nothing framed in a build without a credits service.
-		expect(directive('connect-src'), path).toBe("'self' https: wss:");
-		expect(directive('frame-src'), path).toBe("'none'");
+		// Connections only over TLS, plus the credits service by name; framed is
+		// that service's payment page and nothing else.
+		expect(directive('connect-src'), path).toBe(credits ? `'self' https: wss: ${credits}` : "'self' https: wss:");
+		expect(directive('frame-src'), path).toBe(credits ?? "'none'");
 		expect(policy, path).not.toMatch(/script-src[^;]*('unsafe-inline'|'unsafe-eval'|\*|https:|data:)/);
 		// The policy stands before the first script.
 		expect(html.indexOf('content-security-policy'), path).toBeLessThan(html.indexOf('<script'));
