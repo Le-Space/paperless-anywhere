@@ -200,6 +200,17 @@ export const texts = {
 				{ q: 'Was ist Paperless-ngx?', a: 'Paperless-ngx ist die Open-Source-Software, die in deiner VM läuft: Sie liest Dokumente ein, erkennt den Text und macht sie durchsuchbar. Paperless anywhere startet sie für dich auf Abruf in einer vertraulichen VM und sichert sie danach.' },
 				{ q: 'Bekommen alle dieselbe Software?', a: 'Ja. Das System ist für alle gleich. Heute öffnet eine Passphrase je Image die Platte; alle VMs dieses Images teilen sie, und Le Space kennt sie. Was deine VM schreibt, liegt deshalb in einem Datenbereich mit einem Schlüssel, den nur sie hat. In Vorbereitung ist, dass ein geprüfter Build-Dienst das Image für jede Person einzeln versiegelt, mit einer Passphrase aus ihrem Tresor. Wie man Image und Dienst dann nachprüft, beschreibt die Dokumentation.' },
 				{ q: 'Brauche ich ein Konto?', a: 'Für den Tresor nicht. Ein Passkey auf deinem Gerät öffnet ihn; die 24 Wörter sind der Weg zurück, falls das Gerät fehlt. Le Space kann den Tresor weder öffnen noch wiederherstellen. Beim Kauf eines Pakets fragt der Zahlungsdienst Stripe nach einer E-Mail-Adresse, für Beleg und Abo.' },
+				{
+					q: 'Wie sicher ist mein eigenes Gerät dabei?',
+					a: 'Deine Dokumente liegen verschlüsselt in der VM und in den Sicherungen, und die Schlüssel dazu entstehen nur bei dir, wenn du den Tresor öffnest. Die Grenze ist der Browser auf deinem Gerät, wie bei jeder Web-App und jedem Passwortmanager im Browser: Was dort offen liegt, kann eine Browser-Erweiterung mit Zugriff auf die Seite oder Schadsoftware mitlesen. An den Passkey selbst kommt sie nicht, und ohne deine Freigabe per Fingerabdruck oder PIN öffnet er nichts. Mit wenig Aufwand bist du auf der sicheren Seite:',
+					tips: [
+						'Nutze für Paperless anywhere ein eigenes Browser-Profil ohne Erweiterungen und installiere die App dort.',
+						'Oder nimm ein privates Fenster, ein Telefon oder ein Tablet.',
+						'Gib die 24 Wörter nur in der App auf paperless.le-space.de ein und bewahre sie auf Papier auf. Der Passkey gilt nur für diese Adresse; nach den Wörtern kann auch eine gefälschte Seite fragen.',
+						'Sperre den Tresor nach der Arbeit mit „Sperren“.'
+					],
+					more: { text: 'Die Einzelheiten stehen im Sicherheitsmodell.', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/security-model.md#your-own-device' }
+				},
 				{ q: 'Was kostet es, wenn Paperless anywhere nicht läuft?', a: 'Stunden verbraucht nur eine laufende Instanz. Dein Monatspaket läuft aber weiter und wird jeden Monat berechnet, bis du kündigst. Die Sicherung ist nicht im Paket enthalten: Sie kostet extra, monatlich zum Paket dazu oder einmalig für ein Jahr (siehe Preise). Nach dem Ende des bezahlten Zeitraums entstehen keine neuen Sicherungen; die vorhandenen bleiben noch mindestens 30 Tage abrufbar.' }
 			]
 		},
@@ -405,6 +416,17 @@ export const texts = {
 				{ q: 'What is Paperless-ngx?', a: 'Paperless-ngx is the open source software that runs in your VM: it takes in documents, recognises their text and makes them searchable. Paperless anywhere starts it for you on demand in a confidential VM and backs it up afterwards.' },
 				{ q: 'Does everyone get the same software?', a: 'Yes. The system is the same for everyone. Today one passphrase per image opens the disk; every VM of that image shares it, and Le Space knows it. That is why what your VM writes goes into a data area with a key only the VM has. In preparation: an attested builder seals the image for each person separately, with a passphrase from their vault. The documentation says how image and builder can then be checked.' },
 				{ q: 'Do I need an account?', a: 'Not for the vault. A passkey on your device opens it; the 24 words are the way back in if the device is missing. Le Space can neither open nor recover the vault. When you buy a package, the payment service Stripe asks for an e-mail address, for the receipt and the subscription.' },
+				{
+					q: 'How safe is my own device in this?',
+					a: 'Your documents are encrypted in the VM and in the backups, and the keys to them come into being only with you, when you open the vault. The limit is the browser on your device, as with every web app and every password manager in a browser: what lies open there can be read by a browser extension with access to the page, or by malware. It cannot get at the passkey itself, and without your approval by fingerprint or PIN the passkey opens nothing. A little care puts you on the safe side:',
+					tips: [
+						'Use a browser profile of its own, without extensions, for Paperless anywhere, and install the app there.',
+						'Or take a private window, a phone or a tablet.',
+						'Enter the 24 words only in the app at paperless.le-space.de and keep them on paper. The passkey works for this address only; a fake page can still ask for the words.',
+						'Lock the vault when you are done, with “Sperren”.'
+					],
+					more: { text: 'The details are in the security model.', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/security-model.md#your-own-device' }
+				},
 				{ q: 'What does it cost while Paperless anywhere is not running?', a: 'Only a running instance uses hours. Your monthly package runs on, though, and is billed every month until you cancel. The backup is not included in the package: it costs extra, monthly on top of the package or once for a year (see Prices). After the end of the paid period no new backups are made; the existing ones stay retrievable for at least 30 more days.' }
 			]
 		},
