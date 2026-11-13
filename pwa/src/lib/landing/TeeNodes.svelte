@@ -4,7 +4,7 @@
 	// a tooltip on hover. Here the ring is the confidential-capable nodes and
 	// the centre is "your VM". No libp2p, nothing is dialled: one GET.
 	import { onMount } from 'svelte';
-	import { flag, loadTeeNodes } from './tee-nodes.js';
+	import { flag, loadTeeNodes, operatorCount } from './tee-nodes.js';
 	// Where the nodes stand, roughly (scripts/crn-places.mjs, refreshed per release).
 	import crnPlaces from './crn-places.json';
 
@@ -232,6 +232,9 @@
 		{:else}<strong>{t.count(nodes.length, fitting)}</strong>{/if}
 		<span class="legend"><i class="dot fit"></i>{t.fits} <i class="dot full"></i>{t.full}</span>
 	</p>
+	{#if nodes.length}
+		<p class="resilience" data-testid="nodes-resilience"><strong>{t.resilience(nodes.length, operatorCount(nodes), countries.length)}</strong></p>
+	{/if}
 	{#if countries.length}
 		<ul class="countries" aria-label={t.countries}>
 			{#each countries as [code, count] (code)}<li title={countryName(code)}><span class="flag">{flag(code)}</span>{countryName(code)} <span class="data">{count}</span></li>{/each}
@@ -251,6 +254,7 @@
 </div>
 
 <style>
+	.resilience { margin: 0.75rem 0 0.25rem; }
 	.viz { margin: 0; }
 	canvas { display: block; width: 100%; height: 380px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 	.caption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1rem; margin-top: 0.75rem; font-size: 0.9rem; }

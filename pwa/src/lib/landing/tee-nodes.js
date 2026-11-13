@@ -9,7 +9,7 @@ export const CRN_LIST = 'https://crns-list.aleph.sh/crns.json?filter_inactive=tr
 export const PAPERLESS_VM = Object.freeze({ vcpus: 2, memoryKiB: 4 * 1024 ** 2, diskKiB: 40 * 1024 ** 2 });
 
 /** @typedef {{ country: string | null, city: string | null }} Place */
-/** @typedef {{ hash: string, name: string, score: number, freeVcpus: number, freeMemoryGiB: number, freeDiskGiB: number, fits: boolean, place: Place | null }} TeeNode */
+/** @typedef {{ hash: string, name: string, score: number, freeVcpus: number, freeMemoryGiB: number, freeDiskGiB: number, fits: boolean, place: Place | null, owner: string }} TeeNode */
 
 /** A country code as its flag emoji ("FR" → 🇫🇷); systems without flag emoji show the letters. @param {string | null | undefined} code */
 export const flag = (code) =>
@@ -37,11 +37,21 @@ export function teeNodes(body, places = {}) {
 				freeMemoryGiB: Math.floor(memKiB / 1024 ** 2),
 				freeDiskGiB: Math.floor(diskKiB / 1024 ** 2),
 				fits: freeVcpus >= PAPERLESS_VM.vcpus && memKiB >= PAPERLESS_VM.memoryKiB && diskKiB >= PAPERLESS_VM.diskKiB,
-				place: places[n.hash] ?? null
+				place: places[n.hash] ?? null,
+				// Who runs it, as the node list names it: the account that registered the node.
+				owner: String(n.owner ?? '').toLowerCase()
 			};
 		})
 		.sort((a, b) => b.score - a.score);
 }
+
+/**
+ * How many different operators the nodes have. A node without a named
+ * operator counts as one of its own, so the number is never too large by
+ * guessing that unknown ones differ, nor too small by lumping them together.
+ * @param {TeeNode[]} nodes
+ */
+export const operatorCount = (nodes) => new Set(nodes.map((n) => n.owner || `unnamed:${n.hash}`)).size;
 
 /** @param {{ fetch?: typeof fetch, url?: string, places?: Record<string, Place> }} [options] */
 export async function loadTeeNodes({ fetch: fetchImpl = fetch, url = CRN_LIST, places = {} } = {}) {

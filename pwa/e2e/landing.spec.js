@@ -5,6 +5,8 @@ const crn = (name, freeGiB) => ({
 	hash: name.padEnd(64, '0'),
 	name,
 	score: 0.9,
+	// Both made-up nodes belong to one made-up operator.
+	owner: '0x00000000000000000000000000000000000000c1',
 	confidential_support: true,
 	system_usage: { active: true, cpu: { count: 8, load_average: { load1: 1 } }, mem: { available_kB: freeGiB * GiB }, disk: { available_kB: 500 * GiB } }
 });
@@ -20,6 +22,22 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await page.goto('/');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Deine Dokumente. Nur wach, wenn du sie brauchst.');
 	await expect(page.locator('#nodes')).toContainText('2 TEE-Knoten, 1 davon mit Platz');
+	// Resilience, with the live numbers and without claiming more than is true.
+	await expect(page.locator('#nodes h2')).toHaveText('Ausfallsicher: kein einzelnes Rechenzentrum');
+	await expect(page.getByTestId('nodes-resilience')).toHaveText(/^2 vertrauliche Knoten von 1 Betreiber/);
+	await expect(page.getByTestId('nodes-depends')).toContainText('Was noch an Le Space hängt');
+	await expect(page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Ausfallsicher' })).toHaveAttribute('href', '#nodes');
+	// What a consumer has to see with the prices: the end price and the terms.
+	await expect(page.getByTestId('prices-vat')).toHaveText('Alle Preise inkl. 19 % USt.');
+	const legal = page.getByTestId('prices-legal');
+	await expect(legal.getByRole('link', { name: 'AGB' })).toHaveAttribute('href', 'https://credits.le-space.de/agb');
+	await expect(legal.getByRole('link', { name: 'Widerrufsbelehrung' })).toHaveAttribute('href', 'https://credits.le-space.de/agb');
+	await expect(page.getByTestId('footer-terms')).toHaveAttribute('href', 'https://credits.le-space.de/agb');
+	await expect(page.getByTestId('footer-withdrawal')).toHaveText('Widerrufsbelehrung');
+	await expect(page.locator('#prices .lead')).toHaveText('Wähle ein Monatspaket für die Stunden, die du im Monat brauchst. Rund um die Uhr nur, wenn du es wirklich brauchst.');
+	// Who it is for, and the way to "Nachprüfbar" from the top.
+	await expect(page.getByTestId('audience')).toContainText('Buchhaltung und Steuerberatung');
+	await expect(page.getByTestId('trust-hint')).toHaveAttribute('href', '#trust');
 	await expect(page.locator('#prices')).toContainText('4,90 €');
 	await expect(page.locator('#prices')).toContainText('Dauerbetrieb, rund um die Uhr');
 	await expect(page.getByTestId('prices-included')).toHaveText('In jedem Paket enthalten: bis 8 GB Dokumente und ihre verschlüsselten Sicherungen in drei Kopien.');

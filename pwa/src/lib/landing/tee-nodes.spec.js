@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { flag, teeNodes } from './tee-nodes.js';
+import { flag, teeNodes, operatorCount } from './tee-nodes.js';
 
 const GiB = 1024 ** 2; // in kB
 const node = (over = {}) => ({
@@ -44,5 +44,17 @@ describe('flag', () => {
 		expect(flag('FR')).toBe('🇫🇷');
 		expect(flag('de')).toBe('');
 		expect(flag(null)).toBe('');
+	});
+});
+
+describe('operatorCount', () => {
+	const node = (hash, owner) => ({ hash, owner });
+	it('counts the accounts that run the nodes, whatever their spelling', () => {
+		expect(operatorCount(/** @type {any} */ ([node('a', '0xaa'), node('b', '0xaa'), node('c', '0xbb')]))).toBe(2);
+		expect(teeNodes({ crns: [{ hash: 'a', owner: '0xAbC', confidential_support: true }, { hash: 'b', owner: '0xabc', confidential_support: true }] }).map((n) => n.owner)).toEqual(['0xabc', '0xabc']);
+	});
+	it('takes a node without a named operator as one of its own', () => {
+		expect(operatorCount(/** @type {any} */ ([node('a', ''), node('b', ''), node('c', '0xbb')]))).toBe(3);
+		expect(operatorCount([])).toBe(0);
 	});
 });
