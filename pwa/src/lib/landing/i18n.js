@@ -49,10 +49,10 @@ export const texts = {
 		},
 		points: [
 			{ t: 'Ausfallsicher', d: 'Kein einzelnes Rechenzentrum: Gerechnet wird auf Knoten mehrerer Betreiber, gesichert bei mehreren unabhängigen Speicheranbietern. Fällt ein Knoten aus, startest du auf einem anderen.' },
-			{ t: 'Vertraulich und nachprüfbar', d: 'Speicher und Platte der VM sind verschlüsselt; der Betreiber des Knotens kann sie nicht lesen. Was der Prozessor bestätigt und was noch offen ist, steht unter „Nachprüfbar“.' },
+			{ t: 'Vertraulich und nachprüfbar', d: 'Speicher und Platte der VM sind verschlüsselt; der Betreiber des Knotens kann sie nicht lesen. Was der Prozessor bestätigt, musst du uns nicht glauben: Du kannst es prüfen. Was noch offen ist, steht daneben, unter „Nachprüfbar“.' },
 			{ t: 'Rund um die Uhr oder nach Gebrauch', d: 'Ein Monatspaket, das zu deinem Betrieb passt: Dauerbetrieb rund um die Uhr, oder ein Stundenpaket zum Starten, Arbeiten und Stoppen.' }
 		],
-		trustHint: 'Nachprüfbar: wer welchen Schlüssel hat, was die Hardware bestätigt und was noch offen ist',
+		trustHint: 'Vertrauen ist gut, nachprüfen ist besser: wer welchen Schlüssel hat, was die Hardware bestätigt und was noch offen ist',
 		audience: {
 			title: 'Für wen?',
 			lead: 'Für alle, die ihr Dokumentenarchiv nicht einem einzelnen Rechenzentrum anvertrauen wollen:',
@@ -130,7 +130,8 @@ export const texts = {
 			endorsed: 'empfohlen',
 		},
 		trust: {
-			title: 'Nachprüfbar: wer welchen Schlüssel hat',
+			title: 'Vertrauen ist gut. Nachprüfen ist besser.',
+			sub: 'Nachprüfbar: wer welchen Schlüssel hat',
 			lead: 'Wo das Image entsteht, wie seine Platte verschlüsselt ist, wer welches Geheimnis kennt und was die Hardware bestätigt. Dazu steht hier, was noch offen ist und wo du jede Aussage selbst prüfen kannst.',
 			diagramLabel: 'Schaubild: Ein GitHub-Runner baut das Image und verschlüsselt es mit LUKS; es liegt bei Aleph. Es läuft in einer vertraulichen VM (AMD SEV-SNP): Gemessen werden Firmware, Kernel, Initrd und Besitzer, nicht das Image; was die VM schreibt, liegt in einem Datenbereich mit einem Zufallsschlüssel, den nur sie hat. Sicherungen werden in der VM mit age verschlüsselt und bei Filecoin abgelegt. Dein Browser prüft den Nachweis der VM und schickt erst dann Passphrase und Geheimnisse.',
 			diagram: {
@@ -271,10 +272,10 @@ export const texts = {
 		},
 		points: [
 			{ t: 'Resilient', d: 'No single data centre: it computes on nodes of several operators and backs up to several independent storage providers. If a node fails, you start on another.' },
-			{ t: 'Confidential and checkable', d: 'The VM’s memory and disk are encrypted; the node’s operator cannot read them. What the processor confirms and what is still open is under “Verify”.' },
+			{ t: 'Confidential and checkable', d: 'The VM’s memory and disk are encrypted; the node’s operator cannot read them. What the processor confirms you need not take from us: you can check it. What is still open is listed beside it, under “Verify”.' },
 			{ t: 'Around the clock or pay as you use', d: 'A monthly package that fits how you work: always on, around the clock, or a package of hours to start, work and stop.' }
 		],
-		trustHint: 'Checkable: who holds which key, what the hardware confirms and what is still open',
+		trustHint: 'Don’t trust, verify: who holds which key, what the hardware confirms and what is still open',
 		audience: {
 			title: 'Who is it for?',
 			lead: 'For everyone who does not want to entrust their document archive to a single data centre:',
@@ -352,7 +353,8 @@ export const texts = {
 			endorsed: 'endorsed',
 		},
 		trust: {
-			title: 'Checkable: who holds which key',
+			title: 'Don’t trust. Verify.',
+			sub: 'Checkable: who holds which key',
 			lead: 'Where the image is built, how its disk is encrypted, who knows which secret and what the hardware confirms. With the points that are still open, and where you can check each claim yourself.',
 			diagramLabel: 'Diagram: a GitHub runner builds the image and encrypts it with LUKS; it is stored on Aleph. It runs in a confidential VM (AMD SEV-SNP): firmware, kernel, initrd and owner are measured, the image is not; what the VM writes goes into a data area with a random key only the VM has. Backups are encrypted with age inside the VM and stored on Filecoin. Your browser checks the VM’s attestation and only then sends the passphrase and secrets.',
 			diagram: {
