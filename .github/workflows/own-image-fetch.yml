@@ -1,0 +1,97 @@
+name: "Own image: fetch through a relay"
+
+# Step 3 of #202: the app's own code has a published image builder seal the
+# image for a throwaway vault and fetches the sealed image back through an
+# attest relay, from a GitHub runner instead of a busy workstation. It stops
+# before the upload: nothing is stored, no key is needed, and the builder is
+# told to drop the image. The builder must run (workflow "Image builder on
+# Aleph", action "publish") and keeps costing until it is deleted there.
+#
+#   relay "le-space": Le Space's relays as the app finds them on Aleph.
+#   relay "runner":   relay-button's attest relay on this runner, with no
+#                     byte or time limit per connection: what the builder and
+#                     the path to it carry, without a relay's limits.
+
+on:
+  workflow_dispatch:
+    inputs:
+      vprogram:
+        description: The builder's V-PROGRAM item hash (64 hex).
+        required: true
+      crn:
+        description: The node it runs on (full hash).
+        required: true
+      plain_sha256:
+        description: SHA-256 of the plain image the builder holds (64 hex).
+        required: true
+      relay:
+        description: '"le-space" or "runner" (see the top of the workflow).'
+        required: true
+        default: le-space
+        type: choice
+        options:
+          - le-space
+          - runner
+
+permissions:
+  contents: read
+
+concurrency:
+  group: own-image-fetch
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.x
+
+      - name: Check the inputs
+        env:
+          VPROGRAM: ${{ inputs.vprogram }}
+          CRN: ${{ inputs.crn }}
+          PLAIN_SHA256: ${{ inputs.plain_sha256 }}
+        run: |
+          for v in "$VPROGRAM" "$CRN" "$PLAIN_SHA256"; do [[ "$v" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::vprogram, crn and plain_sha256 are 64 hex"; exit 1; }; done
+
+      - name: The attest relay on this runner
+        if: inputs.relay == 'runner'
+        run: |
+          git clone -q --depth 1 --branch v0.12.4 https://github.com/NiKrause/relay-button.git "$RUNNER_TEMP/relay-button"
+          cd "$RUNNER_TEMP/relay-button"
+          pnpm install --frozen-lockfile --prefer-offline --filter @le-space/attest-relay... > /dev/null
+          ATTEST_RELAY_HOST=127.0.0.1 ATTEST_RELAY_PORT=8787 ATTEST_RELAY_MAX_BYTES=2000000000 ATTEST_RELAY_MAX_SECONDS=7200 \
+            nohup node packages/attest-relay/src/server.ts > "$RUNNER_TEMP/attest-relay.log" 2>&1 &
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8787/health && break; sleep 1; done
+
+      - name: Seal for a throwaway vault and fetch it back
+        working-directory: pwa
+        env:
+          VPROGRAM: ${{ inputs.vprogram }}
+          CRN: ${{ inputs.crn }}
+          PLAIN_SHA256: ${{ inputs.plain_sha256 }}
+          RELAY: ${{ inputs.relay == 'runner' && 'ws://127.0.0.1:8787/attest' || '' }}
+          FETCH_RESULT: ${{ runner.temp }}/fetch.json
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec vite-node scripts/own-image-fetch.mjs
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Own image: fetch through a relay (${{ inputs.relay }})"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/fetch.json" 2>/dev/null || echo "no result"
+            echo
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ -f "$RUNNER_TEMP/attest-relay.log" ] && tail -20 "$RUNNER_TEMP/attest-relay.log" || true

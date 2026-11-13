@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { recoverMessageAddress } from 'viem';
 import { imagePassphrase } from './keys/derive.js';
-import { BUILDER, BuilderError, LANES, PIECE_BYTES, RUN_BYTES, buildOwnImage, builderOpener, checkBuilder, hasOwnImage, sources, storeMessage } from './own-image.js';
+import { BUILDER, BuilderError, LANES, PIECE_BYTES, RUN_BYTES, SLICE_BYTES, buildOwnImage, builderOpener, checkBuilder, hasOwnImage, inSlices, sources, storeMessage } from './own-image.js';
 import { sha256Hex } from './vm.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -158,12 +158,13 @@ describe('an image of one\'s own', () => {
 	 * at most `maxBytes` down, and one client may hold `maxOpen` at a time.
 	 * `breakAt` lists connections (by number, from 1) that die at their first image piece.
 	 */
-	function relayedBuilder(big, { maxBytes = RELAY_BYTES / SCALE, maxOpen = 4, breakAt = [], refuseAt = 0, gone = false } = {}) {
+	function relayedBuilder(big, { maxBytes = RELAY_BYTES / SCALE, maxOpen = 4, breakAt = [], refuseAt = 0, gone = false, unreachableAt = [], dropFails = 0 } = {}) {
 		const seen = { opened: 0, open: 0, mostOpen: 0, builds: 0, deleted: 0, polls: 0 };
 		const answer = (status, body) => ({ status, body: encoder.encode(JSON.stringify(body)) });
 		const open = async () => {
 			const number = ++seen.opened;
 			if (number === refuseAt) throw new Error('measurement mismatch');
+			if (unreachableAt.includes(number)) throw new BuilderError('not reachable just now', 'unreachable');
 			if (seen.open >= maxOpen) throw new Error('connection to the relay closed: 429');
 			seen.open++;
 			seen.mostOpen = Math.max(seen.mostOpen, seen.open);
@@ -181,7 +182,7 @@ describe('an image of one\'s own', () => {
 					if (closed) throw new Error('the connection closed while waiting for the answer');
 					if (method === 'POST' && path === '/build') return ++seen.builds, answer(202, { job });
 					if (method === 'GET' && path === `/job/${job}`) return answer(200, ++seen.polls < 2 ? { state: 'building' } : { state: 'built', cid, size: big.length });
-					if (method === 'DELETE') return ++seen.deleted, answer(200, { removed: true });
+					if (method === 'DELETE') return seen.deleteTries = (seen.deleteTries ?? 0) + 1, seen.deleteTries <= dropFails ? Promise.reject(new Error('the connection closed')) : (++seen.deleted, answer(200, { removed: true }));
 					if (gone) return answer(404, { error: 'no such job' });
 					const [, a, b] = /^bytes=(\d+)-(\d+)$/.exec(init.headers.range);
 					down += Number(b) - Number(a) + 1;
@@ -307,7 +308,7 @@ describe('an image of one\'s own', () => {
 		const load = async () => ({
 			wasm: {},
 			relays: ['a', 'b', 'c'],
-			relayTransports: ([relay]) => (route) => ({ relay, route }),
+			relayTransports: ([relay]) => (route) => ({ relay, route, onData: () => {} }),
 			attestGuest: async ({ transport, expectedMeasurements, expectedPolicy }) => {
 				dialled.push(transport.relay);
 				expect(transport.route).toBe(builder.route);
@@ -329,5 +330,35 @@ describe('an image of one\'s own', () => {
 		works.b = false;
 		await expect(open()).rejects.toThrow(/attestation rejected/);
 		expect(dialled).toEqual(['b', 'c']);
+	});
+
+	it('hands what a relay delivers to the TLS session in slices it can hold', () => {
+		// The session keeps 16 KiB of received data until it is taken.
+		expect(SLICE_BYTES).toBeLessThanOrEqual(16 * 1024);
+		const got = [];
+		let deliver = () => {};
+		const transport = { opened: Promise.resolve(), send: () => {}, close: () => {}, onClose: () => {}, onData: (callback) => (deliver = callback) };
+		const sliced = inSlices(transport, 4096);
+		expect(sliced.send).toBe(transport.send);
+		sliced.onData((bytes) => got.push(bytes));
+		const chunk = new Uint8Array(20_000).map((_, n) => n % 253);
+		deliver(chunk);
+		expect(got.map((b) => b.length)).toEqual([4096, 4096, 4096, 4096, 3616]);
+		expect(new Uint8Array(got.flatMap((b) => [...b]))).toEqual(chunk);
+		deliver(new Uint8Array(0));
+		expect(got).toHaveLength(5);
+	});
+
+	it('tries a run again when the builder cannot be reached for a moment, and the cleanup too', async () => {
+		// Connections 4 and 5 find no way to the builder; the runs they were for are fetched again.
+		const flaky = relayedBuilder(big, { unreachableAt: [4, 5], dropFails: 2 });
+		const { got, store } = fakeStore();
+		await buildOwnImage({ master, app, builder, open: flaky.open, store, ...real() });
+		expect(await sha256Hex(got.bytes)).toBe(await sha256Hex(big));
+		// The image is dropped even though the first two tries broke off.
+		expect(flaky.seen.deleteTries).toBe(3);
+		expect(flaky.seen.deleted).toBe(1);
+		expect(flaky.seen.open).toBe(0);
+		expect(LANES).toBeLessThan(4);
 	});
 });
