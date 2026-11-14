@@ -751,7 +751,7 @@ export function voucherCode(input) {
 }
 
 /**
- * Redeem a voucher: a period of running time with backups, without a payment
+ * Redeem a voucher: a period of running time (with backups if it includes them), without a payment
  * (le-space-credits#73). The terms in force must be accepted, as for a
  * purchase (412 TERMS); no declaration on withdrawal, since nothing is paid.
  * `granted` false: the hours arrive with the service's next run.

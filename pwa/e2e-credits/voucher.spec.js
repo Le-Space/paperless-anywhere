@@ -68,7 +68,7 @@ test('a voucher is redeemed in the package card and shows as a voucher period', 
 	// The card now shows the period: hours, its end, and nothing to change, end or cancel.
 	await expect(page.getByTestId('plan-left')).toContainText('168 Stunden Laufzeit übrig, bis 20.11.');
 	await expect(page.getByTestId('voucher-period')).toHaveText('Gutschein-Zeitraum bis 20.11.2026.');
-	await expect(page.getByTestId('plan-current')).toContainText('Er verlängert sich nicht; danach kannst du ein Paket wählen.');
+	await expect(page.getByTestId('plan-current')).toContainText('Er verlängert sich nicht. Sichere oder exportiere deine Dokumente vor dem Ende: 3 Tage danach startet die App keine VM mehr, und zum Wiederherstellen brauchst du dann ein Paket.');
 	await expect(page.getByTestId('voucher')).toHaveCount(0);
 	await expect(page.getByTestId('plan-cancel')).toHaveCount(0);
 	await page.getByTestId('package-more').click();
@@ -105,7 +105,7 @@ test('vouchers in English', async ({ page }) => {
 	await openApp(page, { plan: false, backup: 'none', offered: true, included: true, vouchers: true });
 	await page.getByTestId('app-lang-en').click();
 	await page.getByTestId('voucher').locator('summary').click();
-	await expect(page.getByTestId('voucher')).toContainText('A voucher gives you a period of running time with backups, without a payment. It does not renew.');
+	await expect(page.getByTestId('voucher')).toContainText('A voucher gives you a period of running time and, if it includes them, backups, without a payment. The period starts when you redeem it and runs on, even while Paperless is not running. It does not renew.');
 	await page.getByTestId('voucher-code').fill('PA-ZZZZ-ZZZZ-ZZZZ');
 	await page.getByTestId('voucher-redeem').click();
 	await expect(page.getByTestId('plan-error')).toHaveText('There is no such voucher code. Please check it again.');

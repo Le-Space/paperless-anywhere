@@ -59,7 +59,7 @@ export const credits = {
 			VOUCHER_EXPIRED: 'Dieser Gutschein ist abgelaufen.',
 			VOUCHER_USED_UP: 'Dieser Gutschein ist schon vollständig eingelöst.',
 			VOUCHER_REDEEMED: 'Diesen Gutschein hast du schon eingelöst.',
-			PERIOD_RUNNING: 'Ein Gutschein lässt sich erst einlösen, wenn kein Paket und kein anderer Zeitraum mehr läuft.',
+			PERIOD_RUNNING: 'Ein Gutschein lässt sich erst einlösen, wenn kein Paket und kein anderer Zeitraum mehr läuft, auch kein Paket mit offener Zahlung.',
 			NOT_YET: 'Gutscheine lassen sich erst mit den neuen AGB einlösen.',
 			VOUCHER_OFF: 'Gutscheine lassen sich gerade nicht einlösen. Später noch einmal versuchen.',
 			PAUSED: 'Gutscheine lassen sich gerade nicht einlösen. Später noch einmal versuchen.'
@@ -145,7 +145,7 @@ export const credits = {
 			VOUCHER_EXPIRED: 'This voucher has expired.',
 			VOUCHER_USED_UP: 'This voucher has already been redeemed in full.',
 			VOUCHER_REDEEMED: 'You have already redeemed this voucher.',
-			PERIOD_RUNNING: 'A voucher can be redeemed only once no package and no other period is running any more.',
+			PERIOD_RUNNING: 'A voucher can be redeemed only once no package and no other period is running any more, including a package with an open payment.',
 			NOT_YET: 'Vouchers can be redeemed only with the new terms.',
 			VOUCHER_OFF: 'Vouchers cannot be redeemed right now. Try again later.',
 			PAUSED: 'Vouchers cannot be redeemed right now. Try again later.'
