@@ -18,6 +18,12 @@ name: Image builder on Aleph
 #            it shows that a whole image fits into the VM's memory, how long
 #            it takes, and that the result begins as a LUKS2 disk
 #   delete   forgets a published V-PROGRAM (the scheduler then stops the VM)
+#   again    publishes a second V-PROGRAM with the content of the running one
+#            in "hash" (new time, nothing uploaded: the same runtime and
+#            volumes) and makes an attested call to it: does a builder
+#            started again from the same volumes show the same measurement?
+#            It costs credits until it is deleted, like the first. Deleting
+#            a V-PROGRAM forgets the message only: its volumes (STOREs) stay.
 #
 # The plain image the builder seals is part of what is published: it goes
 # onto a verified volume, so "plain_store" and "plain_sha256" (both from the
@@ -43,6 +49,7 @@ on:
           - check
           - trial
           - delete
+          - again
       hash:
         description: The V-PROGRAM's item hash (64 hex), for "check", "trial" and "delete".
         required: false
@@ -76,6 +83,11 @@ on:
         description: Aleph's compose runtime (a name from the vm-images aggregate).
         required: true
         default: compose-1.4
+      forget_volumes:
+        description: 'For "delete": also forget the builder''s own volumes (workload, plain image volume, their hash trees). Not when another builder still runs on them.'
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -119,10 +131,10 @@ jobs:
           [[ "$VCPUS" =~ ^[1-9][0-9]?$ ]] || { echo "::error::vcpus: a number"; exit 1; }
           [[ "$RUNTIME" =~ ^[a-z0-9.-]{3,40}$ ]] || { echo "::error::runtime: a name such as compose-1.4"; exit 1; }
           case "$ACTION" in
-            check|trial|delete) [[ "$HASH" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::\"$ACTION\" needs the V-PROGRAM's item hash (64 hex)"; exit 1; } ;;
+            check|trial|delete|again) [[ "$HASH" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::\"$ACTION\" needs the V-PROGRAM's item hash (64 hex)"; exit 1; } ;;
           esac
           case "$ACTION" in
-            dry-run|publish|delete) [ -n "$ALEPH_PRIVATE_KEY" ] || { echo "::error::set the ALEPH_PRIVATE_KEY secret"; exit 1; } ;;
+            dry-run|publish|delete|again) [ -n "$ALEPH_PRIVATE_KEY" ] || { echo "::error::set the ALEPH_PRIVATE_KEY secret"; exit 1; } ;;
           esac
 
       - name: Aleph's CLI and the image tools
@@ -241,6 +253,50 @@ jobs:
           echo "::error::the attested call failed; the builder $hash was deleted again"
           exit 1
 
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        if: inputs.action == 'again'
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        if: inputs.action == 'again'
+        with:
+          node-version: 24.x
+
+      # The same content as the running V-PROGRAM, a new time: the volumes,
+      # the runtime and the measurements it names are that one's. The call
+      # that follows shows the measurement the hardware reports for it.
+      - name: Start it again from the same volumes, and call it attested
+        if: inputs.action == 'again'
+        working-directory: pwa
+        env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+          FROM: ${{ inputs.hash }}
+          AGAIN_RESULT: ${{ runner.temp }}/again.json
+        run: |
+          pnpm install --frozen-lockfile > /dev/null
+          started=$(date +%s)
+          pnpm exec vite-node scripts/vprogram-again.mjs
+          hash="$(jq -r .again "$AGAIN_RESULT")"
+          echo "$hash" > "$RUNNER_TEMP/hash.txt"
+          echo "::notice::published again as $hash"
+          verified=
+          for try in $(seq 1 30); do
+            if aleph vprogram call "$hash" / --verbose > "$RUNNER_TEMP/call.txt" 2> "$RUNNER_TEMP/call.log" \
+              && grep -q 'paperless-anywhere image builder' "$RUNNER_TEMP/call.txt"; then verified=1; break; fi
+            echo "--- try $try"; tail -3 "$RUNNER_TEMP/call.log"
+            sleep 30
+          done
+          cat "$RUNNER_TEMP/call.log" "$RUNNER_TEMP/call.txt"
+          {
+            echo "first:     $FROM"
+            echo "again:     $hash"
+            echo "declared:  $(jq -r '.measurements | join(" ")' "$AGAIN_RESULT")"
+            echo "reported:  $(sed -n 's/^measurement: //p' "$RUNNER_TEMP/call.log" | tail -1)"
+            echo "verified:  ${verified:-no}"
+            echo "seconds from publishing to the first verified call: $(( $(date +%s) - started ))"
+          } | tee "$RUNNER_TEMP/again.txt"
+          [ -n "$verified" ] || { echo "::error::the builder started again did not verify; delete $hash"; exit 1; }
+
       - name: Show it and call it, attested
         if: inputs.action == 'check'
         env:
@@ -309,7 +365,27 @@ jobs:
         env:
           ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
           HASH: ${{ inputs.hash }}
-        run: aleph vprogram delete "$HASH" --yes --chain eth --reason "image builder stopped" --json > "$RUNNER_TEMP/delete.json"
+          FORGET_VOLUMES: ${{ inputs.forget_volumes }}
+        run: |
+          # The volumes, read before the V-PROGRAM is forgotten: only STOREs
+          # this account sent (never Aleph's runtime).
+          if [ "$FORGET_VOLUMES" = true ]; then
+            curl -fsS "https://api2.aleph.im/api/v0/messages/$HASH" \
+              | jq -r '.message.item_content | fromjson | [.workload.ref, .workload.hash_tree, (.volumes[]? | .ref, .hash_tree)] | .[] | select(. != null)' > "$RUNNER_TEMP/refs.txt"
+            sender="$(curl -fsS "https://api2.aleph.im/api/v0/messages/$HASH" | jq -r .message.sender)"
+            : > "$RUNNER_TEMP/stores.txt"
+            while read -r ref; do
+              m="$(curl -fsS "https://api2.aleph.im/api/v0/messages.json?addresses=$sender&msgTypes=STORE&contentHashes=$ref" | jq -r '.messages[].item_hash')"
+              [[ "$ref" =~ ^[0-9a-f]{64}$ ]] && [ "$(curl -fsS "https://api2.aleph.im/api/v0/messages/$ref" | jq -r '"\(.message.type) \(.message.sender)"')" = "STORE $sender" ] && m="$m $ref"
+              for h in $m; do echo "$h"; done >> "$RUNNER_TEMP/stores.txt"
+            done < "$RUNNER_TEMP/refs.txt"
+            sort -u -o "$RUNNER_TEMP/stores.txt" "$RUNNER_TEMP/stores.txt"
+            echo "volumes to forget:"; cat "$RUNNER_TEMP/stores.txt"
+          fi
+          aleph vprogram delete "$HASH" --yes --chain eth --reason "image builder stopped" --json > "$RUNNER_TEMP/delete.json"
+          if [ -s "$RUNNER_TEMP/stores.txt" ]; then
+            aleph message forget $(cat "$RUNNER_TEMP/stores.txt") --reason "image builder volumes" --chain eth --yes
+          fi
 
       - name: Summary
         if: always()
@@ -337,6 +413,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           block "Container image" "$RUNNER_TEMP/archive.txt"
           block "Published V-PROGRAM" "$RUNNER_TEMP/publish.json"
+          block "Started again from the same volumes" "$RUNNER_TEMP/again.txt"
           [ "$ACTION" = dry-run ] && block "What would be published" "$RUNNER_TEMP/dry-run.json"
           block "V-PROGRAM ${HASH:-$(cat "$RUNNER_TEMP/hash.txt" 2>/dev/null)}" "$RUNNER_TEMP/show.json"
           block "Attested call" "$RUNNER_TEMP/call.log"
