@@ -32,6 +32,7 @@ export const ownImage = {
 			notBuilt: 'Noch nicht gebaut: Bis dahin startet die VM vom öffentlichen Image.'
 		},
 		step: {
+			start: 'Build-Dienst starten (einige Minuten)',
 			attest: 'Build-Dienst prüfen (AMD)',
 			build: 'Image wird versiegelt',
 			fetch: (/** @type {number} */ percent) => `Versiegeltes Image holen (${percent} %)`,
@@ -47,6 +48,7 @@ export const ownImage = {
 		},
 		error: {
 			noBuilder: 'Der Build-Dienst ist in dieser App nicht festgelegt.',
+			builderRefused: (/** @type {number} */ status) => `Aleph hat den Build-Dienst nicht angenommen (${status}). Reicht das Guthaben der App-Adresse?`,
 			noPlain: 'Das öffentliche Image ist in dieser App nicht festgelegt.',
 			badCid: 'Der Build-Dienst hat keine gültige Adresse für das Image genannt.',
 			badSize: 'Der Build-Dienst nennt keine gültige Größe für das Image.',
@@ -93,6 +95,7 @@ export const ownImage = {
 			notBuilt: 'Not built yet: until then the VM starts from the public image.'
 		},
 		step: {
+			start: 'Starting the build service (a few minutes)',
 			attest: 'Checking the build service (AMD)',
 			build: 'Sealing the image',
 			fetch: (/** @type {number} */ percent) => `Fetching the sealed image (${percent} %)`,
@@ -108,6 +111,7 @@ export const ownImage = {
 		},
 		error: {
 			noBuilder: 'No build service is fixed in this app.',
+			builderRefused: (/** @type {number} */ status) => `Aleph did not accept the build service (${status}). Does the app address have enough credits?`,
 			noPlain: 'No public image is fixed in this app.',
 			badCid: 'The build service named no valid address for the image.',
 			badSize: 'The build service names no valid size for the image.',

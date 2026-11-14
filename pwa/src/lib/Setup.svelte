@@ -9,7 +9,7 @@
 	import { findAttestRelays } from '$lib/relays.js';
 	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups } from '$lib/credits.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
-	import { BUILDER, buildOwnImage, builderOpener, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
+	import { BUILDER, buildOnOwnBuilder, buildOwnImage, builderOpener, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
 	import { format, lang, t, tr } from '$lib/i18n/index.js';
 	import {
 		connectPayer,
@@ -79,6 +79,8 @@
 				crnInput = profile.crnHash ?? '';
 				imageKind = imageKindOf(profile, BUILDER);
 				loaded = true;
+				// A build's builder that a closed window left running: forget it now.
+				if (profile.ownBuilder) forgetLeftBuilder(privateKeyToAccount(alephPrivateKey(master)), profile).then((gone) => gone && save({ ownBuilder: null })).catch(() => {});
 				await refresh();
 			})
 			.catch((e) => (error = e.message));
@@ -247,13 +249,18 @@
 		if (!BUILDER) return;
 		ownStep = '';
 		try {
-			const built = await buildOwnImage({
-				master,
-				app: privateKeyToAccount(alephPrivateKey(master)),
-				builder: BUILDER,
-				open: builderOpener(BUILDER, profile),
-				onProgress: ({ detail }) => (ownStep = detail ?? '')
-			});
+			const common = { master, app: privateKeyToAccount(alephPrivateKey(master)), onProgress: (/** @type {{ detail?: string }} */ { detail }) => (ownStep = detail ?? '') };
+			// A builder fixed by its V-PROGRAM content is started for this build
+			// and forgotten afterwards; the profile notes it meanwhile.
+			const built = 'program' in BUILDER
+				? await buildOnOwnBuilder({
+						...common,
+						builder: /** @type {any} */ (BUILDER),
+						opener: (running) => builderOpener(running, profile),
+						onStarted: (vprogram) => save({ ownBuilder: { vprogram, at: new Date().toISOString() } }),
+						onForgotten: () => save({ ownBuilder: null })
+					})
+				: await buildOwnImage({ ...common, builder: BUILDER, open: builderOpener(BUILDER, profile) });
 			await save(built);
 			imageInput = built.rootfsItemHash;
 			passInput = '';
