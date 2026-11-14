@@ -6,6 +6,7 @@ import { getAccountSummary } from '@filoz/synapse-core/pay';
 import { balance as erc20Balance } from '@filoz/synapse-core/erc20';
 import { ALEPH_API, readFetch } from './aleph.js';
 import { filecoinChain } from './permissions.js';
+import { localeOf, tr } from './i18n/index.js';
 
 // A running Paperless (confidential, 2 vCPU, 4 GB, 40 GiB rootfs) as of
 // 2026-10-29, for when Aleph's price list cannot be read.
@@ -21,7 +22,7 @@ const EPOCH_SECONDS = 30;
 
 /** @param {string} payer @returns {Promise<{ credits: number, aleph: number }>} */
 export async function alephBalance(payer) {
-	const res = await readFetch(`${ALEPH_API}/api/v0/addresses/${payer}/balance`, 'Guthaben abfragen');
+	const res = await readFetch(`${ALEPH_API}/api/v0/addresses/${payer}/balance`, tr().funds.readBalance);
 	if (res.status === 404) return { credits: 0, aleph: 0 };
 	if (!res.ok) throw new Error(`Aleph answered ${res.status}`);
 	const body = await res.json();
@@ -82,7 +83,7 @@ export function priceFromList(entry, vm) {
  * @param {string} payer
  */
 export async function runningCreditsPerHour(payer) {
-	const res = await readFetch(`${ALEPH_API}/api/v0/costs?address=${payer}&payment_type=credit`, 'laufende Kosten abfragen');
+	const res = await readFetch(`${ALEPH_API}/api/v0/costs?address=${payer}&payment_type=credit`, tr().funds.readCosts);
 	if (!res.ok) throw new Error(`Aleph answered ${res.status}`);
 	return Math.round(Number((await res.json())?.summary?.total_cost_credit ?? 0) * 3600);
 }
@@ -90,11 +91,11 @@ export async function runningCreditsPerHour(payer) {
 /** Hours the credits last at this spend. @param {number} credits @param {number} perHour */
 export const hoursOf = (credits, perHour) => (perHour > 0 ? Math.floor(credits / perHour) : 0);
 
-/** "3 Tage 4 h" / "5 h" for a number of hours. @param {number} hours */
+/** "3 Tage 4 h" / "3 days 4 h", or "5 h", for a number of hours. @param {number} hours */
 export function duration(hours) {
 	if (hours < 48) return `${hours} h`;
-	return `${Math.floor(hours / 24)} Tage${hours % 24 ? ` ${hours % 24} h` : ''}`;
+	return tr().funds.days(Math.floor(hours / 24), hours % 24);
 }
 
-/** "2,85" with German separators. @param {number} n @param {number} [digits] */
-export const amount = (n, digits = 2) => n.toLocaleString('de-DE', { maximumFractionDigits: digits, minimumFractionDigits: n !== 0 && Math.abs(n) < 1 ? Math.min(digits, 2) : 0 });
+/** "2,85" / "2.85", with the language's separators. @param {number} n @param {number} [digits] @param {'de' | 'en'} [l] */
+export const amount = (n, digits = 2, l) => n.toLocaleString(localeOf(l), { maximumFractionDigits: digits, minimumFractionDigits: n !== 0 && Math.abs(n) < 1 ? Math.min(digits, 2) : 0 });

@@ -230,7 +230,7 @@ test.describe('English', () => {
 		const { phrase } = await runningVault(aggregates);
 		await page.context().route(/^https?:\/\/(?!localhost|api2\.aleph\.im)/, (route) => route.abort());
 		await page.context().route(`https://${HOST}/anywhere/**`, (route) =>
-			route.fulfill({ json: { v: 2, phase: 'ready', paperless: true, backup: null, lastBackup: null, backupSchedule: { nextCheck: new Date(Date.now() + 3600_000).toISOString(), everySeconds: 7200 }, backupRequest: null }, headers: { 'access-control-allow-origin': '*' } })
+			route.fulfill({ json: { v: 2, phase: 'ready', paperless: true, backup: null, lastBackup: null, backupSchedule: { nextCheck: new Date(Date.now() + 3600_000).toISOString(), everySeconds: 7200 }, backupRequest: null, storage: { documentsBytes: 2.5e9 } }, headers: { 'access-control-allow-origin': '*' } })
 		);
 		await open(page, phrase);
 		// German without a choice, whatever the browser's language; the switch in the header changes it at once.
@@ -240,5 +240,8 @@ test.describe('English', () => {
 		await expect(page.getByTestId('backup-last')).toHaveText('Last backup: No backup since the start yet');
 		await expect(page.getByTestId('backup-summary')).toContainText('next check');
 		await expect(page.getByTestId('backup-now')).toHaveText('Back up now');
+		// The storage line too, with English numbers.
+		await expect(page.getByTestId('storage-used')).toHaveText('2.5 GB of 8.0 GB');
+		await expect(page.getByTestId('storage-hint')).toHaveText('5.5 GB still free.');
 	});
 });

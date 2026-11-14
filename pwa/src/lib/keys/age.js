@@ -4,6 +4,7 @@
 import { x25519 } from '@noble/curves/ed25519';
 import { bech32 } from '@scure/base';
 import { deriveBytes, LABELS } from './derive.js';
+import { tr } from '../i18n/index.js';
 
 const SECRET_HRP = 'age-secret-key-';
 
@@ -16,9 +17,9 @@ export function newAgeIdentity() {
 /** The recipient (age1…) of an identity. @param {string} identity */
 export function ageRecipient(identity) {
 	const { prefix, words } = bech32.decode(identity.trim().toLowerCase(), false);
-	if (prefix !== SECRET_HRP) throw new Error('Kein age-Schlüssel (AGE-SECRET-KEY-1…).');
+	if (prefix !== SECRET_HRP) throw new Error(tr().net.keys.notAge);
 	const secret = Uint8Array.from(bech32.fromWords(words));
-	if (secret.length !== 32) throw new Error('Kein age-Schlüssel (falsche Länge).');
+	if (secret.length !== 32) throw new Error(tr().net.keys.ageLength);
 	return bech32.encode('age', bech32.toWords(x25519.getPublicKey(secret)), false);
 }
 

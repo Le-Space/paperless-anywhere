@@ -1,11 +1,12 @@
 <script>
-	// "Sicherung selbst holen": what a person needs to fetch a backup without a
+	// Fetching a backup yourself: what a person needs to fetch a backup without a
 	// VM and decrypt it on their own machine. Where the pieces lie is public
 	// and shown at once. The backup key is shown only after the person has said
 	// that they want it, stays in this component's memory for that long, and is
 	// never written to storage, a URL or the console by the app.
 	import { BackupFetchError, fetchBackup, MEMORY_LIMIT_BYTES, openSink, storedBytes } from '$lib/backup-fetch.js';
 	import { ageSecretKey, restoreEntry, selfRestoreGuide } from '$lib/backups.js';
+	import { format, lang, t } from '$lib/i18n/index.js';
 
 	/** @type {{ backup: any, identity: string | null | undefined }} */
 	let { backup, identity } = $props();
@@ -14,7 +15,11 @@
 	let wanted = $state(false);
 	let shown = $state(false);
 	let copied = $state(false);
-	const guide = $derived(selfRestoreGuide(backup));
+	const x = $derived($t.backup.export);
+	const f = $derived($t.backup.fetch);
+	const keyFile = $derived($t.backup.guide.keyFile);
+	// Written again when the language changes.
+	const guide = $derived(($lang, selfRestoreGuide(backup)));
 	const key = $derived(ageSecretKey(identity));
 
 	// Another backup, or the panel closed: the key is hidden again.
@@ -31,11 +36,13 @@
 	const total = $derived(storedBytes(backup));
 	const canPickFile = typeof globalThis.showSaveFilePicker === 'function';
 	const fits = $derived(canPickFile || (total != null && total <= MEMORY_LIMIT_BYTES));
-	/** @type {{ state: 'idle' | 'running' | 'done' | 'failed', fetched: number, written: number, message: string }} */
-	let run = $state({ state: 'idle', fetched: 0, written: 0, message: '' });
+	// What went wrong or where the zip went is kept as a kind, so the sentence follows the language.
+	/** @type {{ state: 'idle' | 'running' | 'done' | 'failed', fetched: number, written: number, reason?: string, where?: 'file' | 'memory' }} */
+	let run = $state({ state: 'idle', fetched: 0, written: 0 });
+	const failure = $derived(run.state !== 'failed' ? '' : run.reason === 'file' ? f.fileFailed : (/** @type {Record<string, string>} */ (f.errors)[run.reason ?? ''] ?? f.failed));
 	/** @type {AbortController | null} */
 	let stop = null;
-	const mb = (/** @type {number} */ n) => (n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2).replace('.', ',')} GB` : `${Math.round(n / 1024 ** 2)} MB`);
+	const mb = (/** @type {number} */ n) => (n >= 1024 ** 3 ? `${format.number(n / 1024 ** 3, { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false }, $lang)} GB` : `${Math.round(n / 1024 ** 2)} MB`);
 	const zipName = $derived(`paperless-export-${backup.pieceCid.slice(-12)}.zip`);
 
 	$effect(() => {
@@ -52,18 +59,18 @@
 			target = await openSink({ suggestedName: zipName, total });
 		} catch (e) {
 			if (/** @type {any} */ (e)?.name === 'AbortError') return;
-			run = { state: 'failed', fetched: 0, written: 0, message: e instanceof BackupFetchError ? e.message : 'Die Datei ließ sich nicht anlegen.' };
+			run = { state: 'failed', fetched: 0, written: 0, reason: e instanceof BackupFetchError ? e.reason : 'file' };
 			return;
 		}
 		stop = new AbortController();
-		run = { state: 'running', fetched: 0, written: 0, message: '' };
+		run = { state: 'running', fetched: 0, written: 0 };
 		try {
 			const result = await fetchBackup({ backup: wanted, identity: key, sink: target.sink, signal: stop.signal, onProgress: (p) => ((run.fetched = p.fetched), (run.written = p.written)) });
 			const blob = target.finish();
 			if (blob) saveBlob(zipName, blob);
-			run = { state: 'done', ...result, message: target.kind === 'file' ? 'Gespeichert in der gewählten Datei.' : 'Als Download übergeben.' };
+			run = { state: 'done', ...result, where: target.kind };
 		} catch (e) {
-			run = { state: 'failed', fetched: run.fetched, written: 0, message: e instanceof BackupFetchError ? e.message : 'Das Holen ist fehlgeschlagen.' };
+			run = { state: 'failed', fetched: run.fetched, written: 0, reason: e instanceof BackupFetchError ? e.reason : '' };
 		} finally {
 			stop = null;
 		}
@@ -84,7 +91,7 @@
 	}
 	const saveGuide = () => save(guide.filename, guide.text);
 	const saveEntry = () => save('ledger.json', `${JSON.stringify([restoreEntry(backup)], null, 2)}\n`, 'application/json');
-	const saveKey = () => key && save('schluessel.txt', `${key}\n`);
+	const saveKey = () => key && save(keyFile, `${key}\n`);
 	async function copyKey() {
 		if (!key) return;
 		await navigator.clipboard.writeText(key);
@@ -93,47 +100,47 @@
 </script>
 
 <details class="export" bind:open data-testid="backup-export">
-	<summary>Sicherung selbst holen (ohne laufende Instanz)</summary>
-	<p class="hint">Die gewählte Sicherung (<code>{backup.pieceCid.slice(-12)}</code>) liegt verschlüsselt bei den Speicheranbietern und lässt sich dort ohne Paperless anywhere abrufen. Entschlüsseln kannst du sie auf deinem eigenen Rechner, mit <code>curl</code> und <code>age</code>. Heraus kommt ein Zip mit deinen Dokumenten.</p>
+	<summary>{x.summary}</summary>
+	<p class="hint">{x.intro.before}<code>{backup.pieceCid.slice(-12)}</code>{x.intro.afterId}<code>curl</code>{x.intro.and}<code>age</code>{x.intro.after}</p>
 	<p class="row">
-		<button type="button" class="small" onclick={saveGuide} data-testid="export-guide">Anleitung mit den Adressen speichern</button>
-		<button type="button" class="small" onclick={saveEntry} data-testid="export-entry">Eintrag für das Werkzeug (ledger.json)</button>
+		<button type="button" class="small" onclick={saveGuide} data-testid="export-guide">{x.saveGuide}</button>
+		<button type="button" class="small" onclick={saveEntry} data-testid="export-entry">{x.saveEntry}</button>
 	</p>
-	{#if !guide.complete}<p class="warn" role="status">Für mindestens ein Stück kennt die App gerade keine Adresse; die Anleitung nennt es.</p>{/if}
+	{#if !guide.complete}<p class="warn" role="status">{x.incomplete}</p>{/if}
 
 	{#if key}
 		<div class="fetch" data-testid="backup-fetch">
-			<p><strong>Gleich hier holen:</strong> Dieser Browser lädt die Sicherung von den Speicheranbietern, entschlüsselt sie auf diesem Gerät und speichert das Zip{canPickFile ? ' in eine Datei deiner Wahl' : ''}. Der Schlüssel bleibt dabei im Browser.{#if total != null} Größe: etwa {mb(total)}.{/if}</p>
+			<p><strong>{x.hereStrong}</strong> {x.here(canPickFile)}{#if total != null} {x.size(mb(total))}{/if}</p>
 			{#if !guide.complete}
-				<p class="hint">Dafür fehlt gerade die Adresse eines Stücks.</p>
+				<p class="hint">{x.missingAddress}</p>
 			{:else if !fits}
-				<p class="hint" data-testid="fetch-too-large">Dieser Browser kann nicht direkt in eine Datei schreiben, und die Sicherung ist zu groß für den Arbeitsspeicher (Grenze {mb(MEMORY_LIMIT_BYTES)}). Nimm Chrome oder Edge, oder die Anleitung oben.</p>
+				<p class="hint" data-testid="fetch-too-large">{x.tooLarge(mb(MEMORY_LIMIT_BYTES))}</p>
 			{:else if run.state === 'running'}
-				<p role="status" data-testid="fetch-progress">Geholt: {mb(run.fetched)}{#if total != null} von {mb(total)}{/if} · entschlüsselt: {mb(run.written)}</p>
+				<p role="status" data-testid="fetch-progress">{x.progress(mb(run.fetched), total != null ? mb(total) : null, mb(run.written))}</p>
 				{#if total != null}<progress max={total} value={run.fetched}></progress>{/if}
-				<p class="row"><button type="button" class="small" onclick={() => stop?.abort()} data-testid="fetch-stop">Abbrechen</button> <span class="hint">Lass dieses Fenster so lange offen.</span></p>
+				<p class="row"><button type="button" class="small" onclick={() => stop?.abort()} data-testid="fetch-stop">{x.stop}</button> <span class="hint">{x.keepOpen}</span></p>
 			{:else}
-				<p class="row"><button type="button" class="small" onclick={fetchHere} data-testid="fetch-start">Holen und entschlüsseln</button></p>
+				<p class="row"><button type="button" class="small" onclick={fetchHere} data-testid="fetch-start">{x.start}</button></p>
 			{/if}
-			{#if run.state === 'done'}<p role="status" data-testid="fetch-done">Fertig: {mb(run.written)} entschlüsselt. {run.message}</p>{/if}
-			{#if run.state === 'failed'}<p class="warn" role="alert" data-testid="fetch-failed">{run.message}</p>{/if}
+			{#if run.state === 'done'}<p role="status" data-testid="fetch-done">{x.done(mb(run.written), run.where === 'file' ? f.savedToFile : f.handedOver)}</p>{/if}
+			{#if run.state === 'failed'}<p class="warn" role="alert" data-testid="fetch-failed">{failure}</p>{/if}
 		</div>
 		<div class="key">
-			<p><strong>Der Sicherungsschlüssel</strong> öffnet alle deine Sicherungen. Wer ihn hat, kann sie lesen. Die App zeigt ihn nur hier und nur, wenn du es verlangst; sie schickt ihn nirgendwohin.</p>
-			<label class="check"><input type="checkbox" bind:checked={wanted} data-testid="export-key-wanted" /> Ich will den Schlüssel sehen und passe selbst auf ihn auf.</label>
-			{#if wanted && !shown}<p class="row"><button type="button" class="small" onclick={() => (shown = true)} data-testid="export-key-show">Schlüssel anzeigen</button></p>{/if}
+			<p><strong>{x.keyStrong}</strong>{x.key}</p>
+			<label class="check"><input type="checkbox" bind:checked={wanted} data-testid="export-key-wanted" /> {x.keyWanted}</label>
+			{#if wanted && !shown}<p class="row"><button type="button" class="small" onclick={() => (shown = true)} data-testid="export-key-show">{x.keyShow}</button></p>{/if}
 			{#if wanted && shown}
 				<p><code class="secret" data-testid="export-key">{key}</code></p>
 				<p class="row">
-					<button type="button" class="small" onclick={copyKey} data-testid="export-key-copy">{copied ? 'Kopiert' : 'Kopieren'}</button>
-					<button type="button" class="small" onclick={saveKey} data-testid="export-key-save">Als schluessel.txt speichern</button>
-					<button type="button" class="link" onclick={() => ((shown = false), (wanted = false))}>Wieder verbergen</button>
+					<button type="button" class="small" onclick={copyKey} data-testid="export-key-copy">{copied ? x.copied : x.copy}</button>
+					<button type="button" class="small" onclick={saveKey} data-testid="export-key-save">{x.saveKey(keyFile)}</button>
+					<button type="button" class="link" onclick={() => ((shown = false), (wanted = false))}>{x.hide}</button>
 				</p>
-				<p class="hint">Lösche die Datei, wenn du fertig bist, und leere die Zwischenablage.</p>
+				<p class="hint">{x.cleanUp}</p>
 			{/if}
 		</div>
 	{:else}
-		<p class="hint">Der Sicherungsschlüssel dieses Tresors ist hier nicht hinterlegt.</p>
+		<p class="hint">{x.noKey}</p>
 	{/if}
 </details>
 

@@ -10,6 +10,7 @@ import { calibration, mainnet } from '@filoz/synapse-core/chains';
 import { createUnsignedAggregateMessage, signAlephMessage } from '@le-space/core';
 import { broadcast, readAggregate } from './aleph.js';
 import { filecoinSessionPrivateKey } from './keys/derive.js';
+import { tr } from './i18n/index.js';
 
 export const PWA_TYPES = ['INSTANCE', 'FORGET', 'AGGREGATE'];
 // AGGREGATE only for the payer's port forwards (443 for Caddy).
@@ -19,14 +20,14 @@ export const filecoinChain = (network) => (network === 'mainnet' ? mainnet : cal
 
 function ethereum() {
 	const provider = /** @type {any} */ (globalThis).ethereum;
-	if (!provider) throw new Error('Keine Wallet gefunden (MetaMask oder eine Hardware-Wallet in MetaMask).');
+	if (!provider) throw new Error(tr().net.wallet.none);
 	return provider;
 }
 
 /** Connect the paying account; returns its address. */
 export async function connectPayer() {
 	const [address] = await ethereum().request({ method: 'eth_requestAccounts' });
-	if (!/^0x[0-9a-fA-F]{40}$/.test(address ?? '')) throw new Error('Die Wallet hat kein Konto freigegeben.');
+	if (!/^0x[0-9a-fA-F]{40}$/.test(address ?? '')) throw new Error(tr().net.wallet.noAccount);
 	// Aleph keys balances and aggregates by the checksum spelling; MetaMask
 	// answers in lowercase, under which the account has no credits.
 	return getAddress(address);
@@ -68,7 +69,7 @@ export async function setAlephAuthorization(payer, pwaAddress, { revoke = false 
 		ethereum().request({ method: 'personal_sign', params: [toHex(payload), sender] })
 	);
 	const { httpStatus, response } = await broadcast(message);
-	if (httpStatus >= 300) throw new Error(`Aleph hat die Freigabe abgelehnt (${httpStatus}): ${JSON.stringify(response).slice(0, 160)}`);
+	if (httpStatus >= 300) throw new Error(tr().net.wallet.refused(httpStatus, JSON.stringify(response).slice(0, 160)));
 	return authorizations;
 }
 

@@ -23,25 +23,7 @@ const CATALOGUES = [/^lib\/i18n\//, /^lib\/landing\/i18n\.js$/, /^lib\/evidence-
 
 /** Files whose texts have not moved yet. Remove a line with the PR that moves them. */
 const NOT_YET = new Set([
-	'lib/BackupExport.svelte',
-	'lib/BackupPlaces.svelte',
-	'lib/Balances.svelte',
-	'lib/ProviderHealth.svelte',
 	'lib/Setup.svelte',
-	'lib/aleph.js',
-	'lib/attest-p2p.js',
-	'lib/backup-fetch.js',
-	'lib/backup-overview.js',
-	'lib/backups.js',
-	'lib/balances.js',
-	'lib/keys/age.js',
-	'lib/keys/passkey.js',
-	'lib/keys/vault.js',
-	'lib/permissions.js',
-	'lib/providers.js',
-	'lib/relays.js',
-	'lib/runtime-pin.js',
-	'lib/storage.js',
 ]);
 
 const GERMAN = /[äöüÄÖÜß„“]|\b(?:nicht|und|oder|für|wird|werden|wurde|kein|keine|bitte|noch|schon|dein|deine|deinem|deiner|eine|einen|einer|dieser|diese|dieses|gerade|läuft|Sicherung|Sicherungen|Schlüssel|Tresor|Guthaben|Einrichtung)\b/;

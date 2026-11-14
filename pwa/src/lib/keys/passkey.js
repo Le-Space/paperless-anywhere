@@ -3,6 +3,7 @@
 // authenticator must not answer), with user verification. No PRF, no unlock:
 // there is deliberately no fallback without it.
 import { sha256 } from '@noble/hashes/sha2.js';
+import { tr } from '../i18n/index.js';
 
 const PRF_INPUT = sha256(new TextEncoder().encode('paperless-anywhere/prf/master/v1'));
 
@@ -11,7 +12,7 @@ const unb64u = (text) => Uint8Array.from(atob(text.replaceAll('-', '+').replaceA
 
 export class PrfUnavailableError extends Error {
 	constructor() {
-		super('Dieser Passkey kann kein PRF; ohne PRF lässt sich nichts entsperren.');
+		super(tr().net.keys.noPrf);
 		this.name = 'PrfUnavailableError';
 	}
 }

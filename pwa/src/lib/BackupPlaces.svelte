@@ -1,21 +1,24 @@
 <script>
 	import { listProviders, outsideEu, pickProviders, sharedWarnings, storagePrices, monthlyCost, bytesPerCopy } from '$lib/providers.js';
 	import { amount } from '$lib/balances.js';
+	import { lang, t } from '$lib/i18n/index.js';
 
 	/** @type {{ network: string, payer?: string, config: { copies: number, providerIds: number[], regions: string[] }, busy?: boolean, onsave: (places: { copies: number, providerIds: number[], regions: string[] }) => void }} */
 	let { network, payer = '', config, busy = false, onsave } = $props();
 
+	const x = $derived($t.backup.places);
+	/** @type {{ value: string, key: 'EUROPE' | 'EU' | 'EEA' | 'US' | 'anywhere' }[]} */
 	const REGIONS = [
-		{ value: 'EUROPE', label: 'Europa (EWR, Großbritannien, Schweiz)' },
-		{ value: 'EU', label: 'EU' },
-		{ value: 'EEA', label: 'EWR' },
-		{ value: 'US', label: 'USA' },
-		{ value: '', label: 'überall' }
+		{ value: 'EUROPE', key: 'EUROPE' },
+		{ value: 'EU', key: 'EU' },
+		{ value: 'EEA', key: 'EEA' },
+		{ value: 'US', key: 'US' },
+		{ value: '', key: 'anywhere' }
 	];
 
 	/** @type {import('$lib/providers.js').Provider[] | null} */
 	let providers = $state(null);
-	let readError = $state('');
+	let readError = $state(false);
 	/** @type {{ perTibMonth: number, perDataSetMonth: number } | null} */
 	let prices = $state(null);
 	let bytes = $state(0);
@@ -32,8 +35,8 @@
 	$effect(() => {
 		const net = network;
 		providers = null;
-		readError = '';
-		listProviders(net).then((list) => (providers = list)).catch(() => (readError = 'Die Anbieterliste ließ sich gerade nicht lesen.'));
+		readError = false;
+		listProviders(net).then((list) => (providers = list)).catch(() => (readError = true));
 		storagePrices(net).then((p) => (prices = p)).catch(() => (prices = null));
 	});
 	$effect(() => {
@@ -44,8 +47,9 @@
 		region === 'custom' ? countries.split(/[\s,;]+/).map((c) => c.trim().toUpperCase()).filter((c) => /^[A-Z]{2}$/.test(c)) : region ? [region] : []
 	);
 	const places = $derived(mode === 'providers' ? { copies: chosen.length, providerIds: chosen, regions: [] } : { copies, providerIds: [], regions });
-	const preview = $derived(providers ? pickProviders(providers, places) : null);
-	const warnings = $derived(preview ? sharedWarnings(preview.picked) : []);
+	// Problems and warnings are sentences: read again when the language changes.
+	const preview = $derived(($lang, providers ? pickProviders(providers, places) : null));
+	const warnings = $derived(($lang, preview ? sharedWarnings(preview.picked) : []));
 	const abroad = $derived(preview ? outsideEu(preview.picked) : []);
 	const cost = $derived(prices && preview ? monthlyCost(prices, preview.picked.length, bytes) : null);
 	const changed = $derived(JSON.stringify(places) !== JSON.stringify({ copies: config.copies, providerIds: config.providerIds ?? [], regions: config.regions ?? [] }));
@@ -55,23 +59,23 @@
 </script>
 
 <fieldset class="places" data-testid="backup-places">
-	<legend>Wohin die Sicherungen gehen</legend>
-	<label class="check"><input type="radio" bind:group={mode} value="region" /> Region und Anzahl der Kopien</label>
-	<label class="check"><input type="radio" bind:group={mode} value="providers" /> Anbieter selbst wählen</label>
+	<legend>{x.legend}</legend>
+	<label class="check"><input type="radio" bind:group={mode} value="region" /> {x.byRegion}</label>
+	<label class="check"><input type="radio" bind:group={mode} value="providers" /> {x.byProvider}</label>
 
 	{#if mode === 'region'}
-		<label>Kopien
+		<label>{x.copies}
 			<select bind:value={copies} data-testid="places-copies">
 				{#each [1, 2, 3] as n (n)}<option value={n}>{n}</option>{/each}
 			</select>
 		</label>
-		<label>Region
+		<label>{x.region}
 			<select bind:value={region} data-testid="places-region">
-				{#each REGIONS as r (r.value)}<option value={r.value}>{r.label}</option>{/each}
-				<option value="custom">Länder (Kürzel)</option>
+				{#each REGIONS as r (r.value)}<option value={r.value}>{x.regions[r.key]}</option>{/each}
+				<option value="custom">{x.countries}</option>
 			</select>
 		</label>
-		{#if region === 'custom'}<label>Länderkürzel, z. B. DE, NL<input bind:value={countries} placeholder="DE, NL" data-testid="places-countries" /></label>{/if}
+		{#if region === 'custom'}<label>{x.countryCodes}<input bind:value={countries} placeholder="DE, NL" data-testid="places-countries" /></label>{/if}
 	{:else if providers}
 		<ul class="providers">
 			{#each providers as p (p.id)}
@@ -79,31 +83,31 @@
 					<label class="check">
 						<input type="checkbox" checked={chosen.includes(p.id)} disabled={!p.active || (!chosen.includes(p.id) && chosen.length >= 3)}
 							onchange={(e) => toggle(p.id, e.currentTarget.checked)} data-testid={`provider-${p.id}`} />
-						<span>{p.place || 'ohne Ort'} · {p.name} <small>({p.endorsed ? 'empfohlen' : 'zugelassen'}{p.active ? '' : ', nicht aktiv'}, Nr. {p.id})</small></span>
+						<span>{p.place || x.noPlace} · {p.name} <small>({p.endorsed ? x.endorsed : x.approved}{p.active ? '' : x.inactive}, {x.number(p.id)})</small></span>
 					</label>
 				</li>
 			{/each}
 		</ul>
-		<small class="hint">Höchstens 3 Anbieter.</small>
+		<small class="hint">{x.max}</small>
 	{/if}
 
-	{#if readError}<p class="hint">{readError}</p>
-	{:else if !providers}<p class="hint">Lese die Anbieter …</p>
+	{#if readError}<p class="hint">{x.listUnreadable}</p>
+	{:else if !providers}<p class="hint">{x.reading}</p>
 	{:else if preview}
 		<div class="preview" data-testid="places-preview">
 			{#if preview.picked.length}
-				<p>Kopien bei:</p>
-				<ul>{#each preview.picked as p (p.id)}<li>{p.place || 'ohne Ort'} · {p.name}</li>{/each}</ul>
+				<p>{x.copiesAt}</p>
+				<ul>{#each preview.picked as p (p.id)}<li>{p.place || x.noPlace} · {p.name}</li>{/each}</ul>
 			{/if}
 			{#each preview.problems as problem}<p class="error">{problem}</p>{/each}
-			{#each warnings as w}<p class="warn" data-testid="places-warning">Nicht unabhängig: {w}</p>{/each}
+			{#each warnings as w}<p class="warn" data-testid="places-warning">{x.notIndependent(w)}</p>{/each}
 			{#if abroad.length}
-				<p class="warn" data-testid="places-outside-eu">Kopien außerhalb der EU ({abroad.join(', ')}). Elektronische Bücher und Aufzeichnungen erlaubt die Abgabenordnung ohne Antrag nur in EU-Mitgliedstaaten (§ 146 Abs. 2a AO); außerhalb braucht es eine Bewilligung des Finanzamts (§ 146 Abs. 2b AO). Für steuerlich relevante Belege mit dem Steuerberater klären.</p>
+				<p class="warn" data-testid="places-outside-eu">{x.outsideEu(abroad.join(', '))}</p>
 			{/if}
-			{#if cost !== null && preview.picked.length}<p><small>Kosten ca. {amount(cost)} USDFC im Monat{bytes ? ` bei ${amount(bytes / 1e9, 1)} GB je Kopie` : ' (Grundgebühr, noch keine Daten)'}.</small></p>{/if}
+			{#if cost !== null && preview.picked.length}<p><small>{x.cost(amount(cost, 2, $lang), bytes ? amount(bytes / 1e9, 1, $lang) : null)}</small></p>{/if}
 		</div>
 	{/if}
-	<button onclick={() => onsave($state.snapshot(places))} disabled={busy || !valid || !changed}>Sicherungsorte speichern</button>
+	<button onclick={() => onsave($state.snapshot(places))} disabled={busy || !valid || !changed}>{x.save}</button>
 </fieldset>
 
 <style>
