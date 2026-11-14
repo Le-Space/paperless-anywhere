@@ -342,20 +342,17 @@ test('the FAQ says that the providers can be paid directly, what that needs and 
 	await expect(item).toContainText('Einrichten kannst du das in der App unter „Einrichtung“.');
 });
 
-test('the FAQ says how a voucher is redeemed and how the documents come out without Le Space, in both languages', async ({ page }) => {
+test('the FAQ says how the documents come out without Le Space, in both languages', async ({ page }) => {
 	await page.context().route(/^https?:\/\/(?!localhost)/, (route) => route.abort());
 	await page.goto('/');
-	const voucher = page.locator('#faq details', { hasText: 'Ich habe einen Gutschein.' });
-	await voucher.locator('summary').click();
-	await expect(voucher).toContainText('ohne Zahlung');
-	await expect(voucher).toContainText('„Gutschein einlösen“');
-	await expect(voucher.getByRole('link', { name: 'Gutscheine in den AGB (§ 4a)' })).toHaveAttribute('href', 'https://credits.le-space.de/agb');
+	// No word on vouchers until the terms that hold them are in force.
+	await expect(page.locator('#faq')).not.toContainText('Gutschein');
 	const out = page.locator('#faq details', { hasText: 'Komme ich auch ohne Le Space an meine Dokumente?' });
 	await out.locator('summary').click();
 	await expect(out).toContainText('„Sicherung selbst holen“');
 	await expect(out.getByRole('link', { name: 'Sicherung selbst holen: die Anleitung' })).toHaveAttribute('href', /docs\/restore-yourself\.md$/);
 	await page.goto('/en/');
-	await expect(page.locator('#faq details', { hasText: 'I have a voucher. How do I redeem it?' })).toHaveCount(1);
+	await expect(page.locator('#faq')).not.toContainText('voucher');
 	await expect(page.locator('#faq details', { hasText: 'Can I get at my documents without Le Space?' })).toHaveCount(1);
 });
 
