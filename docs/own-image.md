@@ -1,11 +1,12 @@
 # Your own image
 
-> **Status: in preparation.** The image builder exists
-> ([`builder/`](../builder/)), has been published on Aleph, verified by
-> attestation there, and has sealed the real image there in a trial. The
-> app's step is written, but the app names no builder; the list at the end
-> says what is missing. Until then every image version has
-> one passphrase, as [keys and recovery](keys-and-recovery.md) describes.
+> **Status: in the app.** The setup offers the choice between the public
+> image (one passphrase per image version, as [keys and recovery](keys-and-recovery.md)
+> describes) and an image of your own. The builder's volumes are published
+> on Aleph and fixed in the app; each build starts a builder from them and
+> forgets it afterwards. A whole round (build, VM, backup, restore) passed
+> on Aleph; the upload from a browser has not run at full size yet (see the
+> end).
 
 A VM of Paperless anywhere boots from an encrypted image. The measured part
 of the boot (firmware, kernel, initrd) opens that image with a passphrase the
@@ -259,9 +260,10 @@ docker run --rm --network none -v "$PWD/check-container.mjs:/opt/builder/check-c
   backed up, and a second VM from the same image restored that backup.
 - **The upload from a browser** of an image of that size has not run yet;
   the measurement above ran the same code in Node.
-- **No builder is fixed in the app** (`BUILDER` in
-  `pwa/src/lib/own-image.js` is `null`), so the setup shows no choice of
-  image yet.
+- **The builder fixed in the app** (`BUILDER` in
+  `pwa/src/lib/own-image.js`) was published on 2026-11-14 for the plain
+  image `9c32bd…` (release image `e85b9c9a…`) and deleted again; its volumes
+  stay. A new plain image needs a new publication and a new `BUILDER`.
 
 ## A builder for each build
 
