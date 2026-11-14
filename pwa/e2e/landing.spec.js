@@ -78,8 +78,9 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.locator('#faq details').first()).toContainText(notice);
 	await expect(page.getByRole('link', { name: 'Paperless anywhere starten' }).first()).toHaveAttribute('href', '/app/');
 	// An image of one's own: four steps, and who knows the passphrase.
-	// Not running yet: the section says so, and comes after what is true today.
-	await expect(page.getByTestId('own-image-status')).toHaveText('In Vorbereitung');
+	// In the app now: the section says so, and still comes after the public image's story.
+	await expect(page.getByTestId('own-image-status')).toHaveText('In der App');
+	await expect(page.locator('#image')).not.toContainText('In Vorbereitung');
 	expect(await page.evaluate(() => document.querySelector('#trust').compareDocumentPosition(document.querySelector('#image')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
 	await expect(page.getByTestId('own-image-flow').getByRole('listitem')).toHaveCount(4);
 	await expect(page.getByTestId('own-image-knows').getByRole('listitem')).toHaveText([/Dein Tresor: ja/, /Der Build-Dienst: nur kurz/, /Deine VM: nur kurz/, /Le Space: nein/, /Der Betreiber des Knotens: nein/, /GitHub: nein/]);
@@ -337,7 +338,7 @@ test('the FAQ says that the providers can be paid directly, what that needs and 
 	const item = page.locator('#faq details', { hasText: 'Kann ich die Anbieter auch selbst bezahlen?' });
 	await item.locator('summary').click();
 	await expect(item).toContainText('gehören in diesem Fall der Adresse deiner Wallet');
-	await expect(item.locator('li')).toHaveText([/^Was du brauchst: eine Wallet/, /^Was du freigibst:/, /^Was auch dann von Le Space kommt: die App, das Image samt seiner heutigen Image-Passphrase und der Relay/]);
+	await expect(item.locator('li')).toHaveText([/^Was du brauchst: eine Wallet/, /^Was du freigibst:/, /^Was auch dann von Le Space kommt: die App, das Image \(beim öffentlichen auch seine Passphrase\) und der Relay/]);
 	await expect(item).toContainText('Einrichten kannst du das in der App unter „Einrichtung“.');
 });
 
