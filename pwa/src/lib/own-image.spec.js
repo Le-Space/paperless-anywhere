@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { recoverMessageAddress } from 'viem';
 import { imagePassphrase } from './keys/derive.js';
-import { BUILDER, BUILDER_CREDITS_PER_HOUR, BuilderError, IMAGE_STORE_CREDITS_PER_HOUR, LANES, PIECE_BYTES, RUN_BYTES, buildAffordable, buildOnOwnBuilder, buildOwnImage, builderMessage, builderOpener, checkBuilder, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources, storeMessage } from './own-image.js';
+import { BUILDER, BUILDER_CREDITS_PER_HOUR, BuilderError, IMAGE_STORE_CREDITS_PER_HOUR, LANES, PIECE_BYTES, RUN_BYTES, buildAffordable, buildOnOwnBuilder, buildPaidByPackage, buildOwnImage, builderMessage, builderOpener, checkBuilder, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources, storeMessage } from './own-image.js';
 import { sha256Hex } from './vm.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -511,5 +511,61 @@ describe('a builder started for each build', () => {
 		expect(await forgetLeftBuilder(app, { ownBuilder: { vprogram: '2c'.repeat(32) } }, { post: left.post, sleep: async () => {} })).toBe(true);
 		expect(left.sent.map((m) => [m.type, m.content.hashes])).toEqual([['FORGET', ['2c'.repeat(32)]]]);
 		expect(await forgetLeftBuilder(app, {}, { post: left.post })).toBe(false);
+	});
+});
+
+describe('a build paid by the package', () => {
+	const crn = '0c'.repeat(32);
+	const owner = '0x00000000000000000000000000000000000000a5';
+	const program = { runtime: { ref: '0d'.repeat(32) }, verification: { measurements: [{ registers: { launch: 'ab'.repeat(48) } }], policy: 196608 }, requirements: { node: { node_hash: crn } } };
+	const { route: _r, ...fixed } = builder;
+	const template = { ...fixed, program, crn };
+	function aleph({ refuse = [] } = {}) {
+		const sent = [];
+		const post = async (m) => {
+			sent.push({ type: m.type, sender: m.sender, content: JSON.parse(m.item_content), hash: m.item_hash });
+			if (refuse.includes(m.type)) throw new BuilderError('refused');
+		};
+		return { sent, post };
+	}
+
+	it('sends builder, FORGET and STORE for the sub-account, signed by the app key, and closes the build', async () => {
+		const { open } = fakeBuilder();
+		const { got, store } = fakeStore();
+		const { sent, post } = aleph();
+		const done = [];
+		const noted = [];
+		await buildPaidByPackage({
+			master, app, builder: template, store, post, ...quick(), opener: () => open,
+			charge: async () => ({ buildId: 'b1', owner }),
+			done: async (d) => void done.push(d),
+			onStarted: (v, paid) => void noted.push(paid)
+		});
+		expect(sent.map((m) => [m.type, m.sender, m.content.address])).toEqual([['V-PROGRAM', app.address, owner], ['FORGET', app.address, owner]]);
+		expect(JSON.parse(got.message.item_content).address).toBe(owner);
+		expect(got.message.sender).toBe(app.address);
+		expect(noted).toEqual([{ buildId: 'b1', payer: owner }]);
+		expect(done).toEqual([{ buildId: 'b1', failed: false, program: sent[0].hash }]);
+	});
+
+	it('asks the charge back when Aleph never took the builder, and keeps it when the build failed later', async () => {
+		const refused = aleph({ refuse: ['V-PROGRAM'] });
+		const done = [];
+		await expect(buildPaidByPackage({ master, app, builder: template, post: refused.post, ...quick(), opener: () => async () => ({}), charge: async () => ({ buildId: 'b2', owner }), done: async (d) => void done.push(d) })).rejects.toThrow('refused');
+		expect(done).toEqual([{ buildId: 'b2', failed: true, program: null }]);
+		const { open } = fakeBuilder({ 'POST /build': () => ({ status: 500, body: new TextEncoder().encode('{}') }) });
+		const later = aleph();
+		await expect(buildPaidByPackage({ master, app, builder: template, post: later.post, ...quick(), opener: () => open, charge: async () => ({ buildId: 'b3', owner }), done: async (d) => void done.push(d) })).rejects.toThrow(BuilderError);
+		expect(done.at(-1)).toEqual({ buildId: 'b3', failed: true, program: later.sent[0].hash });
+		// Nothing is started when the service charged nothing.
+		const none = aleph();
+		await expect(buildPaidByPackage({ master, app, builder: template, post: none.post, ...quick(), opener: () => open, charge: async () => { throw new Error('402'); }, done: async () => {} })).rejects.toThrow('402');
+		expect(none.sent).toEqual([]);
+	});
+
+	it('forgets a builder a closed window left in the payer\'s name', async () => {
+		const { sent, post } = aleph();
+		expect(await forgetLeftBuilder(app, { ownBuilder: { vprogram: '3d'.repeat(32), payer: owner } }, { post, sleep: async () => {} })).toBe(true);
+		expect(sent.map((m) => [m.type, m.content.address, m.content.hashes])).toEqual([['FORGET', owner, ['3d'.repeat(32)]]]);
 	});
 });

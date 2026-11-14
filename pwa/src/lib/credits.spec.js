@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { recoverMessageAddress } from 'viem';
-import { backupAuthorize, backupKeyAddress, backupOf, backupRevoke, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, quoteVm, QuoteUnsupportedError, vmAuthorize, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp, creditsTerms, withdrawalOf, withdrawalText, waiverOf, WaiverError, cancelSubscription, CancelUnsupportedError, cancellationRecord, contractName, cancelMailto, withdraw, withdrawableOf, withdrawalQuote, withdrawalRecord, WithdrawalUnsupportedError, BACKUP_MONTH_CREDITS, backupMonthCredits } from './credits.js';
+import { backupAuthorize, backupKeyAddress, backupOf, backupRevoke, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, quoteVm, QuoteUnsupportedError, vmAuthorize, imageBuild, imageBuildDone, IMAGE_BUILD_TYPES, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp, creditsTerms, withdrawalOf, withdrawalText, waiverOf, WaiverError, cancelSubscription, CancelUnsupportedError, cancellationRecord, contractName, cancelMailto, withdraw, withdrawableOf, withdrawalQuote, withdrawalRecord, WithdrawalUnsupportedError, BACKUP_MONTH_CREDITS, backupMonthCredits } from './credits.js';
 
 // A made-up vault: the ledger knows it by the address its Aleph key has.
 const master = new Uint8Array(32).fill(7);
@@ -343,12 +343,41 @@ describe('model A: the VM paid by Le Space', () => {
 	it('asks for the delegation and returns the paying account', async () => {
 		const owner = '0x' + '6'.repeat(40);
 		const svc = jsonService(() => [200, { owner, delegate: account.address, types: ['INSTANCE', 'FORGET', 'AGGREGATE'], aggregate_keys: ['port-forwarding'], hours_left: 34, period_end: '2026-12-06T00:00:00Z', revoke_at: null }]);
-		expect(await vmAuthorize(master, { baseUrl, fetch: svc.fetch })).toEqual({ owner, delegate: account.address, hoursLeft: 34, periodEnd: '2026-12-06T00:00:00Z', revokeAt: null });
+		expect(await vmAuthorize(master, { baseUrl, fetch: svc.fetch })).toEqual({ owner, delegate: account.address, hoursLeft: 34, periodEnd: '2026-12-06T00:00:00Z', revokeAt: null, types: ['INSTANCE', 'FORGET', 'AGGREGATE'] });
 		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address });
 	});
 	it('says when the service does not pay VMs yet (503 SUBS_OFF)', async () => {
 		const svc = jsonService(() => [503, { error: 'subs off', code: 'SUBS_OFF' }]);
 		await expect(vmAuthorize(master, { baseUrl, fetch: svc.fetch })).rejects.toThrow(/noch nicht selbst/);
+	});
+});
+
+describe('an image of its own paid by the package', () => {
+	const baseUrl = 'https://credits.example.com';
+	const owner = '0x' + '6'.repeat(40);
+	it('needs V-PROGRAM, STORE and FORGET on the sub-account', () => {
+		expect(IMAGE_BUILD_TYPES).toEqual(['V-PROGRAM', 'STORE', 'FORGET']);
+	});
+	it('asks the price first, then charges, then closes the build', async () => {
+		const svc = jsonService((body) =>
+			body.build_id
+				? [200, { build_id: body.build_id, state: body.failed ? 'failed' : 'done', reclaimed: 2_000_000, credits_after: 900 }]
+				: body.quote
+					? [200, { quote: true, owner, aleph_credits: 2_052_000, charged_credits: 4, credits_before: 1000, credits_after: 996 }]
+					: [200, { build_id: 'b-1', owner, aleph_credits: 2_052_000, charged_credits: 4, expiration: '2026-12-01T00:00:00Z', credits_before: 1000, credits_after: 996 }]
+		);
+		expect(await imageBuild(master, { quote: true }, { baseUrl, fetch: svc.fetch })).toMatchObject({ buildId: null, owner, chargedCredits: 4, creditsAfter: 996 });
+		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, quote: true });
+		expect(await imageBuild(master, {}, { baseUrl, fetch: svc.fetch })).toMatchObject({ buildId: 'b-1', owner, alephCredits: 2_052_000 });
+		expect(await imageBuildDone(master, { buildId: 'b-1', program: 'ab'.repeat(32) }, { baseUrl, fetch: svc.fetch })).toEqual({ state: 'done', reclaimed: 2_000_000 });
+		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, build_id: 'b-1', program: 'ab'.repeat(32) });
+		await imageBuildDone(master, { buildId: 'b-2', failed: true }, { baseUrl, fetch: svc.fetch });
+		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, build_id: 'b-2', failed: true });
+	});
+	it('says why a build cannot be paid', async () => {
+		await expect(imageBuild(master, { quote: true }, { baseUrl, fetch: jsonService(() => [409, { error: 'no plan', code: 'NO_PLAN' }]).fetch })).rejects.toThrow(/laufendes Paket/);
+		await expect(imageBuild(master, {}, { baseUrl, fetch: jsonService(() => [409, { error: 'running', code: 'BUILD_RUNNING' }]).fetch })).rejects.toThrow(/läuft schon ein Bau/);
+		await expect(imageBuild(master, { quote: true }, { baseUrl, fetch: jsonService(() => [402, { error: 'insufficient credits: 1 free, 4 needed', code: 'INSUFFICIENT' }]).fetch })).rejects.toThrow();
 	});
 });
 

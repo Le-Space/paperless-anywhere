@@ -377,6 +377,8 @@ const VM_FUND_MESSAGES = table((c) => c.vmFund);
 
 const BACKUP_KEY_MESSAGES = table((c) => c.backupKey);
 
+const IMAGE_BUILD_MESSAGES = table((c) => c.imageBuild);
+
 /**
  * A signed JSON request to the service; throws with its message, and a
  * CreditsShortError on 402.
@@ -585,8 +587,48 @@ export async function vmAuthorize(master, options) {
 		delegate: String(r.delegate ?? ''),
 		hoursLeft: r.hours_left == null ? null : Number(r.hours_left),
 		periodEnd: r.period_end ?? null,
-		revokeAt: r.revoke_at ?? null
+		revokeAt: r.revoke_at ?? null,
+		// What the app key may send for the sub-account; null from an older service.
+		types: Array.isArray(r.types) ? r.types.map(String) : null
 	};
+}
+
+/** The message types an image build sends for the sub-account. */
+export const IMAGE_BUILD_TYPES = ['V-PROGRAM', 'STORE', 'FORGET'];
+
+/**
+ * An image of its own, paid by the package (POST /v1/image/build): with
+ * `quote`, what it would cost; without, the charge, and the grant to the
+ * sub-account (`owner`) that Aleph's one-day check needs.
+ * @param {Uint8Array} master @param {{ quote?: boolean }} [what]
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ */
+export async function imageBuild(master, { quote = false } = {}, options) {
+	const r = await send(master, 'POST', '/v1/image/build', quote ? { quote: true } : {}, options, IMAGE_BUILD_MESSAGES);
+	if (!ADDRESS.test(String(r?.owner ?? ''))) throw new Error(tr().credits.noVmAccount);
+	if (!quote && !r?.build_id) throw new Error(tr().credits.answers(200));
+	return {
+		buildId: r.build_id ? String(r.build_id) : null,
+		owner: String(r.owner),
+		alephCredits: numberOrNull(r.aleph_credits),
+		chargedCredits: numberOrNull(r.charged_credits),
+		creditsBefore: numberOrNull(r.credits_before),
+		creditsAfter: numberOrNull(r.credits_after),
+		expiration: typeof r.expiration === 'string' ? r.expiration : null
+	};
+}
+
+/**
+ * The build is over (POST /v1/image/build/done), after the V-PROGRAM's
+ * FORGET: the service takes back what it granted beyond the builder's run.
+ * `failed` without `program`: Aleph never took the V-PROGRAM, the charge is
+ * undone.
+ * @param {Uint8Array} master @param {{ buildId: string, failed?: boolean, program?: string | null }} done
+ * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
+ */
+export async function imageBuildDone(master, { buildId, failed = false, program = null }, options) {
+	const r = await send(master, 'POST', '/v1/image/build/done', { build_id: buildId, ...(failed ? { failed: true } : {}), ...(program ? { program } : {}) }, options, IMAGE_BUILD_MESSAGES);
+	return { state: r?.state ?? null, reclaimed: numberOrNull(r?.reclaimed) };
 }
 
 /**
