@@ -12,6 +12,7 @@
 import { wordlist } from '@scure/bip39/wordlists/english.js';
 import { ALEPH_API } from './aleph.js';
 import { isMultiaddr, relayList } from './attest-p2p.js';
+import { tr } from './i18n/index.js';
 
 export const RELAY_REGISTRATION = Object.freeze({ channel: 'simple-todo', ref: 'simple-todo-bootstrap', type: 'relay-bootstrap-v2' });
 
@@ -129,6 +130,6 @@ export function relayUsed(relay, profile) {
 export async function attestRelaysFor(profile, find = findAttestRelays) {
 	const configured = profile.attestRelay ? relayList(profile.attestRelay) : [];
 	const relays = [...new Set([...configured, ...(await find())])];
-	if (!relays.length) throw new Error('Kein Attest-Relay: keins eingetragen, und Aleph kennt gerade keins von Le Space.');
+	if (!relays.length) throw new Error(tr().net.relay.none);
 	return relays;
 }

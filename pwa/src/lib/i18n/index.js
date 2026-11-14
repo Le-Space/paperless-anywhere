@@ -9,9 +9,12 @@
 // asks `tr()` at the moment it needs a text, for example when it throws.
 import { derived, get, writable } from 'svelte/store';
 import { app } from './app.js';
+import { backup } from './backup.js';
 import { card } from './card.js';
 import { credits } from './credits.js';
+import { funds } from './funds.js';
 import { life } from './lifecycle.js';
+import { net } from './net.js';
 import { pkg } from './package.js';
 import { buy } from './purchase.js';
 import { ownImage } from './own-image.js';
@@ -53,10 +56,13 @@ export function setLang(next) {
 // One area a line, so two changes at once do not meet in the same line.
 const AREAS = {
 	app,
+	backup,
 	buy,
 	card,
 	credits,
+	funds,
 	life,
+	net,
 	ownImage,
 	pkg,
 	setup

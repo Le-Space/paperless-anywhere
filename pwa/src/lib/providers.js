@@ -7,6 +7,7 @@ import { getEndorsedProviderIds } from '@filoz/synapse-core/endorsements';
 import { getPDPProvidersByIds } from '@filoz/synapse-core/sp-registry';
 import { filecoinChain } from './permissions.js';
 import { place } from './backups.js';
+import { tr } from './i18n/index.js';
 
 const EU = ['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE'];
 const EEA = [...EU, 'IS', 'LI', 'NO'];
@@ -61,15 +62,16 @@ export const regionCodes = (regions = []) => regions.flatMap((r) => REGION_PRESE
 export function pickProviders(providers, { copies = 2, providerIds = [], regions = [] }) {
 	const codes = regionCodes(regions);
 	const inRegion = (p) => !codes.length || codes.includes(p.country ?? '');
+	const say = tr().backup.places.problems;
 	if (providerIds.length) {
 		const byId = new Map(providers.map((p) => [p.id, p]));
 		const problems = [];
 		const picked = [];
 		for (const id of providerIds) {
 			const p = byId.get(id);
-			if (!p) problems.push(`Anbieter ${id} ist nicht (mehr) zugelassen.`);
-			else if (!p.active) problems.push(`Anbieter ${id} (${p.name}) ist nicht aktiv.`);
-			else if (!inRegion(p)) problems.push(`Anbieter ${id} (${p.name}) liegt außerhalb der Region.`);
+			if (!p) problems.push(say.notApproved(id));
+			else if (!p.active) problems.push(say.notActive(id, p.name));
+			else if (!inRegion(p)) problems.push(say.outsideRegion(id, p.name));
 			else picked.push(p);
 		}
 		return { picked, problems };
@@ -80,7 +82,7 @@ export function pickProviders(providers, { copies = 2, providerIds = [], regions
 	for (const p of candidates) if (!picked.some((q) => q.operator === p.operator)) picked.push(p);
 	for (const p of candidates) if (!picked.includes(p) && !picked.some((q) => q.country === p.country)) picked.push(p);
 	for (const p of candidates) if (!picked.includes(p)) picked.push(p);
-	const problems = candidates.length < copies ? [`${copies} Kopien gewünscht, in der Region gibt es nur ${candidates.length} zugelassene Anbieter.`] : [];
+	const problems = candidates.length < copies ? [say.tooFew(copies, candidates.length)] : [];
 	return { picked: picked.slice(0, copies), problems };
 }
 
@@ -90,11 +92,12 @@ export const outsideEu = (picked) => [...new Set(picked.filter((p) => !EU.includ
 /** Warnings when copies are not independent: same operator or same place. @param {Provider[]} picked */
 export function sharedWarnings(picked) {
 	const warnings = [];
+	const say = tr().backup.places.shared;
 	for (let i = 0; i < picked.length; i++) {
 		for (let j = i + 1; j < picked.length; j++) {
 			const [a, b] = [picked[i], picked[j]];
-			if (a.operator && a.operator === b.operator) warnings.push(`${a.name} und ${b.name} gehören demselben Betreiber (${a.operator}).`);
-			else if (a.place && a.place === b.place) warnings.push(`${a.name} und ${b.name} stehen am selben Ort (${a.place}).`);
+			if (a.operator && a.operator === b.operator) warnings.push(say.operator(a.name, b.name, a.operator));
+			else if (a.place && a.place === b.place) warnings.push(say.place(a.name, b.name, a.place));
 		}
 	}
 	return warnings;

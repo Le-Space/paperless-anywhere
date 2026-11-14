@@ -5,10 +5,14 @@
 	import { alephBalance, filecoinBalance, hoursOf, duration, amount, LOW_GAS, RESERVE_HOURS, confidentialCreditsPerHour, runningCreditsPerHour } from '$lib/balances.js';
 	import { PAPERLESS_VM } from '$lib/vm.js';
 	import { marketPrices, money, UNITS } from '$lib/prices.js';
+	import { format, lang, t } from '$lib/i18n/index.js';
 
 	/** @type {{ master: Uint8Array, version?: number, onsummary?: (s: { money: string, lasts: string, warnings: ('start' | 'backups')[] } | null) => void, onshown?: (shown: boolean) => void }} */
 	let { master, version = 0, onsummary = () => {}, onshown = () => {} } = $props();
 
+	const f = $derived($t.funds);
+	// Numbers in the language's notation, following the switch in the header.
+	const num = (/** @type {number} */ n, /** @type {number} */ digits = 2) => amount(n, digits, $lang);
 	const appAddress = privateKeyToAccount(alephPrivateKey(master)).address;
 	// Who pays the VM on Aleph, and the wallet that pays the backups on Filecoin.
 	let alephPayer = $state('');
@@ -41,7 +45,6 @@
 	const reserve = $derived(RESERVE_HOURS * (vmPerHour + (runningPerHour ?? 0)));
 	// Credits also as euros, dollars or ALEPH, as the viewer chose (kept in this browser only).
 	const UNIT_KEY = 'paperless-credit-unit';
-	const UNIT_LABELS = { credits: 'nur Credits', eur: 'Euro', usd: 'Dollar', aleph: 'ALEPH' };
 	let unit = $state(/** @type {typeof UNITS[number]} */ ('eur'));
 	try {
 		const saved = localStorage.getItem(UNIT_KEY);
@@ -59,7 +62,7 @@
 	};
 	/** @type {import('$lib/prices.js').Prices | null} */
 	let prices = $state(null);
-	const inMoney = (/** @type {number} */ credits) => money(credits, unit, prices);
+	const inMoney = (/** @type {number} */ credits) => money(credits, unit, prices, $lang);
 
 	const test = $derived(network !== 'mainnet');
 	const gasName = $derived(test ? 'tFIL' : 'FIL');
@@ -78,8 +81,9 @@
 	}
 
 	// For the simple view: plain warnings, no crypto names (those stay below,
-	// under "Erweitert"), and the balance in euros where no package pays.
+	// under "Advanced"), and the balance in euros where no package pays.
 	$effect(() => {
+		$lang;
 		if (!alephPayer || !aleph) return onsummary(null);
 		const warnings = [];
 		if (!vmUp && vmPerHour && aleph.credits < reserve) warnings.push('start');
@@ -111,52 +115,52 @@
 
 {#if showAleph || showFilecoin}
 	<section class="balances" data-testid="balances">
-		<h2>{showAleph && appPays ? 'Adresse der App und deine Wallet' : 'Deine Wallet'}</h2>
-		<p class="hint keys" data-testid="balance-keys">{showAleph && appPays ? 'Den Schlüssel der App-Adresse leitet dein Browser aus deinem Passkey (oder den 24 Wörtern) ab. ' : ''}{payer ? 'Den Schlüssel deiner Wallet hat nur deine Wallet. ' : ''}Le Space hat keinen dieser Schlüssel und kann nichts davon ausgeben.</p>
+		<h2>{showAleph && appPays ? f.titleBoth : f.titleWallet}</h2>
+		<p class="hint keys" data-testid="balance-keys">{showAleph && appPays ? f.keys.app : ''}{payer ? f.keys.wallet : ''}{f.keys.leSpace}</p>
 		<dl>
 			{#if showAleph}
-			<dt>Aleph-Credits{#if appPays} <small>(Adresse der App)</small>{/if}</dt>
+			<dt>{f.alephCredits}{#if appPays} <small>{f.appAddress}</small>{/if}</dt>
 			<dd data-testid="balance-credits">
 				{#if aleph}
-					{amount(aleph.credits, 0)} {#if inMoney(aleph.credits)}<span class="money" data-testid="balance-money">{inMoney(aleph.credits)}</span>{/if}
-					{#if vmUp && perHour}<small data-testid="balance-rate">· reicht noch ca. {duration(hoursOf(aleph.credits, perHour))} ({amount(perHour, 0)}/h{inMoney(perHour) ? `, ${inMoney(perHour)}/h` : ''}, was gerade läuft)</small>
-					{:else if vmPerHour}<small data-testid="balance-rate">· reicht für ca. {duration(hoursOf(aleph.credits, perHour))} Laufzeit ({amount(vmPerHour, 0)}/h{inMoney(vmPerHour) ? `, ${inMoney(vmPerHour)}/h` : ''}{runningPerHour ? ` + ${amount(runningPerHour, 0)}/h, was schon läuft` : ''})</small>{/if}
-					{#if !vmUp && vmPerHour && aleph.credits < reserve}<br /><span class="warn" data-testid="balance-reserve">Unter der Tagesreserve von {amount(reserve, 0)}{inMoney(reserve) ? ` (${inMoney(reserve)})` : ''}: Aleph nimmt so keinen Start an.</span>{/if}
-				{:else if alephError}<span class="hint">nicht lesbar</span>{:else}…{/if}
+					{num(aleph.credits, 0)} {#if inMoney(aleph.credits)}<span class="money" data-testid="balance-money">{inMoney(aleph.credits)}</span>{/if}
+					{#if vmUp && perHour}<small data-testid="balance-rate">{f.lastsRunning(($lang, duration(hoursOf(aleph.credits, perHour))), `${num(perHour, 0)}/h${inMoney(perHour) ? `, ${inMoney(perHour)}/h` : ''}`)}</small>
+					{:else if vmPerHour}<small data-testid="balance-rate">{f.lastsFor(($lang, duration(hoursOf(aleph.credits, perHour))), `${num(vmPerHour, 0)}/h${inMoney(vmPerHour) ? `, ${inMoney(vmPerHour)}/h` : ''}`, runningPerHour ? num(runningPerHour, 0) : null)}</small>{/if}
+					{#if !vmUp && vmPerHour && aleph.credits < reserve}<br /><span class="warn" data-testid="balance-reserve">{f.belowReserve(`${num(reserve, 0)}${inMoney(reserve) ? ` (${inMoney(reserve)})` : ''}`)}</span>{/if}
+				{:else if alephError}<span class="hint">{f.unreadable}</span>{:else}…{/if}
 			</dd>
-			{#if aleph?.aleph}<dt>ALEPH</dt><dd>{amount(aleph.aleph)}</dd>{/if}
+			{#if aleph?.aleph}<dt>ALEPH</dt><dd>{num(aleph.aleph)}</dd>{/if}
 			{/if}
 
 			{#if showFilecoin}
-			<dt>{gasName} <small>(Gas)</small></dt>
+			<dt>{gasName} <small>{f.gas}</small></dt>
 			<dd data-testid="balance-gas">
 				{#if filecoin}
-					{amount(filecoin.gas, 3)}
-					{#if filecoin.gas < LOW_GAS}<br /><span class="warn">Wenig Gas: Den Sitzungsschlüssel zu verlängern oder Filecoin Pay aufzufüllen kostet {gasName}.</span>{/if}
-				{:else if filecoinError}<span class="hint">nicht lesbar</span>{:else}…{/if}
+					{num(filecoin.gas, 3)}
+					{#if filecoin.gas < LOW_GAS}<br /><span class="warn">{f.lowGas(gasName)}</span>{/if}
+				{:else if filecoinError}<span class="hint">{f.unreadable}</span>{:else}…{/if}
 			</dd>
 			{#if filecoin}
-				<dt>USDFC{test ? ' (Test)' : ''} in deiner Wallet</dt>
-				<dd>{amount(filecoin.usdfc)}</dd>
-				<dt>Filecoin Pay <small>(für Sicherungen)</small></dt>
+				<dt>{f.usdfcInWallet(test)}</dt>
+				<dd>{num(filecoin.usdfc)}</dd>
+				<dt>{f.filecoinPay} <small>{f.forBackups}</small></dt>
 				<dd data-testid="balance-deposit">
-					{amount(filecoin.available)} verfügbar <small>von {amount(filecoin.deposit)} hinterlegt</small>
-					{#if filecoin.perMonth > 0}<br /><small>Verbrauch ca. {amount(filecoin.perMonth)} USDFC im Monat{filecoin.runwayDays !== null ? `, reicht ca. ${filecoin.runwayDays} Tage` : ''}</small>{/if}
-					{#if filecoin.runwayDays !== null && filecoin.runwayDays < 30}<br /><span class="warn">Reicht weniger als einen Monat: aus deiner Wallet auffüllen, sonst schlagen Sicherungen fehl.</span>{/if}
+					{f.available(num(filecoin.available))} <small>{f.deposited(num(filecoin.deposit))}</small>
+					{#if filecoin.perMonth > 0}<br /><small>{f.spend(num(filecoin.perMonth), filecoin.runwayDays)}</small>{/if}
+					{#if filecoin.runwayDays !== null && filecoin.runwayDays < 30}<br /><span class="warn">{f.lessThanMonth}</span>{/if}
 				</dd>
 			{/if}
 			{/if}
 		</dl>
 		{#if showAleph}
 		<p class="units">
-			<label>Credits auch in
+			<label>{f.alsoIn}
 				<select value={unit} onchange={(e) => setUnit(e.currentTarget.value)} data-testid="credit-unit">
-					{#each UNITS as u (u)}<option value={u}>{UNIT_LABELS[u]}</option>{/each}
+					{#each UNITS as u (u)}<option value={u}>{f.units[u]}</option>{/each}
 				</select></label>
-			<small class="hint">1 $ = 1.000.000 Credits (Aleph){#if prices} · ALEPH {amount(prices.alephEur, 4)} €, 1 $ = {amount(prices.usdEur, 3)} € (CoinGecko, {new Date(prices.at).toLocaleTimeString('de-DE', { timeStyle: 'short' })}){:else if unit === 'eur' || unit === 'aleph'} · Kurse gerade nicht abrufbar{/if}</small>
+			<small class="hint">{f.peg(num(1_000_000, 0))}{#if prices}{f.rates(num(prices.alephEur, 4), num(prices.usdEur, 3), format.dateTime(prices.at, { timeStyle: 'short' }, $lang))}{:else if unit === 'eur' || unit === 'aleph'}{f.noRates}{/if}</small>
 		</p>
 		{/if}
-		<button class="quiet" onclick={read} disabled={reading}>{reading ? 'Lese …' : 'Aktualisieren'}</button>
+		<button class="quiet" onclick={read} disabled={reading}>{reading ? f.reading : f.refresh}</button>
 	</section>
 {/if}
 

@@ -8,6 +8,7 @@
 // the address that publishes Aleph's runtimes), check what changed in
 // aleph-vm at `rev`, and copy the values.
 import { fetchInstanceRuntime, trustedExecution } from '@le-space/attest-wasm/runtime';
+import { tr } from './i18n/index.js';
 
 export const RUNTIME = Object.freeze({
 	name: 'snp-1.2',
@@ -21,7 +22,7 @@ export const RUNTIME = Object.freeze({
 export class RuntimeMismatchError extends Error {
 	/** @param {string} what */
 	constructor(what) {
-		super(`Die Laufzeit, die Aleph liefert, ist nicht die, die diese App kennt (${what}). Es wurde nichts gestartet.`);
+		super(tr().net.runtime.mismatch(what));
 		this.name = 'RuntimeMismatchError';
 	}
 }
@@ -33,10 +34,10 @@ export class RuntimeMismatchError extends Error {
  * @param {any} manifest @param {typeof RUNTIME} [pin]
  */
 export function checkManifest(manifest, pin = RUNTIME) {
-	if (manifest?.bundle?.sha256 !== pin.bundleSha256) throw new RuntimeMismatchError('anderes Paket');
-	if (manifest?.boot?.cmdline_template !== pin.cmdlineTemplate) throw new RuntimeMismatchError('andere Startzeile');
+	if (manifest?.bundle?.sha256 !== pin.bundleSha256) throw new RuntimeMismatchError(tr().net.runtime.otherBundle);
+	if (manifest?.boot?.cmdline_template !== pin.cmdlineTemplate) throw new RuntimeMismatchError(tr().net.runtime.otherBootLine);
 	for (const [role, file] of Object.entries(pin.members)) {
-		if (manifest?.bundle?.members?.[role] !== file) throw new RuntimeMismatchError(`andere Datei für ${role}`);
+		if (manifest?.bundle?.members?.[role] !== file) throw new RuntimeMismatchError(tr().net.runtime.otherFile(role));
 	}
 }
 

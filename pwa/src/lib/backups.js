@@ -8,6 +8,7 @@ import { dataSetLive, getActivePiecesByCursor } from '@filoz/synapse-core/pdp-ve
 import { getPDPProvidersByIds } from '@filoz/synapse-core/sp-registry';
 import { tryFrom as pieceFrom } from '@filoz/synapse-core/piece';
 import { filecoinChain } from './permissions.js';
+import { format, tr } from './i18n/index.js';
 
 /** The data-set label paperless-backup-filecoin writes, per network. */
 export const BACKUP_LABEL = { mainnet: 'paperless-backup', calibration: 'paperless-backup-test' };
@@ -285,12 +286,12 @@ export const defaultPlaces = (network) => (network === 'mainnet' ? DEFAULT_PLACE
  * @param {{ copies?: number, providerIds?: number[], regions?: string[] } | null} [places] copies and where, e.g. the current backupConfig
  */
 export function backupConfigFor(network, recipient, places = defaultPlaces(network)) {
-	if (network !== 'calibration' && network !== 'mainnet') throw new Error(`Unbekanntes Netz: ${network}`);
-	if (!/^age1[0-9a-z]{58}$/.test(recipient)) throw new Error('Ohne age-Schlüssel keine Sicherung.');
+	if (network !== 'calibration' && network !== 'mainnet') throw new Error(tr().backup.config.unknownNetwork(network));
+	if (!/^age1[0-9a-z]{58}$/.test(recipient)) throw new Error(tr().backup.config.noAgeKey);
 	const { copies, providerIds, regions } = { ...defaultPlaces(network), ...(places ?? {}) };
 	const ids = [...(providerIds ?? [])].map(Number);
-	if (!ids.length && !(copies >= 1 && copies <= 3)) throw new Error('1 bis 3 Kopien.');
-	if (ids.length > 3) throw new Error('Höchstens 3 Anbieter.');
+	if (!ids.length && !(copies >= 1 && copies <= 3)) throw new Error(tr().backup.config.copiesRange);
+	if (ids.length > 3) throw new Error(tr().backup.config.maxProviders);
 	return { copies: ids.length || copies, providerIds: ids, regions: [...(regions ?? [])], datasetMetadata: { app: BACKUP_LABEL[network] }, keepWeeks: network === 'mainnet' ? 12 : 1, ageRecipient: recipient };
 }
 
@@ -318,9 +319,9 @@ export function vmBackupSecrets(profile, { sessionKey, backupKey, signer, credit
 			backup_session_key: String(sessionKey)
 		};
 	}
-	if (!signer) throw new Error('Le Space Credits haben den Schlüssel der VM für die Sicherungen noch nicht freigegeben.');
-	if (signer.network !== network) throw new Error(`Le Space Credits sichern im Netz ${signer.network}, diese Paperless in ${network}.`);
-	if (!creditsUrl || !account || !product || !backupKey) throw new Error('Für Sicherungen über Le Space Credits fehlt die Adresse des Dienstes oder ein Schlüssel.');
+	if (!signer) throw new Error(tr().backup.config.signerNotReleased);
+	if (signer.network !== network) throw new Error(tr().backup.config.signerNetwork(signer.network, network));
+	if (!creditsUrl || !account || !product || !backupKey) throw new Error(tr().backup.config.signerIncomplete);
 	const { payer, tag, label } = signer;
 	return {
 		backup_config: JSON.stringify({
@@ -356,7 +357,7 @@ export function place(location) {
 	return [parts.C, parts.L ?? parts.ST].filter(Boolean).join(', ') || String(location ?? '');
 }
 
-const gb = (/** @type {number} */ bytes) => `${(bytes / 1e9).toLocaleString('de-DE', { maximumFractionDigits: 1 })} GB`;
+const gb = (/** @type {number} */ bytes) => `${format.number(bytes / 1e9, { maximumFractionDigits: 1 })} GB`;
 
 /**
  * What the VM reported about a failed backup besides its log (paperless-backup:
@@ -368,14 +369,15 @@ const gb = (/** @type {number} */ bytes) => `${(bytes / 1e9).toLocaleString('de-
 export function backupFacts(backup) {
 	if (!backup) return [];
 	const facts = [];
-	if (backup.oomKills > 0) facts.push(`Speicher reichte nicht: das System hat ${backup.oomKills === 1 ? 'einen Prozess' : `${backup.oomKills} Prozesse`} beendet.`);
-	if (typeof backup.memAvailableBytes === 'number') facts.push(`Freier Arbeitsspeicher danach: ${gb(backup.memAvailableBytes)}${backup.swapBytes ? `, Auslagerung ${gb(backup.swapBytes)}` : ', keine Auslagerung'}`);
-	if (typeof backup.srvFreeBytes === 'number') facts.push(`Freier Platz auf der Datenplatte: ${gb(backup.srvFreeBytes)}`);
-	if (typeof backup.exit === 'number') facts.push(`Exit-Code ${backup.exit}`);
+	const say = tr().backup.facts;
+	if (backup.oomKills > 0) facts.push(say.oom(backup.oomKills));
+	if (typeof backup.memAvailableBytes === 'number') facts.push(say.memory(gb(backup.memAvailableBytes), backup.swapBytes ? gb(backup.swapBytes) : null));
+	if (typeof backup.srvFreeBytes === 'number') facts.push(say.disk(gb(backup.srvFreeBytes)));
+	if (typeof backup.exit === 'number') facts.push(say.exit(backup.exit));
 	return facts;
 }
 
-// --- Fetching a backup without a VM ("Sicherung selbst holen") -------------
+// --- Fetching a backup without a VM -----------------------------------------
 //
 // A backup is public where it lies and readable only with the backup key. So
 // a person can fetch it from a provider and decrypt it on their own machine,
@@ -408,7 +410,7 @@ export function pieceSources(backup) {
 /**
  * The instructions a person keeps with a backup they want to fetch
  * themselves: the commands for curl and age, and the same for the backup
- * tool. Plain text, in German, as the app is.
+ * tool. Plain text, in the app's language.
  * @param {Parameters<typeof pieceSources>[0]} backup
  * @returns {{ filename: string, text: string, complete: boolean }}
  */
@@ -417,47 +419,31 @@ export function selfRestoreGuide(backup) {
 	const complete = sources.every((s) => s.urls.length > 0);
 	const short = backup.pieceCid.slice(-12);
 	const many = sources.length > 1;
-	const file = (i) => (many ? `teil-${String(i + 1).padStart(2, '0')}.age` : 'sicherung.age');
-	const lines = [
-		'Sicherung selbst holen – Paperless anywhere',
-		'',
-		`Sicherung: ${backup.pieceCid}`,
-		many ? `Sie besteht aus ${sources.length} Teilen, die in dieser Reihenfolge aneinandergehängt werden.` : 'Sie besteht aus einem Stück.',
-		'',
-		'Du brauchst: curl, age (https://age-encryption.org) und deinen Sicherungsschlüssel',
-		'als Datei schluessel.txt (eine Zeile, beginnt mit AGE-SECRET-KEY-1). Den Schlüssel',
-		'zeigt die App unter „Sicherung selbst holen“.',
-		'',
-		'1. Herunterladen (von einer der Kopien; jede enthält dasselbe):',
-		''
-	];
+	const g = tr().backup.guide;
+	const file = (i) => (many ? g.partFile(String(i + 1).padStart(2, '0')) : g.sealedFile);
+	const lines = [g.title, '', g.which(backup.pieceCid), g.parts(sources.length), '', ...g.need(g.keyFile), '', g.download, ''];
 	sources.forEach((s, i) => {
-		if (many) lines.push(`   Teil ${i + 1}: ${s.pieceCid}`);
-		if (!s.urls.length) lines.push('   (für dieses Stück kennt die App gerade keine Adresse)');
-		s.urls.forEach((url, n) => lines.push(`   ${n === 0 ? '' : '# oder: '}curl -fL -o ${file(i)} '${url}'`));
+		if (many) lines.push(g.part(i + 1, s.pieceCid));
+		if (!s.urls.length) lines.push(g.noAddress);
+		s.urls.forEach((url, n) => lines.push(`   ${n === 0 ? '' : g.or}curl -fL -o ${file(i)} '${url}'`));
 		lines.push('');
 	});
-	if (many) lines.push('2. Zusammensetzen:', '', `   cat ${sources.map((_, i) => file(i)).join(' ')} > sicherung.age`, '');
+	if (many) lines.push(g.join, '', `   cat ${sources.map((_, i) => file(i)).join(' ')} > ${g.sealedFile}`, '');
 	lines.push(
-		`${many ? 3 : 2}. Entschlüsseln:`,
+		g.decrypt(many ? 3 : 2),
 		'',
-		'   age -d -i schluessel.txt sicherung.age > paperless-export.zip',
+		`   age -d -i ${g.keyFile} ${g.sealedFile} > paperless-export.zip`,
 		'',
-		'Das Ergebnis ist ein Zip mit deinen Dokumenten (Originale und Archiv-PDFs) und der Datei',
-		'manifest.json. Es lässt sich ohne Paperless-ngx öffnen; in ein leeres Paperless-ngx',
-		'spielt man es mit dessen document_importer ein.',
+		...g.result,
 		'',
-		'Mit dem Werkzeug paperless-backup-filecoin (https://github.com/Le-Space/paperless-backup-filecoin)',
-		'geht dasselbe in einem Schritt: die Datei mit dem Eintrag dieser Sicherung als ledger.json',
-		'ablegen, AGE_IDENTITY_FILE auf schluessel.txt setzen und',
+		...g.tool(g.keyFile),
 		'',
 		`   node backup.mjs restore ${backup.pieceCid}`,
 		'',
-		'Der Schlüssel öffnet alle deine Sicherungen. Bewahre ihn wie die 24 Wörter auf und',
-		'lösche schluessel.txt, wenn du fertig bist.',
+		...g.keep(g.keyFile),
 		''
 	);
-	return { filename: `sicherung-selbst-holen-${short}.txt`, text: lines.join('\n'), complete };
+	return { filename: g.filename(short), text: lines.join('\n'), complete };
 }
 
 /** A backup key as age writes it, or null. @param {unknown} identity */

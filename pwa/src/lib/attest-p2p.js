@@ -5,6 +5,7 @@
 // carries the RA-TLS records the WASM in this browser checks; it cannot read
 // them. js-libp2p is loaded only when a multiaddr relay is used.
 import { websocketTransport } from '@le-space/attest-wasm/ratls';
+import { tr } from './i18n/index.js';
 
 export const ATTEST_PROTOCOL = '/le-space/attest/1.0.0';
 const DIAL_TIMEOUT_MS = 20_000;
@@ -17,7 +18,7 @@ const MULTIADDR = /^\/(ip4|ip6|dns4|dns6|dns)\/[^\s]+\/p2p\/[1-9A-HJ-NP-Za-km-z]
 export function relayList(text) {
 	const entries = String(text ?? '').split(/[\s,]+/).map((e) => e.trim()).filter(Boolean);
 	for (const entry of entries) {
-		if (!WSS.test(entry) && !MULTIADDR.test(entry)) throw new Error(`Kein Relay: ${entry.slice(0, 60)} (erwartet: wss://<host>/attest oder eine Multiaddr mit /p2p/)`);
+		if (!WSS.test(entry) && !MULTIADDR.test(entry)) throw new Error(tr().net.relay.notOne(entry.slice(0, 60)));
 	}
 	return entries;
 }

@@ -1,6 +1,7 @@
 // Aleph aggregates for the vault, signed by keys this app derives itself. An
 // address without credits may post them (measured), so no payment is involved.
 import { broadcastAlephMessage, createUnsignedAggregateMessage, signAlephMessage } from '@le-space/core';
+import { tr } from './i18n/index.js';
 
 export const ALEPH_API = 'https://api2.aleph.im';
 export const CHANNEL = 'paperless-anywhere';
@@ -17,7 +18,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * `tries` attempts on a network error, a timeout or a 5xx, with a pause in
  * between. When all fail, the error names what could not be read, instead of
  * the browser's bare "Failed to fetch".
- * @param {string} url @param {string} what e.g. "Guthaben abfragen"
+ * @param {string} url @param {string} what e.g. "asking for the balance"
  * @param {RequestInit & { tries?: number, pauseMs?: number, timeoutMs?: number, fetch?: typeof fetch }} [init]
  */
 export async function readFetch(url, what, { tries = 3, pauseMs = 1500, timeoutMs = 20_000, fetch: fetchImpl = fetch, ...init } = {}) {
@@ -32,7 +33,7 @@ export async function readFetch(url, what, { tries = 3, pauseMs = 1500, timeoutM
 			last = e instanceof Error ? e.message : String(e);
 		}
 	}
-	throw new Error(`${new URL(url).host} nicht erreichbar (${what}, ${tries} Versuche: ${last}). Verbindung prüfen und erneut versuchen.`);
+	throw new Error(tr().net.unreachable(new URL(url).host, what, tries, last));
 }
 
 /**
@@ -79,7 +80,7 @@ export async function writeAggregate(account, key, content) {
 
 /** The content under `key` in the aggregate of `address`, or null. */
 export async function readAggregate(address, key) {
-	const res = await readFetch(`${ALEPH_API}/api/v0/aggregates/${address}.json?keys=${encodeURIComponent(key)}`, 'Einstellungen lesen');
+	const res = await readFetch(`${ALEPH_API}/api/v0/aggregates/${address}.json?keys=${encodeURIComponent(key)}`, tr().net.readSettings);
 	if (res.status === 404) return null;
 	if (!res.ok) throw new Error(`Aleph answered ${res.status}`);
 	return (await res.json())?.data?.[key] ?? null;

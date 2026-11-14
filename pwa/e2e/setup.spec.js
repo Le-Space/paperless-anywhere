@@ -218,6 +218,14 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await expect(page.getByTestId('balance-gas')).toHaveCount(0);
 	// Credits also in money: euros by default, ALEPH on request.
 	await expect(page.getByTestId('balance-money')).toHaveText('≈ 1,35 €');
+	// In English at once, numbers and money included, and back.
+	await page.getByTestId('app-lang-en').click();
+	await expect(page.getByTestId('balances')).toContainText('The app’s address');
+	await expect(page.getByTestId('balance-keys')).toContainText('Le Space has none of these keys');
+	await expect(page.getByTestId('balance-credits')).toContainText('1,500,000');
+	await expect(page.getByTestId('balance-money')).toHaveText('≈ €1.35');
+	await page.getByTestId('app-lang-de').click();
+	await expect(page.getByTestId('balance-money')).toHaveText('≈ 1,35 €');
 	await page.getByTestId('credit-unit').selectOption('aleph');
 	await expect(page.getByTestId('balance-money')).toHaveText('≈ 75 ALEPH');
 });

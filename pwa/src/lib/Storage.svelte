@@ -3,6 +3,7 @@
 	// pilot): measured in the running VM, or the last backup's size when off.
 	import { onDestroy } from 'svelte';
 	import { statusToken } from '$lib/keys/derive.js';
+	import { lang, t } from '$lib/i18n/index.js';
 	import { storageView } from '$lib/storage.js';
 	import { vmStatus } from '$lib/vm.js';
 
@@ -29,13 +30,14 @@
 	});
 	onDestroy(() => clearInterval(timer));
 
-	const view = $derived(profile?.running ? storageView(measured, 'running') : storageView(profile?.lastBackup?.size, 'backup'));
+	// Read again when the language changes: the view carries its texts.
+	const view = $derived(($lang, profile?.running ? storageView(measured, 'running') : storageView(profile?.lastBackup?.size, 'backup')));
 </script>
 
 {#if view}
 	<div class="storage is-{view.level}" data-testid="storage">
-		<p class="line"><span class="label">Speicher</span> <strong data-testid="storage-used">{view.text}</strong></p>
-		<div class="meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(view.share * 100)} aria-label="Belegter Speicher"><span style="width: {view.share * 100}%"></span></div>
+		<p class="line"><span class="label">{$t.backup.storage.label}</span> <strong data-testid="storage-used">{view.text}</strong></p>
+		<div class="meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(view.share * 100)} aria-label={$t.backup.storage.meter}><span style="width: {view.share * 100}%"></span></div>
 		<p class="hint" data-testid="storage-hint">{view.hint}</p>
 	</div>
 {/if}
