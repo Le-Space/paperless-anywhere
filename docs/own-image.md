@@ -288,8 +288,9 @@ second V-PROGRAM on a published builder's volumes showed the first one's
 measurement and sealed the real image
 ([#202](https://github.com/Le-Space/paperless-anywhere/issues/202)).
 
-**Who pays.** With a Le Space package, the package does (Le Space
-Credits, model A). The setup shows the price of one build first, the
+**Who pays.** With a Le Space package, the Le Space Credits balance
+does (model A): each build is charged to it, separately from the plan
+price, and needs a running plan. The setup shows the price of one build first, the
 builder's runtime taken from the Credits balance, and asks. The service
 then charges it and grants the customer's Le Space sub-account what
 Aleph's one-day check needs. The app's key, allowed by the sub-account to
