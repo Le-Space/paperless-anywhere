@@ -386,7 +386,7 @@ export async function buildOwnImage({ master, app, builder, open, onProgress = (
 			onProgress({ step: 'build', detail: tr().ownImage.step.build });
 			// Sent once, over the channel that was just attested, and never again.
 			const started = await call(channel, 'POST', '/build', { sha256: plain.sha256, passphrase });
-			if (started.status === 503) throw new BuilderError(tr().ownImage.error.busy);
+			if (started.status === 503 && /busy/i.test(String(started.answer?.error ?? ''))) throw new BuilderError(tr().ownImage.error.busy);
 			job = started.answer?.job ?? '';
 			if (started.status !== 202 || !/^[0-9a-f]{48}$/.test(job)) throw refused('notAccepted', started);
 
@@ -614,14 +614,22 @@ export async function buildOnOwnBuilder({ builder, opener, onStarted = () => {},
 		const open = opener(running);
 		// The node starts the builder within minutes (about four, 2026-11-14):
 		// until then a connection does not reach it. A refused attestation is final.
+		// The guest attests before its workload is up: the proxy in front of
+		// it answers 503 "upstream not ready" until then (2026-11-14, 21 s
+		// after the start). So it is up once the builder itself answers.
 		let first = null;
 		for (let i = 0; !first; i++) {
 			try {
-				first = await open();
+				const channel = await open();
+				const hello = await call(channel, 'GET', '/');
+				if (hello.status === 200 && hello.answer?.service) first = channel;
+				else channel.close?.();
 			} catch (error) {
-				if (refusedAttestation(error) || !(error instanceof BuilderError && error.code === 'unreachable') || i + 1 >= upTries) throw error;
-				await sleep(upMs);
+				if (refusedAttestation(error) || !(error instanceof BuilderError && error.code === 'unreachable')) throw error;
 			}
+			if (first) break;
+			if (i + 1 >= upTries) throw new BuilderError(tr().ownImage.error.unreachable('not up'), 'unreachable');
+			await sleep(upMs);
 		}
 		let handed = false;
 		const openFirst = () => (handed ? open() : ((handed = true), Promise.resolve(first)));

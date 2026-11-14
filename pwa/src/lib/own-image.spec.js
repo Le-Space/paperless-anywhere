@@ -25,6 +25,7 @@ function fakeBuilder(over = {}) {
 			const body = init.body ? JSON.parse(init.body) : undefined;
 			seen.calls.push({ method, path, body, ...(init.headers?.range ? { range: init.headers.range } : {}) });
 			if (over[`${method} ${path}`]) return over[`${method} ${path}`](init);
+			if (method === 'GET' && path === '/') return answer(200, { service: 'paperless-anywhere image builder', plain: builder.plain });
 			if (method === 'POST' && path === '/build') return answer(202, { job });
 			if (method === 'GET' && path === `/job/${job}`) return answer(200, ++polls < 2 ? { state: 'building' } : { state: 'built', cid, size: image.length });
 			if (method === 'GET' && path === `/job/${job}/image`) {
@@ -450,8 +451,25 @@ describe('a builder started for each build', () => {
 		expect(noted).toEqual([['started', vprogram, 1], ['forgotten', vprogram]]);
 		expect(routed).toMatchObject({ route: `?crn=${crn}&vm=${vprogram}`, vprogram, measurements: builder.measurements });
 		expect(tries).toBeGreaterThanOrEqual(3);
-		expect(seen.calls[0]).toMatchObject({ method: 'POST', path: '/build' });
+		expect(seen.calls.filter((c) => c.path !== '/')[0]).toMatchObject({ method: 'POST', path: '/build' });
 		expect(result.rootfsItemHash).toMatch(/^[0-9a-f]{64}$/);
+	});
+
+	it('waits while the guest attests but its workload answers "upstream not ready"', async () => {
+		let hellos = 0;
+		const { seen, open } = fakeBuilder({ 'GET /': () => ({ status: ++hellos < 3 ? 503 : 200, body: new TextEncoder().encode(hellos < 3 ? '{"error":"upstream not ready"}' : '{"service":"paperless-anywhere image builder"}') }) });
+		const { store } = fakeStore();
+		const { sent, post } = fakeAleph();
+		await buildOnOwnBuilder({ master, app, builder: template, store, post, ...quick(), opener: () => open });
+		expect(hellos).toBe(3);
+		expect(seen.calls.filter((c) => c.path === '/build')).toHaveLength(1);
+		expect(sent.map((m) => m.type)).toEqual(['V-PROGRAM', 'FORGET']);
+	});
+
+	it('calls the builder busy only when it says so', async () => {
+		const { open } = fakeBuilder({ 'POST /build': () => ({ status: 503, body: new TextEncoder().encode('{"error":"busy with another image; try again in a few minutes"}') }) });
+		const { post } = fakeAleph();
+		await expect(buildOnOwnBuilder({ master, app, builder: template, post, ...quick(), opener: () => open })).rejects.toThrow('baut gerade ein anderes Image');
 	});
 
 	it('forgets it also when the build fails', async () => {
@@ -463,7 +481,7 @@ describe('a builder started for each build', () => {
 
 	it('forgets it when it never answers, and at once when its attestation is refused', async () => {
 		const never = fakeAleph();
-		await expect(buildOnOwnBuilder({ master, app, builder: template, post: never.post, ...quick(), upTries: 3, opener: () => async () => Promise.reject(unreachable()) })).rejects.toThrow('not up yet');
+		await expect(buildOnOwnBuilder({ master, app, builder: template, post: never.post, ...quick(), upTries: 3, opener: () => async () => Promise.reject(unreachable()) })).rejects.toThrow(BuilderError);
 		expect(never.sent.map((m) => m.type)).toEqual(['V-PROGRAM', 'FORGET']);
 		const refused = fakeAleph();
 		let tries = 0;
