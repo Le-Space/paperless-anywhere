@@ -1,0 +1,294 @@
+// The setup (Setup.svelte, under "Erweitert" / "Advanced"): who pays the VM,
+// the permissions of a wallet, the relays, the backups, the image and the
+// fixed address. The block for an image of one's own has its own file
+// (own-image.js). German is the original; English beside it, key for key.
+export const setup = {
+	de: {
+		title: 'Einrichtung',
+		saved: 'Gespeichert ✓',
+		walletWaiting: 'Warte auf MetaMask … (bitte dort bestätigen oder ablehnen)',
+		loading: 'Lade Einstellungen …',
+		where: {
+			summary: 'Wo die Einrichtung liegt: verschlüsselt auf Aleph, auf jedem Gerät da',
+			sealed: { before: 'Jede Änderung hier wird ', here: 'in diesem Browser verschlüsselt', between: ' (AES-256-GCM, mit einem Schlüssel aus deinem Tresor) und dann ', there: 'auf Aleph', after: ' gespeichert, unter dem Schlüssel dieser App. Jedes Gerät, das den Tresor öffnet (Passkey oder 24 Wörter), findet dieselbe Einrichtung.' },
+			holds: 'Drin sind: zahlendes Konto, Netz, Relays, Image, Knoten und Passphrase des Images, die Sicherungseinstellungen samt Schlüssel der Sicherungen (age) und die laufende VM.',
+			sees: 'Aleph sieht nur einen verschlüsselten Block, wann er sich ändert, und (in der zahlenden Wallet) dass es diese App freigegeben hat, nicht den Inhalt.',
+			more: 'Mehr: ',
+			moreLink: 'Schlüssel und Wiederherstellung',
+			moreEnd: '.'
+		},
+		network: { label: 'Netz', test: 'Test (Calibration)', main: 'Produktiv (Mainnet)' },
+		role: {
+			legend: 'Rolle dieser Instanz',
+			test: 'Test: Mail-Regeln aus, Sicherungen ins Testnetz',
+			primary: 'Produktiv: ruft die Mails ab und sichert auf Mainnet',
+			warning: 'Nur eine Instanz darf produktiv sein. Läuft Paperless-ngx noch anderswo produktiv (z. B. auf dem Mac), dort zuerst die Mail-Regeln und die tägliche Sicherung ausschalten.',
+			needsMainnet: ' Produktiv braucht das Netz „Produktiv (Mainnet)“.',
+			confirm: 'Diese Instanz produktiv machen? Sie ruft dann die Mails ab und schreibt die Mainnet-Sicherungen. Nur eine Instanz darf das: eine andere (z. B. auf dem Mac) vorher anhalten.'
+		},
+		pays: {
+			title: (/** @type {number} */ n) => `${n}. Wer zahlt die VM?`,
+			lespace: 'Le Space, aus meinem Paket: keine Wallet, keine Kryptowerte',
+			wallet: 'Meine Wallet (MetaMask), mit einer Freigabe für diese App',
+			app: 'Diese App selbst: Aleph-Credits liegen auf ihrer Adresse',
+			self: {
+				summary: 'Aleph selbst bezahlen, ohne Paket (für Fortgeschrittene)',
+				intro: 'Die VM läuft auf Aleph. Statt über ein Paket kannst du sie dort auch selbst bezahlen:',
+				walletStrong: 'Meine Wallet:',
+				wallet: (/** @type {number} */ step) => ` Die Aleph-Credits liegen in deiner Wallet (MetaMask); den Schlüssel hat nur sie. Du gibst dieser App dort frei, VMs zu starten und zu löschen (Schritt ${step}, sobald die Wallet verbunden ist).`,
+				appStrong: 'Diese App selbst:',
+				app: ' Du schickst Aleph-Credits selbst an die Adresse der App. Den Schlüssel dazu leitet dein Browser aus deinem Passkey (oder den 24 Wörtern) ab; Le Space hat ihn nicht. Wer deinen Tresor öffnet, kann damit VMs bezahlen.',
+				after: (/** @type {number} */ backupsStep) => `Dann rechnet Le Space für die VM nichts ab: keine Stunden aus dem Paket, keine Rechnung dafür. Um Aleph-Credits und deren Kurs kümmerst du dich selbst; was die Adresse der App hält, steht unter „Deine Wallet bei Aleph und Filecoin“. Die Sicherungen kannst du weiter über Le Space Credits bezahlen (Schritt ${backupsStep}).`
+			},
+			lespaceHint: 'Le Space bezahlt deine VM aus einem eigenen Konto für dich; diese App startet und beendet sie in dessen Auftrag. Abgerechnet wird über dein Paket. ',
+			vmAccount: 'Konto für deine VM: ',
+			appAddress: 'Adresse der App: ',
+			appMoney: (/** @type {boolean} */ credits) => `Hier liegen deine Aleph-Credits für die VMs. Den Schlüssel dazu leitet dein Browser aus deinem Passkey (oder den 24 Wörtern) ab; Le Space hat ihn nicht. Wer deinen Tresor öffnet, kann damit VMs bezahlen. Aleph-Credits schickst du selbst an diese Adresse${credits ? '; mit einem Paket aus Le Space Credits brauchst du das nicht' : ''}.`,
+			walletOnlyForBackups: (/** @type {number | null} */ creditsStep) => `Eine Wallet brauchst du so nur für Sicherungen (Filecoin)${creditsStep ? `, und auch dafür nicht, wenn Le Space Credits sie bezahlen (Schritt ${creditsStep})` : ''}.`,
+			walletForBackups: 'Wallet für die Sicherungen',
+			connected: 'Verbunden',
+			coinsMain: 'FIL und USDFC',
+			coinsTest: 'im Testnetz tFIL und USDFC',
+			fundsBackups: (/** @type {string} */ coins) => `Hier liegen deine Mittel für die Sicherungen: ${coins}.`,
+			fundsAll: (/** @type {string} */ coins) => `Hier liegen deine Mittel für den Betrieb: Aleph-Credits für die VMs, ${coins} für die Sicherungen.`,
+			keyOnlyWallet: ' Den Schlüssel dazu hat nur deine Wallet; weder diese App noch Le Space sehen ihn.',
+			connectOther: 'Anderes Wallet verbinden',
+			connectForBackups: 'Wallet für Sicherungen verbinden',
+			connect: 'Wallet verbinden'
+		},
+		aleph: {
+			title: (/** @type {number} */ n) => `${n}. Aleph: diese App darf VMs starten und löschen`,
+			appKey: 'App-Schlüssel: ',
+			noFunds: 'Hält keine Mittel – nichts an diese Adresse schicken. Er darf nur im Auftrag des zahlenden Kontos VMs starten und löschen.',
+			granted: 'freigegeben (INSTANCE, FORGET, Port-Freigaben)',
+			notGranted: 'nicht freigegeben',
+			revoke: 'Freigabe zurücknehmen',
+			grant: 'In der Wallet freigeben'
+		},
+		filecoin: {
+			title: (/** @type {number} */ n) => `${n}. Filecoin: Sicherungen hinzufügen`,
+			sessionKey: 'Sitzungsschlüssel: ',
+			noFunds: 'Hält keine Mittel – nichts an diese Adresse schicken. Er darf 30 Tage lang Sicherungen hinzufügen, bezahlt vom zahlenden Konto.',
+			validUntil: (/** @type {string} */ date) => `gültig bis ${date}`,
+			notGranted: 'nicht freigegeben',
+			extend: 'Um 30 Tage verlängern',
+			grant: 'Für 30 Tage freigeben',
+			revoke: 'Zurücknehmen'
+		},
+		relay: {
+			title: (/** @type {number} */ n) => `${n}. Attest-Relay`,
+			hint: 'Die App findet die Relays von Le Space bei jedem Start selbst über Aleph: nur solche, die Aleph als laufende VM eines Le-Space-Kontos führt. Ein Relay sieht die Prüfung der VM nur verschlüsselt.',
+			found: 'Gefunden: ',
+			none: 'keins (Aleph gerade nicht erreichbar oder kein Relay angemeldet)',
+			own: { before: 'Eigene Relays (optional), eins pro Zeile, werden vor denen von Le Space versucht: ', or: ' oder die Multiaddr eines orbitdb-relay (', after: ')' },
+			placeholder: 'leer = nur die Relays von Le Space',
+			save: 'Relays speichern',
+			remove: 'Eigene Relays entfernen'
+		},
+		backups: {
+			title: (/** @type {number} */ n) => `${n}. Sicherungen`,
+			byWallet: (/** @type {number | null} */ step) => `Bezahlt aus meinem Wallet${step ? ` (Schritt ${step})` : ''}`,
+			byCredits: 'Bezahlt über Le Space Credits, ohne Wallet',
+			vmKey: 'Schlüssel der VM für die Sicherungen: ',
+			vmKeyHint: 'Aus deinem Tresor abgeleitet. Hält keine Mittel – nichts an diese Adresse schicken. Le Space bezahlt den Speicher; der Dienst unterschreibt jeden Schritt der Sicherung nur für deine eigenen Datensätze, solange sie bezahlt sind.',
+			notPaying: 'Le Space Credits bezahlen gerade keine Sicherungen.',
+			paidUntil: (/** @type {string} */ date) => `Bezahlt bis ${date}`,
+			notPaid: 'Noch nicht bezahlt',
+			dataSets: (/** @type {number} */ n) => (n === 1 ? '1 Datensatz' : `${n} Datensätze`),
+			vmKeyState: (/** @type {boolean} */ granted) => `VM-Schlüssel ${granted ? 'freigegeben' : 'noch nicht freigegeben'}`,
+			payMonth: 'Einen Monat Sicherungen bezahlen',
+			payHint: 'Nur ohne Paket nötig: In jedem Paket ist die Sicherung enthalten und verlängert sich mit ihm.',
+			authorizeKey: 'VM-Schlüssel freigeben',
+			owner: 'Wallet, dem die Sicherungen gehören (0x…, leer = zahlendes Konto)',
+			ownerPlaceholder: (/** @type {string | null} */ payer) => (payer ? `Wallet der Sicherungen (leer = ${payer}…)` : 'Wallet der Sicherungen'),
+			saveOwner: 'Wallet der Sicherungen speichern',
+			ageIntro: 'Schlüssel der Sicherungen (age): die VM verschlüsselt jede Sicherung für ihn, eine Wiederherstellung braucht ihn.',
+			age: { none: 'nicht hinterlegt', vault: 'der Schlüssel des Tresors (die 24 Wörter genügen zur Wiederherstellung)', pasted: 'eingefügt (nicht aus dem Tresor: getrennt aufbewahren!)' },
+			recipient: 'Empfänger: ',
+			useVault: 'Schlüssel des Tresors verwenden (empfohlen)',
+			paste: 'Einen vorhandenen Schlüssel einfügen',
+			seal: 'Versiegelt hinterlegen',
+			on: { before: (/** @type {boolean} */ mainnet) => `Sichern, alle zwei Stunden bei Änderungen und beim Stoppen (${mainnet ? 'Mainnet' : 'Testnetz'}, Datensatz `, after: ')' },
+			mainnetHint: 'Auf Mainnet sichert nur eine produktive Instanz (Rolle oben). Als Test bleibt sie ohne Sicherung.',
+			creditsHint: 'Dafür braucht es eine bezahlte Sicherung (in jedem Paket enthalten, sonst „Einen Monat Sicherungen bezahlen“) und den freigegebenen VM-Schlüssel.',
+			sessionHint: (/** @type {number} */ step) => `Dafür braucht die VM den Sitzungsschlüssel aus Schritt ${step}.`,
+			netName: { mainnet: 'Produktivnetz', calibration: 'Testnetz' },
+			errors: {
+				otherNetwork: (/** @type {string} */ theirs, /** @type {string} */ ours) => `Le Space Credits sichern gerade im ${theirs}; diese Instanz sichert im ${ours}.`,
+				payOtherNetwork: (/** @type {string} */ theirs, /** @type {string} */ ours) => `Le Space Credits bezahlen Sicherungen gerade im ${theirs}; diese Instanz sichert im ${ours}. Nichts abgebucht.`,
+				fundNetwork: (/** @type {string} */ theirs, /** @type {string} */ ours) => `Le Space Credits zahlen gerade im Netz ${theirs}, diese Instanz sichert in ${ours}.`,
+				badAge: 'Kein gültiger age-Schlüssel (AGE-SECRET-KEY-1…).',
+				replaceAge: 'Den eingefügten Schlüssel durch den des Tresors ersetzen? Sicherungen, die mit dem alten verschlüsselt sind, brauchen dann weiterhin den alten.',
+				badOwner: 'Eine Adresse (0x…, 40 Zeichen).'
+			}
+		},
+		image: {
+			title: (/** @type {number} */ n) => `${n}. Paperless-anywhere-Image und Knoten`,
+			hash: 'Image (STORE-Hash, 64 Zeichen)',
+			hashPlaceholder: 'Image (STORE-Hash)',
+			node: 'SEV-SNP-Knoten (Hash, 64 Zeichen)',
+			nodePlaceholder: 'SEV-SNP-Knoten (Hash)',
+			pass: 'Passphrase des Images',
+			passKept: (/** @type {number} */ length) => `Passphrase hinterlegt, ${length} Zeichen (leer lassen = behalten)`,
+			saveBoth: 'Image und Knoten speichern',
+			saveNode: 'Knoten speichern'
+		},
+		address: {
+			title: (/** @type {number} */ n) => `${n}. Feste Adresse (optional)`,
+			hint: {
+				before: (/** @type {string} */ zone) => `Mit einem Cloudflare-API-Token (Zone ${zone}, Rechte: DNS bearbeiten, Zone lesen) bekommt deine Instanz bei jedem Start dieselbe Adresse, `,
+				between: ': Die VM trägt sich selbst ein und holt das Zertifikat über DNS. Ohne Token gibt es bei jedem Start einen neuen ',
+				after: '-Namen. Das Token kann alle DNS-Einträge der Zone ändern; es liegt verschlüsselt im Profil und geht nur an die VM.'
+			},
+			token: 'Cloudflare-API-Token',
+			tokenKept: 'Token hinterlegt (leer speichern = entfernen)',
+			remove: 'Token entfernen',
+			save: 'Token speichern',
+			badToken: 'Ein Cloudflare-API-Token (etwa 40 Zeichen).'
+		}
+	},
+	en: {
+		title: 'Setup',
+		saved: 'Saved ✓',
+		walletWaiting: 'Waiting for MetaMask … (please confirm or reject there)',
+		loading: 'Loading the settings …',
+		where: {
+			summary: 'Where the setup is kept: encrypted on Aleph, there on every device',
+			sealed: { before: 'Every change here is ', here: 'encrypted in this browser', between: ' (AES-256-GCM, with a key from your vault) and then stored ', there: 'on Aleph', after: ', under this app’s key. Every device that opens the vault (passkey or 24 words) finds the same setup.' },
+			holds: 'It holds: the paying account, network, relays, image, node and the image’s passphrase, the backup settings with the backup key (age), and the running VM.',
+			sees: 'Aleph sees only an encrypted block, when it changes, and (in the paying wallet) that it has authorized this app, not the content.',
+			more: 'More: ',
+			moreLink: 'Keys and recovery',
+			moreEnd: '.'
+		},
+		network: { label: 'Network', test: 'Test (Calibration)', main: 'Production (Mainnet)' },
+		role: {
+			legend: 'Role of this instance',
+			test: 'Test: mail rules off, backups to the test network',
+			primary: 'Production: fetches the mails and backs up on mainnet',
+			warning: 'Only one instance may be in production. If Paperless-ngx still runs in production elsewhere (on a Mac, say), switch off the mail rules and the daily backup there first.',
+			needsMainnet: ' Production needs the network “Production (Mainnet)”.',
+			confirm: 'Make this instance the production one? It then fetches the mails and writes the mainnet backups. Only one instance may do that: stop any other (on a Mac, say) first.'
+		},
+		pays: {
+			title: (/** @type {number} */ n) => `${n}. Who pays for the VM?`,
+			lespace: 'Le Space, from my package: no wallet, no crypto assets',
+			wallet: 'My wallet (MetaMask), with a permission for this app',
+			app: 'This app itself: Aleph credits lie on its address',
+			self: {
+				summary: 'Pay Aleph yourself, without a package (for advanced users)',
+				intro: 'The VM runs on Aleph. Instead of through a package you can pay for it there yourself:',
+				walletStrong: 'My wallet:',
+				wallet: (/** @type {number} */ step) => ` The Aleph credits lie in your wallet (MetaMask); only it has the key. There you permit this app to start and delete VMs (step ${step}, once the wallet is connected).`,
+				appStrong: 'This app itself:',
+				app: ' You send Aleph credits to the app’s address yourself. Your browser derives its key from your passkey (or the 24 words); Le Space does not have it. Whoever opens your vault can pay for VMs with it.',
+				after: (/** @type {number} */ backupsStep) => `Le Space then charges nothing for the VM: no hours from the package, no invoice for it. You look after Aleph credits and their rate yourself; what the app’s address holds is shown under “Your wallet on Aleph and Filecoin”. You can still pay for the backups through Le Space Credits (step ${backupsStep}).`
+			},
+			lespaceHint: 'Le Space pays for your VM from an account of its own for you; this app starts and stops it on that account’s behalf. It is billed through your package. ',
+			vmAccount: 'Account for your VM: ',
+			appAddress: 'The app’s address: ',
+			appMoney: (/** @type {boolean} */ credits) => `Your Aleph credits for the VMs lie here. Your browser derives the key from your passkey (or the 24 words); Le Space does not have it. Whoever opens your vault can pay for VMs with it. You send Aleph credits to this address yourself${credits ? '; with a package from Le Space Credits you do not need to' : ''}.`,
+			walletOnlyForBackups: (/** @type {number | null} */ creditsStep) => `This way you need a wallet only for backups (Filecoin)${creditsStep ? `, and not even for those when Le Space Credits pays for them (step ${creditsStep})` : ''}.`,
+			walletForBackups: 'Wallet for the backups',
+			connected: 'Connected',
+			coinsMain: 'FIL and USDFC',
+			coinsTest: 'tFIL and USDFC on the test network',
+			fundsBackups: (/** @type {string} */ coins) => `Your funds for the backups lie here: ${coins}.`,
+			fundsAll: (/** @type {string} */ coins) => `Your funds for running it lie here: Aleph credits for the VMs, ${coins} for the backups.`,
+			keyOnlyWallet: ' Only your wallet has the key; neither this app nor Le Space sees it.',
+			connectOther: 'Connect another wallet',
+			connectForBackups: 'Connect a wallet for backups',
+			connect: 'Connect a wallet'
+		},
+		aleph: {
+			title: (/** @type {number} */ n) => `${n}. Aleph: this app may start and delete VMs`,
+			appKey: 'App key: ',
+			noFunds: 'Holds no funds – send nothing to this address. It may only start and delete VMs on behalf of the paying account.',
+			granted: 'permitted (INSTANCE, FORGET, port forwards)',
+			notGranted: 'not permitted',
+			revoke: 'Withdraw the permission',
+			grant: 'Permit in the wallet'
+		},
+		filecoin: {
+			title: (/** @type {number} */ n) => `${n}. Filecoin: adding backups`,
+			sessionKey: 'Session key: ',
+			noFunds: 'Holds no funds – send nothing to this address. For 30 days it may add backups, paid by the paying account.',
+			validUntil: (/** @type {string} */ date) => `valid until ${date}`,
+			notGranted: 'not permitted',
+			extend: 'Extend by 30 days',
+			grant: 'Permit for 30 days',
+			revoke: 'Withdraw'
+		},
+		relay: {
+			title: (/** @type {number} */ n) => `${n}. Attest relay`,
+			hint: 'The app finds Le Space’s relays itself at every start, through Aleph: only those that Aleph lists as a running VM of a Le Space account. A relay sees the check of the VM only encrypted.',
+			found: 'Found: ',
+			none: 'none (Aleph cannot be reached right now, or no relay is registered)',
+			own: { before: 'Your own relays (optional), one per line, are tried before Le Space’s: ', or: ' or the multiaddr of an orbitdb-relay (', after: ')' },
+			placeholder: 'empty = only Le Space’s relays',
+			save: 'Save the relays',
+			remove: 'Remove your own relays'
+		},
+		backups: {
+			title: (/** @type {number} */ n) => `${n}. Backups`,
+			byWallet: (/** @type {number | null} */ step) => `Paid from my wallet${step ? ` (step ${step})` : ''}`,
+			byCredits: 'Paid through Le Space Credits, without a wallet',
+			vmKey: 'The VM’s key for the backups: ',
+			vmKeyHint: 'Derived from your vault. Holds no funds – send nothing to this address. Le Space pays for the storage; the service signs each step of a backup only for your own data sets, as long as they are paid for.',
+			notPaying: 'Le Space Credits does not pay for backups right now.',
+			paidUntil: (/** @type {string} */ date) => `Paid until ${date}`,
+			notPaid: 'Not paid yet',
+			dataSets: (/** @type {number} */ n) => (n === 1 ? '1 data set' : `${n} data sets`),
+			vmKeyState: (/** @type {boolean} */ granted) => `VM key ${granted ? 'released' : 'not released yet'}`,
+			payMonth: 'Pay for one month of backups',
+			payHint: 'Needed only without a package: every package includes the backup, and it renews with the package.',
+			authorizeKey: 'Release the VM key',
+			owner: 'Wallet that owns the backups (0x…, empty = the paying account)',
+			ownerPlaceholder: (/** @type {string | null} */ payer) => (payer ? `Wallet of the backups (empty = ${payer}…)` : 'Wallet of the backups'),
+			saveOwner: 'Save the wallet of the backups',
+			ageIntro: 'Backup key (age): the VM encrypts every backup for it, and a restore needs it.',
+			age: { none: 'not stored', vault: 'the vault’s key (the 24 words are enough for a restore)', pasted: 'pasted (not from the vault: keep it separately!)' },
+			recipient: 'Recipient: ',
+			useVault: 'Use the vault’s key (recommended)',
+			paste: 'Paste an existing key',
+			seal: 'Store it sealed',
+			on: { before: (/** @type {boolean} */ mainnet) => `Back up every two hours when something changed, and on stopping (${mainnet ? 'mainnet' : 'test network'}, data set `, after: ')' },
+			mainnetHint: 'On mainnet only a production instance backs up (role above). As a test it stays without a backup.',
+			creditsHint: 'That takes a paid backup (included in every package, otherwise “Pay for one month of backups”) and the released VM key.',
+			sessionHint: (/** @type {number} */ step) => `For that the VM needs the session key from step ${step}.`,
+			netName: { mainnet: 'production network', calibration: 'test network' },
+			errors: {
+				otherNetwork: (/** @type {string} */ theirs, /** @type {string} */ ours) => `Le Space Credits backs up on the ${theirs} right now; this instance backs up on the ${ours}.`,
+				payOtherNetwork: (/** @type {string} */ theirs, /** @type {string} */ ours) => `Le Space Credits pays for backups on the ${theirs} right now; this instance backs up on the ${ours}. Nothing was charged.`,
+				fundNetwork: (/** @type {string} */ theirs, /** @type {string} */ ours) => `Le Space Credits pays on the network ${theirs} right now, this instance backs up on ${ours}.`,
+				badAge: 'Not a valid age key (AGE-SECRET-KEY-1…).',
+				replaceAge: 'Replace the pasted key with the vault’s? Backups encrypted with the old one will still need the old one.',
+				badOwner: 'An address (0x…, 40 characters).'
+			}
+		},
+		image: {
+			title: (/** @type {number} */ n) => `${n}. Paperless anywhere image and node`,
+			hash: 'Image (STORE hash, 64 characters)',
+			hashPlaceholder: 'Image (STORE hash)',
+			node: 'SEV-SNP node (hash, 64 characters)',
+			nodePlaceholder: 'SEV-SNP node (hash)',
+			pass: 'The image’s passphrase',
+			passKept: (/** @type {number} */ length) => `Passphrase stored, ${length} characters (leave empty = keep it)`,
+			saveBoth: 'Save image and node',
+			saveNode: 'Save the node'
+		},
+		address: {
+			title: (/** @type {number} */ n) => `${n}. Fixed address (optional)`,
+			hint: {
+				before: (/** @type {string} */ zone) => `With a Cloudflare API token (zone ${zone}, permissions: edit DNS, read zone) your instance gets the same address at every start, `,
+				between: ': the VM enters itself and gets the certificate over DNS. Without a token there is a new ',
+				after: ' name at every start. The token can change every DNS record of the zone; it lies encrypted in the profile and goes only to the VM.'
+			},
+			token: 'Cloudflare API token',
+			tokenKept: 'Token stored (save empty = remove)',
+			remove: 'Remove the token',
+			save: 'Save the token',
+			badToken: 'A Cloudflare API token (about 40 characters).'
+		}
+	}
+};

@@ -10,7 +10,7 @@
 	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups } from '$lib/credits.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
 	import { BUILDER, buildOnOwnBuilder, buildOwnImage, builderOpener, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
-	import { format, lang, t } from '$lib/i18n/index.js';
+	import { format, lang, t, tr } from '$lib/i18n/index.js';
 	import {
 		connectPayer,
 		isAuthorized,
@@ -23,6 +23,7 @@
 
 	/** @type {{ master: Uint8Array, onsaved?: () => void }} */
 	let { master, onsaved = () => {} } = $props();
+	const x = $derived($t.setup);
 
 	const pwaAddress = privateKeyToAccount(alephPrivateKey(master)).address;
 	const sessionAddress = sessionKeyAddress(master);
@@ -86,7 +87,7 @@
 	});
 
 	// Which action the message belongs to: it shows beside that action, and a
-	// short "gespeichert" confirms one that went through.
+	// short "saved" confirms one that went through.
 	let errorKey = $state('');
 	let savedKey = $state('');
 	let savedTimer = 0;
@@ -136,7 +137,7 @@
 	// another one to that role while the first still runs would duplicate both.
 	/** @param {'test' | 'primary'} role @param {HTMLInputElement} [radio] */
 	const setRole = (role, radio) => run('role', async () => {
-		if (role === 'primary' && !confirm('Diese Instanz produktiv machen? Sie ruft dann die Mails ab und schreibt die Mainnet-Sicherungen. Nur eine Instanz darf das: eine andere (z. B. auf dem Mac) vorher anhalten.')) {
+		if (role === 'primary' && !confirm(tr().setup.role.confirm)) {
 			// The browser already moved the selection; put it back.
 			const test = radio?.closest('fieldset')?.querySelector('input[value="test"]');
 			if (test instanceof HTMLInputElement) test.checked = true;
@@ -160,21 +161,22 @@
 		await refresh();
 	});
 	const wantNetwork = () => (profile.network === 'mainnet' ? 'mainnet' : 'calibration');
+	const netName = (/** @type {string} */ network) => tr().setup.backups.netName[network === 'mainnet' ? 'mainnet' : 'calibration'];
 	/** Give the service the VM's backup key, and record what the VM's config needs. */
 	async function authorizeKey() {
 		const want = wantNetwork();
 		const s = await backupAuthorize(master, backupKey);
-		if (s.network !== want) throw new Error(`Le Space Credits sichern gerade im ${s.network === 'mainnet' ? 'Produktivnetz' : 'Testnetz'}; diese Instanz sichert im ${want === 'mainnet' ? 'Produktivnetz' : 'Testnetz'}.`);
+		if (s.network !== want) throw new Error(tr().setup.backups.errors.otherNetwork(netName(s.network), netName(want)));
 		await save({ backupSigner: { payer: s.payer, signer: s.signer, tag: s.tag, label: s.label, network: s.network } });
 	}
 	const payBackups = () => run('bycredits', async () => {
 		const want = wantNetwork();
 		// Asked before paying: credits spent in the wrong network would be lost to this Paperless.
 		const offered = (await creditsCatalog().catch(() => null))?.network;
-		if (offered === null) throw new Error('Le Space Credits bezahlen gerade keine Sicherungen.');
-		if (offered && offered !== want) throw new Error(`Le Space Credits bezahlen Sicherungen gerade im ${offered === 'mainnet' ? 'Produktivnetz' : 'Testnetz'}; diese Instanz sichert im ${want === 'mainnet' ? 'Produktivnetz' : 'Testnetz'}. Nichts abgebucht.`);
+		if (offered === null) throw new Error(tr().setup.backups.notPaying);
+		if (offered && offered !== want) throw new Error(tr().setup.backups.errors.payOtherNetwork(netName(offered), netName(want)));
 		const r = await fundBackups(master, 1);
-		if (r.network && r.network !== want) throw new Error(`Le Space Credits zahlen gerade im Netz ${r.network}, diese Instanz sichert in ${want}.`);
+		if (r.network && r.network !== want) throw new Error(tr().setup.backups.errors.fundNetwork(r.network, want));
 		await authorizeKey();
 		await refresh();
 	});
@@ -192,7 +194,7 @@
 	});
 	const saveAge = () => run('age', async () => {
 		const line = ageInput.split('\n').map((l) => l.trim()).find((l) => l.startsWith('AGE-SECRET-KEY-'));
-		if (!line || !/^AGE-SECRET-KEY-1[0-9A-Z]{58}$/.test(line)) throw new Error('Kein gültiger age-Schlüssel (AGE-SECRET-KEY-1…).');
+		if (!line || !/^AGE-SECRET-KEY-1[0-9A-Z]{58}$/.test(line)) throw new Error(tr().setup.backups.errors.badAge);
 		await save({ ageIdentity: line, ...(profile.backupConfig ? { backupConfig: backupConfigFor(profile.network, ageRecipient(line), profile.backupConfig) } : {}) });
 		ageInput = '';
 	});
@@ -200,7 +202,7 @@
 	// decrypt every backup made with it. Only its recipient is ever shown.
 	const vaultAge = $derived(ageIdentityFromMaster(master));
 	const useVaultAge = () => run('age', async () => {
-		if (profile.ageIdentity && profile.ageIdentity !== vaultAge && !confirm('Den eingefügten Schlüssel durch den des Tresors ersetzen? Sicherungen, die mit dem alten verschlüsselt sind, brauchen dann weiterhin den alten.')) return;
+		if (profile.ageIdentity && profile.ageIdentity !== vaultAge && !confirm(tr().setup.backups.errors.replaceAge)) return;
 		await save({ ageIdentity: vaultAge, ...(profile.backupConfig ? { backupConfig: backupConfigFor(profile.network, ageRecipient(vaultAge), profile.backupConfig) } : {}) });
 	});
 	// Without a key yet, backups use the vault's own: the default.
@@ -220,7 +222,7 @@
 	});
 	const saveOwner = () => run('owner', async () => {
 		const owner = ownerInput.trim();
-		if (owner && !/^0x[0-9a-fA-F]{40}$/.test(owner)) throw new Error('Eine Adresse (0x…, 40 Zeichen).');
+		if (owner && !/^0x[0-9a-fA-F]{40}$/.test(owner)) throw new Error(tr().setup.backups.errors.badOwner);
 		await save({ backupOwner: owner || null });
 	});
 	const saveImage = () => run('image', async () => {
@@ -269,7 +271,7 @@
 	const saveDns = () => run('dns', async () => {
 		const token = dnsInput.trim();
 		// Cloudflare API tokens are 40 characters of [A-Za-z0-9_-].
-		if (token && !/^[A-Za-z0-9_-]{30,80}$/.test(token)) throw new Error('Ein Cloudflare-API-Token (etwa 40 Zeichen).');
+		if (token && !/^[A-Za-z0-9_-]{30,80}$/.test(token)) throw new Error(tr().setup.address.badToken);
 		await save({ dnsToken: token || null });
 		dnsInput = '';
 	});
@@ -289,147 +291,149 @@
 		return at;
 	});
 	// Money for the backups: test coins on Calibration, real ones on mainnet.
-	const backupCoins = $derived(profile?.network === 'mainnet' ? 'FIL und USDFC' : 'im Testnetz tFIL und USDFC');
-	/** A paid-until date still ahead, as a German date, else ''. @param {string | null} iso */
-	const fundedUntil = (iso) => (iso && Date.parse(iso) > Date.now() ? new Date(iso).toLocaleDateString('de-DE') : '');
-	const until = (s) => (s > 0n && Number(s) * 1000 > Date.now() ? new Date(Number(s) * 1000).toLocaleDateString('de-DE') : '');
+	const backupCoins = $derived(profile?.network === 'mainnet' ? x.pays.coinsMain : x.pays.coinsTest);
+	// As the browser writes a date in the app's language (German: 1.2.2027).
+	const day = (/** @type {string | number} */ at) => format.date(at, {}, $lang);
+	/** A paid-until date still ahead, as a date, else ''. @param {string | null} iso */
+	const fundedUntil = (iso) => (iso && Date.parse(iso) > Date.now() ? day(iso) : '');
+	const until = (s) => (s > 0n && Number(s) * 1000 > Date.now() ? day(Number(s) * 1000) : '');
 </script>
 
 <section class="setup" data-testid="setup">
-	<h2>Einrichtung</h2>
+	<h2>{x.title}</h2>
 	<details class="where" data-testid="setup-where">
-		<summary>Wo die Einrichtung liegt: verschlüsselt auf Aleph, auf jedem Gerät da</summary>
-		<p>Jede Änderung hier wird <strong>in diesem Browser verschlüsselt</strong> (AES-256-GCM, mit einem Schlüssel aus deinem Tresor) und dann <strong>auf Aleph</strong> gespeichert, unter dem Schlüssel dieser App. Jedes Gerät, das den Tresor öffnet (Passkey oder 24 Wörter), findet dieselbe Einrichtung.</p>
-		<p>Drin sind: zahlendes Konto, Netz, Relays, Image, Knoten und Passphrase des Images, die Sicherungseinstellungen samt Schlüssel der Sicherungen (age) und die laufende VM.</p>
-		<p>Aleph sieht nur einen verschlüsselten Block, wann er sich ändert, und (in der zahlenden Wallet) dass es diese App freigegeben hat, nicht den Inhalt.
-			Mehr: <a href="https://github.com/Le-Space/paperless-anywhere/blob/main/docs/keys-and-recovery.md#where-the-setup-is-kept" target="_blank" rel="noopener">Schlüssel und Wiederherstellung</a>.</p>
+		<summary>{x.where.summary}</summary>
+		<p>{x.where.sealed.before}<strong>{x.where.sealed.here}</strong>{x.where.sealed.between}<strong>{x.where.sealed.there}</strong>{x.where.sealed.after}</p>
+		<p>{x.where.holds}</p>
+		<p>{x.where.sees}
+			{x.where.more}<a href="https://github.com/Le-Space/paperless-anywhere/blob/main/docs/keys-and-recovery.md#where-the-setup-is-kept" target="_blank" rel="noopener">{x.where.moreLink}</a>{x.where.moreEnd}</p>
 	</details>
-	{#if busy === 'wallet'}<p class="waiting" data-testid="wallet-waiting">Warte auf MetaMask … (bitte dort bestätigen oder ablehnen)</p>{/if}
+	{#if busy === 'wallet'}<p class="waiting" data-testid="wallet-waiting">{x.walletWaiting}</p>{/if}
 	{#if !loaded}
-		<p>Lade Einstellungen …</p>
+		<p>{x.loading}</p>
 	{:else}
 		<label>
-			Netz
+			{x.network.label}
 			<select value={profile.network} onchange={(e) => changeNetwork(e.currentTarget.value)} disabled={busy === 'wallet'}>
-				<option value="calibration">Test (Calibration)</option>
-				<option value="mainnet">Produktiv (Mainnet)</option>
+				<option value="calibration">{x.network.test}</option>
+				<option value="mainnet">{x.network.main}</option>
 			</select>
 		</label>
 
 		<fieldset class="role" disabled={busy === 'role'} data-testid="role">
-			<legend>Rolle dieser Instanz</legend>
-			<label><input type="radio" name="role" value="test" checked={profile.role !== 'primary'} onchange={() => setRole('test')} data-testid="role-test" /> Test: Mail-Regeln aus, Sicherungen ins Testnetz</label>
-			<label><input type="radio" name="role" value="primary" checked={profile.role === 'primary'} onchange={(e) => setRole('primary', e.currentTarget)} data-testid="role-primary" /> Produktiv: ruft die Mails ab und sichert auf Mainnet</label>
+			<legend>{x.role.legend}</legend>
+			<label><input type="radio" name="role" value="test" checked={profile.role !== 'primary'} onchange={() => setRole('test')} data-testid="role-test" /> {x.role.test}</label>
+			<label><input type="radio" name="role" value="primary" checked={profile.role === 'primary'} onchange={(e) => setRole('primary', e.currentTarget)} data-testid="role-primary" /> {x.role.primary}</label>
 			{#if profile.role === 'primary'}
-				<p class="warn" data-testid="role-warning">Nur eine Instanz darf produktiv sein. Läuft Paperless-ngx noch anderswo produktiv (z. B. auf dem Mac), dort zuerst die Mail-Regeln und die tägliche Sicherung ausschalten.{#if profile.network !== 'mainnet'} Produktiv braucht das Netz „Produktiv (Mainnet)“.{/if}</p>
+				<p class="warn" data-testid="role-warning">{x.role.warning}{#if profile.network !== 'mainnet'}{x.role.needsMainnet}{/if}</p>
 			{/if}
 		</fieldset>
 		{@render feedback('network')}{@render feedback('role')}
 
-		<h3>{step.pays}. Wer zahlt die VM?</h3>
+		<h3>{x.pays.title(step.pays)}</h3>
 		<fieldset class="payer-choice" disabled={busy === 'pays'}>
-			{#if CREDITS_URL}<label><input type="radio" name="pays" checked={Boolean(profile.leSpacePays)} onchange={() => setPays('lespace')} data-testid="pays-lespace" /> Le Space, aus meinem Paket: keine Wallet, keine Kryptowerte</label>{/if}
-			<label><input type="radio" name="pays" checked={!profile.appPays && !profile.leSpacePays} onchange={() => setPays('wallet')} data-testid="pays-wallet" /> Meine Wallet (MetaMask), mit einer Freigabe für diese App</label>
-			<label><input type="radio" name="pays" checked={Boolean(profile.appPays) && !profile.leSpacePays} onchange={() => setPays('app')} data-testid="pays-app" /> Diese App selbst: Aleph-Credits liegen auf ihrer Adresse</label>
+			{#if CREDITS_URL}<label><input type="radio" name="pays" checked={Boolean(profile.leSpacePays)} onchange={() => setPays('lespace')} data-testid="pays-lespace" /> {x.pays.lespace}</label>{/if}
+			<label><input type="radio" name="pays" checked={!profile.appPays && !profile.leSpacePays} onchange={() => setPays('wallet')} data-testid="pays-wallet" /> {x.pays.wallet}</label>
+			<label><input type="radio" name="pays" checked={Boolean(profile.appPays) && !profile.leSpacePays} onchange={() => setPays('app')} data-testid="pays-app" /> {x.pays.app}</label>
 		</fieldset>
 		{#if CREDITS_URL}
 			<details class="self-pay" data-testid="self-pay">
-				<summary>Aleph selbst bezahlen, ohne Paket (für Fortgeschrittene)</summary>
-				<p>Die VM läuft auf Aleph. Statt über ein Paket kannst du sie dort auch selbst bezahlen:</p>
+				<summary>{x.pays.self.summary}</summary>
+				<p>{x.pays.self.intro}</p>
 				<ul>
-					<li><strong>Meine Wallet:</strong> Die Aleph-Credits liegen in deiner Wallet (MetaMask); den Schlüssel hat nur sie. Du gibst dieser App dort frei, VMs zu starten und zu löschen (Schritt {step.aleph ?? 2}, sobald die Wallet verbunden ist).</li>
-					<li><strong>Diese App selbst:</strong> Du schickst Aleph-Credits selbst an die Adresse der App. Den Schlüssel dazu leitet dein Browser aus deinem Passkey (oder den 24 Wörtern) ab; Le Space hat ihn nicht. Wer deinen Tresor öffnet, kann damit VMs bezahlen.</li>
+					<li><strong>{x.pays.self.walletStrong}</strong>{x.pays.self.wallet(step.aleph ?? 2)}</li>
+					<li><strong>{x.pays.self.appStrong}</strong>{x.pays.self.app}</li>
 				</ul>
-				<p>Dann rechnet Le Space für die VM nichts ab: keine Stunden aus dem Paket, keine Rechnung dafür. Um Aleph-Credits und deren Kurs kümmerst du dich selbst; was die Adresse der App hält, steht unter „Deine Wallet bei Aleph und Filecoin“. Die Sicherungen kannst du weiter über Le Space Credits bezahlen (Schritt {step.backups}).</p>
+				<p>{x.pays.self.after(step.backups)}</p>
 			</details>
 		{/if}
 		{#if profile.leSpacePays}
-			<p class="hint" data-testid="lespace-pays">Le Space bezahlt deine VM aus einem eigenen Konto für dich; diese App startet und beendet sie in dessen Auftrag. Abgerechnet wird über dein Paket. {profile.vmOwner ? 'Konto für deine VM: ' : ''}{#if profile.vmOwner}<code>{profile.vmOwner}</code>{/if}</p>
+			<p class="hint" data-testid="lespace-pays">{x.pays.lespaceHint}{profile.vmOwner ? x.pays.vmAccount : ''}{#if profile.vmOwner}<code>{profile.vmOwner}</code>{/if}</p>
 		{:else if profile.appPays}
-			<p>Adresse der App: <code data-testid="app-payer">{pwaAddress}</code>
-				<br /><small class="money">Hier liegen deine Aleph-Credits für die VMs. Den Schlüssel dazu leitet dein Browser aus deinem Passkey (oder den 24 Wörtern) ab; Le Space hat ihn nicht. Wer deinen Tresor öffnet, kann damit VMs bezahlen. Aleph-Credits schickst du selbst an diese Adresse{CREDITS_URL ? '; mit einem Paket aus Le Space Credits brauchst du das nicht' : ''}.</small></p>
-			<p class="hint">Eine Wallet brauchst du so nur für Sicherungen (Filecoin){CREDITS_URL ? `, und auch dafür nicht, wenn Le Space Credits sie bezahlen (Schritt ${step.backups})` : ''}.</p>
+			<p>{x.pays.appAddress}<code data-testid="app-payer">{pwaAddress}</code>
+				<br /><small class="money">{x.pays.appMoney(Boolean(CREDITS_URL))}</small></p>
+			<p class="hint">{x.pays.walletOnlyForBackups(CREDITS_URL ? step.backups : null)}</p>
 		{/if}
 		{#if profile.payer}
-			<p>{profile.appPays ? 'Wallet für die Sicherungen' : 'Verbunden'}: <code data-testid="payer">{profile.payer}</code>
-				<br /><small class="money">{profile.appPays ? `Hier liegen deine Mittel für die Sicherungen: ${backupCoins}.` : `Hier liegen deine Mittel für den Betrieb: Aleph-Credits für die VMs, ${backupCoins} für die Sicherungen.`} Den Schlüssel dazu hat nur deine Wallet; weder diese App noch Le Space sehen ihn.</small></p>
+			<p>{profile.appPays ? x.pays.walletForBackups : x.pays.connected}: <code data-testid="payer">{profile.payer}</code>
+				<br /><small class="money">{profile.appPays ? x.pays.fundsBackups(backupCoins) : x.pays.fundsAll(backupCoins)}{x.pays.keyOnlyWallet}</small></p>
 		{/if}
 		{@render feedback('pays')}
-		<button onclick={connect} disabled={busy === 'wallet'}>{profile.payer ? 'Anderes Wallet verbinden' : profile.appPays ? 'Wallet für Sicherungen verbinden' : 'Wallet verbinden'}</button>
+		<button onclick={connect} disabled={busy === 'wallet'}>{profile.payer ? x.pays.connectOther : profile.appPays ? x.pays.connectForBackups : x.pays.connect}</button>
 
 		{#if showAleph}
-			<h3>{step.aleph}. Aleph: diese App darf VMs starten und löschen</h3>
-			<p>App-Schlüssel: <code>{pwaAddress}</code>
-				<br /><small class="nomoney">Hält keine Mittel – nichts an diese Adresse schicken. Er darf nur im Auftrag des zahlenden Kontos VMs starten und löschen.</small></p>
-			<p data-testid="aleph-status">{alephOk ? 'freigegeben (INSTANCE, FORGET, Port-Freigaben)' : 'nicht freigegeben'}</p>
+			<h3>{x.aleph.title(step.aleph)}</h3>
+			<p>{x.aleph.appKey}<code>{pwaAddress}</code>
+				<br /><small class="nomoney">{x.aleph.noFunds}</small></p>
+			<p data-testid="aleph-status">{alephOk ? x.aleph.granted : x.aleph.notGranted}</p>
 			{#if alephOk}
-				<button onclick={() => authorize(true)} disabled={busy === 'wallet'}>Freigabe zurücknehmen</button>
+				<button onclick={() => authorize(true)} disabled={busy === 'wallet'}>{x.aleph.revoke}</button>
 			{:else}
-				<button onclick={() => authorize()} disabled={busy === 'wallet'}>In der Wallet freigeben</button>
+				<button onclick={() => authorize()} disabled={busy === 'wallet'}>{x.aleph.grant}</button>
 			{/if}
 		{/if}
 
 		{#if showFilecoin}
-			<h3>{step.filecoin}. Filecoin: Sicherungen hinzufügen</h3>
-			<p>Sitzungsschlüssel: <code>{sessionAddress}</code>
-				<br /><small class="nomoney">Hält keine Mittel – nichts an diese Adresse schicken. Er darf 30 Tage lang Sicherungen hinzufügen, bezahlt vom zahlenden Konto.</small></p>
-			<p data-testid="session-status">{until(sessionUntil) ? `gültig bis ${until(sessionUntil)}` : 'nicht freigegeben'}</p>
+			<h3>{x.filecoin.title(step.filecoin)}</h3>
+			<p>{x.filecoin.sessionKey}<code>{sessionAddress}</code>
+				<br /><small class="nomoney">{x.filecoin.noFunds}</small></p>
+			<p data-testid="session-status">{until(sessionUntil) ? x.filecoin.validUntil(until(sessionUntil)) : x.filecoin.notGranted}</p>
 			{@render feedback('wallet')}
-			<button onclick={() => session()} disabled={busy === 'wallet'}>{until(sessionUntil) ? 'Um 30 Tage verlängern' : 'Für 30 Tage freigeben'}</button>
-			{#if until(sessionUntil)}<button onclick={() => session(true)} disabled={busy === 'wallet'}>Zurücknehmen</button>{/if}
+			<button onclick={() => session()} disabled={busy === 'wallet'}>{until(sessionUntil) ? x.filecoin.extend : x.filecoin.grant}</button>
+			{#if until(sessionUntil)}<button onclick={() => session(true)} disabled={busy === 'wallet'}>{x.filecoin.revoke}</button>{/if}
 		{/if}
 
-		<h3>{step.relay}. Attest-Relay</h3>
-		<p class="hint">Die App findet die Relays von Le Space bei jedem Start selbst über Aleph: nur solche, die Aleph als laufende VM eines Le-Space-Kontos führt. Ein Relay sieht die Prüfung der VM nur verschlüsselt.</p>
-		<p data-testid="relays-found">Gefunden: {#if foundRelays === null}…{:else if foundRelays.length}{#each foundRelays as relay, i (relay)}{i ? ', ' : ''}<code>{relay}</code>{/each}{:else}keins (Aleph gerade nicht erreichbar oder kein Relay angemeldet){/if}</p>
-		<label>Eigene Relays (optional), eins pro Zeile, werden vor denen von Le Space versucht: <code>wss://…/attest</code> oder die Multiaddr eines orbitdb-relay (<code>/dns4/…/p2p/…</code>)
-			<textarea bind:value={relayInput} rows="3" autocomplete="off" spellcheck="false" placeholder="leer = nur die Relays von Le Space" data-testid="relays"></textarea></label>
-		<button onclick={saveRelay} disabled={busy === 'relay'}>{relayInput.trim() || !profile.attestRelay ? 'Relays speichern' : 'Eigene Relays entfernen'}</button>
+		<h3>{x.relay.title(step.relay)}</h3>
+		<p class="hint">{x.relay.hint}</p>
+		<p data-testid="relays-found">{x.relay.found}{#if foundRelays === null}…{:else if foundRelays.length}{#each foundRelays as relay, i (relay)}{i ? ', ' : ''}<code>{relay}</code>{/each}{:else}{x.relay.none}{/if}</p>
+		<label>{x.relay.own.before}<code>wss://…/attest</code>{x.relay.own.or}<code>/dns4/…/p2p/…</code>{x.relay.own.after}
+			<textarea bind:value={relayInput} rows="3" autocomplete="off" spellcheck="false" placeholder={x.relay.placeholder} data-testid="relays"></textarea></label>
+		<button onclick={saveRelay} disabled={busy === 'relay'}>{relayInput.trim() || !profile.attestRelay ? x.relay.save : x.relay.remove}</button>
 		{@render feedback('relay')}
 
-		<h3>{step.backups}. Sicherungen</h3>
+		<h3>{x.backups.title(step.backups)}</h3>
 		{#if CREDITS_URL}
 			<fieldset class="payer-choice" disabled={busy === 'bycredits'} data-testid="backups-paid-by">
-				<label><input type="radio" name="bypay" checked={!profile.backupsByCredits} onchange={() => setBackupsByCredits(false)} data-testid="backups-wallet" /> Bezahlt aus meinem Wallet{showFilecoin ? ` (Schritt ${step.filecoin})` : ''}</label>
-				<label><input type="radio" name="bypay" checked={Boolean(profile.backupsByCredits)} onchange={() => setBackupsByCredits(true)} data-testid="backups-credits" /> Bezahlt über Le Space Credits, ohne Wallet</label>
+				<label><input type="radio" name="bypay" checked={!profile.backupsByCredits} onchange={() => setBackupsByCredits(false)} data-testid="backups-wallet" /> {x.backups.byWallet(showFilecoin ? step.filecoin : null)}</label>
+				<label><input type="radio" name="bypay" checked={Boolean(profile.backupsByCredits)} onchange={() => setBackupsByCredits(true)} data-testid="backups-credits" /> {x.backups.byCredits}</label>
 			</fieldset>
 			{#if profile.backupsByCredits}
-				<p>Schlüssel der VM für die Sicherungen: <code data-testid="backup-key">{backupKey}</code>
-					<br /><small class="nomoney">Aus deinem Tresor abgeleitet. Hält keine Mittel – nichts an diese Adresse schicken. Le Space bezahlt den Speicher; der Dienst unterschreibt jeden Schritt der Sicherung nur für deine eigenen Datensätze, solange sie bezahlt sind.</small></p>
-				<p data-testid="credits-backup-state">{#if backupState === undefined}…{:else if !backupState}Le Space Credits bezahlen gerade keine Sicherungen.{:else}{fundedUntil(backupState.fundedUntil) ? `Bezahlt bis ${fundedUntil(backupState.fundedUntil)}` : 'Noch nicht bezahlt'} · {backupState.dataSets.length === 1 ? '1 Datensatz' : `${backupState.dataSets.length} Datensätze`} · VM-Schlüssel {profile.backupSigner?.payer ? 'freigegeben' : 'noch nicht freigegeben'}{/if}</p>
-				<button onclick={payBackups} disabled={busy === 'bycredits'} data-testid="pay-backups">Einen Monat Sicherungen bezahlen</button>
-				<br /><small class="hint" data-testid="pay-backups-hint">Nur ohne Paket nötig: In jedem Paket ist die Sicherung enthalten und verlängert sich mit ihm.</small>
-				{#if !profile.backupSigner?.payer}<button onclick={authorizeBackupKey} disabled={busy === 'bycredits'} data-testid="authorize-backup-key">VM-Schlüssel freigeben</button>{/if}
+				<p>{x.backups.vmKey}<code data-testid="backup-key">{backupKey}</code>
+					<br /><small class="nomoney">{x.backups.vmKeyHint}</small></p>
+				<p data-testid="credits-backup-state">{#if backupState === undefined}…{:else if !backupState}{x.backups.notPaying}{:else}{fundedUntil(backupState.fundedUntil) ? x.backups.paidUntil(fundedUntil(backupState.fundedUntil)) : x.backups.notPaid} · {x.backups.dataSets(backupState.dataSets.length)} · {x.backups.vmKeyState(Boolean(profile.backupSigner?.payer))}{/if}</p>
+				<button onclick={payBackups} disabled={busy === 'bycredits'} data-testid="pay-backups">{x.backups.payMonth}</button>
+				<br /><small class="hint" data-testid="pay-backups-hint">{x.backups.payHint}</small>
+				{#if !profile.backupSigner?.payer}<button onclick={authorizeBackupKey} disabled={busy === 'bycredits'} data-testid="authorize-backup-key">{x.backups.authorizeKey}</button>{/if}
 				{@render feedback('bycredits')}
 			{/if}
 		{/if}
-		<label>Wallet, dem die Sicherungen gehören (0x…, leer = zahlendes Konto)<input bind:value={ownerInput} placeholder={profile.payer ? `Wallet der Sicherungen (leer = ${profile.payer.slice(0, 10)}…)` : 'Wallet der Sicherungen'} /></label>
-		<button onclick={saveOwner} disabled={busy === 'owner'}>Wallet der Sicherungen speichern</button>
+		<label>{x.backups.owner}<input bind:value={ownerInput} placeholder={x.backups.ownerPlaceholder(profile.payer ? profile.payer.slice(0, 10) : null)} /></label>
+		<button onclick={saveOwner} disabled={busy === 'owner'}>{x.backups.saveOwner}</button>
 		{@render feedback('owner')}
-		<p>Schlüssel der Sicherungen (age): die VM verschlüsselt jede Sicherung für ihn, eine Wiederherstellung braucht ihn.</p>
-		<p data-testid="age-status">{!profile.ageIdentity ? 'nicht hinterlegt' : profile.ageIdentity === vaultAge ? 'der Schlüssel des Tresors (die 24 Wörter genügen zur Wiederherstellung)' : 'eingefügt (nicht aus dem Tresor: getrennt aufbewahren!)'}</p>
-		{#if recipient}<p><small>Empfänger: <code data-testid="age-recipient">{recipient}</code></small></p>{/if}
-		{#if profile.ageIdentity !== vaultAge}<button onclick={useVaultAge} disabled={busy === 'age'}>Schlüssel des Tresors verwenden (empfohlen)</button>{/if}
+		<p>{x.backups.ageIntro}</p>
+		<p data-testid="age-status">{!profile.ageIdentity ? x.backups.age.none : profile.ageIdentity === vaultAge ? x.backups.age.vault : x.backups.age.pasted}</p>
+		{#if recipient}<p><small>{x.backups.recipient}<code data-testid="age-recipient">{recipient}</code></small></p>{/if}
+		{#if profile.ageIdentity !== vaultAge}<button onclick={useVaultAge} disabled={busy === 'age'}>{x.backups.useVault}</button>{/if}
 		<details>
-			<summary>Einen vorhandenen Schlüssel einfügen</summary>
+			<summary>{x.backups.paste}</summary>
 			<textarea bind:value={ageInput} rows="2" autocomplete="off" spellcheck="false" placeholder="AGE-SECRET-KEY-1…"></textarea>
-			<button onclick={saveAge} disabled={busy === 'age' || !ageInput.trim()}>Versiegelt hinterlegen</button>
+			<button onclick={saveAge} disabled={busy === 'age' || !ageInput.trim()}>{x.backups.seal}</button>
 		</details>
 		{@render feedback('age')}
 		<label class="check">
 			<input type="checkbox" data-testid="backups-on" checked={!!profile.backupConfig} disabled={busy === 'backups' || (!profile.backupConfig && profile.network === 'mainnet' && profile.role !== 'primary')}
 				onchange={(e) => toggleBackups(e.currentTarget.checked)} />
-			Sichern, alle zwei Stunden bei Änderungen und beim Stoppen ({profile.network === 'mainnet' ? 'Mainnet' : 'Testnetz'}, Datensatz <code>{BACKUP_LABEL[profile.network === 'mainnet' ? 'mainnet' : 'calibration']}</code>)
+			{x.backups.on.before(profile.network === 'mainnet')}<code>{BACKUP_LABEL[profile.network === 'mainnet' ? 'mainnet' : 'calibration']}</code>{x.backups.on.after}
 		</label>
 		{#if profile.backupConfig}
 			<BackupPlaces network={profile.network} payer={profile.backupOwner || (profile.backupsByCredits ? '' : profile.payer)} config={profile.backupConfig} busy={busy === 'places'} onsave={savePlaces} />
 		{/if}
 		{@render feedback('backups')}{@render feedback('places')}
-		{#if profile.network === 'mainnet' && profile.role !== 'primary'}<p class="hint" data-testid="mainnet-backup-hint">Auf Mainnet sichert nur eine produktive Instanz (Rolle oben). Als Test bleibt sie ohne Sicherung.</p>
-		{:else if profile.backupConfig && profile.backupsByCredits && (!profile.backupSigner?.payer || (backupState && !fundedUntil(backupState.fundedUntil)))}<p class="hint" data-testid="credits-backup-hint">Dafür braucht es eine bezahlte Sicherung (in jedem Paket enthalten, sonst „Einen Monat Sicherungen bezahlen“) und den freigegebenen VM-Schlüssel.</p>
-		{:else if profile.backupConfig && !profile.backupsByCredits && !until(sessionUntil)}<p class="hint">Dafür braucht die VM den Sitzungsschlüssel aus Schritt {step.filecoin}.</p>{/if}
+		{#if profile.network === 'mainnet' && profile.role !== 'primary'}<p class="hint" data-testid="mainnet-backup-hint">{x.backups.mainnetHint}</p>
+		{:else if profile.backupConfig && profile.backupsByCredits && (!profile.backupSigner?.payer || (backupState && !fundedUntil(backupState.fundedUntil)))}<p class="hint" data-testid="credits-backup-hint">{x.backups.creditsHint}</p>
+		{:else if profile.backupConfig && !profile.backupsByCredits && !until(sessionUntil)}<p class="hint">{x.backups.sessionHint(step.filecoin)}</p>{/if}
 
-		<h3>{step.image}. Paperless-anywhere-Image und Knoten</h3>
+		<h3>{x.image.title(step.image)}</h3>
 		{#if BUILDER}
 			<fieldset class="image-choice" data-testid="image-choice">
 				<legend>{$t.ownImage.choice.legend}</legend>
@@ -438,13 +442,13 @@
 			</fieldset>
 		{/if}
 		{#if publicImage}
-			<label>Image (STORE-Hash, 64 Zeichen)<input bind:value={imageInput} placeholder="Image (STORE-Hash)" data-testid="image-hash" /></label>
+			<label>{x.image.hash}<input bind:value={imageInput} placeholder={x.image.hashPlaceholder} data-testid="image-hash" /></label>
 		{/if}
-		<label>SEV-SNP-Knoten (Hash, 64 Zeichen)<input bind:value={crnInput} placeholder="SEV-SNP-Knoten (Hash)" /></label>
+		<label>{x.image.node}<input bind:value={crnInput} placeholder={x.image.nodePlaceholder} /></label>
 		{#if publicImage}
-			<label>Passphrase des Images<input bind:value={passInput} type="password" autocomplete="off" data-testid="image-passphrase" placeholder={profile.luksPassphrase && !ownBuilt ? `Passphrase hinterlegt, ${profile.luksPassphrase.length} Zeichen (leer lassen = behalten)` : 'Passphrase des Images'} /></label>
+			<label>{x.image.pass}<input bind:value={passInput} type="password" autocomplete="off" data-testid="image-passphrase" placeholder={profile.luksPassphrase && !ownBuilt ? x.image.passKept(profile.luksPassphrase.length) : x.image.pass} /></label>
 		{/if}
-		<button onclick={saveImage} disabled={busy === 'image'}>{publicImage ? 'Image und Knoten speichern' : 'Knoten speichern'}</button>
+		<button onclick={saveImage} disabled={busy === 'image'}>{publicImage ? x.image.saveBoth : x.image.saveNode}</button>
 		{@render feedback('image')}
 		{#if BUILDER && !publicImage}
 			<div class="own-image" data-testid="own-image">
@@ -468,10 +472,10 @@
 			</div>
 		{/if}
 
-		<h3>{step.address}. Feste Adresse (optional)</h3>
-		<p class="hint">Mit einem Cloudflare-API-Token (Zone {FIXED_HOST_DOMAIN.split('.').slice(-2).join('.')}, Rechte: DNS bearbeiten, Zone lesen) bekommt deine Instanz bei jedem Start dieselbe Adresse, <code>{fixedHostLabel(master)}.{FIXED_HOST_DOMAIN}</code>: Die VM trägt sich selbst ein und holt das Zertifikat über DNS. Ohne Token gibt es bei jedem Start einen neuen <code>*.2n6.me</code>-Namen. Das Token kann alle DNS-Einträge der Zone ändern; es liegt verschlüsselt im Profil und geht nur an die VM.</p>
-		<label>Cloudflare-API-Token<input bind:value={dnsInput} type="password" autocomplete="off" data-testid="dns-token" placeholder={profile.dnsToken ? 'Token hinterlegt (leer speichern = entfernen)' : 'Cloudflare-API-Token'} /></label>
-		<button onclick={saveDns} disabled={busy === 'dns'}>{profile.dnsToken && !dnsInput.trim() ? 'Token entfernen' : 'Token speichern'}</button>
+		<h3>{x.address.title(step.address)}</h3>
+		<p class="hint">{x.address.hint.before(FIXED_HOST_DOMAIN.split('.').slice(-2).join('.'))}<code>{fixedHostLabel(master)}.{FIXED_HOST_DOMAIN}</code>{x.address.hint.between}<code>*.2n6.me</code>{x.address.hint.after}</p>
+		<label>{x.address.token}<input bind:value={dnsInput} type="password" autocomplete="off" data-testid="dns-token" placeholder={profile.dnsToken ? x.address.tokenKept : x.address.token} /></label>
+		<button onclick={saveDns} disabled={busy === 'dns'}>{profile.dnsToken && !dnsInput.trim() ? x.address.remove : x.address.save}</button>
 		{@render feedback('dns')}
 	{/if}
 	{#if error && !errorKey}<p class="error" role="alert">{error}</p>{/if}
@@ -479,7 +483,7 @@
 
 {#snippet feedback(/** @type {string} */ key)}
 	{#if error && errorKey === key}<p class="error" role="alert" data-testid={`error-${key}`}>{error}</p>
-	{:else if savedKey === key}<p class="saved" data-testid={`saved-${key}`}>Gespeichert ✓</p>{/if}
+	{:else if savedKey === key}<p class="saved" data-testid={`saved-${key}`}>{x.saved}</p>{/if}
 {/snippet}
 
 <style>

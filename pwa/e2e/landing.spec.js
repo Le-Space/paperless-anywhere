@@ -92,7 +92,7 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName('Paperless anywhere runs resilient, confidential and on your schedule.');
 	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 	await expect(page.getByTestId('lang-de')).toHaveAttribute('href', '/');
-	await expect(page.locator('.hero .hint')).toHaveText('With a passkey, no account. The app itself is in German for now.');
+	await expect(page.locator('.hero .hint')).toHaveText('With a passkey, no account.');
 	// Section links stay on the English page, and the licence page follows the language.
 	await page.locator('nav a[href="#trust"]').click();
 	await expect(page).toHaveURL(/\/en\/#trust$/);

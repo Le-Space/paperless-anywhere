@@ -199,6 +199,14 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await expect(page.getByRole('button', { name: 'Wallet für Sicherungen verbinden' })).toBeVisible();
 	// Steps are numbered as shown: no Aleph approval and no Filecoin key here, so no gap.
 	await expect(page.getByTestId('setup').locator('h3')).toHaveText(['1. Wer zahlt die VM?', '2. Attest-Relay', '3. Sicherungen', '4. Paperless-anywhere-Image und Knoten', '5. Feste Adresse (optional)']);
+	// The same setup in English, at once, and back.
+	await page.getByTestId('app-lang-en').click();
+	await expect(page.getByTestId('setup').locator('h2')).toHaveText('Setup');
+	await expect(page.getByTestId('setup').locator('h3')).toHaveText(['1. Who pays for the VM?', '2. Attest relay', '3. Backups', '4. Paperless anywhere image and node', '5. Fixed address (optional)']);
+	await expect(page.getByRole('button', { name: 'Connect a wallet for backups' })).toBeVisible();
+	await expect(page.getByTestId('setup')).not.toContainText(/Schlüssel|Sicherung|nicht|für/);
+	await page.getByTestId('app-lang-de').click();
+	await expect(page.getByTestId('setup').locator('h2')).toHaveText('Einrichtung');
 	// A builder is fixed in the app: the image step asks which image. The public
 	// one is chosen until an own one is built; choosing the own one says it is
 	// not built yet and offers the build.

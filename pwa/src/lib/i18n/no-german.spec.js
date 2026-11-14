@@ -23,7 +23,6 @@ const CATALOGUES = [/^lib\/i18n\//, /^lib\/landing\/i18n\.js$/, /^lib\/evidence-
 
 /** Files whose texts have not moved yet. Remove a line with the PR that moves them. */
 const NOT_YET = new Set([
-	'lib/Setup.svelte',
 ]);
 
 const GERMAN = /[äöüÄÖÜß„“]|\b(?:nicht|und|oder|für|wird|werden|wurde|kein|keine|bitte|noch|schon|dein|deine|deinem|deiner|eine|einen|einer|dieser|diese|dieses|gerade|läuft|Sicherung|Sicherungen|Schlüssel|Tresor|Guthaben|Einrichtung)\b/;
