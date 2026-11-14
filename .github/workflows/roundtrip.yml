@@ -16,13 +16,21 @@ name: Paperless backup and restore round trip
 # address (#26): VM 1 orders its certificate over DNS, the backup carries it,
 # and VM 2 must come up with the same certificate (same serial) instead of
 # ordering a new one. The run deletes the name's records at the end.
+#
+# With "builder" (step 6 of #202), both VMs run an image of their own instead
+# of "rootfs_item_hash": the app's own code has that builder seal the image
+# for a throwaway vault, fetches it through Le Space's attest relay, uploads
+# it as the test wallet and unlocks both VMs with that image's passphrase. The
+# builder must run (workflow "Image builder on Aleph"); the cleanup forgets
+# the image's STORE again.
 
 on:
   workflow_dispatch:
     inputs:
       rootfs_item_hash:
-        description: Encrypted Paperless rootfs (the STORE from "Paperless rootfs")
-        required: true
+        description: Encrypted Paperless rootfs (the STORE from "Paperless rootfs"). Empty with "builder".
+        required: false
+        default: ''
         type: string
       crn:
         description: SEV-SNP node (hash or unique prefix)
@@ -43,6 +51,21 @@ on:
         default: piece-cid
         type: choice
         options: [piece-cid, sha256]
+      builder:
+        description: 'An image of its own instead: the image builder V-PROGRAM (item hash) that seals it. Needs plain_sha256.'
+        required: false
+        default: ''
+        type: string
+      builder_crn:
+        description: The node the builder runs on (full hash).
+        required: false
+        default: ''
+        type: string
+      plain_sha256:
+        description: With "builder", the SHA-256 of the plain image the builder holds.
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -63,12 +86,55 @@ env:
 jobs:
   roundtrip:
     runs-on: ${{ inputs.runner == 'aleph' && fromJSON('["self-hosted","aleph"]') || 'ubuntu-24.04' }}
-    timeout-minutes: 120
+    timeout-minutes: 150
+    outputs:
+      own_store: ${{ steps.own.outputs.store }}
     steps:
       - name: Check inputs
+        env:
+          BUILDER: ${{ inputs.builder }}
+          BUILDER_CRN: ${{ inputs.builder_crn }}
+          PLAIN_SHA256: ${{ inputs.plain_sha256 }}
         run: |
-          [[ "$ITEM" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::rootfs_item_hash is not an item hash"; exit 1; }
+          if [ -n "$BUILDER" ]; then
+            for v in "$BUILDER" "$BUILDER_CRN" "$PLAIN_SHA256"; do [[ "$v" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::builder, builder_crn and plain_sha256 are 64 hex"; exit 1; }; done
+          else
+            [[ "$ITEM" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::rootfs_item_hash is not an item hash"; exit 1; }
+          fi
           [[ "$CRN" =~ ^[0-9a-f]{6,64}$ ]] || { echo "::error::crn is not a hash or prefix"; exit 1; }
+
+      # The image of its own, built by the app's code (pwa/scripts/own-image-fetch.mjs).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: inputs.builder != ''
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        if: inputs.builder != ''
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        if: inputs.builder != ''
+        with:
+          node-version: 24.x
+      - name: An image of its own - seal, fetch through Le Space's relay, upload
+        id: own
+        if: inputs.builder != ''
+        working-directory: pwa
+        env:
+          VPROGRAM: ${{ inputs.builder }}
+          CRN: ${{ inputs.builder_crn }}
+          PLAIN_SHA256: ${{ inputs.plain_sha256 }}
+          STORE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+          PASSPHRASE_FILE: ${{ runner.temp }}/luks.pass
+          FETCH_RESULT: ${{ runner.temp }}/own-image.json
+        run: |
+          pnpm install --frozen-lockfile > /dev/null
+          pnpm exec vite-node scripts/own-image-fetch.mjs
+          store="$(jq -r '.store // empty' "$FETCH_RESULT")"
+          [[ "$store" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::no STORE of the own image"; exit 1; }
+          echo "store=$store" >> "$GITHUB_OUTPUT"
+          echo "OWN_ITEM=$store" >> "$GITHUB_ENV"
+          echo "OWN_IMAGE=$(jq -c '{fetchSeconds, mibPerSecond, uploadSeconds, connections, failedOpens}' "$FETCH_RESULT")" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
@@ -92,7 +158,8 @@ jobs:
           WALLET: ${{ secrets.CALIBRATION_WALLET_KEY }}
         run: |
           umask 077
-          printf '%s' "$LUKS" | tr -d '\r\n' > "$RUNNER_TEMP/luks.pass"
+          # An image of its own brought its passphrase along.
+          [ -s "$RUNNER_TEMP/luks.pass" ] || printf '%s' "$LUKS" | tr -d '\r\n' > "$RUNNER_TEMP/luks.pass"
           printf '%s' "$WALLET" | tr -d '\r\n' > "$RUNNER_TEMP/wallet.key"
           ssh-keygen -q -t ed25519 -N '' -C paperless-roundtrip -f "$RUNNER_TEMP/rt_ed25519"
           age-keygen -o "$RUNNER_TEMP/age.txt" 2>/dev/null
@@ -155,7 +222,7 @@ jobs:
         run: |
           set -o pipefail
           start=$(date +%s)
-          aleph instance create "$NAME-a" --confidential --image "$ITEM" --vcpus 2 --memory 4GB --disk-size 40GB --crn "$CRN" \
+          aleph instance create "$NAME-a" --confidential --image "${OWN_ITEM:-$ITEM}" --vcpus 2 --memory 4GB --disk-size 40GB --crn "$CRN" \
             --ssh-pubkey-file "$RUNNER_TEMP/rt_ed25519.pub" --chain eth --wait 600 2>&1 | tee "$RUNNER_TEMP/create1.log"
           hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/create1.log" | grep -oE '[0-9a-f]{64}' | head -1)"
           [ -n "$hash" ] || { echo "::error::no INSTANCE item hash"; exit 1; }
@@ -237,7 +304,7 @@ jobs:
         id: vm2
         run: |
           set -o pipefail
-          aleph instance create "$NAME-b" --confidential --image "$ITEM" --vcpus 2 --memory 4GB --disk-size 40GB --crn "$CRN" \
+          aleph instance create "$NAME-b" --confidential --image "${OWN_ITEM:-$ITEM}" --vcpus 2 --memory 4GB --disk-size 40GB --crn "$CRN" \
             --ssh-pubkey-file "$RUNNER_TEMP/rt_ed25519.pub" --chain eth --wait 600 2>&1 | tee "$RUNNER_TEMP/create2.log"
           hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/create2.log" | grep -oE '[0-9a-f]{64}' | head -1)"
           [ -n "$hash" ] || { echo "::error::no INSTANCE item hash"; exit 1; }
@@ -302,6 +369,7 @@ jobs:
             echo
             echo "| | |"
             echo "|---|---|"
+            [ -z "$OWN_IMAGE" ] || echo "| Image of its own (built, fetched, uploaded) | \`$OWN_IMAGE\` |"
             echo "| VM 1 up (create + unlock) | ${VM1_UP:-?} s |"
             echo "| Backup with the session key | ${BACKUP_SECONDS:-?} s |"
             echo "| Restore in VM 2 | \`${RESTORE:-none}\` |"
@@ -344,9 +412,15 @@ jobs:
               curl -fsS -X DELETE -H "$auth" "$api/zones/$zone/dns_records/$id" >/dev/null && echo "deleted a record of $FIXED_NAME"
             done
           fi
-          [ -n "$hashes" ] || { echo "no VM of this run is left"; exit 0; }
           for h in $hashes; do
             echo "cleaning up $h"
             aleph instance erase "$h" --crn "$CRN" --chain eth || true
             echo y | aleph instance delete "$h" --reason "paperless round trip ${GITHUB_RUN_ID} (cleanup)" --chain eth || true
           done
+          [ -n "$hashes" ] || echo "no VM of this run is left"
+          # The image of its own, after the VMs that used it.
+          if [[ "$OWN_STORE" =~ ^[0-9a-f]{64}$ ]]; then
+            aleph message forget "$OWN_STORE" --reason "paperless round trip ${GITHUB_RUN_ID} (own image)" --chain eth -y && echo "forgot the own image's STORE"
+          fi
+        env:
+          OWN_STORE: ${{ needs.roundtrip.outputs.own_store }}
