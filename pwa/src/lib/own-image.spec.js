@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { recoverMessageAddress } from 'viem';
 import { imagePassphrase } from './keys/derive.js';
-import { BUILDER, BuilderError, LANES, PIECE_BYTES, RUN_BYTES, buildOwnImage, builderOpener, checkBuilder, hasOwnImage, imageFields, imageKindOf, sources, storeMessage } from './own-image.js';
+import { BUILDER, BuilderError, LANES, PIECE_BYTES, RUN_BYTES, buildOnOwnBuilder, buildOwnImage, builderMessage, builderOpener, checkBuilder, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources, storeMessage } from './own-image.js';
 import { sha256Hex } from './vm.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -373,5 +373,106 @@ describe('the choice of image in the setup', () => {
 	it('the public image as before: the same image keeps its passphrase, an old profile gets it bound', () => {
 		expect(imageFields({ kind: 'public', image: pub, crn, pass: '', profile: { rootfsItemHash: pub, luksPassphrase: 'p', luksFor: pub } })).toEqual({ rootfsItemHash: pub, crnHash: crn });
 		expect(imageFields({ kind: 'public', image: pub, crn, pass: '', profile: { rootfsItemHash: pub, luksPassphrase: 'p' } })).toEqual({ rootfsItemHash: pub, crnHash: crn, luksFor: pub });
+	});
+});
+
+describe('a builder started for each build', () => {
+	const crn = '0c'.repeat(32);
+	const program = {
+		allow_amend: false,
+		environment: { internet: true },
+		metadata: { name: 'paperless-image-builder' },
+		payment: { type: 'credit' },
+		requirements: { node: { node_hash: crn } },
+		resources: { memory: 6144, seconds: 30, vcpus: 2 },
+		runtime: { comment: '', ref: '0d'.repeat(32) },
+		verification: { backend: 'sev_snp', measurements: [{ platform: 'sev_snp', registers: { launch: 'ab'.repeat(48) } }], policy: 196608 },
+		volumes: [{ comment: '', hash_tree: '0e'.repeat(32), ref: 'QmExampleVolumeExampleVolumeExampleVolume12', roothash: '0f'.repeat(32) }],
+		workload: { hash_tree: '1a'.repeat(32), ref: 'QmExampleWorkloadExampleWorkloadExample1', roothash: '1b'.repeat(32) }
+	};
+	const template = { ...builder, program, crn };
+	const unreachable = () => new BuilderError('not up yet', 'unreachable');
+
+	/** Aleph as far as a build's builder goes: what was sent, in order. */
+	function fakeAleph({ refuse = [] } = {}) {
+		const sent = [];
+		const post = async (message) => {
+			sent.push({ type: message.type, hash: message.item_hash, content: JSON.parse(message.item_content), signature: message.signature });
+			if (refuse.includes(message.type)) throw new BuilderError('refused');
+		};
+		return { sent, post };
+	}
+
+	it('signs the fixed V-PROGRAM content as the app, with its own time', async () => {
+		const message = await builderMessage(app, template, 1_800_000_000);
+		const content = JSON.parse(message.item_content);
+		expect(content).toEqual({ ...program, address: app.address, time: 1_800_000_000 });
+		expect(message).toMatchObject({ type: 'V-PROGRAM', sender: app.address, item_hash: await sha256Hex(message.item_content) });
+		expect(await recoverMessageAddress({ message: ['ETH', app.address, 'V-PROGRAM', message.item_hash].join('\n'), signature: message.signature })).toBe(app.address);
+		await expect(builderMessage(app, builder)).rejects.toThrow(BuilderError);
+		await expect(builderMessage(app, { ...template, crn: 'x' })).rejects.toThrow(BuilderError);
+	});
+
+	it('starts it, waits until it answers attested, builds, and forgets it', async () => {
+		const { seen, open } = fakeBuilder();
+		const { store } = fakeStore();
+		const { sent, post } = fakeAleph();
+		const noted = [];
+		let routed = null;
+		let tries = 0;
+		const result = await buildOnOwnBuilder({
+			master, app, builder: template, store, post, ...quick(),
+			opener: (running) => ((routed = running), async () => (++tries < 3 ? Promise.reject(unreachable()) : open())),
+			onStarted: (v) => void noted.push(['started', v, sent.length]),
+			onForgotten: (v) => void noted.push(['forgotten', v])
+		});
+		const vprogram = sent[0].hash;
+		expect(sent.map((m) => m.type)).toEqual(['V-PROGRAM', 'FORGET']);
+		expect(sent[1].content.hashes).toEqual([vprogram]);
+		// Noted before it was sent, cleared once it is forgotten.
+		expect(noted).toEqual([['started', vprogram, 0], ['forgotten', vprogram]]);
+		expect(routed).toMatchObject({ route: `?crn=${crn}&vm=${vprogram}`, vprogram, measurements: builder.measurements });
+		expect(tries).toBeGreaterThanOrEqual(3);
+		expect(seen.calls[0]).toMatchObject({ method: 'POST', path: '/build' });
+		expect(result.rootfsItemHash).toMatch(/^[0-9a-f]{64}$/);
+	});
+
+	it('forgets it also when the build fails', async () => {
+		const { open } = fakeBuilder({ 'POST /build': () => ({ status: 500, body: new TextEncoder().encode('{"error":"broken"}') }) });
+		const { sent, post } = fakeAleph();
+		await expect(buildOnOwnBuilder({ master, app, builder: template, post, ...quick(), opener: () => open })).rejects.toThrow(BuilderError);
+		expect(sent.map((m) => m.type)).toEqual(['V-PROGRAM', 'FORGET']);
+	});
+
+	it('forgets it when it never answers, and at once when its attestation is refused', async () => {
+		const never = fakeAleph();
+		await expect(buildOnOwnBuilder({ master, app, builder: template, post: never.post, ...quick(), upTries: 3, opener: () => async () => Promise.reject(unreachable()) })).rejects.toThrow('not up yet');
+		expect(never.sent.map((m) => m.type)).toEqual(['V-PROGRAM', 'FORGET']);
+		const refused = fakeAleph();
+		let tries = 0;
+		await expect(buildOnOwnBuilder({ master, app, builder: template, post: refused.post, ...quick(), opener: () => async () => (tries++, Promise.reject(new Error('launch measurement rejected'))) })).rejects.toThrow('measurement');
+		expect(tries).toBe(1);
+		expect(refused.sent.map((m) => m.type)).toEqual(['V-PROGRAM', 'FORGET']);
+	});
+
+	it('tries to forget it when Aleph did not take it, and keeps the note while the FORGET fails', async () => {
+		const { sent, post } = fakeAleph({ refuse: ['V-PROGRAM', 'FORGET'] });
+		const noted = [];
+		await expect(buildOnOwnBuilder({ master, app, builder: template, post, ...quick(), opener: () => async () => ({}), onStarted: () => void noted.push('started'), onForgotten: () => void noted.push('forgotten') })).rejects.toThrow('refused');
+		expect(sent[0].type).toBe('V-PROGRAM');
+		expect(sent.slice(1).every((m) => m.type === 'FORGET')).toBe(true);
+		expect(noted).toEqual(['started']);
+	});
+
+	it('starts none when this window already holds the sealed image, and forgets one a closed window left', async () => {
+		const { sent, post } = fakeAleph();
+		const { store } = fakeStore();
+		const kept = { current: { key: `${app.address.toLowerCase()}/${builder.plain.sha256}`, cid, size: image.length, image: new Blob([image]), attested: null } };
+		await buildOnOwnBuilder({ master, app, builder: template, store, post, ...quick(), kept, opener: () => async () => { throw new Error('no builder needed'); } });
+		expect(sent).toEqual([]);
+		const left = fakeAleph();
+		expect(await forgetLeftBuilder(app, { ownBuilder: { vprogram: '2c'.repeat(32) } }, { post: left.post, sleep: async () => {} })).toBe(true);
+		expect(left.sent.map((m) => [m.type, m.content.hashes])).toEqual([['FORGET', ['2c'.repeat(32)]]]);
+		expect(await forgetLeftBuilder(app, {}, { post: left.post })).toBe(false);
 	});
 });

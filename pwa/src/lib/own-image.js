@@ -6,7 +6,8 @@
 // sealed image back in runs (each over a connection attested anew, because a
 // relay carries only a few MiB per connection), stores it on Aleph itself
 // under its own address, and notes the new image in the profile.
-import { ALEPH_API, CHANNEL, readFetch } from './aleph.js';
+import { createUnsignedForgetMessage, signAlephMessage } from '@le-space/core';
+import { ALEPH_API, CHANNEL, broadcast, readFetch } from './aleph.js';
 import { tr } from './i18n/index.js';
 import { imagePassphrase } from './keys/derive.js';
 import { sha256Hex } from './vm.js';
@@ -22,6 +23,11 @@ import { sha256Hex } from './vm.js';
  * it lies on Aleph for anyone to compare, and the commit it was built from;
  * `vprogram` is the builder's V-PROGRAM message on Aleph. All of it is
  * public, and the setup shows it (`sources`).
+ *
+ * Or, with `program` (the V-PROGRAM content of a published builder) and
+ * `crn` (the node that runs V-PROGRAMs), no builder runs between builds:
+ * each build starts one from that content, on the same volumes and so with
+ * the same measurement, and forgets it afterwards (`buildOnOwnBuilder`).
  * @type {null | { route: string, measurements: string[], policy: number | string, vprogram?: string, plain: { sha256: string, store?: string, commit?: string } }}
  */
 export const BUILDER = null;
@@ -238,7 +244,7 @@ export async function storeOnAleph(image, message, api = ALEPH_API) {
  *   app: { address: string, signMessage: (a: { message: string }) => Promise<string> },
  *   builder: NonNullable<typeof BUILDER>,
  *   open: () => Promise<{ request: (method: string, path: string, init?: any) => Promise<{ status: number, body: Uint8Array }>, close: () => void, measurement?: string }>,
- *   onProgress?: (p: { step: 'attest' | 'build' | 'fetch' | 'sign' | 'upload' | 'confirm', detail?: string }) => void,
+ *   onProgress?: (p: { step: 'start' | 'attest' | 'build' | 'fetch' | 'sign' | 'upload' | 'confirm', detail?: string }) => void,
  *   store?: typeof storeOnAleph,
  *   read?: (itemHash: string) => Promise<string | null>,
  *   sleep?: (ms: number) => Promise<void>,
@@ -439,4 +445,120 @@ export function imageFields({ kind, image, crn, pass, profile }) {
 	if (other && !passphrase) throw new Error(tr().ownImage.fields.otherPassphrase);
 	const bound = passphrase ? { luksPassphrase: passphrase, luksFor: hash } : profile.luksPassphrase && !profile.luksFor ? { luksFor: hash } : {};
 	return { rootfsItemHash: hash, crnHash: node, ...bound };
+}
+
+/**
+ * A builder started for one build. The app fixes the builder's V-PROGRAM
+ * content (`program`: runtime, workload and volumes with their root hashes,
+ * resources, the node), not a running builder: the measured boot line holds
+ * the runtime, the root hashes and the resources, not the message's own
+ * hash, so every V-PROGRAM with that content shows the same measurement
+ * (tried on Aleph, 2026-11-14, #202). The volumes stay published; what a
+ * build starts, the V-PROGRAM, it forgets again, also when the build fails.
+ * @typedef {NonNullable<typeof BUILDER> & { program: Record<string, any>, crn: string }} BuilderTemplate
+ */
+
+/**
+ * The V-PROGRAM message for one build: the fixed content with the app's
+ * address and the time, signed by the app's key, which pays like the STORE.
+ * @param {{ address: string, signMessage: (a: { message: string }) => Promise<string> }} app
+ * @param {BuilderTemplate} builder @param {number} [time] seconds
+ */
+export async function builderMessage(app, builder, time = Date.now() / 1000) {
+	if (!builder?.program?.verification || !HEX64.test(builder.crn ?? '')) throw new BuilderError(tr().ownImage.error.noBuilder);
+	const item_content = JSON.stringify({ ...builder.program, address: app.address, time });
+	const unsigned = { sender: app.address, chain: 'ETH', type: 'V-PROGRAM', item_hash: await sha256Hex(item_content), item_type: 'inline', item_content, time, channel: CHANNEL };
+	return signAlephMessage(unsigned, (_sender, payload) => app.signMessage({ message: payload }));
+}
+
+/** The FORGET of the build's V-PROGRAM, signed by the app's key. */
+export async function builderForget(app, vprogram, time = Date.now() / 1000) {
+	const unsigned = await createUnsignedForgetMessage({ sender: app.address, hashes: [vprogram], reason: 'paperless-anywhere image built', hasher: sha256Hex, channel: CHANNEL, now: time });
+	return signAlephMessage(unsigned, (_sender, payload) => app.signMessage({ message: payload }));
+}
+
+/** @param {any} message */
+const send = async (message) => {
+	const { httpStatus } = await broadcast(message);
+	if (httpStatus >= 300) throw new BuilderError(tr().ownImage.error.builderRefused(httpStatus));
+};
+
+/**
+ * Forget a build's V-PROGRAM, a few times. True when Aleph took the FORGET.
+ * @param {{ address: string, signMessage: (a: { message: string }) => Promise<string> }} app
+ * @param {string} vprogram @param {{ post?: (message: any) => Promise<void>, sleep?: (ms: number) => Promise<void>, tries?: number, retryMs?: number }} [deps]
+ */
+export async function forgetBuilder(app, vprogram, { post = send, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), tries = 4, retryMs = 5000 } = {}) {
+	for (let attempt = 0; attempt < tries; attempt++) {
+		if (attempt) await sleep(retryMs * attempt);
+		try {
+			await post(await builderForget(app, vprogram));
+			return true;
+		} catch {
+			/* tried again; the profile keeps it for the next opening otherwise */
+		}
+	}
+	return false;
+}
+
+/**
+ * Build the vault's own image on a builder started for this build, and
+ * forget that builder afterwards, whatever happened. The profile notes the
+ * builder between start and forget (`onStarted`, `onForgotten`), so a
+ * closed window leaves nothing running for longer than the next opening
+ * (`forgetLeftBuilder`). An image already fetched in this window (an upload
+ * that failed) needs no builder: it is only uploaded again.
+ * @param {Omit<Parameters<typeof buildOwnImage>[0], 'builder' | 'open'> & {
+ *   builder: BuilderTemplate,
+ *   opener: (running: NonNullable<typeof BUILDER>) => () => Promise<any>,
+ *   onStarted?: (vprogram: string) => Promise<void> | void,
+ *   onForgotten?: (vprogram: string) => Promise<void> | void,
+ *   post?: (message: any) => Promise<void>,
+ *   upTries?: number, upMs?: number
+ * }} a
+ */
+export async function buildOnOwnBuilder({ builder, opener, onStarted = () => {}, onForgotten = () => {}, post = send, upTries = 40, upMs = 15_000, ...rest }) {
+	const { master, app, onProgress = () => {}, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), kept = fetched } = rest;
+	checkBuilder(builder);
+	const key = `${app.address.toLowerCase()}/${builder.plain.sha256}`;
+	if (kept.current?.key === key) return buildOwnImage({ ...rest, builder, open: () => Promise.reject(new BuilderError(tr().ownImage.error.noBuilder)) });
+
+	onProgress({ step: 'start', detail: tr().ownImage.step.start });
+	const message = await builderMessage(app, builder);
+	const vprogram = message.item_hash;
+	// Noted before it is sent: a window closed in between still finds it.
+	await onStarted(vprogram);
+	try {
+		await post(message);
+		const running = { ...builder, route: `?crn=${builder.crn}&vm=${vprogram}`, vprogram };
+		const open = opener(running);
+		// The node starts the builder within minutes (about four, 2026-11-14):
+		// until then a connection does not reach it. A refused attestation is final.
+		let first = null;
+		for (let i = 0; !first; i++) {
+			try {
+				first = await open();
+			} catch (error) {
+				if (refusedAttestation(error) || !(error instanceof BuilderError && error.code === 'unreachable') || i + 1 >= upTries) throw error;
+				await sleep(upMs);
+			}
+		}
+		let handed = false;
+		const openFirst = () => (handed ? open() : ((handed = true), Promise.resolve(first)));
+		return await buildOwnImage({ ...rest, master, builder: running, open: openFirst });
+	} finally {
+		if (await forgetBuilder(app, vprogram, { post, sleep })) await onForgotten(vprogram);
+	}
+}
+
+/**
+ * A builder a closed window left behind (`profile.ownBuilder`): forget it.
+ * @param {{ address: string, signMessage: (a: { message: string }) => Promise<string> }} app
+ * @param {Record<string, any>} profile @param {Parameters<typeof forgetBuilder>[2]} [deps]
+ * @returns {Promise<boolean>} true when there was one and it is forgotten
+ */
+export async function forgetLeftBuilder(app, profile, deps) {
+	const vprogram = profile?.ownBuilder?.vprogram;
+	if (!HEX64.test(vprogram ?? '')) return false;
+	return forgetBuilder(app, vprogram, deps);
 }

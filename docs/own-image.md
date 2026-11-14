@@ -225,9 +225,11 @@ little under 900 MiB each way, and the storage of that image on your
 vault's address as long as you use that version. An older image can be
 forgotten once the new one has started.
 
-The builder itself is one VM for everyone, paid by Le Space while it runs.
-A new plain image needs a new builder, since the image is part of what is
-measured.
+The builder runs only for a build ([a builder for each build](#a-builder-for-each-build)):
+about 15 minutes, paid by the app's address like the image's STORE. Its
+volumes stay published, since the measurement belongs to them. A new plain
+image needs new volumes and so a new measurement in the app, since the
+image is part of what is measured.
 
 ## Publishing the plain image
 
@@ -259,7 +261,34 @@ docker run --rm --network none -v "$PWD/check-container.mjs:/opt/builder/check-c
   the measurement above ran the same code in Node.
 - **No builder is fixed in the app** (`BUILDER` in
   `pwa/src/lib/own-image.js` is `null`), so the setup shows no choice of
-  image yet. A builder that runs all the time costs about 0.10 USD an hour;
-  one started for each build, from the same volumes and so with the same
-  measurement, is being looked into.
+  image yet.
+
+## A builder for each build
+
+A builder that runs all the time costs about 0.10 USD an hour. Instead, the
+app fixes the builder's V-PROGRAM *content* (runtime, workload and volume
+with their root hashes, resources, the node) and starts a builder from it
+for each build (`buildOnOwnBuilder`):
+
+1. it signs a V-PROGRAM with that content, as the app's address (which pays,
+   as for the image's STORE), notes it in the sealed profile and publishes
+   it; Aleph starts it on the node;
+2. it waits until the builder answers attested (about four minutes) and
+   builds as above;
+3. it forgets the V-PROGRAM, also when the build failed, and removes the
+   note. A window closed in between leaves the note: the next opening of
+   the setup forgets that builder.
+
+The measured boot line holds the runtime, the root hashes and the
+resources, not the message's own hash, so every V-PROGRAM with that content
+shows the measurement fixed in the app. Tried on Aleph on 2026-11-14: a
+second V-PROGRAM on a published builder's volumes showed the first one's
+measurement and sealed the real image
+([#202](https://github.com/Le-Space/paperless-anywhere/issues/202)).
+
+The volumes (workload, plain image, their hash trees) stay published: they
+are what the measurement belongs to. Deleting a V-PROGRAM forgets the
+message only; the workflow's action **delete** with **forget_volumes** also
+forgets the volumes of a builder that is not the fixed one. A build takes
+about 15 minutes and roughly 0.03 USD of builder time, plus the upload.
 - The landing page and the security model say so once all of this is true.
