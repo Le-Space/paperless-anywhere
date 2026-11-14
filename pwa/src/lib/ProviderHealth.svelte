@@ -2,6 +2,7 @@
 	// Whether the storage providers answer right now: a dot per provider from
 	// its public ping, with a link to it in the explorer. Reachable is not the
 	// same as accepting an upload; the VM's own lines say that.
+	import { t } from '$lib/i18n/index.js';
 	import { providerHealth } from '$lib/providers.js';
 
 	/** @type {{ network: string, ids: number[] }} */
@@ -9,6 +10,7 @@
 	/** @type {Awaited<ReturnType<typeof providerHealth>> | null} */
 	let health = $state(null);
 	let failed = $state(false);
+	const h = $derived($t.backup.health);
 	const key = $derived(`${network}:${[...ids].sort((a, b) => a - b).join(',')}`);
 	function check() {
 		failed = false;
@@ -25,21 +27,21 @@
 
 {#if ids.length}
 	<div class="health" data-testid="provider-health">
-		<p class="title">Speicheranbieter jetzt <button class="link" onclick={check}>neu prüfen</button></p>
-		{#if failed}<p class="hint">Die Anbieterliste ließ sich gerade nicht lesen.</p>
-		{:else if !health}<p class="hint">Anbieter werden gefragt …</p>
+		<p class="title">{h.title} <button class="link" onclick={check}>{h.again}</button></p>
+		{#if failed}<p class="hint">{h.listUnreadable}</p>
+		{:else if !health}<p class="hint">{h.asking}</p>
 		{:else}
 			<ul>
-				{#each health as h (h.id)}
-					<li data-testid={`provider-${h.id}`}>
-						<span class="dot" class:ok={h.ok} aria-hidden="true"></span>
-						Anbieter {h.id} · {h.name}{h.place ? ` (${h.place})` : ''}:
-						{h.ok ? `antwortet (${h.ms} ms)` : h.status ? `antwortet mit Fehler ${h.status}` : 'antwortet nicht'}
-						· <a href={h.explorer} target="_blank" rel="noopener noreferrer">im Explorer</a>
+				{#each health as p (p.id)}
+					<li data-testid={`provider-${p.id}`}>
+						<span class="dot" class:ok={p.ok} aria-hidden="true"></span>
+						{h.provider(p.id)} · {p.name}{p.place ? ` (${p.place})` : ''}:
+						{p.ok ? h.answers(p.ms) : p.status ? h.answersError(p.status) : h.silent}
+						· <a href={p.explorer} target="_blank" rel="noopener noreferrer">{h.explorer}</a>
 					</li>
 				{/each}
 			</ul>
-			<p class="hint">„Antwortet“ heißt erreichbar; ob ein Anbieter Daten annimmt, zeigt erst die nächste Sicherung.</p>
+			<p class="hint">{h.hint}</p>
 		{/if}
 	</div>
 {/if}

@@ -7,6 +7,7 @@
 // The backup key is handed to the age library and nowhere else: it appears in
 // no address, no header and no message.
 import { pieceSources } from './backups.js';
+import { tr } from './i18n/index.js';
 
 /** Without a file to write into, the result is held in memory: up to this size. */
 export const MEMORY_LIMIT_BYTES = 512 * 1024 * 1024;
@@ -20,16 +21,8 @@ export class BackupFetchError extends Error {
 	}
 }
 
-const TEXT = {
-	'no-address': 'Für mindestens ein Stück dieser Sicherung ist gerade keine Adresse bekannt.',
-	unreachable: 'Keiner der Speicheranbieter hat dieses Stück herausgegeben.',
-	interrupted: 'Die Verbindung ist abgebrochen, und keine andere Kopie konnte an derselben Stelle fortsetzen.',
-	'wrong-key': 'Der Sicherungsschlüssel dieses Tresors öffnet diese Sicherung nicht.',
-	damaged: 'Die Sicherung ist unvollständig oder beschädigt angekommen.',
-	'too-large': 'Diese Sicherung ist zu groß, um sie in diesem Browser im Arbeitsspeicher zu halten.',
-	aborted: 'Abgebrochen.'
-};
-const refuse = (/** @type {keyof typeof TEXT} */ reason) => new BackupFetchError(reason, TEXT[reason]);
+/** @typedef {'no-address' | 'unreachable' | 'interrupted' | 'wrong-key' | 'damaged' | 'too-large' | 'aborted'} Reason */
+const refuse = (/** @type {Reason} */ reason) => new BackupFetchError(reason, tr().backup.fetch.errors[reason]);
 
 /** The backup's size as stored (encrypted), or null when a part does not tell. @param {any} backup */
 export function storedBytes(backup) {

@@ -4,6 +4,8 @@
 // API: a plain GET without anything of the person, kept for ten minutes.
 // Without an answer the amounts stay in credits.
 
+import { currentLang, localeOf } from './i18n/index.js';
+
 export const CREDITS_PER_USD = 1_000_000;
 export const PRICES_URL = 'https://api.coingecko.com/api/v3/simple/price?ids=aleph,usd-coin&vs_currencies=eur,usd';
 const KEEP_MS = 10 * 60_000;
@@ -52,11 +54,13 @@ export function creditsIn(credits, unit, prices) {
 	return null;
 }
 
-/** "≈ 1,38 €", "≈ 1,55 $", "≈ 109,6 ALEPH"; empty for credits or without prices. */
-export function money(credits, unit, prices) {
+/** "≈ 1,38 €", "≈ 1,55 $", "≈ 109,6 ALEPH" (English: "≈ €1.38", "≈ $1.55"); empty for credits or without prices. */
+export function money(credits, unit, prices, l = currentLang()) {
 	const value = creditsIn(credits, unit, prices);
 	if (value === null || unit === 'credits') return '';
 	const digits = unit === 'aleph' ? (value >= 100 ? 0 : 1) : 2;
-	const n = value.toLocaleString('de-DE', { minimumFractionDigits: unit === 'aleph' ? 0 : 2, maximumFractionDigits: digits });
-	return `≈ ${n} ${unit === 'eur' ? '€' : unit === 'usd' ? '$' : 'ALEPH'}`;
+	const n = value.toLocaleString(localeOf(l), { minimumFractionDigits: unit === 'aleph' ? 0 : 2, maximumFractionDigits: digits });
+	if (unit === 'aleph') return `≈ ${n} ALEPH`;
+	const sign = unit === 'eur' ? '€' : '$';
+	return l === 'de' ? `≈ ${n} ${sign}` : `≈ ${sign}${n}`;
 }

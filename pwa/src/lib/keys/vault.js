@@ -7,6 +7,7 @@ import { newMasterSecret } from './derive.js';
 import { newSeedPhrase, seal, sealingKeyFromPrf, sealingKeyFromSeedPhrase, unseal } from './seal.js';
 import { passkeyIndexAccount, seedIndexAccount, VAULT_KEY } from './index-keys.js';
 import { readAggregate, writeAggregate } from '../aleph.js';
+import { tr } from '../i18n/index.js';
 
 const STORAGE_KEY = 'paperless-anywhere.vault';
 
@@ -61,7 +62,7 @@ export async function unlockWithPasskey(vault) {
 		let box = vault?.byPasskey;
 		if (!box) {
 			const remote = await readAggregate(passkeyIndexAccount(prf).address, VAULT_KEY);
-			if (!remote?.box) throw new Error('Zu diesem Passkey gibt es keinen Tresor.');
+			if (!remote?.box) throw new Error(tr().net.keys.noVaultForPasskey);
 			box = remote.box;
 		}
 		const master = await unseal(box, sealingKeyFromPrf(prf), 'master/passkey');
@@ -78,7 +79,7 @@ export async function unlockWithSeedPhrase(vault, phrase) {
 	let box = vault?.bySeed;
 	if (!box) {
 		const remote = await readAggregate(seedIndexAccount(phrase).address, VAULT_KEY);
-		if (!remote?.box) throw new Error('Zu dieser Wiederherstellungsphrase gibt es keinen Tresor.');
+		if (!remote?.box) throw new Error(tr().net.keys.noVaultForPhrase);
 		box = remote.box;
 	}
 	const master = await unseal(box, key, 'master/seed');

@@ -6,12 +6,14 @@
 // its documents' size on its private status page; a stopped one is known by
 // its last backup's size.
 
+import { format, tr } from './i18n/index.js';
+
 /** Included in every package during the pilot, in bytes (decimal GB). */
 export const STORAGE_INCLUDED_BYTES = 8e9;
 /** From this share on the app says the storage is getting full. */
 export const STORAGE_NEAR = 0.8;
 
-const gb = (/** @type {number} */ bytes) => (bytes / 1e9).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const gb = (/** @type {number} */ bytes) => format.number(bytes / 1e9, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 /**
  * @param {number | null | undefined} bytes the documents' size
@@ -22,14 +24,15 @@ export function storageView(bytes, source) {
 	if (typeof bytes !== 'number' || !Number.isFinite(bytes) || bytes < 0) return null;
 	const share = bytes / STORAGE_INCLUDED_BYTES;
 	const level = share >= 1 ? 'over' : share >= STORAGE_NEAR ? 'near' : 'ok';
-	const text = `${gb(bytes)} GB von ${gb(STORAGE_INCLUDED_BYTES)} GB`;
+	const s = tr().backup.storage;
+	const text = s.used(gb(bytes), gb(STORAGE_INCLUDED_BYTES));
 	const hint =
 		level === 'over'
-			? 'Mehr als im Paket enthalten. Bitte alte Dokumente löschen oder uns schreiben; Sicherungen könnten sonst scheitern.'
+			? s.over
 			: level === 'near'
-				? `Noch ${gb(STORAGE_INCLUDED_BYTES - bytes)} GB frei. Wird es knapp, scheitern zuerst die Sicherungen.`
+				? s.near(gb(STORAGE_INCLUDED_BYTES - bytes))
 				: source === 'backup'
-					? 'Stand der letzten Sicherung.'
-					: `Noch ${gb(STORAGE_INCLUDED_BYTES - bytes)} GB frei.`;
+					? s.asOfBackup
+					: s.free(gb(STORAGE_INCLUDED_BYTES - bytes));
 	return { share: Math.min(1, share), level, text, hint };
 }

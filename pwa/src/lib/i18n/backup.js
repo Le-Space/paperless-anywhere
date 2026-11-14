@@ -1,0 +1,359 @@
+// The backups: where they go (BackupPlaces), whether the providers answer
+// (ProviderHealth), the state of a running Paperless's backups (BackupNow,
+// backup-overview.js), fetching one without a VM (BackupExport,
+// backup-fetch.js, the guide in backups.js) and the documents' storage
+// (Storage, storage.js). German is the original; English beside it, key for key.
+export const backup = {
+	de: {
+		overview: {
+			title: 'Sicherung',
+			last: 'Letzte Sicherung',
+			none: 'Seit dem Start noch keine Sicherung',
+			beforeStart: 'vor diesem Start',
+			copies: (/** @type {number} */ n) => `${n} ${n === 1 ? 'Kopie' : 'Kopien'}`,
+			ok: (/** @type {number} */ copies, /** @type {number} */ requested) => (requested === 1 ? 'die Kopie ist angekommen' : `alle ${requested} Kopien angekommen`),
+			short: (/** @type {number} */ copies, /** @type {number} */ requested) => `nur ${copies} von ${requested} Kopien`,
+			failed: 'fehlgeschlagen',
+			reason: 'Grund',
+			checked: 'Zuletzt geprüft',
+			checkOutcome: (/** @type {string} */ s) => ({ unchanged: 'keine Änderung', skipped: 'Sicherungen sind aus', done: 'gesichert', partial: 'nur teilweise gesichert', failed: 'fehlgeschlagen' })[s] ?? s,
+			lastShort: 'letzte Sicherung',
+			nextShort: 'nächste Prüfung',
+			nextHint: 'Alle zwei Stunden wird geprüft; gesichert wird nur, wenn sich etwas geändert hat.',
+			now: 'Jetzt sichern',
+			running: 'Sicherung läuft …',
+			sending: 'Sicherung anfordern …',
+			doneNow: 'Gesichert',
+			donePartial: (/** @type {number} */ copies, /** @type {number} */ requested) => `Gesichert, aber nur ${copies} von ${requested} Kopien: ein Anbieter hat abgelehnt. Die nächste Prüfung versucht es wieder bei allen.`,
+			doneUnchanged: 'Schon gesichert: seit der letzten Sicherung hat sich nichts geändert.',
+			failedNow: 'Die Sicherung ist fehlgeschlagen; Paperless läuft weiter.',
+			oldImage: 'Diese VM läuft mit einem älteren Image: Sicherungsstand und „Jetzt sichern“ gibt es ab dem nächsten Image.',
+			unreachable: 'Die VM meldet ihren Sicherungsstand gerade nicht.',
+			duration: (/** @type {number} */ s) => `Dauer ${s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`}`
+		},
+		config: {
+			unknownNetwork: (/** @type {string} */ network) => `Unbekanntes Netz: ${network}`,
+			noAgeKey: 'Ohne age-Schlüssel keine Sicherung.',
+			copiesRange: '1 bis 3 Kopien.',
+			maxProviders: 'Höchstens 3 Anbieter.',
+			signerNotReleased: 'Le Space Credits haben den Schlüssel der VM für die Sicherungen noch nicht freigegeben.',
+			signerNetwork: (/** @type {string} */ theirs, /** @type {string} */ ours) => `Le Space Credits sichern im Netz ${theirs}, diese Paperless in ${ours}.`,
+			signerIncomplete: 'Für Sicherungen über Le Space Credits fehlt die Adresse des Dienstes oder ein Schlüssel.'
+		},
+		facts: {
+			oom: (/** @type {number} */ n) => `Speicher reichte nicht: das System hat ${n === 1 ? 'einen Prozess' : `${n} Prozesse`} beendet.`,
+			memory: (/** @type {string} */ free, /** @type {string | null} */ swap) => `Freier Arbeitsspeicher danach: ${free}${swap ? `, Auslagerung ${swap}` : ', keine Auslagerung'}`,
+			disk: (/** @type {string} */ free) => `Freier Platz auf der Datenplatte: ${free}`,
+			exit: (/** @type {number} */ code) => `Exit-Code ${code}`
+		},
+		guide: {
+			filename: (/** @type {string} */ short) => `sicherung-selbst-holen-${short}.txt`,
+			keyFile: 'schluessel.txt',
+			sealedFile: 'sicherung.age',
+			partFile: (/** @type {string} */ nn) => `teil-${nn}.age`,
+			title: 'Sicherung selbst holen – Paperless anywhere',
+			which: (/** @type {string} */ cid) => `Sicherung: ${cid}`,
+			parts: (/** @type {number} */ n) => (n > 1 ? `Sie besteht aus ${n} Teilen, die in dieser Reihenfolge aneinandergehängt werden.` : 'Sie besteht aus einem Stück.'),
+			need: (/** @type {string} */ keyFile) => [
+				'Du brauchst: curl, age (https://age-encryption.org) und deinen Sicherungsschlüssel',
+				`als Datei ${keyFile} (eine Zeile, beginnt mit AGE-SECRET-KEY-1). Den Schlüssel`,
+				'zeigt die App unter „Sicherung selbst holen“.'
+			],
+			download: '1. Herunterladen (von einer der Kopien; jede enthält dasselbe):',
+			part: (/** @type {number} */ n, /** @type {string} */ cid) => `   Teil ${n}: ${cid}`,
+			noAddress: '   (für dieses Stück kennt die App gerade keine Adresse)',
+			or: '# oder: ',
+			join: '2. Zusammensetzen:',
+			decrypt: (/** @type {number} */ step) => `${step}. Entschlüsseln:`,
+			result: [
+				'Das Ergebnis ist ein Zip mit deinen Dokumenten (Originale und Archiv-PDFs) und der Datei',
+				'manifest.json. Es lässt sich ohne Paperless-ngx öffnen; in ein leeres Paperless-ngx',
+				'spielt man es mit dessen document_importer ein.'
+			],
+			tool: (/** @type {string} */ keyFile) => [
+				'Mit dem Werkzeug paperless-backup-filecoin (https://github.com/Le-Space/paperless-backup-filecoin)',
+				'geht dasselbe in einem Schritt: die Datei mit dem Eintrag dieser Sicherung als ledger.json',
+				`ablegen, AGE_IDENTITY_FILE auf ${keyFile} setzen und`
+			],
+			keep: (/** @type {string} */ keyFile) => ['Der Schlüssel öffnet alle deine Sicherungen. Bewahre ihn wie die 24 Wörter auf und', `lösche ${keyFile}, wenn du fertig bist.`]
+		},
+		fetch: {
+			errors: {
+				'no-address': 'Für mindestens ein Stück dieser Sicherung ist gerade keine Adresse bekannt.',
+				unreachable: 'Keiner der Speicheranbieter hat dieses Stück herausgegeben.',
+				interrupted: 'Die Verbindung ist abgebrochen, und keine andere Kopie konnte an derselben Stelle fortsetzen.',
+				'wrong-key': 'Der Sicherungsschlüssel dieses Tresors öffnet diese Sicherung nicht.',
+				damaged: 'Die Sicherung ist unvollständig oder beschädigt angekommen.',
+				'too-large': 'Diese Sicherung ist zu groß, um sie in diesem Browser im Arbeitsspeicher zu halten.',
+				aborted: 'Abgebrochen.'
+			},
+			fileFailed: 'Die Datei ließ sich nicht anlegen.',
+			savedToFile: 'Gespeichert in der gewählten Datei.',
+			handedOver: 'Als Download übergeben.',
+			failed: 'Das Holen ist fehlgeschlagen.'
+		},
+		export: {
+			summary: 'Sicherung selbst holen (ohne laufende Instanz)',
+			intro: {
+				before: 'Die gewählte Sicherung (',
+				afterId: ') liegt verschlüsselt bei den Speicheranbietern und lässt sich dort ohne Paperless anywhere abrufen. Entschlüsseln kannst du sie auf deinem eigenen Rechner, mit ',
+				and: ' und ',
+				after: '. Heraus kommt ein Zip mit deinen Dokumenten.'
+			},
+			saveGuide: 'Anleitung mit den Adressen speichern',
+			saveEntry: 'Eintrag für das Werkzeug (ledger.json)',
+			incomplete: 'Für mindestens ein Stück kennt die App gerade keine Adresse; die Anleitung nennt es.',
+			hereStrong: 'Gleich hier holen:',
+			here: (/** @type {boolean} */ canPickFile) => `Dieser Browser lädt die Sicherung von den Speicheranbietern, entschlüsselt sie auf diesem Gerät und speichert das Zip${canPickFile ? ' in eine Datei deiner Wahl' : ''}. Der Schlüssel bleibt dabei im Browser.`,
+			size: (/** @type {string} */ size) => `Größe: etwa ${size}.`,
+			missingAddress: 'Dafür fehlt gerade die Adresse eines Stücks.',
+			tooLarge: (/** @type {string} */ limit) => `Dieser Browser kann nicht direkt in eine Datei schreiben, und die Sicherung ist zu groß für den Arbeitsspeicher (Grenze ${limit}). Nimm Chrome oder Edge, oder die Anleitung oben.`,
+			progress: (/** @type {string} */ fetched, /** @type {string | null} */ total, /** @type {string} */ written) => `Geholt: ${fetched}${total ? ` von ${total}` : ''} · entschlüsselt: ${written}`,
+			stop: 'Abbrechen',
+			keepOpen: 'Lass dieses Fenster so lange offen.',
+			start: 'Holen und entschlüsseln',
+			done: (/** @type {string} */ written, /** @type {string} */ where) => `Fertig: ${written} entschlüsselt. ${where}`,
+			keyStrong: 'Der Sicherungsschlüssel',
+			key: ' öffnet alle deine Sicherungen. Wer ihn hat, kann sie lesen. Die App zeigt ihn nur hier und nur, wenn du es verlangst; sie schickt ihn nirgendwohin.',
+			keyWanted: 'Ich will den Schlüssel sehen und passe selbst auf ihn auf.',
+			keyShow: 'Schlüssel anzeigen',
+			copy: 'Kopieren',
+			copied: 'Kopiert',
+			saveKey: (/** @type {string} */ keyFile) => `Als ${keyFile} speichern`,
+			hide: 'Wieder verbergen',
+			cleanUp: 'Lösche die Datei, wenn du fertig bist, und leere die Zwischenablage.',
+			noKey: 'Der Sicherungsschlüssel dieses Tresors ist hier nicht hinterlegt.'
+		},
+		places: {
+			regions: { EUROPE: 'Europa (EWR, Großbritannien, Schweiz)', EU: 'EU', EEA: 'EWR', US: 'USA', anywhere: 'überall' },
+			listUnreadable: 'Die Anbieterliste ließ sich gerade nicht lesen.',
+			legend: 'Wohin die Sicherungen gehen',
+			byRegion: 'Region und Anzahl der Kopien',
+			byProvider: 'Anbieter selbst wählen',
+			copies: 'Kopien',
+			region: 'Region',
+			countries: 'Länder (Kürzel)',
+			countryCodes: 'Länderkürzel, z. B. DE, NL',
+			noPlace: 'ohne Ort',
+			endorsed: 'empfohlen',
+			approved: 'zugelassen',
+			inactive: ', nicht aktiv',
+			number: (/** @type {number} */ id) => `Nr. ${id}`,
+			max: 'Höchstens 3 Anbieter.',
+			reading: 'Lese die Anbieter …',
+			copiesAt: 'Kopien bei:',
+			notIndependent: (/** @type {string} */ why) => `Nicht unabhängig: ${why}`,
+			outsideEu: (/** @type {string} */ countries) =>
+				`Kopien außerhalb der EU (${countries}). Elektronische Bücher und Aufzeichnungen erlaubt die Abgabenordnung ohne Antrag nur in EU-Mitgliedstaaten (§ 146 Abs. 2a AO); außerhalb braucht es eine Bewilligung des Finanzamts (§ 146 Abs. 2b AO). Für steuerlich relevante Belege mit dem Steuerberater klären.`,
+			cost: (/** @type {string} */ usdfc, /** @type {string | null} */ gbPerCopy) => `Kosten ca. ${usdfc} USDFC im Monat${gbPerCopy ? ` bei ${gbPerCopy} GB je Kopie` : ' (Grundgebühr, noch keine Daten)'}.`,
+			save: 'Sicherungsorte speichern',
+			problems: {
+				notApproved: (/** @type {number} */ id) => `Anbieter ${id} ist nicht (mehr) zugelassen.`,
+				notActive: (/** @type {number} */ id, /** @type {string} */ name) => `Anbieter ${id} (${name}) ist nicht aktiv.`,
+				outsideRegion: (/** @type {number} */ id, /** @type {string} */ name) => `Anbieter ${id} (${name}) liegt außerhalb der Region.`,
+				tooFew: (/** @type {number} */ copies, /** @type {number} */ found) => `${copies} Kopien gewünscht, in der Region gibt es nur ${found} zugelassene Anbieter.`
+			},
+			shared: {
+				operator: (/** @type {string} */ a, /** @type {string} */ b, /** @type {string} */ operator) => `${a} und ${b} gehören demselben Betreiber (${operator}).`,
+				place: (/** @type {string} */ a, /** @type {string} */ b, /** @type {string} */ place) => `${a} und ${b} stehen am selben Ort (${place}).`
+			}
+		},
+		health: {
+			title: 'Speicheranbieter jetzt',
+			again: 'neu prüfen',
+			listUnreadable: 'Die Anbieterliste ließ sich gerade nicht lesen.',
+			asking: 'Anbieter werden gefragt …',
+			provider: (/** @type {number} */ id) => `Anbieter ${id}`,
+			answers: (/** @type {number | null} */ ms) => `antwortet (${ms} ms)`,
+			answersError: (/** @type {number} */ status) => `antwortet mit Fehler ${status}`,
+			silent: 'antwortet nicht',
+			explorer: 'im Explorer',
+			hint: '„Antwortet“ heißt erreichbar; ob ein Anbieter Daten annimmt, zeigt erst die nächste Sicherung.'
+		},
+		storage: {
+			label: 'Speicher',
+			meter: 'Belegter Speicher',
+			used: (/** @type {string} */ used, /** @type {string} */ included) => `${used} GB von ${included} GB`,
+			over: 'Mehr als im Paket enthalten. Bitte alte Dokumente löschen oder uns schreiben; Sicherungen könnten sonst scheitern.',
+			near: (/** @type {string} */ free) => `Noch ${free} GB frei. Wird es knapp, scheitern zuerst die Sicherungen.`,
+			asOfBackup: 'Stand der letzten Sicherung.',
+			free: (/** @type {string} */ free) => `Noch ${free} GB frei.`
+		}
+	},
+	en: {
+		overview: {
+			title: 'Backup',
+			last: 'Last backup',
+			none: 'No backup since the start yet',
+			beforeStart: 'before this start',
+			copies: (/** @type {number} */ n) => `${n} ${n === 1 ? 'copy' : 'copies'}`,
+			ok: (/** @type {number} */ copies, /** @type {number} */ requested) => (requested === 1 ? 'the copy arrived' : `all ${requested} copies arrived`),
+			short: (/** @type {number} */ copies, /** @type {number} */ requested) => `only ${copies} of ${requested} copies`,
+			failed: 'failed',
+			reason: 'Reason',
+			checked: 'Last checked',
+			checkOutcome: (/** @type {string} */ s) => ({ unchanged: 'no change', skipped: 'backups are off', done: 'backed up', partial: 'partly backed up', failed: 'failed' })[s] ?? s,
+			lastShort: 'last backup',
+			nextShort: 'next check',
+			nextHint: 'Checked every two hours; a backup is made only if something changed.',
+			now: 'Back up now',
+			running: 'Backing up …',
+			sending: 'Requesting a backup …',
+			doneNow: 'Backed up',
+			donePartial: (/** @type {number} */ copies, /** @type {number} */ requested) => `Backed up, but only ${copies} of ${requested} copies: a provider refused. The next check tries all of them again.`,
+			doneUnchanged: 'Already backed up: nothing changed since the last backup.',
+			failedNow: 'The backup failed; Paperless keeps running.',
+			oldImage: 'This VM runs an older image: backup details and “Back up now” come with the next image.',
+			unreachable: 'The VM does not report its backups right now.',
+			duration: (/** @type {number} */ s) => `took ${s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`}`
+		},
+		config: {
+			unknownNetwork: (/** @type {string} */ network) => `Unknown network: ${network}`,
+			noAgeKey: 'No backup without an age key.',
+			copiesRange: '1 to 3 copies.',
+			maxProviders: 'At most 3 providers.',
+			signerNotReleased: 'Le Space Credits has not released the VM’s key for the backups yet.',
+			signerNetwork: (/** @type {string} */ theirs, /** @type {string} */ ours) => `Le Space Credits backs up on the network ${theirs}, this Paperless on ${ours}.`,
+			signerIncomplete: 'Backups through Le Space Credits lack the address of the service or a key.'
+		},
+		facts: {
+			oom: (/** @type {number} */ n) => `Memory ran out: the system ended ${n === 1 ? 'one process' : `${n} processes`}.`,
+			memory: (/** @type {string} */ free, /** @type {string | null} */ swap) => `Free memory afterwards: ${free}${swap ? `, swap ${swap}` : ', no swap'}`,
+			disk: (/** @type {string} */ free) => `Free space on the data disk: ${free}`,
+			exit: (/** @type {number} */ code) => `Exit code ${code}`
+		},
+		guide: {
+			filename: (/** @type {string} */ short) => `fetch-backup-yourself-${short}.txt`,
+			keyFile: 'key.txt',
+			sealedFile: 'backup.age',
+			partFile: (/** @type {string} */ nn) => `part-${nn}.age`,
+			title: 'Fetch a backup yourself – Paperless anywhere',
+			which: (/** @type {string} */ cid) => `Backup: ${cid}`,
+			parts: (/** @type {number} */ n) => (n > 1 ? `It consists of ${n} parts, which are joined in this order.` : 'It consists of one piece.'),
+			need: (/** @type {string} */ keyFile) => [
+				'You need: curl, age (https://age-encryption.org) and your backup key',
+				`as the file ${keyFile} (one line, starting with AGE-SECRET-KEY-1). The app shows`,
+				'the key under “Fetch a backup yourself”.'
+			],
+			download: '1. Download (from one of the copies; each holds the same):',
+			part: (/** @type {number} */ n, /** @type {string} */ cid) => `   Part ${n}: ${cid}`,
+			noAddress: '   (the app knows no address for this piece right now)',
+			or: '# or: ',
+			join: '2. Join:',
+			decrypt: (/** @type {number} */ step) => `${step}. Decrypt:`,
+			result: [
+				'The result is a zip with your documents (originals and archive PDFs) and the file',
+				'manifest.json. It opens without Paperless-ngx; into an empty Paperless-ngx',
+				'it is loaded with its document_importer.'
+			],
+			tool: (/** @type {string} */ keyFile) => [
+				'The tool paperless-backup-filecoin (https://github.com/Le-Space/paperless-backup-filecoin)',
+				'does the same in one step: save the file with this backup’s entry as ledger.json,',
+				`set AGE_IDENTITY_FILE to ${keyFile} and run`
+			],
+			keep: (/** @type {string} */ keyFile) => ['The key opens all your backups. Keep it as you keep the 24 words, and', `delete ${keyFile} when you are done.`]
+		},
+		fetch: {
+			errors: {
+				'no-address': 'For at least one piece of this backup no address is known right now.',
+				unreachable: 'None of the storage providers handed out this piece.',
+				interrupted: 'The connection broke off, and no other copy could continue at the same place.',
+				'wrong-key': 'This vault’s backup key does not open this backup.',
+				damaged: 'The backup arrived incomplete or damaged.',
+				'too-large': 'This backup is too large to hold in memory in this browser.',
+				aborted: 'Cancelled.'
+			},
+			fileFailed: 'The file could not be created.',
+			savedToFile: 'Saved to the file you chose.',
+			handedOver: 'Handed over as a download.',
+			failed: 'Fetching failed.'
+		},
+		export: {
+			summary: 'Fetch a backup yourself (without a running instance)',
+			intro: {
+				before: 'The chosen backup (',
+				afterId: ') lies encrypted with the storage providers and can be fetched there without Paperless anywhere. You can decrypt it on your own computer, with ',
+				and: ' and ',
+				after: '. The result is a zip with your documents.'
+			},
+			saveGuide: 'Save the guide with the addresses',
+			saveEntry: 'Entry for the tool (ledger.json)',
+			incomplete: 'For at least one piece the app knows no address right now; the guide names it.',
+			hereStrong: 'Fetch it right here:',
+			here: (/** @type {boolean} */ canPickFile) => `This browser loads the backup from the storage providers, decrypts it on this device and saves the zip${canPickFile ? ' to a file of your choice' : ''}. The key stays in the browser.`,
+			size: (/** @type {string} */ size) => `Size: about ${size}.`,
+			missingAddress: 'The address of one piece is missing for that right now.',
+			tooLarge: (/** @type {string} */ limit) => `This browser cannot write straight into a file, and the backup is too large for its memory (limit ${limit}). Use Chrome or Edge, or the guide above.`,
+			progress: (/** @type {string} */ fetched, /** @type {string | null} */ total, /** @type {string} */ written) => `Fetched: ${fetched}${total ? ` of ${total}` : ''} · decrypted: ${written}`,
+			stop: 'Cancel',
+			keepOpen: 'Leave this window open until it is done.',
+			start: 'Fetch and decrypt',
+			done: (/** @type {string} */ written, /** @type {string} */ where) => `Done: ${written} decrypted. ${where}`,
+			keyStrong: 'The backup key',
+			key: ' opens all your backups. Whoever has it can read them. The app shows it only here and only when you ask for it; it sends it nowhere.',
+			keyWanted: 'I want to see the key and will look after it myself.',
+			keyShow: 'Show the key',
+			copy: 'Copy',
+			copied: 'Copied',
+			saveKey: (/** @type {string} */ keyFile) => `Save as ${keyFile}`,
+			hide: 'Hide it again',
+			cleanUp: 'Delete the file when you are done, and clear the clipboard.',
+			noKey: 'This vault’s backup key is not stored here.'
+		},
+		places: {
+			regions: { EUROPE: 'Europe (EEA, United Kingdom, Switzerland)', EU: 'EU', EEA: 'EEA', US: 'USA', anywhere: 'anywhere' },
+			listUnreadable: 'The list of providers could not be read right now.',
+			legend: 'Where the backups go',
+			byRegion: 'Region and number of copies',
+			byProvider: 'Choose the providers yourself',
+			copies: 'Copies',
+			region: 'Region',
+			countries: 'Countries (codes)',
+			countryCodes: 'Country codes, e.g. DE, NL',
+			noPlace: 'no place given',
+			endorsed: 'endorsed',
+			approved: 'approved',
+			inactive: ', not active',
+			number: (/** @type {number} */ id) => `no. ${id}`,
+			max: 'At most 3 providers.',
+			reading: 'Reading the providers …',
+			copiesAt: 'Copies at:',
+			notIndependent: (/** @type {string} */ why) => `Not independent: ${why}`,
+			outsideEu: (/** @type {string} */ countries) =>
+				`Copies outside the EU (${countries}). The German Fiscal Code (Abgabenordnung) allows electronic books and records without an application only in EU member states (§ 146 (2a) AO); outside, it takes an approval from the tax office (§ 146 (2b) AO). For documents that matter for tax, clarify this with your tax adviser.`,
+			cost: (/** @type {string} */ usdfc, /** @type {string | null} */ gbPerCopy) => `Costs about ${usdfc} USDFC a month${gbPerCopy ? ` at ${gbPerCopy} GB per copy` : ' (base fee, no data yet)'}.`,
+			save: 'Save the backup places',
+			problems: {
+				notApproved: (/** @type {number} */ id) => `Provider ${id} is not approved (any more).`,
+				notActive: (/** @type {number} */ id, /** @type {string} */ name) => `Provider ${id} (${name}) is not active.`,
+				outsideRegion: (/** @type {number} */ id, /** @type {string} */ name) => `Provider ${id} (${name}) lies outside the region.`,
+				tooFew: (/** @type {number} */ copies, /** @type {number} */ found) => `${copies} copies wanted, the region has only ${found} approved ${found === 1 ? 'provider' : 'providers'}.`
+			},
+			shared: {
+				operator: (/** @type {string} */ a, /** @type {string} */ b, /** @type {string} */ operator) => `${a} and ${b} belong to the same operator (${operator}).`,
+				place: (/** @type {string} */ a, /** @type {string} */ b, /** @type {string} */ place) => `${a} and ${b} are in the same place (${place}).`
+			}
+		},
+		health: {
+			title: 'Storage providers now',
+			again: 'check again',
+			listUnreadable: 'The list of providers could not be read right now.',
+			asking: 'Asking the providers …',
+			provider: (/** @type {number} */ id) => `Provider ${id}`,
+			answers: (/** @type {number | null} */ ms) => `answers (${ms} ms)`,
+			answersError: (/** @type {number} */ status) => `answers with error ${status}`,
+			silent: 'does not answer',
+			explorer: 'in the explorer',
+			hint: '“Answers” means reachable; whether a provider takes data shows only with the next backup.'
+		},
+		storage: {
+			label: 'Storage',
+			meter: 'Storage in use',
+			used: (/** @type {string} */ used, /** @type {string} */ included) => `${used} GB of ${included} GB`,
+			over: 'More than the package includes. Please delete old documents or write to us; backups could fail otherwise.',
+			near: (/** @type {string} */ free) => `${free} GB still free. When it gets tight, the backups fail first.`,
+			asOfBackup: 'As of the last backup.',
+			free: (/** @type {string} */ free) => `${free} GB still free.`
+		}
+	}
+};

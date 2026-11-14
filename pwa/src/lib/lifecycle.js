@@ -267,7 +267,7 @@ export async function resumeStart(master, profile, onProgress) {
 	const starting = profile.starting;
 	if (!starting?.instanceHash) throw new Error(tr().life.errors.noInterruptedStart);
 	onProgress({ step: 'instance', detail: tr().life.progress.lookUp, instanceHash: starting.instanceHash });
-	const res = await readFetch(`${ALEPH_API}/api/v0/messages/${starting.instanceHash}`, 'VM nachsehen');
+	const res = await readFetch(`${ALEPH_API}/api/v0/messages/${starting.instanceHash}`, tr().life.vm.lookUp);
 	const status = res.ok ? (await res.json())?.status : null;
 	if (status !== 'processed') throw new Error(tr().life.errors.vmGone(starting.instanceHash.slice(0, 12), status ?? res.status));
 	return bringUp(master, { ...profile, restoreEntry: starting.restoreEntry }, starting, await loadWasm(), onProgress);
