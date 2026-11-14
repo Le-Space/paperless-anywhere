@@ -409,3 +409,34 @@ async function loadAttest(profile) {
 
 /** True when the profile's image is one this vault had built from `plainSha256`. */
 export const hasOwnImage = (profile, plainSha256) => Boolean(profile?.ownImage) && profile.ownImage.plainSha256 === plainSha256 && profile.luksFor === profile.rootfsItemHash;
+
+/**
+ * Which image the setup shows as chosen: the vault's own once one is built
+ * for `builder`'s plain image, else the public one. Without a builder there
+ * is no choice. @param {Record<string, any>} profile @param {typeof BUILDER} builder
+ * @returns {'public' | 'own'}
+ */
+export const imageKindOf = (profile, builder) => (builder && hasOwnImage(profile, builder.plain.sha256) ? 'own' : 'public');
+
+/**
+ * What saving the image step stores. With the own image, only the node: the
+ * image and its passphrase come from the build. With the public one, the
+ * image's hash, and its passphrase whenever the image is another than the
+ * profile's (every image has a passphrase of its own). Throws what the
+ * setup shows.
+ * @param {{ kind: 'public' | 'own', image: string, crn: string, pass: string, profile: Record<string, any> }} a
+ */
+export function imageFields({ kind, image, crn, pass, profile }) {
+	const node = crn.trim().toLowerCase();
+	if (!HEX64.test(node)) throw new Error(tr().ownImage.fields.node);
+	if (kind === 'own') return { crnHash: node };
+	const hash = image.trim().toLowerCase();
+	if (!HEX64.test(hash)) throw new Error(tr().ownImage.fields.image);
+	// A pasted passphrase may carry a stray space or line break; the guest only
+	// finds out when it opens the disk, and then waits without a word.
+	const passphrase = pass.trim();
+	const other = Boolean(profile.rootfsItemHash) && hash !== profile.rootfsItemHash;
+	if (other && !passphrase) throw new Error(tr().ownImage.fields.otherPassphrase);
+	const bound = passphrase ? { luksPassphrase: passphrase, luksFor: hash } : profile.luksPassphrase && !profile.luksFor ? { luksFor: hash } : {};
+	return { rootfsItemHash: hash, crnHash: node, ...bound };
+}

@@ -29,7 +29,7 @@
 # cannot delete pieces, so pruning stays with the wallet. Outcome:
 # /run/paperless-anywhere/backup.json; the tool's log stays on the encrypted disk.
 # Exit 0: backed up (or unchanged); 2: "partial", fewer copies than requested;
-# anything else: failed.
+# anything else: failed, or "refused" after a failed restore (see below).
 set -u
 secrets=/tmp/secrets
 state_dir=/run/paperless-anywhere
@@ -118,13 +118,16 @@ if [ ! -s "$secrets/backup_config" ]; then
   status skipped ',"reason":"no backup_config came with the unlock"'
   exit 0
 fi
-# A Paperless whose restore failed, or is still running, holds less than the
-# backup it came from. A backup of it would be the newest one, and the next
-# start would restore that instead. So none, neither the two-hourly check nor
-# a requested one nor the stop's last one: the app deletes such a VM without
-# a backup.
-if grep -qE '^\{"status":"(failed|running)"' "$state_dir/restore.json" 2>/dev/null; then
-  fail "no backup: the restore of this VM $(sed -n 's/^{"status":"\([a-z]*\)".*/\1/p' "$state_dir/restore.json")"
+# A Paperless whose restore failed holds less than the backup it came from.
+# A backup of it would be the newest one, and the next start would restore
+# that. So none, neither the two-hourly check nor a requested one nor the
+# stop's last one: "refused", not "failed", since nothing is broken. The app
+# deletes such a VM without a backup, after asking. (Only "failed": a restore
+# that never wrote its outcome must not block every backup for good.)
+if grep -q '^{"status":"failed"' "$state_dir/restore.json" 2>/dev/null; then
+  echo "paperless-backup: refused, the restore of this VM failed" >&2
+  status refused ',"reason":"the restore of this VM failed: a backup of it would replace the newest one"'
+  exit 1
 fi
 # Le Space Credits sign for the VM (remoteSigner) with its backup key; the
 # wallet path signs with the wallet's session key.
