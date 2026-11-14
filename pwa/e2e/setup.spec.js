@@ -199,9 +199,19 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await expect(page.getByRole('button', { name: 'Wallet für Sicherungen verbinden' })).toBeVisible();
 	// Steps are numbered as shown: no Aleph approval and no Filecoin key here, so no gap.
 	await expect(page.getByTestId('setup').locator('h3')).toHaveText(['1. Wer zahlt die VM?', '2. Attest-Relay', '3. Sicherungen', '4. Paperless-anywhere-Image und Knoten', '5. Feste Adresse (optional)']);
-	// No image builder is fixed in the app yet, so the setup offers no build.
+	// A builder is fixed in the app: the image step asks which image. The public
+	// one is chosen until an own one is built; choosing the own one says it is
+	// not built yet and offers the build.
+	await expect(page.getByTestId('image-choice')).toBeVisible();
+	await expect(page.getByTestId('image-public')).toBeChecked();
 	await expect(page.getByTestId('own-image')).toHaveCount(0);
-	await expect(page.getByTestId('image-choice')).toHaveCount(0);
+	await page.getByTestId('image-own').check();
+	await expect(page.getByTestId('own-image-not-built')).toContainText('Noch nicht gebaut');
+	await expect(page.getByTestId('own-image-build')).toHaveText('Mein Image bauen');
+	await expect(page.getByTestId('image-hash')).toHaveCount(0);
+	await expect(page.getByTestId('image-passphrase')).toHaveCount(0);
+	await page.getByTestId('image-public').check();
+	await expect(page.getByTestId('image-hash')).toBeVisible();
 	await open(page, 'tech-balances');
 	await expect(page.getByTestId('balances')).toContainText('Adresse der App');
 	await expect(page.getByTestId('balance-keys')).toContainText('aus deinem Passkey');

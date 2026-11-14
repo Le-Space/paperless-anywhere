@@ -233,7 +233,7 @@ dm-verity (variant 3) is the stronger answer for a disk that does not change.
 | | Measured by the hardware | Opens the disk | Who holds that | Checked by | The person can verify |
 |---|---|---|---|---|---|
 | **1. One passphrase per image** (today) | firmware, kernel, initrd, owner | image passphrase | Le Space, every app, every VM of that image | the person's browser | the measurement, the report, the owner; not the image's content |
-| **2. An image per person** (in preparation) | as 1; the builder as 3 | passphrase from the vault | that vault; the builder during a build; the VM at boot | the person's browser | as 1, and that only an image sealed with their passphrase can start |
+| **2. An image per person** (in the app, by choice) | as 1; the builder as 3 | passphrase from the vault | that vault; the builder during a build; the VM at boot | the person's browser | as 1, and that only an image sealed with their passphrase can start |
 | **3. Measured root** (our builder) | as 1, and the root filesystem by its root hash | nothing: the root is public and read-only | nobody | the person's browser | the whole content, by recomputing the measurement |
 | **4. Virtual TPM** | firmware and service module; the rest step by step into the TPM | a key the TPM releases for the right measurements | the TPM in the guest | the person or a key service | depends on who verifies the quote |
 | **5. Intel TDX** | firmware (MRTD); loader, kernel, initrd, boot line (RTMRs) | as 1, 2 or 3 | as there | the person, with Intel's certificates | as there |

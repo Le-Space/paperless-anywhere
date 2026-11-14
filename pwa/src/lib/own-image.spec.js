@@ -53,9 +53,18 @@ function fakeStore(result = {}) {
 const quick = () => ({ sleep: async () => {}, read: async () => 'processed', now: () => 1_800_000_000_000, pieceBytes: 1000, kept: { current: null } });
 
 describe('an image of one\'s own', () => {
-	it('ships without a builder: the step stays hidden until one is fixed here', () => {
-		expect(BUILDER).toBeNull();
-		expect(() => checkBuilder(BUILDER)).toThrow(BuilderError);
+	it('ships with a builder started for each build, whose content names the measurements it pins', () => {
+		expect(checkBuilder(BUILDER)).toBe(BUILDER);
+		const fixed = /** @type {any} */ (BUILDER);
+		expect(fixed.route).toBeUndefined();
+		expect(fixed.program.verification.measurements.map((m) => m.registers.launch)).toEqual(fixed.measurements);
+		expect(fixed.program.verification.policy).toBe(fixed.policy);
+		expect(fixed.program.requirements.node.node_hash).toBe(fixed.crn);
+		// The volumes the measurement belongs to, as STOREs; no address or time of the one publication.
+		for (const v of [fixed.program.workload, ...fixed.program.volumes]) for (const h of [v.ref, v.hash_tree, v.roothash]) expect(h).toMatch(/^[0-9a-f]{64}$/);
+		expect(fixed.program.address).toBeUndefined();
+		expect(fixed.program.time).toBeUndefined();
+		expect(() => checkBuilder(null)).toThrow(BuilderError);
 		expect(() => checkBuilder({ ...builder, plain: { sha256: 'y' } })).toThrow(BuilderError);
 		expect(checkBuilder(builder)).toBe(builder);
 	});
@@ -390,7 +399,9 @@ describe('a builder started for each build', () => {
 		volumes: [{ comment: '', hash_tree: '0e'.repeat(32), ref: 'QmExampleVolumeExampleVolumeExampleVolume12', roothash: '0f'.repeat(32) }],
 		workload: { hash_tree: '1a'.repeat(32), ref: 'QmExampleWorkloadExampleWorkloadExample1', roothash: '1b'.repeat(32) }
 	};
-	const template = { ...builder, program, crn };
+	// As the app fixes it: no route, which each build gets when it starts.
+	const { route: _route, ...fixed } = builder;
+	const template = { ...fixed, program, crn };
 	const unreachable = () => new BuilderError('not up yet', 'unreachable');
 
 	/** Aleph as far as a build's builder goes: what was sent, in order. */
@@ -402,6 +413,12 @@ describe('a builder started for each build', () => {
 		};
 		return { sent, post };
 	}
+
+	it('takes a builder fixed by its content and node, without a route', () => {
+		expect(checkBuilder(template)).toBe(template);
+		expect(() => checkBuilder({ ...template, crn: 'x' })).toThrow(BuilderError);
+		expect(() => checkBuilder({ ...template, program: {} })).toThrow(BuilderError);
+	});
 
 	it('signs the fixed V-PROGRAM content as the app, with its own time', async () => {
 		const message = await builderMessage(app, template, 1_800_000_000);
