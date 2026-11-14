@@ -1,7 +1,7 @@
 // The landing page's texts in German and English (same keys). The product is
 // "Paperless anywhere"; "Paperless-ngx" names only the software it runs, spelled
-// exactly so; "Paperless" alone or lowercase is neither. The app itself
-// stays German for now; this page is the one people find first.
+// exactly so; "Paperless" alone or lowercase is neither. The app has
+// its own catalogue (lib/i18n); this page is the one people find first.
 
 export const LANGS = ['de', 'en'];
 
@@ -287,7 +287,7 @@ export const texts = {
 		tagline: 'Paperless-ngx in confidential VMs · offered by Le Space',
 		disclaimer: DISCLAIMER.en,
 		open: 'Open the app',
-		openHint: 'With a passkey, no account. The app itself is in German for now.',
+		openHint: 'With a passkey, no account.',
 		hero: {
 			kicker: 'Decentralised · confidential · verifiable',
 			before: 'Paperless anywhere runs',
@@ -465,7 +465,7 @@ export const texts = {
 						'What you approve: your wallet lets the app start and delete VMs for you, and lets a session key store backups for a limited time. Your wallet’s seed stays with you.',
 						'What still comes from Le Space: the app, the image with its present image passphrase, and the relay through which the app checks the VM’s attestation.'
 					],
-					after: 'You set this up in the app, under “Einrichtung” (the app itself is in German).'
+					after: 'You set this up in the app, under “Setup”.'
 				},
 				{
 					q: 'What if the relay is down or blocked?',
@@ -473,7 +473,7 @@ export const texts = {
 					tips: [
 						'Anyone can start a relay of their own with the open project relay-button: an orbitdb-relay that offers the attestation path at /attest.',
 						'It runs as a VM on Aleph Cloud and needs Aleph credits of its own for that.',
-						'In the app you enter it in the setup under “Eigene Relays” (own relays). The app then tries it before Le Space’s.'
+						'In the app you enter it in the setup under “Your own relays”. The app then tries it before Le Space’s.'
 					],
 					links: [
 						{ text: 'relay-button: source and instructions', href: 'https://github.com/NiKrause/relay-button' },
@@ -487,7 +487,7 @@ export const texts = {
 						'Use a browser profile of its own, without extensions, for Paperless anywhere, and install the app there.',
 						'Or take a private window, a phone or a tablet.',
 						'Enter the 24 words only in the app at paperless.le-space.de and keep them on paper. The passkey works for this address only; a fake page can still ask for the words.',
-						'Lock the vault when you are done, with the “Sperren” (lock) button; the app itself is in German.'
+						'Lock the vault when you are done, with the “Lock” button.'
 					],
 					more: { text: 'The details are in the security model.', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/security-model.md#your-own-device' }
 				},

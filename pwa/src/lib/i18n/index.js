@@ -15,6 +15,7 @@ import { life } from './lifecycle.js';
 import { pkg } from './package.js';
 import { buy } from './purchase.js';
 import { ownImage } from './own-image.js';
+import { setup } from './setup.js';
 
 /** @typedef {'de' | 'en'} Lang */
 export const LANGS = /** @type {const} */ (['de', 'en']);
@@ -57,7 +58,8 @@ const AREAS = {
 	credits,
 	life,
 	ownImage,
-	pkg
+	pkg,
+	setup
 };
 export const catalogue = {
 	de: /** @type {{ [K in keyof typeof AREAS]: (typeof AREAS)[K]['de'] }} */ (Object.fromEntries(Object.entries(AREAS).map(([name, area]) => [name, area.de]))),

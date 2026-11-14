@@ -27,7 +27,6 @@ const NOT_YET = new Set([
 	'lib/BackupPlaces.svelte',
 	'lib/Balances.svelte',
 	'lib/ProviderHealth.svelte',
-	'lib/Setup.svelte',
 	'lib/aleph.js',
 	'lib/attest-p2p.js',
 	'lib/backup-fetch.js',
