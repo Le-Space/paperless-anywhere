@@ -201,6 +201,7 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await expect(page.getByTestId('setup').locator('h3')).toHaveText(['1. Wer zahlt die VM?', '2. Attest-Relay', '3. Sicherungen', '4. Paperless-anywhere-Image und Knoten', '5. Feste Adresse (optional)']);
 	// No image builder is fixed in the app yet, so the setup offers no build.
 	await expect(page.getByTestId('own-image')).toHaveCount(0);
+	await expect(page.getByTestId('image-choice')).toHaveCount(0);
 	await open(page, 'tech-balances');
 	await expect(page.getByTestId('balances')).toContainText('Adresse der App');
 	await expect(page.getByTestId('balance-keys')).toContainText('aus deinem Passkey');

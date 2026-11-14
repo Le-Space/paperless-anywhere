@@ -452,6 +452,14 @@
 		await reload();
 		finishStop(await stopPaperless(master, $state.snapshot(profile), track('stop')));
 	});
+	// A VM whose restore failed runs an empty Paperless and makes no backup
+	// (paperless-backup refuses): it is deleted without one, never stopped
+	// with "Sichern und beenden".
+	const restoreFailed = $derived(profile.running?.restore?.status === 'failed');
+	const discardFailed = () => run(async () => {
+		await reload();
+		finishStop(await eraseStopped(master, $state.snapshot(profile), null, track('stop')));
+	});
 	// After a partial backup, on the person's word: erase the VM anyway, or
 	// keep it and let Paperless run again. If that fails, the question stays.
 	const answer = (/** @type {(p: BackupPartialError) => Promise<void>} */ fn) => {
@@ -611,9 +619,10 @@
 					<button type="button" class="small" onclick={copyPassword}>{c.simple.copy}</button>
 				</div>
 			</div>
-			{#if profile.backupConfig}<BackupNow {master} {profile} known={lastGood} disabled={busy} onbusy={(b) => (backingUp = b)} ongood={rememberGood} />{/if}
+			{#if profile.backupConfig && !restoreFailed}<BackupNow {master} {profile} known={lastGood} disabled={busy} onbusy={(b) => (backingUp = b)} ongood={rememberGood} />{/if}
 			<Evidence rows={evidence} t={evidenceT} onagain={busy ? null : checkAgain} />
-			<button class="secondary stop" onclick={stop} disabled={busy || backingUp} data-testid="simple-stop">{c.simple.stop}</button>
+			{#if restoreFailed}<button class="secondary stop" onclick={discardFailed} disabled={busy} data-testid="simple-discard">{c.simple.discard}</button>
+			{:else}<button class="secondary stop" onclick={stop} disabled={busy || backingUp} data-testid="simple-stop">{c.simple.stop}</button>{/if}
 			<Storage {master} {profile} />
 			{#if profile.ageIdentity && backupListing(profile)}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{:else if phase === 'interrupted'}
@@ -666,7 +675,8 @@
 				<button type="button" class="small" onclick={() => (showPassword = !showPassword)}>{showPassword ? c.simple.hide : c.simple.show}</button>
 				<button type="button" class="small" onclick={copyPassword}>{c.simple.copy}</button>
 			</p>
-			<button class="secondary stop" onclick={stop} disabled={busy} data-testid="stop">{c.simple.stop}</button>
+			{#if restoreFailed}<button class="secondary stop" onclick={discardFailed} disabled={busy} data-testid="discard">{c.simple.discard}</button>
+			{:else}<button class="secondary stop" onclick={stop} disabled={busy} data-testid="stop">{c.simple.stop}</button>{/if}
 		{:else}
 			{#if profile.ageIdentity}
 				<fieldset class="restore">
