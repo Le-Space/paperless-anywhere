@@ -124,7 +124,16 @@ test('a VM whose restore failed is deleted without a backup, never backed up and
 	await open(page, { restore: { status: 'failed', reason: 'made-up reason' } });
 	await expect(page.getByTestId('simple-discard')).toHaveText('Löschen ohne Sicherung', { timeout: 30_000 });
 	await expect(page.getByTestId('simple-stop')).toHaveCount(0);
-	await expect(page.getByTestId('lifecycle')).toContainText('legt keine Sicherung an');
+	await expect(page.getByTestId('lifecycle')).toContainText('auch nicht von dem, was du hier neu ablegst');
+	// It asks first; answered with no, the VM stays.
+	let asked = '';
+	page.once('dialog', (dialog) => {
+		asked = dialog.message();
+		return dialog.dismiss();
+	});
+	await page.getByTestId('simple-discard').click();
+	await expect.poll(() => asked).toContain('nicht rückgängig');
+	await expect(page.getByTestId('simple-discard')).toBeEnabled();
 	await page.getByTestId('app-lang-en').click();
 	await expect(page.getByTestId('simple-discard')).toHaveText('Delete without a backup');
 	await page.getByTestId('tab-advanced').click();

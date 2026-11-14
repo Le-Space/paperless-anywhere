@@ -72,7 +72,9 @@ the app):
   entered with the image's hash. Le Space knows it, and everyone using that
   version.
 - **Mein eigenes Image**: **Mein Image bauen** (`pwa/src/lib/own-image.js`).
-  Nobody but your vault knows the passphrase.
+  Nobody but your vault knows the passphrase. Until it is built, the VM
+  starts from the public image, and the step says so. Going back to the
+  public image asks for its hash and passphrase anew.
 
 For the own image, the app
 
@@ -99,7 +101,8 @@ image it started from. Moving a running Paperless to an image of its own:
 **Sichern und beenden**, build, start again; the start restores the newest
 backup. If that restore fails, the new VM makes no backup (see
 [the workflow](workflow.md#4-stop-last-backup-then-erase)) and the app offers
-only to delete it without one, so the last backup stays the newest.
+only to delete it without one (after asking), so the last backup stays the
+newest.
 
 ## Why the VM can only start your image
 

@@ -28,7 +28,8 @@ export const ownImage = {
 			public: 'Das öffentliche Image von Le Space',
 			publicHint: 'Eine Passphrase je Image-Version: Le Space kennt sie, und alle, die diese Version nutzen.',
 			own: 'Mein eigenes Image',
-			ownHint: 'Eine Passphrase nur für diesen Tresor: Niemand sonst kennt sie, auch Le Space nicht.'
+			ownHint: 'Eine Passphrase nur für diesen Tresor: Niemand sonst kennt sie, auch Le Space nicht.',
+			notBuilt: 'Noch nicht gebaut: Bis dahin startet die VM vom öffentlichen Image.'
 		},
 		step: {
 			attest: 'Build-Dienst prüfen (AMD)',
@@ -39,6 +40,11 @@ export const ownImage = {
 			confirm: 'Auf Aleph warten'
 		},
 		checkStore: 'Image bei Aleph prüfen',
+		fields: {
+			node: 'Der Knoten ist ein 64-stelliger Hash.',
+			image: 'Das Image ist ein 64-stelliger Hash.',
+			otherPassphrase: 'Ein anderes Image hat eine eigene Passphrase. Bitte die Passphrase dieses Images mit eingeben.'
+		},
 		error: {
 			noBuilder: 'Der Build-Dienst ist in dieser App nicht festgelegt.',
 			noPlain: 'Das öffentliche Image ist in dieser App nicht festgelegt.',
@@ -83,7 +89,8 @@ export const ownImage = {
 			public: 'The public image from Le Space',
 			publicHint: 'One passphrase per image version: Le Space knows it, and everyone using that version.',
 			own: 'My own image',
-			ownHint: 'A passphrase for this vault only: nobody else knows it, Le Space neither.'
+			ownHint: 'A passphrase for this vault only: nobody else knows it, Le Space neither.',
+			notBuilt: 'Not built yet: until then the VM starts from the public image.'
 		},
 		step: {
 			attest: 'Checking the build service (AMD)',
@@ -94,6 +101,11 @@ export const ownImage = {
 			confirm: 'Waiting for Aleph'
 		},
 		checkStore: 'Check the image on Aleph',
+		fields: {
+			node: 'The node is a 64-character hash.',
+			image: 'The image is a 64-character hash.',
+			otherPassphrase: 'Another image has a passphrase of its own. Please enter that image\'s passphrase with it.'
+		},
 		error: {
 			noBuilder: 'No build service is fixed in this app.',
 			noPlain: 'No public image is fixed in this app.',

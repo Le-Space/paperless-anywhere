@@ -25,8 +25,8 @@ export const card = {
 			creditNotSeen: 'Die Gutschrift ist bei Aleph noch nicht zu sehen. In ein paar Minuten noch einmal starten – nicht noch einmal kaufen, sonst werden die Stunden doppelt gekauft.'
 		},
 		bought: (/** @type {{ hours: number, price: string, balance: string | null, vmHours: string | null }} */ b) => `${b.hours} Stunden gekauft für ${b.price} €.${b.balance != null ? ` Guthaben jetzt ${b.balance} €.` : ''}${b.vmHours != null ? ` VM-Stunden: ${b.vmHours} h.` : ''}`,
-		chips: { loading: '…', off: 'aus', starting: 'startet', stopping: 'wird beendet', running: 'läuft', interrupted: 'Start unterbrochen' },
-		titles: { loading: 'Einen Moment …', off: 'Paperless-ngx ist aus', starting: 'Paperless-ngx startet', stopping: 'Paperless-ngx wird gesichert und beendet', running: 'Paperless-ngx läuft', interrupted: 'Start unterbrochen' },
+		chips: { loading: '…', off: 'aus', starting: 'startet', stopping: 'wird beendet', discarding: 'wird gelöscht', running: 'läuft', interrupted: 'Start unterbrochen' },
+		titles: { loading: 'Einen Moment …', off: 'Paperless-ngx ist aus', starting: 'Paperless-ngx startet', stopping: 'Paperless-ngx wird gesichert und beendet', discarding: 'Paperless-ngx wird ohne Sicherung gelöscht', running: 'Paperless-ngx läuft', interrupted: 'Start unterbrochen' },
 		fund: {
 			inPackage: (/** @type {number} */ h) => `In deinem Paket liegen noch ${h} ${h === 1 ? 'Stunde' : 'Stunden'}. Le Space bezahlt die VM dann daraus; die Zahlweise wechselt auf „Le Space, aus meinem Paket“. Nichts wird gekauft.`,
 			startFromPackage: (/** @type {number} */ h) => `Aus dem Paket starten (${h} h)`,
@@ -61,8 +61,9 @@ export const card = {
 			noneKnown: 'Noch keine erfolgreiche Sicherung bekannt',
 			left: (/** @type {string} */ step, /** @type {number} */ min) => `${step} · noch etwa ${min} min`,
 			open: 'Paperless-ngx öffnen',
-			restoreFailed: 'Die Sicherung ließ sich nicht wiederherstellen; Paperless-ngx läuft leer. Diese VM legt keine Sicherung an; lösche sie und starte neu. Details unter „Erweitert“.',
+			restoreFailed: 'Die Sicherung ließ sich nicht wiederherstellen; Paperless-ngx läuft leer. Diese VM legt keine Sicherung an, auch nicht von dem, was du hier neu ablegst; lösche sie und starte neu. Details unter „Erweitert“.',
 			discard: 'Löschen ohne Sicherung',
+			discardConfirm: (/** @type {string} */ size) => `Diese VM ohne Sicherung löschen? Das lässt sich nicht rückgängig machen. Alles, was seit dem Start in dieser Paperless liegt${size ? ` (jetzt ${size} Dokumente)` : ''}, geht verloren. Die letzte Sicherung bleibt die neueste.`,
 			login: 'Anmeldung in Paperless-ngx',
 			user: 'Benutzer',
 			password: 'Passwort',
@@ -89,7 +90,7 @@ export const card = {
 		advanced: {
 			purpose: 'Deine Paperless-ngx-Maschine: starten, öffnen, sichern und beenden.',
 			runs: 'Paperless-ngx läuft:',
-			restoreFailed: (/** @type {string} */ reason) => `Wiederherstellung fehlgeschlagen (${reason}). Paperless-ngx läuft leer. Diese VM legt keine Sicherung an, damit die leere Paperless nicht zur neuesten Sicherung wird; lösche sie ohne Sicherung und starte neu.`,
+			restoreFailed: (/** @type {string} */ reason) => `Wiederherstellung fehlgeschlagen (${reason}). Paperless-ngx läuft leer. Diese VM legt keine Sicherung an, auch nicht von dem, was du hier neu ablegst, damit die leere Paperless nicht zur neuesten Sicherung wird; lösche sie ohne Sicherung und starte neu.`,
 			noReason: 'ohne Grund',
 			diskEncrypted: 'Was diese VM schreibt, liegt auf einer eigenen Platte, verschlüsselt mit einem Schlüssel, den nur die VM kennt.',
 			diskPlain: 'Diese VM schreibt auf die gemeinsame Image-Platte, ohne eigenen Schlüssel. Die eigene Datenplatte ist vorerst ausgeschaltet (zu wenig Platz, bis die Container-Images flach sind).',
@@ -152,8 +153,8 @@ export const card = {
 			creditNotSeen: 'The credit does not show on Aleph yet. Start again in a few minutes – do not buy again, or the hours are bought twice.'
 		},
 		bought: (/** @type {{ hours: number, price: string, balance: string | null, vmHours: string | null }} */ b) => `Bought ${b.hours} hours for €${b.price}.${b.balance != null ? ` Balance now €${b.balance}.` : ''}${b.vmHours != null ? ` VM hours: ${b.vmHours} h.` : ''}`,
-		chips: { loading: '…', off: 'off', starting: 'starting', stopping: 'stopping', running: 'running', interrupted: 'start interrupted' },
-		titles: { loading: 'One moment …', off: 'Paperless-ngx is off', starting: 'Paperless-ngx is starting', stopping: 'Paperless-ngx is being backed up and stopped', running: 'Paperless-ngx is running', interrupted: 'Start interrupted' },
+		chips: { loading: '…', off: 'off', starting: 'starting', stopping: 'stopping', discarding: 'being deleted', running: 'running', interrupted: 'start interrupted' },
+		titles: { loading: 'One moment …', off: 'Paperless-ngx is off', starting: 'Paperless-ngx is starting', stopping: 'Paperless-ngx is being backed up and stopped', discarding: 'Paperless-ngx is being deleted without a backup', running: 'Paperless-ngx is running', interrupted: 'Start interrupted' },
 		fund: {
 			inPackage: (/** @type {number} */ h) => `Your package still holds ${h} ${h === 1 ? 'hour' : 'hours'}. Le Space then pays the VM from it; the way of paying changes to “Le Space, from my package”. Nothing is bought.`,
 			startFromPackage: (/** @type {number} */ h) => `Start from the package (${h} h)`,
@@ -188,8 +189,9 @@ export const card = {
 			noneKnown: 'No successful backup known yet',
 			left: (/** @type {string} */ step, /** @type {number} */ min) => `${step} · about ${min} min left`,
 			open: 'Open Paperless-ngx',
-			restoreFailed: 'The backup could not be restored; Paperless-ngx runs empty. This VM makes no backup; delete it and start again. Details under “Advanced”.',
+			restoreFailed: 'The backup could not be restored; Paperless-ngx runs empty. This VM makes no backup, not even of what you add here; delete it and start again. Details under “Advanced”.',
 			discard: 'Delete without a backup',
+			discardConfirm: (/** @type {string} */ size) => `Delete this VM without a backup? This cannot be undone. Everything in this Paperless since the start${size ? ` (now ${size} of documents)` : ''} is lost. The last backup stays the newest.`,
 			login: 'Signing in to Paperless-ngx',
 			user: 'User',
 			password: 'Password',
@@ -216,7 +218,7 @@ export const card = {
 		advanced: {
 			purpose: 'Your Paperless-ngx machine: start, open, back up and stop.',
 			runs: 'Paperless-ngx is running:',
-			restoreFailed: (/** @type {string} */ reason) => `Restore failed (${reason}). Paperless-ngx runs empty. This VM makes no backup, so the empty Paperless does not become the newest one; delete it without a backup and start again.`,
+			restoreFailed: (/** @type {string} */ reason) => `Restore failed (${reason}). Paperless-ngx runs empty. This VM makes no backup, not even of what you add here, so the empty Paperless does not become the newest one; delete it without a backup and start again.`,
 			noReason: 'no reason given',
 			diskEncrypted: 'What this VM writes lies on a disk of its own, encrypted with a key only the VM knows.',
 			diskPlain: 'This VM writes to the shared image disk, without a key of its own. The separate data disk is off for now (too little room until the container images are flat).',
