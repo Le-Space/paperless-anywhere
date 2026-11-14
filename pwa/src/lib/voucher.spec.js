@@ -53,7 +53,7 @@ describe('redeeming', () => {
 		for (const [c, text] of Object.entries(de)) await expect(redeemVoucher(master, code, { baseUrl, fetch: refuse(c === 'VOUCHER' ? 404 : c === 'VOUCHER_FORMAT' ? 400 : c.endsWith('OFF') || c === 'PAUSED' ? 503 : 409, c) }), c).rejects.toThrow(text);
 		setLang('en');
 		await expect(redeemVoucher(master, code, { baseUrl, fetch: refuse(409, 'VOUCHER_REDEEMED') })).rejects.toThrow('You have already redeemed this voucher.');
-		await expect(redeemVoucher(master, code, { baseUrl, fetch: refuse(409, 'PERIOD_RUNNING') })).rejects.toThrow(/no package and no other period/);
+		await expect(redeemVoucher(master, code, { baseUrl, fetch: refuse(409, 'PERIOD_RUNNING') })).rejects.toThrow(/no package and no other period is running any more, including a package with an open payment/);
 		await expect(redeemVoucher(master, 'nope', { baseUrl, fetch: refuse(409, 'X') })).rejects.toThrow('This is not a voucher code. It looks like this: PA-XXXX-XXXX-XXXX.');
 	});
 	it('asks for the terms first, as a purchase does', async () => {

@@ -78,7 +78,7 @@ export const pkg = {
 		selfHint: (/** @type {'app' | 'wallet'} */ who) => `${who === 'app' ? 'Die Adresse der App' : 'Deine Wallet'} bezahlt die VM bei Aleph direkt; ein Paket brauchst du dafür nicht. Ein Paket von Le Space ist der Weg ohne Wallet und ohne Kryptowerte.`,
 		voucher: {
 			fold: 'Gutschein einlösen',
-			hint: 'Ein Gutschein gibt dir einen Zeitraum mit Laufzeit und Sicherung, ohne Zahlung. Er verlängert sich nicht.',
+			hint: 'Ein Gutschein gibt dir einen Zeitraum mit Laufzeit und, wenn er sie umfasst, mit Sicherung, ohne Zahlung. Der Zeitraum beginnt mit dem Einlösen und läuft durch, auch wenn Paperless nicht läuft. Er verlängert sich nicht.',
 			label: 'Gutschein-Code',
 			placeholder: 'PA-XXXX-XXXX-XXXX',
 			button: 'Einlösen',
@@ -86,7 +86,7 @@ export const pkg = {
 			always: 'Dauerbetrieb',
 			pending: ' Die Stunden erscheinen in Kürze.',
 			period: (/** @type {string} */ until) => `Gutschein-Zeitraum bis ${until}.`,
-			periodEnds: 'Er verlängert sich nicht; danach kannst du ein Paket wählen.'
+			periodEnds: 'Er verlängert sich nicht. Sichere oder exportiere deine Dokumente vor dem Ende: 3 Tage danach startet die App keine VM mehr, und zum Wiederherstellen brauchst du dann ein Paket.'
 		},
 		checkoutLabel: 'Abo abschließen',
 		payWithStripe: 'Bezahlen mit Stripe',
@@ -164,7 +164,7 @@ export const pkg = {
 		selfHint: (/** @type {'app' | 'wallet'} */ who) => `${who === 'app' ? 'The app’s address' : 'Your wallet'} pays the VM on Aleph directly; you need no package for that. A package from Le Space is the way without a wallet and without crypto.`,
 		voucher: {
 			fold: 'Redeem a voucher',
-			hint: 'A voucher gives you a period of running time with backups, without a payment. It does not renew.',
+			hint: 'A voucher gives you a period of running time and, if it includes them, backups, without a payment. The period starts when you redeem it and runs on, even while Paperless is not running. It does not renew.',
 			label: 'Voucher code',
 			placeholder: 'PA-XXXX-XXXX-XXXX',
 			button: 'Redeem',
@@ -172,7 +172,7 @@ export const pkg = {
 			always: 'always on',
 			pending: ' The hours appear shortly.',
 			period: (/** @type {string} */ until) => `Voucher period until ${until}.`,
-			periodEnds: 'It does not renew; after it you can choose a package.'
+			periodEnds: 'It does not renew. Back up or export your documents before it ends: 3 days later the app starts no more VMs, and to restore you then need a package.'
 		},
 		checkoutLabel: 'Take out the subscription',
 		payWithStripe: 'Pay with Stripe',
