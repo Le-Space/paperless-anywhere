@@ -101,7 +101,7 @@ export const texts = {
 				{ who: 'Der Betreiber des Knotens', v: 'no' },
 				{ who: 'GitHub', v: 'no' }
 			],
-			compare: 'Öffentlich vergleichen lassen sich der Hash des öffentlichen Images und der Messwert des Build-Dienstes; die App zeigt beide neben „Mein Image bauen“. Das verschlüsselte Image sieht bei jeder Person anders aus. Den Bau und die Ablage des Images bezahlt die Adresse der App aus ihren Aleph-Credits, nicht dein Paket. Der Build-Dienst läuft derzeit nur auf einem einzigen Knoten; fällt er aus, ist kein Bau möglich, deine VM startet aber weiter. Stand: Ein ganzer Durchgang lief bei Aleph, vom Bau über VM und Sicherung bis zur Wiederherstellung, mit dem Code der App, aber noch nicht in einem Browser. Aus einem Browser ist das Hochladen des Images in voller Größe, knapp 900 MiB, noch nicht erprobt.'
+			compare: 'Öffentlich vergleichen lassen sich der Hash des öffentlichen Images und der Messwert des Build-Dienstes; die App zeigt beide neben „Mein Image bauen“. Das verschlüsselte Image sieht bei jeder Person anders aus. Den Bau und die Ablage des Images bezahlt die Adresse der App aus ihren Aleph-Credits, nicht dein Paket: Das eigene Image braucht derzeit Aleph-Guthaben auf der Adresse der App, und Aleph startet den Build-Dienst erst, wenn es für einen Tag seiner Laufzeit reicht. Der Build-Dienst läuft derzeit nur auf einem einzigen Knoten; fällt er aus, ist kein Bau möglich, deine VM startet aber weiter. Stand: Ein ganzer Durchgang lief bei Aleph, vom Bau über VM und Sicherung bis zur Wiederherstellung, mit dem Code der App, aber noch nicht in einem Browser. Aus einem Browser ist das Hochladen des Images in voller Größe, knapp 900 MiB, noch nicht erprobt.'
 		},
 		nodes: {
 			title: 'Ausfallsicher: kein einzelnes Rechenzentrum',
@@ -349,7 +349,7 @@ export const texts = {
 				{ who: 'The node’s operator', v: 'no' },
 				{ who: 'GitHub', v: 'no' }
 			],
-			compare: 'What can be compared in public: the public image’s hash and the builder’s measurement; the app shows both beside “Build my image”. Your encrypted image looks different for every person. Building and storing the image is paid by the app’s address from its Aleph credits, not by your package. The builder currently runs on one node only; if that node is down, no build is possible, though your VM still starts. Where it stands: a whole round ran on Aleph, from the build through a VM and a backup to the restore, with the app’s code, but not in a browser yet. Uploading the image at full size, a little under 900 MiB, from a browser has not been tried yet.'
+			compare: 'What can be compared in public: the public image’s hash and the builder’s measurement; the app shows both beside “Build my image”. Your encrypted image looks different for every person. Building and storing the image is paid by the app’s address from its Aleph credits, not by your package: the own image currently needs Aleph credits on the app’s address, and Aleph starts the builder only once they cover a day of its running time. The builder currently runs on one node only; if that node is down, no build is possible, though your VM still starts. Where it stands: a whole round ran on Aleph, from the build through a VM and a backup to the restore, with the app’s code, but not in a browser yet. Uploading the image at full size, a little under 900 MiB, from a browser has not been tried yet.'
 		},
 		nodes: {
 			title: 'Resilient: no single data centre',
