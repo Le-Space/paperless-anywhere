@@ -207,9 +207,19 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await expect(page.getByTestId('setup')).not.toContainText(/Schlüssel|Sicherung|nicht|für/);
 	await page.getByTestId('app-lang-de').click();
 	await expect(page.getByTestId('setup').locator('h2')).toHaveText('Einrichtung');
-	// No image builder is fixed in the app yet, so the setup offers no build.
+	// A builder is fixed in the app: the image step asks which image. The public
+	// one is chosen until an own one is built; choosing the own one says it is
+	// not built yet and offers the build.
+	await expect(page.getByTestId('image-choice')).toBeVisible();
+	await expect(page.getByTestId('image-public')).toBeChecked();
 	await expect(page.getByTestId('own-image')).toHaveCount(0);
-	await expect(page.getByTestId('image-choice')).toHaveCount(0);
+	await page.getByTestId('image-own').check();
+	await expect(page.getByTestId('own-image-not-built')).toContainText('Noch nicht gebaut');
+	await expect(page.getByTestId('own-image-build')).toHaveText('Mein Image bauen');
+	await expect(page.getByTestId('image-hash')).toHaveCount(0);
+	await expect(page.getByTestId('image-passphrase')).toHaveCount(0);
+	await page.getByTestId('image-public').check();
+	await expect(page.getByTestId('image-hash')).toBeVisible();
 	await open(page, 'tech-balances');
 	await expect(page.getByTestId('balances')).toContainText('Adresse der App');
 	await expect(page.getByTestId('balance-keys')).toContainText('aus deinem Passkey');
