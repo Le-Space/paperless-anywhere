@@ -19,7 +19,7 @@
 		"@filoz/synapse-core": "0.10.0",
 		"@fontsource-variable/sora": "5.2.8",
 		"@fontsource/ibm-plex-mono": "5.2.7",
-		"@le-space/attest-wasm": "0.10.0",
+		"@le-space/attest-wasm": "0.12.5",
 		"@le-space/core": "0.10.0",
 		"@libp2p/identify": "4.1.10",
 		"@libp2p/webrtc": "6.0.27",

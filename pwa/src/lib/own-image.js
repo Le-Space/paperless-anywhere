@@ -120,30 +120,6 @@ const storeStatus = async (itemHash) => {
  */
 export const PIECE_BYTES = 256 * 1024;
 /**
- * The TLS session in the WASM keeps at most 16 KiB of received data until the
- * channel takes it, and takes it only after each delivery from the relay. A
- * relay delivers far more at once when a large answer arrives ("received
- * plaintext buffer full", the first fetch through a relay, 2026-11-13), so
- * what arrives is handed on in slices that stay below that.
- */
-export const SLICE_BYTES = 4 * 1024;
-
-/**
- * `transport`, delivering what arrives in slices of at most `size` bytes.
- * @template {{ onData: (callback: (bytes: Uint8Array) => void) => void }} T
- * @param {T} transport @param {number} [size]
- * @returns {T}
- */
-export function inSlices(transport, size = SLICE_BYTES) {
-	return {
-		...transport,
-		onData: (callback) =>
-			transport.onData((bytes) => {
-				for (let start = 0; start < bytes.length; start += size) callback(bytes.subarray(start, start + size));
-			})
-	};
-}
-/**
  * What one connection carries. An attest relay closes a connection after
  * 4 MiB in one direction or 120 seconds, so the image comes in runs of this
  * size, each over a connection of its own, attested like the first.
@@ -407,7 +383,7 @@ export function builderOpener(builder, profile, { load = loadAttest } = {}) {
 		for (let i = 0; i < relays.length; i++) {
 			const index = (good + i) % relays.length;
 			try {
-				const attested = await attestGuest({ wasm, transport: inSlices(relayTransports([relays[index]])(builder.route)), expectedMeasurements: builder.measurements, expectedPolicy: builder.policy });
+				const attested = await attestGuest({ wasm, transport: relayTransports([relays[index]])(builder.route), expectedMeasurements: builder.measurements, expectedPolicy: builder.policy });
 				good = index;
 				const measurement = attested.freshVerified?.measurement;
 				return Object.assign(attested.channel, measurement ? { measurement: String(measurement) } : {});

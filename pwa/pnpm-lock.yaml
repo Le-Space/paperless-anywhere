@@ -24,8 +24,8 @@ importers:
         specifier: 5.2.7
         version: 5.2.7
       '@le-space/attest-wasm':
-        specifier: 0.10.0
-        version: 0.10.0
+        specifier: 0.12.5
+        version: 0.12.5
       '@le-space/core':
         specifier: 0.10.0
         version: 0.10.0(zod@4.4.3)
@@ -404,8 +404,8 @@ packages:
   '@le-space/aleph-bootstrap@0.10.0':
     resolution: {integrity: sha512-tWRoXxDY4fJ7Pas4rETLuAznGUMlXJ9ZOeW2raWhJIel8Psw+uZUzwi+A5EovKc7frJrQq2aDPS0AaotHGX6Kw==}
 
-  '@le-space/attest-wasm@0.10.0':
-    resolution: {integrity: sha512-rNqVYrj7DWCUMTTmehbdADk5rMYneUAeQEVpNCtki2z0s6tTvlZAlk44461ji1K+j4aCLH+zVYvN2Gb9cU7hcg==}
+  '@le-space/attest-wasm@0.12.5':
+    resolution: {integrity: sha512-DfKnzLoPGr+kYJTGZCBIvQb8YQuPz1Fd3NScfylO6vR2QPuMKP1pQRzD/BEyv6nH94qJ2EWSwhfifkX3E137gQ==}
 
   '@le-space/core@0.10.0':
     resolution: {integrity: sha512-Lyx5xKs3ZpKXFbrz5TC3COp0Zqay1r3RN7cMbNplM4qirX4W5XNkwrbjQ7c2PAqVIfD4WJLWapSBL1mjiCvhgA==}
@@ -2801,7 +2801,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@le-space/attest-wasm@0.10.0': {}
+  '@le-space/attest-wasm@0.12.5': {}
 
   '@le-space/core@0.10.0(zod@4.4.3)':
     dependencies:

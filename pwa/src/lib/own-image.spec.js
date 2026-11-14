@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { recoverMessageAddress } from 'viem';
 import { imagePassphrase } from './keys/derive.js';
-import { BUILDER, BuilderError, LANES, PIECE_BYTES, RUN_BYTES, SLICE_BYTES, buildOwnImage, builderOpener, checkBuilder, hasOwnImage, inSlices, sources, storeMessage } from './own-image.js';
+import { BUILDER, BuilderError, LANES, PIECE_BYTES, RUN_BYTES, buildOwnImage, builderOpener, checkBuilder, hasOwnImage, sources, storeMessage } from './own-image.js';
 import { sha256Hex } from './vm.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -330,23 +330,6 @@ describe('an image of one\'s own', () => {
 		works.b = false;
 		await expect(open()).rejects.toThrow(/attestation rejected/);
 		expect(dialled).toEqual(['b', 'c']);
-	});
-
-	it('hands what a relay delivers to the TLS session in slices it can hold', () => {
-		// The session keeps 16 KiB of received data until it is taken.
-		expect(SLICE_BYTES).toBeLessThanOrEqual(16 * 1024);
-		const got = [];
-		let deliver = () => {};
-		const transport = { opened: Promise.resolve(), send: () => {}, close: () => {}, onClose: () => {}, onData: (callback) => (deliver = callback) };
-		const sliced = inSlices(transport, 4096);
-		expect(sliced.send).toBe(transport.send);
-		sliced.onData((bytes) => got.push(bytes));
-		const chunk = new Uint8Array(20_000).map((_, n) => n % 253);
-		deliver(chunk);
-		expect(got.map((b) => b.length)).toEqual([4096, 4096, 4096, 4096, 3616]);
-		expect(new Uint8Array(got.flatMap((b) => [...b]))).toEqual(chunk);
-		deliver(new Uint8Array(0));
-		expect(got).toHaveLength(5);
 	});
 
 	it('tries a run again when the builder cannot be reached for a moment, and the cleanup too', async () => {
