@@ -225,9 +225,11 @@ little under 900 MiB each way, and the storage of that image on your
 vault's address as long as you use that version. An older image can be
 forgotten once the new one has started.
 
-The builder itself is one VM for everyone, paid by Le Space while it runs.
-A new plain image needs a new builder, since the image is part of what is
-measured.
+The builder runs only for a build ([a builder for each build](#a-builder-for-each-build)):
+about 15 minutes, paid by the app's address like the image's STORE. Its
+volumes stay published, since the measurement belongs to them. A new plain
+image needs new volumes and so a new measurement in the app, since the
+image is part of what is measured.
 
 ## Publishing the plain image
 
