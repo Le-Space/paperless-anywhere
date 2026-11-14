@@ -245,16 +245,6 @@ export const texts = {
 				},
 				{ q: 'Was kostet es, wenn Paperless anywhere nicht läuft?', a: 'Stunden verbraucht nur eine laufende Instanz. Dein Monatspaket läuft aber weiter und wird jeden Monat berechnet, bis du kündigst. Die Sicherung ist im Paket enthalten und läuft mit ihm weiter. Nach dem Ende des bezahlten Zeitraums entstehen keine neuen Sicherungen; die vorhandenen bleiben noch mindestens 30 Tage abrufbar.' },
 				{
-					q: 'Ich habe einen Gutschein. Wie löse ich ihn ein?',
-					a: 'In der App, ohne Zahlung: Lege deinen Tresor an und gib den Code (PA-…) unter „Gutschein einlösen“ ein. Ein Gutschein gibt dir einen festen Zeitraum, meist einige Tage; wie lange, mit wie vielen Stunden und ob die Sicherung dabei ist, steht auf dem Gutschein und in der App.',
-					tips: [
-						'Der Zeitraum verlängert sich nicht und geht in kein Abo über. Wer weitermachen will, schließt ein Paket ab.',
-						'Während ein Paket läuft, lässt sich kein Gutschein einlösen.',
-						'Danach bleiben die Sicherungen noch mindestens 30 Tage abrufbar.'
-					],
-					links: [{ text: 'Gutscheine in den AGB (§ 4a)', href: TERMS_URL }]
-				},
-				{
 					q: 'Komme ich auch ohne Le Space an meine Dokumente?',
 					a: 'Ja, jederzeit und ohne Entgelt. In Paperless-ngx exportierst du deine Dokumente mit ihren Metadaten. Und deine Sicherungen liegen bei unabhängigen Speicheranbietern: Die App holt eine davon auch ohne laufende VM direkt dort ab und entschlüsselt sie in deinem Browser, oder sie gibt dir eine Anleitung, mit der du das auf deinem eigenen Rechner tust, mit curl und age. Heraus kommt ein Zip mit deinen Dokumenten, das sich in ein leeres Paperless-ngx einspielen lässt.',
 					tips: [
@@ -512,16 +502,6 @@ export const texts = {
 					more: { text: 'The details are in the security model.', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/security-model.md#your-own-device' }
 				},
 				{ q: 'What does it cost while Paperless anywhere is not running?', a: 'Only a running instance uses hours. Your monthly package runs on, though, and is billed every month until you cancel. The backup is included in the package and runs on with it. After the end of the paid period no new backups are made; the existing ones stay retrievable for at least 30 more days.' },
-				{
-					q: 'I have a voucher. How do I redeem it?',
-					a: 'In the app, without a payment: create your vault and enter the code (PA-…) under “Redeem a voucher”. A voucher gives you a fixed period, usually a few days; how long, with how many hours and whether the backup is included is stated on the voucher and in the app.',
-					tips: [
-						'The period does not renew and does not turn into a subscription. To carry on, take a package.',
-						'While a package runs, no voucher can be redeemed.',
-						'Afterwards the backups stay available for at least 30 days.'
-					],
-					links: [{ text: 'Vouchers in the terms (§ 4a, in German)', href: TERMS_URL }]
-				},
 				{
 					q: 'Can I get at my documents without Le Space?',
 					a: 'Yes, at any time and free of charge. In Paperless-ngx you export your documents with their metadata. And your backups lie with independent storage providers: the app fetches one straight from there, even without a running VM, and decrypts it in your browser, or it gives you a guide to do that on your own computer, with curl and age. The result is a zip with your documents that can be loaded into an empty Paperless-ngx.',
