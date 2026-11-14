@@ -66,6 +66,11 @@ on:
         required: false
         default: ''
         type: string
+      own_in_browser:
+        description: 'An image of its own built in Chromium by the app, with the builder fixed in the app (started for this build and forgotten after), instead of "rootfs_item_hash" or "builder".'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -88,15 +93,18 @@ jobs:
     runs-on: ${{ inputs.runner == 'aleph' && fromJSON('["self-hosted","aleph"]') || 'ubuntu-24.04' }}
     timeout-minutes: 150
     outputs:
-      own_store: ${{ steps.own.outputs.store }}
+      own_store: ${{ steps.own.outputs.store || steps.own_browser.outputs.store }}
     steps:
       - name: Check inputs
         env:
           BUILDER: ${{ inputs.builder }}
           BUILDER_CRN: ${{ inputs.builder_crn }}
           PLAIN_SHA256: ${{ inputs.plain_sha256 }}
+          OWN_IN_BROWSER: ${{ inputs.own_in_browser }}
         run: |
-          if [ -n "$BUILDER" ]; then
+          if [ "$OWN_IN_BROWSER" = true ]; then
+            [ -z "$BUILDER" ] || { echo "::error::own_in_browser uses the builder fixed in the app; leave builder empty"; exit 1; }
+          elif [ -n "$BUILDER" ]; then
             for v in "$BUILDER" "$BUILDER_CRN" "$PLAIN_SHA256"; do [[ "$v" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::builder, builder_crn and plain_sha256 are 64 hex"; exit 1; }; done
           else
             [[ "$ITEM" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::rootfs_item_hash is not an item hash"; exit 1; }
@@ -105,15 +113,15 @@ jobs:
 
       # The image of its own, built by the app's code (pwa/scripts/own-image-fetch.mjs).
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        if: inputs.builder != ''
+        if: inputs.builder != '' || inputs.own_in_browser
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
-        if: inputs.builder != ''
+        if: inputs.builder != '' || inputs.own_in_browser
         with:
           version: 10.33.0
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        if: inputs.builder != ''
+        if: inputs.builder != '' || inputs.own_in_browser
         with:
           node-version: 24.x
       - name: An image of its own - seal, fetch through Le Space's relay, upload
@@ -135,6 +143,26 @@ jobs:
           echo "store=$store" >> "$GITHUB_OUTPUT"
           echo "OWN_ITEM=$store" >> "$GITHUB_ENV"
           echo "OWN_IMAGE=$(jq -c '{fetchSeconds, mibPerSecond, uploadSeconds, connections, failedOpens}' "$FETCH_RESULT")" >> "$GITHUB_ENV"
+
+      # The same in Chromium, as the setup does it: pwa/e2e-upload/build.spec.js.
+      - name: An image of its own - built in Chromium with the builder fixed in the app
+        id: own_browser
+        if: inputs.own_in_browser
+        working-directory: pwa
+        env:
+          BUILD_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+          PASSPHRASE_FILE: ${{ runner.temp }}/luks.pass
+          BUILD_RESULT: ${{ runner.temp }}/own-image.json
+        run: |
+          pnpm install --frozen-lockfile > /dev/null
+          pnpm exec playwright install --with-deps chromium > /dev/null
+          pnpm exec playwright test -c playwright.upload.config.js e2e-upload/build.spec.js --reporter=line || true
+          store="$(jq -r '.store // empty' "$BUILD_RESULT" 2>/dev/null)"
+          # Even a failed test may have stored it: the cleanup forgets it.
+          [[ "$store" =~ ^[0-9a-f]{64}$ ]] && echo "store=$store" >> "$GITHUB_OUTPUT"
+          jq -e '.storeStatus == "processed" and .builderForgotten == true and (.error == null)' "$BUILD_RESULT" > /dev/null || { cat "$BUILD_RESULT" 2>/dev/null; echo "::error::the build in Chromium did not finish"; exit 1; }
+          echo "OWN_ITEM=$store" >> "$GITHUB_ENV"
+          echo "OWN_IMAGE=$(jq -c '{from, seconds, steps}' "$BUILD_RESULT")" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
