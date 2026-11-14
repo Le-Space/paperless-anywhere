@@ -9,7 +9,7 @@
 	import { findAttestRelays } from '$lib/relays.js';
 	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups } from '$lib/credits.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
-	import { BUILDER, buildOwnImage, builderOpener, hasOwnImage, sources } from '$lib/own-image.js';
+	import { BUILDER, buildOwnImage, builderOpener, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
 	import { format, lang, t } from '$lib/i18n/index.js';
 	import {
 		connectPayer,
@@ -76,7 +76,7 @@
 				imageInput = profile.rootfsItemHash ?? '';
 				ownerInput = profile.backupOwner ?? '';
 				crnInput = profile.crnHash ?? '';
-				imageKind = BUILDER && hasOwnImage(profile, BUILDER.plain.sha256) ? 'own' : 'public';
+				imageKind = imageKindOf(profile, BUILDER);
 				loaded = true;
 				await refresh();
 			})
@@ -222,22 +222,7 @@
 		await save({ backupOwner: owner || null });
 	});
 	const saveImage = () => run('image', async () => {
-		const image = imageInput.trim().toLowerCase();
-		const crn = crnInput.trim().toLowerCase();
-		if (!/^[0-9a-f]{64}$/.test(crn)) throw new Error('Der Knoten ist ein 64-stelliger Hash.');
-		// With "Mein eigenes Image" the image and its passphrase come from the build.
-		if (BUILDER && imageKind === 'own') return void (await save({ crnHash: crn }));
-		if (!/^[0-9a-f]{64}$/.test(image)) throw new Error('Das Image ist ein 64-stelliger Hash.');
-		// A pasted passphrase may carry a stray space or line break; the guest only
-		// finds out when it opens the disk, and then waits without a word.
-		const pass = passInput.trim();
-		// Every image has a passphrase of its own: another image needs its
-		// passphrase entered with it, and the profile records which image the
-		// passphrase belongs to.
-		const other = Boolean(profile.rootfsItemHash) && image !== profile.rootfsItemHash;
-		if (other && !pass) throw new Error('Ein anderes Image hat eine eigene Passphrase. Bitte die Passphrase dieses Images mit eingeben.');
-		const bound = pass ? { luksPassphrase: pass, luksFor: image } : profile.luksPassphrase && !profile.luksFor ? { luksFor: image } : {};
-		await save({ rootfsItemHash: image, crnHash: crn, ...bound });
+		await save(imageFields({ kind: publicImage ? 'public' : 'own', image: imageInput, crn: crnInput, pass: passInput, profile }));
 		passInput = '';
 	});
 	// "Mein Image bauen": this vault's own copy of the public image, sealed by
@@ -248,6 +233,14 @@
 	// that version know, or this vault's own. Shown only when a builder is fixed.
 	/** @type {'public' | 'own'} */
 	let imageKind = $state('public');
+	const publicImage = $derived(!BUILDER || imageKind === 'public');
+	const ownBuilt = $derived(Boolean(BUILDER && hasOwnImage(profile, BUILDER.plain.sha256)));
+	// Back to the public image after an own one: its hash and passphrase are
+	// entered anew, not the own image's kept under the other name.
+	const choosePublic = () => {
+		if (ownBuilt) imageInput = '';
+		passInput = '';
+	};
 	const buildImage = () => run('own-image', async () => {
 		if (!BUILDER) return;
 		ownStep = '';
@@ -433,21 +426,22 @@
 		{#if BUILDER}
 			<fieldset class="image-choice" data-testid="image-choice">
 				<legend>{$t.ownImage.choice.legend}</legend>
-				<label><input type="radio" bind:group={imageKind} value="public" data-testid="image-public" /> {$t.ownImage.choice.public}<br /><small>{$t.ownImage.choice.publicHint}</small></label>
+				<label><input type="radio" bind:group={imageKind} value="public" onchange={choosePublic} data-testid="image-public" /> {$t.ownImage.choice.public}<br /><small>{$t.ownImage.choice.publicHint}</small></label>
 				<label><input type="radio" bind:group={imageKind} value="own" data-testid="image-own" /> {$t.ownImage.choice.own}<br /><small>{$t.ownImage.choice.ownHint}</small></label>
 			</fieldset>
 		{/if}
-		{#if !BUILDER || imageKind === 'public'}
-			<label>Image (STORE-Hash, 64 Zeichen)<input bind:value={imageInput} placeholder="Image (STORE-Hash)" /></label>
+		{#if publicImage}
+			<label>Image (STORE-Hash, 64 Zeichen)<input bind:value={imageInput} placeholder="Image (STORE-Hash)" data-testid="image-hash" /></label>
 		{/if}
 		<label>SEV-SNP-Knoten (Hash, 64 Zeichen)<input bind:value={crnInput} placeholder="SEV-SNP-Knoten (Hash)" /></label>
-		{#if !BUILDER || imageKind === 'public'}
-			<label>Passphrase des Images<input bind:value={passInput} type="password" autocomplete="off" placeholder={profile.luksPassphrase ? `Passphrase hinterlegt, ${profile.luksPassphrase.length} Zeichen (leer lassen = behalten)` : 'Passphrase des Images'} /></label>
+		{#if publicImage}
+			<label>Passphrase des Images<input bind:value={passInput} type="password" autocomplete="off" data-testid="image-passphrase" placeholder={profile.luksPassphrase && !ownBuilt ? `Passphrase hinterlegt, ${profile.luksPassphrase.length} Zeichen (leer lassen = behalten)` : 'Passphrase des Images'} /></label>
 		{/if}
-		<button onclick={saveImage} disabled={busy === 'image'}>{!BUILDER || imageKind === 'public' ? 'Image und Knoten speichern' : 'Knoten speichern'}</button>
+		<button onclick={saveImage} disabled={busy === 'image'}>{publicImage ? 'Image und Knoten speichern' : 'Knoten speichern'}</button>
 		{@render feedback('image')}
-		{#if BUILDER && imageKind === 'own'}
+		{#if BUILDER && !publicImage}
 			<div class="own-image" data-testid="own-image">
+				{#if !ownBuilt}<p class="warn" data-testid="own-image-not-built">{$t.ownImage.choice.notBuilt}</p>{/if}
 				<p class="hint">{$t.ownImage.intro.before}<code>{pwaAddress}</code>{$t.ownImage.intro.after}</p>
 				<details class="sources" data-testid="own-image-sources">
 					<summary>{$t.ownImage.sourcesFold}</summary>
@@ -459,8 +453,8 @@
 						{/each}
 					</dl>
 				</details>
-				{#if hasOwnImage(profile, BUILDER.plain.sha256)}<p class="saved" data-testid="own-image-have">{$t.ownImage.have(format.date(profile.ownImage.builtAt, undefined, $lang))}</p>{/if}
-				<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{hasOwnImage(profile, BUILDER.plain.sha256) ? $t.ownImage.rebuild : $t.ownImage.build}</button>
+				{#if ownBuilt}<p class="saved" data-testid="own-image-have">{$t.ownImage.have(format.date(profile.ownImage.builtAt, undefined, $lang))}</p>{/if}
+				<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{ownBuilt ? $t.ownImage.rebuild : $t.ownImage.build}</button>
 				{#if profile.running}<p class="hint">{$t.ownImage.whileRunning}</p>{/if}
 				{#if busy === 'own-image' && ownStep}<p class="hint" role="status" data-testid="own-image-step">{ownStep} …</p>{/if}
 				{@render feedback('own-image')}

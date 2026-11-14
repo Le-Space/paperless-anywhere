@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { recoverMessageAddress } from 'viem';
 import { imagePassphrase } from './keys/derive.js';
-import { BUILDER, BuilderError, LANES, PIECE_BYTES, RUN_BYTES, buildOwnImage, builderOpener, checkBuilder, hasOwnImage, sources, storeMessage } from './own-image.js';
+import { BUILDER, BuilderError, LANES, PIECE_BYTES, RUN_BYTES, buildOwnImage, builderOpener, checkBuilder, hasOwnImage, imageFields, imageKindOf, sources, storeMessage } from './own-image.js';
 import { sha256Hex } from './vm.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -343,5 +343,35 @@ describe('an image of one\'s own', () => {
 		expect(flaky.seen.deleted).toBe(1);
 		expect(flaky.seen.open).toBe(0);
 		expect(LANES).toBeLessThan(4);
+	});
+});
+
+describe('the choice of image in the setup', () => {
+	const own = 'aa'.repeat(32);
+	const pub = 'bb'.repeat(32);
+	const crn = 'cc'.repeat(32);
+	const built = { rootfsItemHash: own, luksPassphrase: 'derived', luksFor: own, ownImage: { plainSha256: builder.plain.sha256, builtAt: '2026-11-14T00:00:00Z' } };
+
+	it('shows the own image as chosen once one is built for the builder, else the public one', () => {
+		expect(imageKindOf(built, builder)).toBe('own');
+		expect(imageKindOf({}, builder)).toBe('public');
+		expect(imageKindOf(built, null)).toBe('public');
+		expect(imageKindOf({ ...built, ownImage: { plainSha256: '00'.repeat(32) } }, builder)).toBe('public');
+	});
+
+	it('with the own image saves only the node: image and passphrase come from the build', () => {
+		expect(imageFields({ kind: 'own', image: '', crn: ` ${crn.toUpperCase()} `, pass: 'ignored', profile: built })).toEqual({ crnHash: crn });
+		expect(() => imageFields({ kind: 'own', image: '', crn: 'x', pass: '', profile: {} })).toThrow('Knoten');
+	});
+
+	it('going back to the public image needs that image and its own passphrase', () => {
+		expect(() => imageFields({ kind: 'public', image: '', crn, pass: '', profile: built })).toThrow('64-stelliger Hash');
+		expect(() => imageFields({ kind: 'public', image: pub, crn, pass: '', profile: built })).toThrow('eigene Passphrase');
+		expect(imageFields({ kind: 'public', image: pub, crn, pass: ' shared\n', profile: built })).toEqual({ rootfsItemHash: pub, crnHash: crn, luksPassphrase: 'shared', luksFor: pub });
+	});
+
+	it('the public image as before: the same image keeps its passphrase, an old profile gets it bound', () => {
+		expect(imageFields({ kind: 'public', image: pub, crn, pass: '', profile: { rootfsItemHash: pub, luksPassphrase: 'p', luksFor: pub } })).toEqual({ rootfsItemHash: pub, crnHash: crn });
+		expect(imageFields({ kind: 'public', image: pub, crn, pass: '', profile: { rootfsItemHash: pub, luksPassphrase: 'p' } })).toEqual({ rootfsItemHash: pub, crnHash: crn, luksFor: pub });
 	});
 });

@@ -55,9 +55,11 @@
 			// mostly fixed costs). Erasing waits for the node to confirm.
 			{ step: 'stop', typical: 10, typicalWithBackup: 540 },
 			{ step: 'forget', typical: 60 }
-		]
+		],
+		// "Löschen ohne Sicherung" after a failed restore: erasing only.
+		discard: [{ step: 'forget', typical: 60 }]
 	};
-	/** @type {'start' | 'stop' | ''} */
+	/** @type {'start' | 'stop' | 'discard' | ''} */
 	let action = $state('');
 	/** @type {Record<string, { from: number, to?: number }>} */
 	let times = $state({});
@@ -84,7 +86,7 @@
 	let startRestores = $state(false);
 	let now = $state(Date.now());
 	let ticker = 0;
-	const track = (/** @type {'start' | 'stop'} */ kind) => {
+	const track = (/** @type {'start' | 'stop' | 'discard'} */ kind) => {
 		action = kind;
 		times = {};
 		vmStart = null;
@@ -458,7 +460,13 @@
 	const restoreFailed = $derived(profile.running?.restore?.status === 'failed');
 	const discardFailed = () => run(async () => {
 		await reload();
-		finishStop(await eraseStopped(master, $state.snapshot(profile), null, track('stop')));
+		const run = profile.running;
+		if (!run) return;
+		// Whatever was put into this Paperless since the start goes with it:
+		// say so, with what it holds now, and ask.
+		const bytes = await vmStatus(run.host, statusToken(master)).then((s) => s?.storage?.documentsBytes).catch(() => null);
+		if (!confirm(c.simple.discardConfirm(typeof bytes === 'number' ? `${format.number(Math.round(bytes / 1e6), undefined, $appLanguage)} MB` : ''))) return;
+		finishStop(await eraseStopped(master, $state.snapshot(profile), null, track('discard')));
 	});
 	// After a partial backup, on the person's word: erase the VM anyway, or
 	// keep it and let Paperless run again. If that fails, the question stays.
@@ -526,6 +534,7 @@
 	const phase = $derived(
 		busy && action === 'start' ? 'starting'
 		: busy && action === 'stop' ? 'stopping'
+		: busy && action === 'discard' ? 'discarding'
 		: profile.running ? 'running'
 		: profile.starting ? 'interrupted'
 		: loaded ? 'off' : 'loading'
@@ -593,7 +602,7 @@
 				<h1>{TITLES[phase]}</h1>
 				{#if phase === 'off'}<p class="sub">{c.simple.startTakes(minutes(STEPS.start.reduce((a, s) => a + typicalOf(s), 0)))}</p>
 				{:else if phase === 'starting'}<p class="sub">{c.simple.keepOpenStart}</p>
-				{:else if phase === 'stopping'}<p class="sub">{c.simple.keepOpenStop}</p>
+				{:else if phase === 'stopping' || phase === 'discarding'}<p class="sub">{c.simple.keepOpenStop}</p>
 				{:else if phase === 'running'}<p class="sub data">{profile.running.host}</p>
 				{:else if phase === 'interrupted'}<p class="sub">{c.simple.interruptedCosts}</p>{/if}
 				{#if profile.backupConfig}
@@ -603,7 +612,7 @@
 			</div>
 		</div>
 
-		{#if phase === 'starting' || phase === 'stopping'}
+		{#if phase === 'starting' || phase === 'stopping' || phase === 'discarding'}
 			<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(share * 100)} aria-label={TITLES[phase]}><span style="width: {Math.round(share * 100)}%"></span></div>
 			<p class="calm" data-testid="simple-progress">{c.simple.left(stepLabel, leftMinutes)}</p>
 			{#if startShown}<StartPanel rows={panel} t={panelT} />{/if}

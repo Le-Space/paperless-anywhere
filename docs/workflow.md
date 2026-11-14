@@ -155,7 +155,7 @@ sequenceDiagram
 
 Without a backup choice, the stop is ready at once. "Meine VMs" erases a VM without the last backup. A backup that already runs when the stop comes (a check, or "Jetzt sichern") finishes first (up to 30 minutes); the stop's own backup is then a check that uploads only what changed since.
 
-**A restore fails.** Paperless then runs empty (phase `restore-failed`), and a backup of it would become the newest one: the next start would restore that. So `paperless-backup` refuses every backup while `restore.json` says `failed` (or `running`): the two-hourly check, "Jetzt sichern" and the stop's last backup. The app offers no "Sichern und beenden" for such a VM, only **Löschen ohne Sicherung**, which erases and forgets it at once; the last good backup stays the newest.
+**A restore fails.** Paperless then runs empty (phase `restore-failed`), and a backup of it would become the newest one: the next start would restore that. So `paperless-backup` refuses every backup while `restore.json` says `failed` (status `refused`): the two-hourly check, "Jetzt sichern" and the stop's last backup, also of what was added to that Paperless since. The app says so, offers no "Sichern und beenden" for such a VM, only **Löschen ohne Sicherung**, and asks before it erases and forgets the VM, naming what its documents take up now. The last good backup stays the newest.
 
 `stop.json` names the request it answers, so the app never takes an earlier stop's outcome for the one it just sent (the VM picks a new request up within seconds; an older image is told apart by the time of its answer).
 
