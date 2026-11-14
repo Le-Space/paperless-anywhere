@@ -215,7 +215,11 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await expect(page.getByTestId('own-image')).toHaveCount(0);
 	await page.getByTestId('image-own').check();
 	await expect(page.getByTestId('own-image-not-built')).toContainText('Noch nicht gebaut');
-	await expect(page.getByTestId('own-image-build')).toHaveText('Mein Image bauen');
+	// 1,500,000 credits on the app address do not cover a day of the builder:
+	// no build button, but what it needs and why.
+	await expect(page.getByTestId('own-image-needs-credits')).toContainText('braucht derzeit Aleph-Guthaben');
+	await expect(page.getByTestId('own-image-needs-credits')).toContainText('vorhanden: 1.500.000');
+	await expect(page.getByTestId('own-image-build')).toHaveCount(0);
 	await expect(page.getByTestId('image-hash')).toHaveCount(0);
 	await expect(page.getByTestId('image-passphrase')).toHaveCount(0);
 	await page.getByTestId('image-public').check();
