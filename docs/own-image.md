@@ -4,9 +4,8 @@
 > image (one passphrase per image version, as [keys and recovery](keys-and-recovery.md)
 > describes) and an image of your own. The builder's volumes are published
 > on Aleph and fixed in the app; each build starts a builder from them and
-> forgets it afterwards. A whole round (build, VM, backup, restore) passed
-> on Aleph; the upload from a browser has not run at full size yet (see the
-> end).
+> forgets it afterwards. A whole round (build in a browser, VM, backup,
+> restore) passed on Aleph (see the end).
 
 A VM of Paperless anywhere boots from an encrypted image. The measured part
 of the boot (firmware, kernel, initrd) opens that image with a passphrase the
@@ -258,8 +257,13 @@ docker run --rm --network none -v "$PWD/check-container.mjs:/opt/builder/check-c
   10 minutes (1.4 MiB/s, every connection attested) and uploaded it in under
   a minute. A VM started from it, unlocked with the derived passphrase,
   backed up, and a second VM from the same image restored that backup.
-- **The upload from a browser** of an image of that size has not run yet;
-  the measurement above ran the same code in Node.
+- **In a browser** (2026-11-14, `roundtrip.yml` with `own_in_browser`):
+  Chromium ran the setup's code with the builder fixed in the app. Starting
+  the builder until it answered took 238 s, sealing 24 s, fetching 868 MiB
+  through Le Space's relay into the page 534 s, and uploading from the page
+  94 s, about 15 minutes in all. Both VMs of the round trip booted from that
+  image, and the backup was restored. A build paid through a Le Space
+  package has not run yet.
 - **The builder fixed in the app** (`BUILDER` in
   `pwa/src/lib/own-image.js`) was published on 2026-11-14 for the plain
   image `9c32bd…` (release image `e85b9c9a…`) and deleted again; its volumes
