@@ -76,6 +76,7 @@
 				imageInput = profile.rootfsItemHash ?? '';
 				ownerInput = profile.backupOwner ?? '';
 				crnInput = profile.crnHash ?? '';
+				imageKind = BUILDER && hasOwnImage(profile, BUILDER.plain.sha256) ? 'own' : 'public';
 				loaded = true;
 				await refresh();
 			})
@@ -223,8 +224,10 @@
 	const saveImage = () => run('image', async () => {
 		const image = imageInput.trim().toLowerCase();
 		const crn = crnInput.trim().toLowerCase();
-		if (!/^[0-9a-f]{64}$/.test(image)) throw new Error('Das Image ist ein 64-stelliger Hash.');
 		if (!/^[0-9a-f]{64}$/.test(crn)) throw new Error('Der Knoten ist ein 64-stelliger Hash.');
+		// With "Mein eigenes Image" the image and its passphrase come from the build.
+		if (BUILDER && imageKind === 'own') return void (await save({ crnHash: crn }));
+		if (!/^[0-9a-f]{64}$/.test(image)) throw new Error('Das Image ist ein 64-stelliger Hash.');
 		// A pasted passphrase may carry a stray space or line break; the guest only
 		// finds out when it opens the disk, and then waits without a word.
 		const pass = passInput.trim();
@@ -241,6 +244,10 @@
 	// the attested builder with a passphrase derived from the master secret
 	// (own-image.js). Shown only when a builder is fixed in the app.
 	let ownStep = $state('');
+	// Which image: the public one, whose passphrase Le Space and everyone using
+	// that version know, or this vault's own. Shown only when a builder is fixed.
+	/** @type {'public' | 'own'} */
+	let imageKind = $state('public');
 	const buildImage = () => run('own-image', async () => {
 		if (!BUILDER) return;
 		ownStep = '';
@@ -423,12 +430,23 @@
 		{:else if profile.backupConfig && !profile.backupsByCredits && !until(sessionUntil)}<p class="hint">Dafür braucht die VM den Sitzungsschlüssel aus Schritt {step.filecoin}.</p>{/if}
 
 		<h3>{step.image}. Paperless-anywhere-Image und Knoten</h3>
-		<label>Image (STORE-Hash, 64 Zeichen)<input bind:value={imageInput} placeholder="Image (STORE-Hash)" /></label>
-		<label>SEV-SNP-Knoten (Hash, 64 Zeichen)<input bind:value={crnInput} placeholder="SEV-SNP-Knoten (Hash)" /></label>
-		<label>Passphrase des Images<input bind:value={passInput} type="password" autocomplete="off" placeholder={profile.luksPassphrase ? `Passphrase hinterlegt, ${profile.luksPassphrase.length} Zeichen (leer lassen = behalten)` : 'Passphrase des Images'} /></label>
-		<button onclick={saveImage} disabled={busy === 'image'}>Image und Knoten speichern</button>
-		{@render feedback('image')}
 		{#if BUILDER}
+			<fieldset class="image-choice" data-testid="image-choice">
+				<legend>{$t.ownImage.choice.legend}</legend>
+				<label><input type="radio" bind:group={imageKind} value="public" data-testid="image-public" /> {$t.ownImage.choice.public}<br /><small>{$t.ownImage.choice.publicHint}</small></label>
+				<label><input type="radio" bind:group={imageKind} value="own" data-testid="image-own" /> {$t.ownImage.choice.own}<br /><small>{$t.ownImage.choice.ownHint}</small></label>
+			</fieldset>
+		{/if}
+		{#if !BUILDER || imageKind === 'public'}
+			<label>Image (STORE-Hash, 64 Zeichen)<input bind:value={imageInput} placeholder="Image (STORE-Hash)" /></label>
+		{/if}
+		<label>SEV-SNP-Knoten (Hash, 64 Zeichen)<input bind:value={crnInput} placeholder="SEV-SNP-Knoten (Hash)" /></label>
+		{#if !BUILDER || imageKind === 'public'}
+			<label>Passphrase des Images<input bind:value={passInput} type="password" autocomplete="off" placeholder={profile.luksPassphrase ? `Passphrase hinterlegt, ${profile.luksPassphrase.length} Zeichen (leer lassen = behalten)` : 'Passphrase des Images'} /></label>
+		{/if}
+		<button onclick={saveImage} disabled={busy === 'image'}>{!BUILDER || imageKind === 'public' ? 'Image und Knoten speichern' : 'Knoten speichern'}</button>
+		{@render feedback('image')}
+		{#if BUILDER && imageKind === 'own'}
 			<div class="own-image" data-testid="own-image">
 				<p class="hint">{$t.ownImage.intro.before}<code>{pwaAddress}</code>{$t.ownImage.intro.after}</p>
 				<details class="sources" data-testid="own-image-sources">
@@ -468,6 +486,8 @@
 	.sources summary { cursor: pointer; }
 	.sources dt { color: var(--text-2); margin-top: 0.5rem; }
 	.sources dd { margin: 0; overflow-wrap: anywhere; }
+	.image-choice { border: none; padding: 0; margin: 0 0 0.75rem; }
+	.image-choice label { display: block; margin: 0.25rem 0; }
 	.own-image { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--line); }
 	.self-pay { margin: 0.25rem 0 0.75rem; font-size: 0.95rem; color: var(--text-2); }
 	.self-pay summary { cursor: pointer; }

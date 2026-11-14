@@ -119,3 +119,16 @@ test('the evidence, the VM list and what a start needs follow the language switc
 	await expect(page.getByTestId('paperless-chip')).toHaveText('läuft');
 	await expect(summary).toContainText('Nachweis dieser VM');
 });
+
+test('a VM whose restore failed is deleted without a backup, never backed up and stopped', async ({ page }) => {
+	await open(page, { restore: { status: 'failed', reason: 'made-up reason' } });
+	await expect(page.getByTestId('simple-discard')).toHaveText('Löschen ohne Sicherung', { timeout: 30_000 });
+	await expect(page.getByTestId('simple-stop')).toHaveCount(0);
+	await expect(page.getByTestId('lifecycle')).toContainText('legt keine Sicherung an');
+	await page.getByTestId('app-lang-en').click();
+	await expect(page.getByTestId('simple-discard')).toHaveText('Delete without a backup');
+	await page.getByTestId('tab-advanced').click();
+	await expect(page.getByTestId('restore-failed')).toContainText('made-up reason');
+	await expect(page.getByTestId('discard')).toHaveText('Delete without a backup');
+	await expect(page.getByTestId('stop')).toHaveCount(0);
+});

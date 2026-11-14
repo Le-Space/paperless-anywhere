@@ -65,15 +65,23 @@ passphrase, so it may pass through a relay and lie on public storage.
 
 ## The step in the app
 
-In the setup, beside the image's hash and passphrase: **Mein Image bauen**
-(`pwa/src/lib/own-image.js`). The app
+In the setup, the image step asks which image (once a builder is fixed in
+the app):
+
+- **Das öffentliche Image von Le Space**: one passphrase per image version,
+  entered with the image's hash. Le Space knows it, and everyone using that
+  version.
+- **Mein eigenes Image**: **Mein Image bauen** (`pwa/src/lib/own-image.js`).
+  Nobody but your vault knows the passphrase.
+
+For the own image, the app
 
 1. derives the passphrase from the master secret, under its own label and
    the plain image's SHA-256, so the 24 words alone give it back;
 2. opens an attested channel to the builder and sends the build request;
 3. fetches the sealed image back and has the builder remove it. An attest
    relay carries 4 MiB per connection and direction, and a connection for
-   two minutes, so the image comes in runs of 3 MiB, four side by side, each
+   two minutes, so the image comes in runs of 3 MiB, three side by side, each
    over a connection of its own that is attested like the first. A run that
    breaks off is fetched again; a connection whose attestation does not
    show the builder's measurement ends the build;
@@ -87,7 +95,11 @@ If the upload fails, the fetched image stays in the open window: a second
 try uploads it again, and builds nothing.
 
 While Paperless runs, the step is disabled: a running VM belongs to the
-image it started from.
+image it started from. Moving a running Paperless to an image of its own:
+**Sichern und beenden**, build, start again; the start restores the newest
+backup. If that restore fails, the new VM makes no backup (see
+[the workflow](workflow.md#4-stop-last-backup-then-erase)) and the app offers
+only to delete it without one, so the last backup stays the newest.
 
 ## Why the VM can only start your image
 
@@ -234,12 +246,17 @@ docker run --rm --network none -v "$PWD/check-container.mjs:/opt/builder/check-c
 
 ## Before it goes live
 
-- **Fetching through a relay**: the app gets the sealed image in runs that
-  fit a relay's limits (tested against a stand-in with those limits). How
-  long nearly 900 MiB take that way, and how the attest relay reaches a
-  V-PROGRAM, is not measured yet.
-- **The upload from a browser** of an image of that size has not run yet.
-- The builder's **measurement**, its V-PROGRAM and the plain image are
-  **fixed in the app** (`BUILDER` in `pwa/src/lib/own-image.js`). The step
-  "Mein Image bauen" in the setup is written and shows up once they are.
+- **Measured** (2026-11-14, workflow *Paperless round trip* with an image
+  of its own): the app's code, run on a GitHub runner, had a published
+  builder seal the image, fetched 868 MiB through Le Space's relay in about
+  10 minutes (1.4 MiB/s, every connection attested) and uploaded it in under
+  a minute. A VM started from it, unlocked with the derived passphrase,
+  backed up, and a second VM from the same image restored that backup.
+- **The upload from a browser** of an image of that size has not run yet;
+  the measurement above ran the same code in Node.
+- **No builder is fixed in the app** (`BUILDER` in
+  `pwa/src/lib/own-image.js` is `null`), so the setup shows no choice of
+  image yet. A builder that runs all the time costs about 0.10 USD an hour;
+  one started for each build, from the same volumes and so with the same
+  measurement, is being looked into.
 - The landing page and the security model say so once all of this is true.

@@ -118,6 +118,14 @@ if [ ! -s "$secrets/backup_config" ]; then
   status skipped ',"reason":"no backup_config came with the unlock"'
   exit 0
 fi
+# A Paperless whose restore failed, or is still running, holds less than the
+# backup it came from. A backup of it would be the newest one, and the next
+# start would restore that instead. So none, neither the two-hourly check nor
+# a requested one nor the stop's last one: the app deletes such a VM without
+# a backup.
+if grep -qE '^\{"status":"(failed|running)"' "$state_dir/restore.json" 2>/dev/null; then
+  fail "no backup: the restore of this VM $(sed -n 's/^{"status":"\([a-z]*\)".*/\1/p' "$state_dir/restore.json")"
+fi
 # Le Space Credits sign for the VM (remoteSigner) with its backup key; the
 # wallet path signs with the wallet's session key.
 if python3 -c 'import json, sys; sys.exit(0 if isinstance(json.load(open(sys.argv[1])).get("remoteSigner"), dict) else 1)' "$secrets/backup_config" 2>/dev/null; then

@@ -7,7 +7,7 @@ const because = (/** @type {string | undefined} */ reason) => (reason ? `: ${rea
 export const ownImage = {
 	de: {
 		intro: {
-			before: 'Oder ein Image nur für diesen Tresor: Ein geprüfter Build-Dienst versiegelt das öffentliche Image mit einer Passphrase, die aus deinem Tresor abgeleitet wird. Die App prüft den Hardware-Nachweis des Dienstes, bevor sie die Passphrase schickt, holt das versiegelte Image in Stücken über ebenso geprüfte Verbindungen zurück und lädt es selbst zu Aleph hoch (knapp 900 MiB; das dauert und braucht eine stabile Verbindung). Das Image liegt danach bei Aleph auf der Adresse dieser App (',
+			before: 'Ein Image nur für diesen Tresor: Ein geprüfter Build-Dienst versiegelt das öffentliche Image mit einer Passphrase, die aus deinem Tresor abgeleitet wird. Die App prüft den Hardware-Nachweis des Dienstes, bevor sie die Passphrase schickt, holt das versiegelte Image in Stücken über ebenso geprüfte Verbindungen zurück und lädt es selbst zu Aleph hoch (knapp 900 MiB; das dauert und braucht eine stabile Verbindung). Das Image liegt danach bei Aleph auf der Adresse dieser App (',
 			after: '), die auch den Speicher bezahlt.'
 		},
 		sourcesFold: 'Woraus und womit wird gebaut?',
@@ -22,7 +22,14 @@ export const ownImage = {
 		have: (/** @type {string} */ date) => `Du nutzt dein eigenes Image, gebaut am ${date}.`,
 		build: 'Mein Image bauen',
 		rebuild: 'Mein Image neu bauen',
-		whileRunning: 'Erst wieder möglich, wenn Paperless gestoppt ist.',
+		whileRunning: 'Erst möglich, wenn Paperless gestoppt ist. Der Umzug einer laufenden Paperless: „Sichern und beenden“, hier bauen, neu starten; der Start stellt die neueste Sicherung wieder her. Scheitert das, legt die neue VM keine Sicherung an: Lösche sie ohne Sicherung, die letzte Sicherung bleibt die neueste.',
+		choice: {
+			legend: 'Welches Image?',
+			public: 'Das öffentliche Image von Le Space',
+			publicHint: 'Eine Passphrase je Image-Version: Le Space kennt sie, und alle, die diese Version nutzen.',
+			own: 'Mein eigenes Image',
+			ownHint: 'Eine Passphrase nur für diesen Tresor: Niemand sonst kennt sie, auch Le Space nicht.'
+		},
 		step: {
 			attest: 'Build-Dienst prüfen (AMD)',
 			build: 'Image wird versiegelt',
@@ -55,7 +62,7 @@ export const ownImage = {
 	},
 	en: {
 		intro: {
-			before: 'Or an image for this vault only: a verified build service seals the public image with a passphrase derived from your vault. The app checks the service\'s hardware attestation before it sends the passphrase, fetches the sealed image back in pieces over connections verified the same way, and uploads it to Aleph itself (just under 900 MiB; this takes a while and needs a stable connection). The image then lies on Aleph under this app\'s address (',
+			before: 'An image for this vault only: a verified build service seals the public image with a passphrase derived from your vault. The app checks the service\'s hardware attestation before it sends the passphrase, fetches the sealed image back in pieces over connections verified the same way, and uploads it to Aleph itself (just under 900 MiB; this takes a while and needs a stable connection). The image then lies on Aleph under this app\'s address (',
 			after: '), which also pays for the storage.'
 		},
 		sourcesFold: 'What is it built from, and by what?',
@@ -70,7 +77,14 @@ export const ownImage = {
 		have: (/** @type {string} */ date) => `You are using your own image, built on ${date}.`,
 		build: 'Build my image',
 		rebuild: 'Build my image again',
-		whileRunning: 'Possible again once Paperless is stopped.',
+		whileRunning: 'Possible once Paperless is stopped. To move a running Paperless: “Back up and stop”, build here, start again; the start restores the newest backup. If that fails, the new VM makes no backup: delete it without a backup, and the last backup stays the newest.',
+		choice: {
+			legend: 'Which image?',
+			public: 'The public image from Le Space',
+			publicHint: 'One passphrase per image version: Le Space knows it, and everyone using that version.',
+			own: 'My own image',
+			ownHint: 'A passphrase for this vault only: nobody else knows it, Le Space neither.'
+		},
 		step: {
 			attest: 'Checking the build service (AMD)',
 			build: 'Sealing the image',
