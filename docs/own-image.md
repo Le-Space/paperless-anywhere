@@ -288,6 +288,15 @@ second V-PROGRAM on a published builder's volumes showed the first one's
 measurement and sealed the real image
 ([#202](https://github.com/Le-Space/paperless-anywhere/issues/202)).
 
+**Who pays, for now:** the app's address, from its own Aleph credits.
+Aleph starts a V-PROGRAM only when its payer holds a day of everything it
+then pays for: the builder (about 2.05 million credits a day, measured
+2026-11-14), the image's storage and what the address already pays. The
+setup reads that before it offers **Mein Image bauen**; without enough
+credits it says so instead. A customer with a Le Space package has no
+credits on the app address and uses the public image until the package
+pays for builds (in preparation with Le Space Credits).
+
 The volumes (workload, plain image, their hash trees) stay published: they
 are what the measurement belongs to. Deleting a V-PROGRAM forgets the
 message only; the workflow's action **delete** with **forget_volumes** also

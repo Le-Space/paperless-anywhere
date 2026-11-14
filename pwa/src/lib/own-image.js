@@ -603,10 +603,13 @@ export async function buildOnOwnBuilder({ builder, opener, onStarted = () => {},
 	onProgress({ step: 'start', detail: tr().ownImage.step.start });
 	const message = await builderMessage(app, builder);
 	const vprogram = message.item_hash;
-	// Noted before it is sent: a window closed in between still finds it.
-	await onStarted(vprogram);
+	// Noted once Aleph took it: a V-PROGRAM Aleph refused (no credits) is
+	// nothing to forget, and a note of it would be tried again at every opening.
+	let accepted = false;
 	try {
 		await post(message);
+		accepted = true;
+		await onStarted(vprogram);
 		const running = { ...builder, route: `?crn=${builder.crn}&vm=${vprogram}`, vprogram };
 		const open = opener(running);
 		// The node starts the builder within minutes (about four, 2026-11-14):
@@ -624,7 +627,39 @@ export async function buildOnOwnBuilder({ builder, opener, onStarted = () => {},
 		const openFirst = () => (handed ? open() : ((handed = true), Promise.resolve(first)));
 		return await buildOwnImage({ ...rest, master, builder: running, open: openFirst });
 	} finally {
-		if (await forgetBuilder(app, vprogram, { post, sleep })) await onForgotten(vprogram);
+		if (accepted && (await forgetBuilder(app, vprogram, { post, sleep }))) await onForgotten(vprogram);
+	}
+}
+
+// Aleph starts a V-PROGRAM only when its payer holds a day of everything it
+// then pays for: the builder and what already runs (min_runtime_days: 1).
+// Measured 2026-11-14: the builder 23.75 credits a second (2,052,000 a day),
+// the STORE of a sealed image (868 MiB) 0.045 a second; used when Aleph's
+// price estimate cannot be asked.
+export const BUILDER_CREDITS_PER_HOUR = 85_500;
+export const IMAGE_STORE_CREDITS_PER_HOUR = 170;
+
+/**
+ * Whether `address` can pay a build now: its credits against a day of the
+ * builder, the image's storage and what the account already spends. Read
+ * only; null fields when Aleph could not be asked (the setup then offers the
+ * build, and Aleph's own answer decides).
+ * @param {{ address: string, signMessage: (a: { message: string }) => Promise<string> }} app
+ * @param {BuilderTemplate} builder
+ * @param {{ balance?: (address: string) => Promise<{ credits: number }>, running?: (address: string) => Promise<number>, estimate?: (message: any) => Promise<number | null> }} [deps]
+ * @returns {Promise<{ ok: boolean | null, need: number | null, have: number | null }>}
+ */
+export async function buildAffordable(app, builder, deps = {}) {
+	const balances = deps.balance && deps.running ? null : await import('./balances.js');
+	const balance = deps.balance ?? /** @type {any} */ (balances).alephBalance;
+	const running = deps.running ?? /** @type {any} */ (balances).runningCreditsPerHour;
+	const estimate = deps.estimate ?? (async (message) => (await import('./vm.js')).estimateCreditsPerHour(message));
+	try {
+		const [{ credits }, spending, perHour] = await Promise.all([balance(app.address), running(app.address), builderMessage(app, builder).then(estimate).catch(() => null)]);
+		const need = Math.ceil(((perHour ?? BUILDER_CREDITS_PER_HOUR) + IMAGE_STORE_CREDITS_PER_HOUR + spending) * 24);
+		return { ok: credits >= need, need, have: credits };
+	} catch {
+		return { ok: null, need: null, have: null };
 	}
 }
 

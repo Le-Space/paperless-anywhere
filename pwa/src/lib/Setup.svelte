@@ -9,7 +9,7 @@
 	import { findAttestRelays } from '$lib/relays.js';
 	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups } from '$lib/credits.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
-	import { BUILDER, buildOnOwnBuilder, buildOwnImage, builderOpener, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
+	import { BUILDER, buildAffordable, buildOnOwnBuilder, buildOwnImage, builderOpener, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
 	import { format, lang, t, tr } from '$lib/i18n/index.js';
 	import {
 		connectPayer,
@@ -238,6 +238,15 @@
 	/** @type {'public' | 'own'} */
 	let imageKind = $state('public');
 	const publicImage = $derived(!BUILDER || imageKind === 'public');
+	// Whether the app address can pay a build now (a day of the builder, the
+	// image's storage and what it already pays): the build is offered only
+	// then. Unknown (Aleph not asked) offers it, and Aleph's answer decides.
+	/** @type {{ ok: boolean | null, need: number | null, have: number | null } | null} */
+	let affordable = $state(null);
+	$effect(() => {
+		if (!BUILDER || imageKind !== 'own' || !loaded || affordable) return;
+		buildAffordable(privateKeyToAccount(alephPrivateKey(master)), /** @type {any} */ (BUILDER)).then((a) => (affordable = a));
+	});
 	const ownBuilt = $derived(Boolean(BUILDER && hasOwnImage(profile, BUILDER.plain.sha256)));
 	// Back to the public image after an own one: its hash and passphrase are
 	// entered anew, not the own image's kept under the other name.
@@ -465,7 +474,9 @@
 					</dl>
 				</details>
 				{#if ownBuilt}<p class="saved" data-testid="own-image-have">{$t.ownImage.have(format.date(profile.ownImage.builtAt, undefined, $lang))}</p>{/if}
-				<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{ownBuilt ? $t.ownImage.rebuild : $t.ownImage.build}</button>
+				{#if affordable === null}<p class="hint" data-testid="own-image-checking">{$t.ownImage.choice.checking}</p>
+				{:else if affordable.ok === false}<p class="warn" data-testid="own-image-needs-credits">{$t.ownImage.choice.needsCredits(format.number(affordable.need ?? 0, undefined, $lang), format.number(affordable.have ?? 0, undefined, $lang))}</p>
+				{:else}<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{ownBuilt ? $t.ownImage.rebuild : $t.ownImage.build}</button>{/if}
 				{#if profile.running}<p class="hint">{$t.ownImage.whileRunning}</p>{/if}
 				{#if busy === 'own-image' && ownStep}<p class="hint" role="status" data-testid="own-image-step">{ownStep} …</p>{/if}
 				{@render feedback('own-image')}

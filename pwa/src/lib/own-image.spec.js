@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { recoverMessageAddress } from 'viem';
 import { imagePassphrase } from './keys/derive.js';
-import { BUILDER, BuilderError, LANES, PIECE_BYTES, RUN_BYTES, buildOnOwnBuilder, buildOwnImage, builderMessage, builderOpener, checkBuilder, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources, storeMessage } from './own-image.js';
+import { BUILDER, BUILDER_CREDITS_PER_HOUR, BuilderError, IMAGE_STORE_CREDITS_PER_HOUR, LANES, PIECE_BYTES, RUN_BYTES, buildAffordable, buildOnOwnBuilder, buildOwnImage, builderMessage, builderOpener, checkBuilder, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources, storeMessage } from './own-image.js';
 import { sha256Hex } from './vm.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -446,8 +446,8 @@ describe('a builder started for each build', () => {
 		const vprogram = sent[0].hash;
 		expect(sent.map((m) => m.type)).toEqual(['V-PROGRAM', 'FORGET']);
 		expect(sent[1].content.hashes).toEqual([vprogram]);
-		// Noted before it was sent, cleared once it is forgotten.
-		expect(noted).toEqual([['started', vprogram, 0], ['forgotten', vprogram]]);
+		// Noted once Aleph took it, cleared once it is forgotten.
+		expect(noted).toEqual([['started', vprogram, 1], ['forgotten', vprogram]]);
 		expect(routed).toMatchObject({ route: `?crn=${crn}&vm=${vprogram}`, vprogram, measurements: builder.measurements });
 		expect(tries).toBeGreaterThanOrEqual(3);
 		expect(seen.calls[0]).toMatchObject({ method: 'POST', path: '/build' });
@@ -472,13 +472,33 @@ describe('a builder started for each build', () => {
 		expect(refused.sent.map((m) => m.type)).toEqual(['V-PROGRAM', 'FORGET']);
 	});
 
-	it('tries to forget it when Aleph did not take it, and keeps the note while the FORGET fails', async () => {
-		const { sent, post } = fakeAleph({ refuse: ['V-PROGRAM', 'FORGET'] });
+	it('notes nothing and forgets nothing when Aleph refuses the V-PROGRAM (no credits)', async () => {
+		const { sent, post } = fakeAleph({ refuse: ['V-PROGRAM'] });
 		const noted = [];
 		await expect(buildOnOwnBuilder({ master, app, builder: template, post, ...quick(), opener: () => async () => ({}), onStarted: () => void noted.push('started'), onForgotten: () => void noted.push('forgotten') })).rejects.toThrow('refused');
-		expect(sent[0].type).toBe('V-PROGRAM');
-		expect(sent.slice(1).every((m) => m.type === 'FORGET')).toBe(true);
+		expect(sent.map((m) => m.type)).toEqual(['V-PROGRAM']);
+		expect(noted).toEqual([]);
+	});
+
+	it('keeps the note while the FORGET fails', async () => {
+		const { sent, post } = fakeAleph({ refuse: ['FORGET'] });
+		const noted = [];
+		const { open } = fakeBuilder();
+		const { store } = fakeStore();
+		await buildOnOwnBuilder({ master, app, builder: template, store, post, ...quick(), opener: () => open, onStarted: () => void noted.push('started'), onForgotten: () => void noted.push('forgotten') });
+		expect(sent.filter((m) => m.type === 'FORGET').length).toBeGreaterThan(1);
 		expect(noted).toEqual(['started']);
+	});
+
+	it('offers a build only when the app address holds a day of the builder, the image and what it already pays', async () => {
+		const day = (perHour) => Math.ceil((perHour + IMAGE_STORE_CREDITS_PER_HOUR + 1000) * 24);
+		const deps = (credits, perHour) => ({ balance: async () => ({ credits }), running: async () => 1000, estimate: async () => perHour });
+		expect(await buildAffordable(app, template, deps(0, 85_500))).toEqual({ ok: false, need: day(85_500), have: 0 });
+		expect(await buildAffordable(app, template, deps(day(85_500), 85_500))).toMatchObject({ ok: true });
+		// Aleph's estimate unreadable: the measured rate.
+		expect((await buildAffordable(app, template, deps(0, null))).need).toBe(day(BUILDER_CREDITS_PER_HOUR));
+		// The balance unreadable: unknown, the setup offers the build and Aleph decides.
+		expect(await buildAffordable(app, template, { balance: async () => { throw new Error('down'); }, running: async () => 0, estimate: async () => 1 })).toEqual({ ok: null, need: null, have: null });
 	});
 
 	it('starts none when this window already holds the sealed image, and forgets one a closed window left', async () => {
