@@ -197,8 +197,22 @@ export async function pickNode({ load = () => loadTeeNodes() } = {}) {
 	return node.hash;
 }
 
-/** What a start needs from the profile; throws with a reason a person can act on. */
-export function startRequirements(profile) {
+/**
+ * Whether the start builds this vault's own image first: a builder is fixed
+ * in the app, Le Space pays (a package or a voucher, which pays or includes
+ * the build) and the profile has no image at all (a new Paperless; Nico's
+ * decision of 2026-11-15). An image entered by hand is never replaced, and a
+ * wallet or the app's address paying is left to the setup's own button.
+ * @param {Record<string, any>} profile @param {unknown} builder
+ */
+export const buildsImageFirst = (profile, builder) => Boolean(builder) && Boolean(profile?.leSpacePays) && !profile?.rootfsItemHash && !profile?.luksPassphrase;
+
+/**
+ * What a start needs from the profile; throws with a reason a person can act on.
+ * @param {Record<string, any>} profile
+ * @param {{ buildsImage?: boolean }} [o] the start builds the own image first, so image and passphrase come from it
+ */
+export function startRequirements(profile, { buildsImage = false } = {}) {
 	const m = tr().life.missing;
 	const missing = [];
 	// The wallet pays the VM, or only the backups when the app pays (appPays).
@@ -208,8 +222,8 @@ export function startRequirements(profile) {
 	if (!profile.payer && profile.backupConfig && !profile.backupsByCredits) missing.push(m.backupWallet);
 	const signerNetwork = profile.network === 'mainnet' ? 'mainnet' : 'calibration';
 	if (profile.backupConfig && profile.backupsByCredits && (!profile.backupSigner?.payer || profile.backupSigner.network !== signerNetwork)) missing.push(m.backupSigner);
-	if (!profile.rootfsItemHash) missing.push(m.image);
-	if (!profile.luksPassphrase) missing.push(m.passphrase);
+	if (!profile.rootfsItemHash && !buildsImage) missing.push(m.image);
+	if (!profile.luksPassphrase && !buildsImage) missing.push(m.passphrase);
 	else if (!passphraseFitsImage(profile)) missing.push(m.passphraseOther);
 	// No node fixed: the start picks one with room (pickNode).
 	// The guest backs up a primary to mainnet only and refuses any other network.

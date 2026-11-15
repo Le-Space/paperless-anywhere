@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyCustomerDefaults, CUSTOMER_PLACES, customerDefaults, undecided } from './customer-defaults.js';
 import { ageIdentityFromMaster, ageRecipient } from './keys/age.js';
-import { pickNode, startRequirements } from './lifecycle.js';
+import { buildsImageFirst, pickNode, startRequirements } from './lifecycle.js';
 
 const master = new Uint8Array(32).fill(3);
 const vaultAge = ageIdentityFromMaster(master);
@@ -40,6 +40,14 @@ describe('defaults for a Paperless Le Space pays for', () => {
 		expect(s.get()).toMatchObject({ leSpacePays: true, backupsByCredits: true, backupSigner: { payer: signer.payer, network: 'mainnet' } });
 		// Nothing but the image is missing: no payer, no wallet, no node, no key.
 		expect(startRequirements(s.get())).toEqual(['Paperless-Image', 'Image-Passphrase']);
+		// With a builder in the app the start builds the image first: nothing is missing.
+		expect(buildsImageFirst(s.get(), { program: {} })).toBe(true);
+		expect(startRequirements(s.get(), { buildsImage: true })).toEqual([]);
+		// An image entered by hand, or no builder: no build at the start.
+		expect(buildsImageFirst({ rootfsItemHash: 'a'.repeat(64) }, { program: {} })).toBe(false);
+		expect(buildsImageFirst({}, null)).toBe(false);
+		// Not when a wallet or the app's address pays: the setup builds on request there.
+		expect(buildsImageFirst({ payer: '0x0000000000000000000000000000000000000001' }, { program: {} })).toBe(false);
 		// A second time changes nothing.
 		expect(await applyCustomerDefaults(master, { network: 'mainnet' }, { load: s.load, update: s.update, authorize: async () => signer })).toBe(false);
 	});

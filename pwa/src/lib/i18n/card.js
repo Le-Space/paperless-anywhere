@@ -18,7 +18,8 @@ export const card = {
 			waitCredit: 'Warte, bis Aleph die Gutschrift zeigt',
 			lookBackups: 'Sicherungen nachsehen',
 			restart: 'Paperless-ngx wieder starten',
-			pickNode: 'Freien vertraulichen Knoten suchen'
+			pickNode: 'Freien vertraulichen Knoten suchen',
+			buildImage: 'Eigenes Image bauen (etwa 15 Minuten, Fenster offen lassen)'
 		},
 		errors: {
 			noNode: 'Gerade hat kein vertraulicher Knoten Platz für deine VM. In ein paar Minuten noch einmal starten.',
@@ -54,6 +55,7 @@ export const card = {
 		simple: {
 			startTakes: (/** @type {string} */ time) => `Der Start dauert etwa ${time}.`,
 			keepOpenStart: 'Lass dieses Fenster offen, bis Paperless-ngx bereit ist.',
+			firstBuild: 'Beim ersten Start wird zuerst dein eigenes Image gebaut: etwa 15 Minuten länger, und das Fenster muss so lange offen bleiben.',
 			keepOpenStop: 'Erst die Sicherung, dann geht die Maschine aus. Lass dieses Fenster offen.',
 			interruptedCosts: 'Die Maschine läuft schon und kostet, bis sie fertig gestartet ist.',
 			lastAtStop: 'Letzte Sicherung beim Beenden',
@@ -148,7 +150,8 @@ export const card = {
 			waitCredit: 'Waiting until Aleph shows the credit',
 			lookBackups: 'Looking up the backups',
 			restart: 'Starting Paperless-ngx again',
-			pickNode: 'Looking for a confidential node with room'
+			pickNode: 'Looking for a confidential node with room',
+			buildImage: 'Building your own image (about 15 minutes, keep the window open)'
 		},
 		errors: {
 			noNode: 'No confidential node has room for your VM right now. Start again in a few minutes.',
@@ -184,6 +187,7 @@ export const card = {
 		simple: {
 			startTakes: (/** @type {string} */ time) => `A start takes about ${time}.`,
 			keepOpenStart: 'Keep this window open until Paperless-ngx is ready.',
+			firstBuild: 'The first start builds your own image first: about 15 minutes longer, and the window has to stay open for it.',
 			keepOpenStop: 'First the backup, then the machine goes off. Keep this window open.',
 			interruptedCosts: 'The machine is already running and costs until it has finished starting.',
 			lastAtStop: 'Last backup at the stop',
