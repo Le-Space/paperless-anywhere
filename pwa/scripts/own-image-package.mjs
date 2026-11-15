@@ -29,8 +29,11 @@ import { relayTransports } from '../src/lib/attest-p2p.js';
 import { findAttestRelays } from '../src/lib/relays.js';
 
 const { PACKAGE_PHRASE = '', PACKAGE_PLAN = '', PACKAGE_RESULT = '' } = process.env;
-const phrase = PACKAGE_PHRASE.trim().split(/\s+/).join(' ');
-if (phrase.split(' ').length !== 24) throw new Error('PACKAGE_PHRASE: 24 words');
+// The words as the app shows them may come with their numbers, commas or
+// line breaks: only the words count. Never printed, only how many there are.
+const words = PACKAGE_PHRASE.toLowerCase().match(/[a-z]+/g) ?? [];
+if (words.length !== 24) throw new Error(`PACKAGE_PHRASE: 24 words expected, found ${words.length}`);
+const phrase = words.join(' ');
 
 const t0 = Date.now();
 const at = () => Math.round((Date.now() - t0) / 1000);
