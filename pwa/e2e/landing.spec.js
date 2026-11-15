@@ -27,7 +27,7 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(h1.locator('.word')).toHaveText(['ausfallsicher.', 'vertraulich.', 'nach deinem Takt.']);
 	await expect(page.locator('.hero .kicker')).toHaveText('Dezentral · vertraulich · nachprüfbar');
 	await expect(page.locator('.points h3')).toHaveText(['Ausfallsicher', 'Vertraulich und nachprüfbar', 'Rund um die Uhr oder nach Gebrauch']);
-	await expect(page).toHaveTitle('Paperless anywhere – ausfallsicher, vertraulich, nach deinem Takt');
+	await expect(page).toHaveTitle('Paperless-ngx vertraulich gehostet – Paperless anywhere');
 	await expect(page.locator('#nodes')).toContainText('2 TEE-Knoten, 1 davon mit Platz');
 	// Resilience, with the live numbers and without claiming more than is true.
 	await expect(page.locator('#nodes h2')).toHaveText('Ausfallsicher: kein einzelnes Rechenzentrum');
@@ -109,9 +109,23 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.getByTestId('state')).toHaveText('new');
 });
 
+test('search engines find a robots.txt, a sitemap with both languages, and leave the app out', async ({ request }) => {
+	const robots = await (await request.get('/robots.txt')).text();
+	expect(robots).toContain('Sitemap: https://paperless.le-space.de/sitemap.xml');
+	const sitemap = await (await request.get('/sitemap.xml')).text();
+	for (const loc of ['https://paperless.le-space.de/', 'https://paperless.le-space.de/en/', 'https://paperless.le-space.de/lizenzen/']) expect(sitemap).toContain(`<loc>${loc}</loc>`);
+	expect(sitemap).toContain('hreflang="en" href="https://paperless.le-space.de/en/"');
+	const app = await (await request.get('/app/')).text();
+	expect(app).toContain('<meta name="robots" content="noindex" />');
+	const home = await (await request.get('/')).text();
+	expect(home).not.toContain('name="robots"');
+	const licences = await (await request.get('/lizenzen/')).text();
+	for (const tag of ['og:image', 'twitter:card', 'twitter:image']) expect(licences).toMatch(new RegExp(`(property|name)="${tag}"`));
+});
+
 test('link previews find title, description and image in the HTML itself, without scripts', async ({ request }) => {
 	const html = await (await request.get('/')).text();
-	expect(html).toContain('<title>Paperless anywhere – ausfallsicher, vertraulich, nach deinem Takt</title>');
+	expect(html).toContain('<title>Paperless-ngx vertraulich gehostet – Paperless anywhere</title>');
 	for (const tag of ['og:title', 'og:description', 'og:url', 'og:image', 'og:image:alt', 'twitter:card', 'twitter:image']) expect(html).toMatch(new RegExp(`(property|name)="${tag}"`));
 	expect(html).toContain('content="https://paperless.le-space.de/og.png?v=4"');
 	expect(html).toContain('rel="manifest"');
@@ -283,8 +297,8 @@ test('the FAQ says what the own device has to do with it, with what to do and a 
 // A shared link shows the preview of the language it points to: crawlers run
 // no scripts, so each address carries its own language in the HTML itself.
 for (const page_ of [
-	{ path: '/', lang: 'de', url: 'https://paperless.le-space.de/', title: 'Paperless anywhere – ausfallsicher, vertraulich, nach deinem Takt', description: /^Paperless anywhere läuft ausfallsicher/, locale: 'de_DE', alternate: 'en_US', image: 'https://paperless.le-space.de/og.png?v=4', alt: /ein Angebot von Le Space/, h1: 'Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt.' },
-	{ path: '/en/', lang: 'en', url: 'https://paperless.le-space.de/en/', title: 'Paperless anywhere – resilient, confidential, on your schedule', description: /^Paperless anywhere runs resilient/, locale: 'en_US', alternate: 'de_DE', image: 'https://paperless.le-space.de/og-en.png?v=1', alt: /offered by Le Space: Resilient\./, h1: 'Paperless anywhere runs resilient, confidential and on your schedule.' }
+	{ path: '/', lang: 'de', url: 'https://paperless.le-space.de/', seoTitle: 'Paperless-ngx vertraulich gehostet – Paperless anywhere', seoDescription: /^Paperless-ngx in einer vertraulichen VM/, title: 'Paperless anywhere – ausfallsicher, vertraulich, nach deinem Takt', description: /^Paperless anywhere läuft ausfallsicher/, locale: 'de_DE', alternate: 'en_GB', faq: 'Gehört Paperless anywhere zum Projekt Paperless-ngx?', image: 'https://paperless.le-space.de/og.png?v=4', alt: /ein Angebot von Le Space/, h1: 'Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt.' },
+	{ path: '/en/', lang: 'en', url: 'https://paperless.le-space.de/en/', seoTitle: 'Confidential Paperless-ngx hosting – Paperless anywhere', seoDescription: /^Paperless-ngx in a confidential VM/, title: 'Paperless anywhere – resilient, confidential, on your schedule', description: /^Paperless anywhere runs resilient/, locale: 'en_GB', alternate: 'de_DE', faq: 'Is Paperless anywhere part of the Paperless-ngx project?', image: 'https://paperless.le-space.de/og-en.png?v=1', alt: /offered by Le Space: Resilient\./, h1: 'Paperless anywhere runs resilient, confidential and on your schedule.' }
 ]) {
 	test(`without JavaScript, ${page_.path} carries its own language in title, description and preview`, async ({ browser }) => {
 		const context = await browser.newContext({ javaScriptEnabled: false, locale: 'fr-FR' });
@@ -292,8 +306,9 @@ for (const page_ of [
 		await page.goto(page_.path);
 		const meta = (key) => page.locator(`meta[property="${key}"], meta[name="${key}"]`);
 		await expect(page.locator('html')).toHaveAttribute('lang', page_.lang);
-		await expect(page).toHaveTitle(page_.title);
-		await expect(meta('description')).toHaveAttribute('content', page_.description);
+		// Search engines get the words people search for; link previews the tagline.
+		await expect(page).toHaveTitle(page_.seoTitle);
+		await expect(meta('description')).toHaveAttribute('content', page_.seoDescription);
 		await expect(meta('og:title')).toHaveAttribute('content', page_.title);
 		await expect(meta('og:description')).toHaveAttribute('content', page_.description);
 		await expect(meta('og:url')).toHaveAttribute('content', page_.url);
@@ -309,6 +324,14 @@ for (const page_ of [
 		await expect(page.locator('link[rel="alternate"][hreflang="de"]')).toHaveAttribute('href', 'https://paperless.le-space.de/');
 		await expect(page.locator('link[rel="alternate"][hreflang="en"]')).toHaveAttribute('href', 'https://paperless.le-space.de/en/');
 		await expect(page.locator('link[rel="alternate"][hreflang="x-default"]')).toHaveAttribute('href', 'https://paperless.le-space.de/');
+		// Structured data in the HTML itself: who offers it, the site, the app, the FAQ in this language.
+		const ld = JSON.parse(await page.locator('script[type="application/ld+json"]').textContent());
+		const types = ld['@graph'].map((n) => n['@type']);
+		expect(types).toEqual(['Organization', 'WebSite', 'WebApplication', 'FAQPage']);
+		const faq = ld['@graph'][3];
+		expect(faq.inLanguage).toBe(page_.lang);
+		expect(faq.mainEntity[0].name).toBe(page_.faq);
+		expect(faq.mainEntity.every((q) => q.acceptedAnswer.text.length > 20)).toBe(true);
 		// The page itself is in that language too, whatever the browser's is.
 		await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName(page_.h1);
 		await expect(page.getByTestId('lang-de')).toHaveAttribute('href', '/');
