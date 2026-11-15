@@ -23,7 +23,7 @@
 	} from '$lib/permissions.js';
 
 	/** @type {{ master: Uint8Array, onsaved?: () => void }} */
-	let { master, onsaved = () => {} } = $props();
+	let { master, version = 0, onsaved = () => {} } = $props();
 	const x = $derived($t.setup);
 
 	const pwaAddress = privateKeyToAccount(alephPrivateKey(master)).address;
@@ -69,6 +69,22 @@
 			sessionUntil = await sessionKeyExpiry(profile.payer, sessionAddress, profile.network ?? 'calibration').catch(() => 0n);
 		}
 	}
+
+	// Changed elsewhere (defaults set by the package card, another view): the
+	// stored values again, without touching what is typed or a running build.
+	let seenVersion = version;
+	$effect(() => {
+		const v = version;
+		if (!loaded || v === seenVersion) return;
+		seenVersion = v;
+		if (busy) return;
+		loadProfile(master)
+			.then(async (p) => {
+				profile = { network: 'calibration', ...p };
+				await refresh();
+			})
+			.catch(() => {});
+	});
 
 	$effect(() => {
 		loadProfile(master)
@@ -336,23 +352,15 @@
 	{#if !loaded}
 		<p>{x.loading}</p>
 	{:else}
-		<label>
-			{x.network.label}
-			<select value={profile.network} onchange={(e) => changeNetwork(e.currentTarget.value)} disabled={busy === 'wallet'}>
-				<option value="calibration">{x.network.test}</option>
-				<option value="mainnet">{x.network.main}</option>
-			</select>
-		</label>
-
-		<fieldset class="role" disabled={busy === 'role'} data-testid="role">
-			<legend>{x.role.legend}</legend>
-			<label><input type="radio" name="role" value="test" checked={profile.role !== 'primary'} onchange={() => setRole('test')} data-testid="role-test" /> {x.role.test}</label>
-			<label><input type="radio" name="role" value="primary" checked={profile.role === 'primary'} onchange={(e) => setRole('primary', e.currentTarget)} data-testid="role-primary" /> {x.role.primary}</label>
-			{#if profile.role === 'primary'}
-				<p class="warn" data-testid="role-warning">{x.role.warning}{#if profile.network !== 'mainnet'}{x.role.needsMainnet}{/if}</p>
-			{/if}
-		</fieldset>
-		{@render feedback('network')}{@render feedback('role')}
+		{#if profile.leSpacePays}
+			<!-- Le Space pays: one instance, on the service's network. Network and role stay reachable, folded. -->
+			<details class="dev" data-testid="dev-fold">
+				<summary>{x.devFold(profile.network === 'mainnet' ? x.network.main : x.network.test)}</summary>
+				{@render networkRole()}
+			</details>
+		{:else}
+			{@render networkRole()}
+		{/if}
 
 		<h3>{x.pays.title(step.pays)}</h3>
 		<fieldset class="payer-choice" disabled={busy === 'pays'}>
@@ -447,7 +455,7 @@
 		<label class="check">
 			<input type="checkbox" data-testid="backups-on" checked={!!profile.backupConfig} disabled={busy === 'backups' || (!profile.backupConfig && profile.network === 'mainnet' && profile.role !== 'primary')}
 				onchange={(e) => toggleBackups(e.currentTarget.checked)} />
-			{x.backups.on.before(profile.network === 'mainnet')}<code>{BACKUP_LABEL[profile.network === 'mainnet' ? 'mainnet' : 'calibration']}</code>{x.backups.on.after}
+			<span>{x.backups.on.before(profile.network === 'mainnet')}<code>{BACKUP_LABEL[profile.network === 'mainnet' ? 'mainnet' : 'calibration']}</code>{x.backups.on.after}</span>
 		</label>
 		{#if profile.backupConfig}
 			<BackupPlaces network={profile.network} payer={profile.backupOwner || (profile.backupsByCredits ? '' : profile.payer)} config={profile.backupConfig} busy={busy === 'places'} onsave={savePlaces} />
@@ -508,6 +516,26 @@
 	{#if error && !errorKey}<p class="error" role="alert">{error}</p>{/if}
 </section>
 
+{#snippet networkRole()}
+	<label>
+		{x.network.label}
+		<select value={profile.network} onchange={(e) => changeNetwork(e.currentTarget.value)} disabled={busy === 'wallet'}>
+			<option value="calibration">{x.network.test}</option>
+			<option value="mainnet">{x.network.main}</option>
+		</select>
+	</label>
+
+	<fieldset class="role" disabled={busy === 'role'} data-testid="role">
+		<legend>{x.role.legend}</legend>
+		<label><input type="radio" name="role" value="test" checked={profile.role !== 'primary'} onchange={() => setRole('test')} data-testid="role-test" /> {x.role.test}</label>
+		<label><input type="radio" name="role" value="primary" checked={profile.role === 'primary'} onchange={(e) => setRole('primary', e.currentTarget)} data-testid="role-primary" /> {x.role.primary}</label>
+		{#if profile.role === 'primary'}
+			<p class="warn" data-testid="role-warning">{x.role.warning}{#if profile.network !== 'mainnet'}{x.role.needsMainnet}{/if}</p>
+		{/if}
+	</fieldset>
+	{@render feedback('network')}{@render feedback('role')}
+{/snippet}
+
 {#snippet feedback(/** @type {string} */ key)}
 	{#if error && errorKey === key}<p class="error" role="alert" data-testid={`error-${key}`}>{error}</p>
 	{:else if savedKey === key}<p class="saved" data-testid={`saved-${key}`}>{x.saved}</p>{/if}
@@ -518,6 +546,8 @@
 	.sources summary { cursor: pointer; }
 	.sources dt { color: var(--text-2); margin-top: 0.5rem; }
 	.sources dd { margin: 0; overflow-wrap: anywhere; }
+	.dev { margin: 0.25rem 0 0.75rem; }
+	.dev summary { cursor: pointer; color: var(--text-2); }
 	.image-choice { border: none; padding: 0; margin: 0 0 0.75rem; }
 	.image-choice label { display: block; margin: 0.25rem 0; }
 	/* The radio before its label, not stretched above it like the text inputs. */

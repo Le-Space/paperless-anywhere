@@ -289,7 +289,7 @@
 					</section>
 				{/if}
 				<div class="life" id="paperless"><Lifecycle {master} {simple} version={profileVersion} onchange={() => profileVersion++} onadvanced={openSetup} onmissing={(m) => { missing = m; if (m.length) setupOpen = true; }} onglance={(g) => (life = g)} onbusy={(b) => (acting = b)} /></div>
-				{#if CREDITS_URL}<div class="pkg" id="paket"><Package {master} version={profileVersion} onglance={(g) => (pkg = g)} /></div>{/if}
+				{#if CREDITS_URL}<div class="pkg" id="paket"><Package {master} version={profileVersion} onglance={(g) => (pkg = g)} onprofile={() => profileVersion++} /></div>{/if}
 			</div>
 		{/if}
 		<!-- "Technisch" (#105): what the everyday use does not need, folded, one
@@ -322,7 +322,7 @@
 				</details>
 				<details class="part" bind:open={setupOpen} data-testid="tech-setup">
 					<summary><span>{$t.app.tech.setup}</span><span class="chip" class:warn={missing.length > 0}>{missing.length ? $t.app.tech.missing : $t.app.tech.complete}</span></summary>
-					<Setup {master} onsaved={() => profileVersion++} />
+					<Setup {master} version={profileVersion} onsaved={() => profileVersion++} />
 				</details>
 			{/if}
 		</section>

@@ -15,10 +15,11 @@
 	import HourQuote from '$lib/HourQuote.svelte';
 	import { hourPurchase, purchaseLocked } from '$lib/purchase.js';
 	import { preparing } from '$lib/purchase-step.js';
+	import { applyCustomerDefaults } from '$lib/customer-defaults.js';
 	import { format, lang, t, tr } from '$lib/i18n/index.js';
 
 	/** @type {{ master: Uint8Array, version?: number, onglance?: (g: { plan: boolean, hoursLeft: number | null, pays: string | null, low: boolean } | null) => void }} */
-	let { master, version = 0, onglance = () => {} } = $props();
+	let { master, version = 0, onglance = () => {}, onprofile = () => {} } = $props();
 
 	/** @type {Awaited<ReturnType<typeof creditsBalance>>} */
 	let balance = $state(null);
@@ -49,6 +50,7 @@
 		.then((c) => {
 			if (c?.plans.length) plans = c.plans;
 			backupOffer = c?.backup ?? null;
+			catalogNetwork = c?.network ?? null;
 			voucherOffered = c?.voucherOffered === true;
 		})
 		.catch(() => {});
@@ -122,6 +124,17 @@
 	const perWeek = (/** @type {number} */ hours) => x.perWeek(hoursPerWeek(hours));
 	const share = $derived(current && hoursLeft != null ? Math.min(1, hoursLeft / current.hours) : null);
 
+	// The network the service backs up on, for the defaults of a Paperless it pays for.
+	/** @type {string | null} */
+	let catalogNetwork = $state(null);
+	// A plan or a voucher's period runs and nobody has set this Paperless up:
+	// it gets the defaults (customer-defaults.js), once.
+	let defaultsTried = false;
+	$effect(() => {
+		if (defaultsTried || !balance?.plan || !catalogNetwork) return;
+		defaultsTried = true;
+		applyCustomerDefaults(master, { network: catalogNetwork }).then((changed) => changed && onprofile()).catch(() => {});
+	});
 	async function read() {
 		await Promise.all([
 			creditsBalance(master).then((b) => ((balance = b), (balanceError = ''))).catch((e) => ((balance = null), (balanceError = e.message))),

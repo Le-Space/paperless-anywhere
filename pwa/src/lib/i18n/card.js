@@ -17,9 +17,11 @@ export const card = {
 			buyHours: 'Le Space Credits: Stunden kaufen',
 			waitCredit: 'Warte, bis Aleph die Gutschrift zeigt',
 			lookBackups: 'Sicherungen nachsehen',
-			restart: 'Paperless-ngx wieder starten'
+			restart: 'Paperless-ngx wieder starten',
+			pickNode: 'Freien vertraulichen Knoten suchen'
 		},
 		errors: {
+			noNode: 'Gerade hat kein vertraulicher Knoten Platz für deine VM. In ein paar Minuten noch einmal starten.',
 			noDelegation: 'Aleph zeigt die Freigabe von Le Space noch nicht. In ein paar Minuten noch einmal starten.',
 			gapOpen: 'Der Start wartet auf deine Bestätigung: die letzte bekannte Sicherung würde nicht eingespielt.',
 			creditNotSeen: 'Die Gutschrift ist bei Aleph noch nicht zu sehen. In ein paar Minuten noch einmal starten – nicht noch einmal kaufen, sonst werden die Stunden doppelt gekauft.'
@@ -145,9 +147,11 @@ export const card = {
 			buyHours: 'Le Space Credits: buying hours',
 			waitCredit: 'Waiting until Aleph shows the credit',
 			lookBackups: 'Looking up the backups',
-			restart: 'Starting Paperless-ngx again'
+			restart: 'Starting Paperless-ngx again',
+			pickNode: 'Looking for a confidential node with room'
 		},
 		errors: {
+			noNode: 'No confidential node has room for your VM right now. Start again in a few minutes.',
 			noDelegation: 'Aleph does not show Le Space’s approval yet. Start again in a few minutes.',
 			gapOpen: 'The start is waiting for your confirmation: the last known backup would not be restored.',
 			creditNotSeen: 'The credit does not show on Aleph yet. Start again in a few minutes – do not buy again, or the hours are bought twice.'

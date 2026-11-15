@@ -19,7 +19,7 @@ const RECEIVED_AT = '2026-11-11T10:15:00.000Z';
 const PAYER = '0x' + '5'.repeat(40);
 const OFFER = { month_credits: 150, month_price_cents: 150, year_price_cents: 1800, year_days: 365, copies: 3, quota_gib: 32, retention_days: 30 };
 // `backup`: null (the service pays no backups), 'none', 'line', 'paid', 'soon', 'week', 'ended' or 'over'.
-let state = { plan: true, cancelled: false, withdrawable: false, backup: null, offered: false, included: false, vouchers: false, termsDue: false, voucherRunning: false, voucherGranted: false };
+let state = { plan: true, cancelled: false, withdrawable: false, backup: null, offered: false, included: false, vouchers: false, termsDue: false, voucherRunning: false, voucherGranted: false, network: null };
 // With `included`, the packages offered carry the backup in their price (le-space-credits#72).
 const PACKAGES_INCLUDED = [{ id: 'paperless-15-backup', hours: 15, price_credits: 640, backup_included: true }, { id: 'paperless-100-backup', hours: 100, price_credits: 1640, backup_included: true }, { id: 'paperless-always-backup', hours: 730, price_credits: 9050, backup_included: true }];
 const BACKUPS = {
@@ -43,8 +43,10 @@ const plan = () => (state.voucherRunning ? voucherPlan() : { id: 'paperless-30',
 
 /** @type {Record<string, (body: any) => [number, any]>} */
 const routes = {
+	// The VM's backup key released (le-space-credits backup signer), on the catalogue's network.
+	'POST /v1/backup/authorize': () => [200, { payer: PAYER, signer: '0x00000000000000000000000000000000000000bb', tag: 'abcd1234', label: 'paperless-customer', network: state.network ?? 'calibration', funded_until: null }],
 	'GET /v1/terms': () => [200, { current: null, pending: null, withdrawal: WITHDRAWAL }],
-	'GET /v1/packages': () => [200, { network: null, backup: { ...OFFER, plan_offered: state.offered, included_in_plans: state.included }, voucher: { offered: state.vouchers, prefix: 'PA' }, packages: state.included ? PACKAGES_INCLUDED : [{ id: 'paperless-10', hours: 10, price_credits: 400 }, { id: 'paperless-30', hours: 30, price_credits: 600 }, { id: 'paperless-80', hours: 80, price_credits: 1000 }], topups: [] }],
+	'GET /v1/packages': () => [200, { network: state.network, backup: { ...OFFER, plan_offered: state.offered, included_in_plans: state.included }, voucher: { offered: state.vouchers, prefix: 'PA' }, packages: state.included ? PACKAGES_INCLUDED : [{ id: 'paperless-10', hours: 10, price_credits: 400 }, { id: 'paperless-30', hours: 30, price_credits: 600 }, { id: 'paperless-80', hours: 80, price_credits: 1000 }], topups: [] }],
 	'GET /v1/balance': () => [200, { credits: 1234, reserved: 0, lines_this_month: {}, package: state.plan || state.voucherRunning ? plan() : null, terms: {}, backup: backup() }],
 	'GET /v1/purchases': () => [200, { purchases: [] }],
 	'POST /v1/checkout': () => [200, { client_secret: 'cs_test_mock_secret', session_id: 'cs_test_mock' }],
@@ -104,7 +106,7 @@ const server = createServer(async (req, res) => {
 	const send = (status, json) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(json));
 	if (url.pathname === '/__requests') return send(200, requests);
 	if (url.pathname === '/__state' && req.method === 'POST') {
-		state = { plan: Boolean(body?.plan), cancelled: false, withdrawable: Boolean(body?.withdrawable), backup: body?.backup in BACKUPS ? body.backup : null, offered: Boolean(body?.offered), included: Boolean(body?.included), vouchers: Boolean(body?.vouchers), termsDue: Boolean(body?.termsDue), voucherRunning: false, voucherGranted: false };
+		state = { plan: Boolean(body?.plan), cancelled: false, withdrawable: Boolean(body?.withdrawable), backup: body?.backup in BACKUPS ? body.backup : null, offered: Boolean(body?.offered), included: Boolean(body?.included), vouchers: Boolean(body?.vouchers), termsDue: Boolean(body?.termsDue), voucherRunning: false, voucherGranted: false, network: body?.network === 'mainnet' || body?.network === 'calibration' ? body.network : null };
 		requests = [];
 		return send(200, state);
 	}

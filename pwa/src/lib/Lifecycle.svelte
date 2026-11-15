@@ -1,6 +1,6 @@
 <script>
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
-	import { AlephShortError, BackupPartialError, attestRunning, eraseStopped, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless } from '$lib/lifecycle.js';
+	import { AlephShortError, BackupPartialError, attestRunning, eraseStopped, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode } from '$lib/lifecycle.js';
 	import { vmStatus } from '$lib/vm.js';
 	import Storage from '$lib/Storage.svelte';
 	import { statusToken } from '$lib/keys/derive.js';
@@ -367,7 +367,10 @@
 		if (profile.leSpacePays) await leSpaceOwner();
 		const chosen = chosenBackup;
 		if (gapOpen) throw new Error(tr().card.errors.gapOpen);
-		const forStart = { ...$state.snapshot(profile), restoreEntry: chosen ? restoreEntry(chosen) : null };
+		// No node fixed in the setup: one with room now.
+		if (!profile.crnHash) progress = tr().card.progress.pickNode;
+		const crnHash = profile.crnHash || (await pickNode());
+		const forStart = { ...$state.snapshot(profile), crnHash, restoreEntry: chosen ? restoreEntry(chosen) : null };
 		startRestores = Boolean(forStart.restoreEntry);
 		// Once Aleph has the VM, the profile knows it: a reload carries on from there.
 		const onRequested = async (starting) => {

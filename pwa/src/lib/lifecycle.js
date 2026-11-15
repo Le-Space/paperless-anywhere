@@ -6,6 +6,7 @@
 //   then FORGET (the node stops and drops it).
 // What a running VM needs to be stopped from another device goes into the
 // sealed profile.
+import { loadTeeNodes } from './landing/tee-nodes.js';
 import { privateKeyToAccount } from 'viem/accounts';
 import { unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
 import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
@@ -181,6 +182,21 @@ export const debugKeysFor = (profile) => (profile?.debugAuthorizedKeys && profil
  */
 export const passphraseFitsImage = (profile) => !profile?.luksFor || profile.luksFor === profile.rootfsItemHash;
 
+/**
+ * A confidential node with room for a Paperless VM, for a start without a
+ * node fixed in the setup: the best-scored one of Aleph's live list that
+ * reports enough free CPU, memory and disk (the list the landing page shows).
+ * Not kept in the profile: the next start asks again.
+ * @param {{ load?: () => Promise<import('./landing/tee-nodes.js').TeeNode[]> }} [deps]
+ * @returns {Promise<string>}
+ */
+export async function pickNode({ load = () => loadTeeNodes() } = {}) {
+	const nodes = await load().catch(() => []);
+	const node = nodes.find((n) => n.fits && /^[0-9a-f]{64}$/.test(n.hash));
+	if (!node) throw new Error(tr().card.errors.noNode);
+	return node.hash;
+}
+
 /** What a start needs from the profile; throws with a reason a person can act on. */
 export function startRequirements(profile) {
 	const m = tr().life.missing;
@@ -195,7 +211,7 @@ export function startRequirements(profile) {
 	if (!profile.rootfsItemHash) missing.push(m.image);
 	if (!profile.luksPassphrase) missing.push(m.passphrase);
 	else if (!passphraseFitsImage(profile)) missing.push(m.passphraseOther);
-	if (!profile.crnHash) missing.push(m.node);
+	// No node fixed: the start picks one with room (pickNode).
 	// The guest backs up a primary to mainnet only and refuses any other network.
 	if (profile.role === 'primary' && profile.network !== 'mainnet') missing.push(m.mainnetForPrimary);
 	// …and backs up to mainnet only as a primary: a test there runs without backups.
