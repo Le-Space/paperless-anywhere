@@ -7,7 +7,7 @@
 	import { BACKUP_LABEL, backupConfigFor } from '$lib/backups.js';
 	import { relayList } from '$lib/attest-p2p.js';
 	import { findAttestRelays } from '$lib/relays.js';
-	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups, imageBuild, imageBuildDone } from '$lib/credits.js';
+	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups, imageBuild, imageBuildDone, CreditsShortError } from '$lib/credits.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
 	import { buildImageForVault } from '$lib/own-image-build.js';
 	import { buildsImageFirst } from '$lib/lifecycle.js';
@@ -288,7 +288,7 @@
 	// then. Unknown (Aleph not asked) offers it, and Aleph's answer decides.
 	// With a Le Space package the package pays (Le Space Credits): its price
 	// for one build, or why it cannot (no package, too little balance).
-	/** @type {{ ok: boolean | null, need?: number | null, have?: number | null, price?: number | null, included?: boolean, reason?: string } | null} */
+	/** @type {{ ok: boolean | null, need?: number | null, have?: number | null, price?: number | null, included?: boolean, reason?: string, short?: boolean } | null} */
 	let affordable = $state(null);
 	const packagePays = $derived(Boolean(profile?.leSpacePays && CREDITS_URL));
 	$effect(() => {
@@ -296,7 +296,7 @@
 		if (packagePays)
 			imageBuild(master, { quote: true })
 				.then((q) => (affordable = { ok: true, price: q.chargedCredits, included: q.included }))
-				.catch((e) => (affordable = { ok: false, reason: e instanceof TypeError ? $t.ownImage.choice.creditsUnreachable : e.message }));
+				.catch((e) => (affordable = { ok: false, reason: e instanceof TypeError ? $t.ownImage.choice.creditsUnreachable : e.message, short: e instanceof CreditsShortError }));
 		else buildAffordable(privateKeyToAccount(alephPrivateKey(master)), /** @type {any} */ (BUILDER)).then((a) => (affordable = a));
 	});
 	const ownBuilt = $derived(Boolean(BUILDER && hasOwnImage(profile, BUILDER.plain.sha256)));
@@ -517,8 +517,8 @@
 				</details>
 				{#if ownBuilt}<p class="saved" data-testid="own-image-have">{$t.ownImage.have(format.date(profile.ownImage.builtAt, undefined, $lang))}</p>{/if}
 				{#if affordable === null}<p class="hint" data-testid="own-image-checking">{$t.ownImage.choice.checking}</p>
-				{:else if affordable.ok === false && affordable.reason}<p class="warn" data-testid="own-image-package-no">{affordable.reason}</p>
-				{:else if affordable.ok === false}<p class="warn" data-testid="own-image-needs-credits">{$t.ownImage.choice.needsCredits(format.number(affordable.need ?? 0, undefined, $lang), format.number(affordable.have ?? 0, undefined, $lang))}</p>
+				{:else if affordable.ok === false && affordable.reason}<p class="error alert" role="alert" data-testid="own-image-package-no">{affordable.reason}{#if affordable.short} <a href="#paket">{$t.ownImage.choice.toTopUp}</a>{/if}</p>
+				{:else if affordable.ok === false}<p class="error alert" role="alert" data-testid="own-image-needs-credits">{$t.ownImage.choice.needsCredits(format.number(affordable.need ?? 0, undefined, $lang), format.number(affordable.have ?? 0, undefined, $lang))}</p>
 				{:else}{#if affordable.included}<p class="hint" data-testid="own-image-price">{$t.ownImage.choice.included}</p>{:else if affordable.price != null}<p class="hint" data-testid="own-image-price">{$t.ownImage.choice.price(format.euro(affordable.price, $lang))}</p>{/if}<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{ownBuilt ? $t.ownImage.rebuild : $t.ownImage.build}</button>{/if}
 				{#if profile.running}<p class="hint">{$t.ownImage.whileRunning}</p>{/if}
 				{#if busy === 'own-image' && ownStep}<p class="hint" role="status" data-testid="own-image-step">{ownStep} …</p>{/if}
@@ -556,7 +556,7 @@
 {/snippet}
 
 {#snippet feedback(/** @type {string} */ key)}
-	{#if error && errorKey === key}<p class="error" role="alert" data-testid={`error-${key}`}>{error}</p>
+	{#if error && errorKey === key}<p class="error alert" role="alert" data-testid={`error-${key}`}>{error}</p>
 	{:else if savedKey === key}<p class="saved" data-testid={`saved-${key}`}>{x.saved}</p>{/if}
 {/snippet}
 
@@ -597,4 +597,6 @@
 	.where summary { cursor: pointer; }
 	.waiting { background: var(--warn-bg); padding: 0.5rem 0.75rem; border-radius: 4px; }
 	.error { color: var(--danger); }
+	/* A message that must not go unseen: framed, tinted, like a callout. */
+	.alert { border: 1px solid var(--danger); border-left-width: 4px; border-radius: var(--radius-sm, 6px); padding: 0.6rem 0.8rem; background: color-mix(in srgb, var(--danger) 8%, transparent); }
 </style>

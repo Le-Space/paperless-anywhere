@@ -18,7 +18,8 @@ function deps({ types = ['INSTANCE', 'V-PROGRAM', 'STORE', 'FORGET', 'AGGREGATE'
 			paid: async (a) => (seen.push('paid'), await a.onStarted('5e'.repeat(32), { buildId: 'b1', payer: '0x' + 'a'.repeat(40) }), await a.onForgotten(), image),
 			own: async (a) => (seen.push('own'), await a.onStarted('5e'.repeat(32)), await a.onForgotten(), image),
 			running: async () => (seen.push('running'), image),
-			opener: () => async () => ({})
+			opener: () => async () => ({}),
+			relays: async () => (seen.push('relays'), ['wss://relay.example/attest'])
 		}
 	};
 }
@@ -30,7 +31,7 @@ describe('building the own image for a vault', () => {
 		const asked = [];
 		const out = await buildImageForVault({ master, profile: {}, packagePays: true, confirm: (q) => (asked.push(q), true), save: async (p) => void saved.push(p), builder, deps: d });
 		expect(out).toBe(image);
-		expect(seen).toEqual(['authorize', 'quote', 'paid']);
+		expect(seen).toEqual(['relays', 'authorize', 'quote', 'paid']);
 		expect(asked[0]).toMatch(/abgebucht/);
 		expect(saved[0].ownBuilder).toMatchObject({ vprogram: '5e'.repeat(32), buildId: 'b1' });
 		expect(saved.at(-1)).toEqual({ ownBuilder: null });
@@ -41,7 +42,7 @@ describe('building the own image for a vault', () => {
 		const asked = [];
 		expect(await buildImageForVault({ master, profile: {}, packagePays: true, confirm: (q) => (asked.push(q), false), save: async () => {}, builder, deps: d })).toBeNull();
 		expect(asked[0]).toMatch(/im Gutschein enthalten/);
-		expect(seen).toEqual(['authorize', 'quote']);
+		expect(seen).toEqual(['relays', 'authorize', 'quote']);
 	});
 
 	it('refuses when the service does not grant V-PROGRAM and STORE yet', async () => {
@@ -53,11 +54,18 @@ describe('building the own image for a vault', () => {
 		const { seen, deps: d } = deps();
 		const asked = [];
 		expect(await buildImageForVault({ master, profile: {}, packagePays: false, confirm: (q) => (asked.push(q), true), save: async () => {}, builder, deps: d })).toBe(image);
-		expect(seen).toEqual(['own']);
+		expect(seen).toEqual(['relays', 'own']);
 		expect(asked).toEqual([]);
 		const fixed = deps();
 		const { program: _p, crn: _c, ...running } = builder;
 		await buildImageForVault({ master, profile: {}, packagePays: false, confirm: () => true, save: async () => {}, builder: { ...running, route: '?vm=x' }, deps: fixed.deps });
-		expect(fixed.seen).toEqual(['running']);
+		expect(fixed.seen).toEqual(['relays', 'running']);
+	});
+
+	it('finds a relay before anything is charged or started', async () => {
+		const { seen, deps: d } = deps();
+		const none = { ...d, relays: async () => { seen.push('relays'); throw new Error('Kein Attest-Relay'); } };
+		await expect(buildImageForVault({ master, profile: {}, packagePays: true, confirm: () => true, save: async () => {}, builder, deps: none })).rejects.toThrow('Kein Attest-Relay');
+		expect(seen).toEqual(['relays']);
 	});
 });

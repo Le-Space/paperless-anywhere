@@ -8,7 +8,7 @@ export const credits = {
 		notSetUp: 'Le Space Credits sind hier nicht eingerichtet.',
 		waiver: 'Ohne die Erklärung zum Widerrufsrecht kann Le Space den Kauf nicht ausführen. Bitte das Kästchen vor dem Bezahlen ankreuzen. War es angekreuzt, hat sich der Text womöglich geändert: dann die Seite neu laden und noch einmal bestätigen.',
 		terms: 'Erst den aktuellen Bedingungen (AGB) zustimmen, dann geht es weiter.',
-		short: (/** @type {string | null} */ missing) => `Die Le Space Credits reichen dafür nicht${missing != null ? ` (es fehlen ${missing})` : ''}. Erst aufladen.`,
+		short: (/** @type {string | null} */ missing) => `Dein Le-Space-Guthaben reicht dafür nicht${missing != null ? `: Es fehlen ${missing}` : ''}. Lade es bei deinem Paket auf dieser Seite auf und versuche es dann noch einmal.`,
 		planHours: (/** @type {number} */ hours, /** @type {boolean} */ always) => (always ? 'Dauerbetrieb' : `${hours} Stunden`),
 		codes: {
 			NO_PLAN: 'Dafür braucht es ein laufendes Paket: erst ein Paket wählen.',
@@ -101,7 +101,7 @@ export const credits = {
 		notSetUp: 'Le Space Credits are not set up here.',
 		waiver: 'Without the declaration on the right of withdrawal Le Space cannot carry out the purchase. Please tick the box before paying. If it was ticked, the text may have changed: then reload the page and confirm once more.',
 		terms: 'Agree to the current terms (AGB) first, then it goes on.',
-		short: (/** @type {string | null} */ missing) => `The Le Space Credits do not cover this${missing != null ? ` (${missing} missing)` : ''}. Top up first.`,
+		short: (/** @type {string | null} */ missing) => `Your Le Space balance does not cover this${missing != null ? `: ${missing} missing` : ''}. Top it up with your package on this page and try again.`,
 		planHours: (/** @type {number} */ hours, /** @type {boolean} */ always) => (always ? 'Always on' : `${hours} hours`),
 		codes: {
 			NO_PLAN: 'This needs a running package: choose a package first.',

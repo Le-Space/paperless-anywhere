@@ -7,6 +7,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { IMAGE_BUILD_TYPES, imageBuild, imageBuildDone, vmAuthorize } from './credits.js';
 import { format, tr } from './i18n/index.js';
 import { alephPrivateKey } from './keys/derive.js';
+import { attestRelaysFor } from './relays.js';
 import { BUILDER, BuilderError, buildOnOwnBuilder, buildOwnImage, buildPaidByPackage, builderOpener } from './own-image.js';
 
 /**
@@ -21,13 +22,16 @@ import { BUILDER, BuilderError, buildOnOwnBuilder, buildOwnImage, buildPaidByPac
  *   save: (patch: Record<string, any>) => Promise<any>,
  *   onProgress?: (p: { step: string, detail?: string }) => void,
  *   builder?: any,
- *   deps?: { authorize?: typeof vmAuthorize, build?: typeof imageBuild, done?: typeof imageBuildDone, paid?: typeof buildPaidByPackage, own?: typeof buildOnOwnBuilder, running?: typeof buildOwnImage, opener?: typeof builderOpener }
+ *   deps?: { relays?: typeof attestRelaysFor, authorize?: typeof vmAuthorize, build?: typeof imageBuild, done?: typeof imageBuildDone, paid?: typeof buildPaidByPackage, own?: typeof buildOnOwnBuilder, running?: typeof buildOwnImage, opener?: typeof builderOpener }
  * }} a
  * @returns {Promise<Record<string, any> | null>}
  */
 export async function buildImageForVault({ master, profile, packagePays, confirm, save, onProgress = () => {}, builder = BUILDER, deps = {} }) {
 	if (!builder) throw new BuilderError(tr().ownImage.error.noBuilder);
-	const { authorize = vmAuthorize, build = imageBuild, done = imageBuildDone, paid = buildPaidByPackage, own = buildOnOwnBuilder, running = buildOwnImage, opener: open = builderOpener } = deps;
+	const { relays = attestRelaysFor, authorize = vmAuthorize, build = imageBuild, done = imageBuildDone, paid = buildPaidByPackage, own = buildOnOwnBuilder, running = buildOwnImage, opener: open = builderOpener } = deps;
+	// A relay first: without one the builder cannot be reached, and a builder
+	// started (and paid, or a voucher's build used) for nothing helps nobody.
+	await relays(profile);
 	const common = { master, app: privateKeyToAccount(alephPrivateKey(master)), onProgress };
 	const opener = (/** @type {any} */ b) => open(b, profile);
 	// A builder fixed by its V-PROGRAM content is started for this build and

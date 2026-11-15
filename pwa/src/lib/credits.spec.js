@@ -467,7 +467,7 @@ describe('quoting VM hours before buying them (le-space-credits#47)', () => {
 		const svc = jsonService(() => [402, { error: 'not enough credits', code: 'INSUFFICIENT' }]);
 		const err = await quoteVm(master, 30, { baseUrl, fetch: svc.fetch }).catch((e) => e);
 		expect(err).toBeInstanceOf(CreditsShortError);
-		expect(err.message).toMatch(/Erst aufladen/);
+		expect(err.message).toMatch(/Le-Space-Guthaben reicht dafür nicht/);
 	});
 
 	it('explains TOO_SOON on a purchase: the hours are on the way', async () => {
