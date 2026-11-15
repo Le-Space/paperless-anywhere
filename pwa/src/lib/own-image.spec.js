@@ -215,11 +215,19 @@ describe('an image of one\'s own', () => {
 	for (let n = 0; n < big.length; n++) big[n] = (n * 31 + (n >> 11)) & 255;
 	const real = () => ({ sleep: async () => {}, read: async () => 'processed', now: () => 1_800_000_000_000, kept: { current: null }, runBytes: RUN_BYTES / SCALE, pieceBytes: PIECE_BYTES / SCALE });
 
-	it('asks a relay for less than it carries: a run with its attestation fits one connection', () => {
-		// The attestation and TLS take a few hundred KiB of a connection at most.
-		expect(RUN_BYTES).toBeLessThanOrEqual(RELAY_BYTES - 512 * 1024);
+	it('asks for runs larger than a strict relay carries, made of whole pieces, in no more lanes than a client may open', () => {
+		expect(RUN_BYTES).toBeGreaterThan(RELAY_BYTES);
 		expect(RUN_BYTES % PIECE_BYTES).toBe(0);
 		expect(LANES).toBeLessThanOrEqual(4);
+	});
+
+	it('takes a run over one connection where the relay lets a builder carry more', async () => {
+		const { seen, open } = relayedBuilder(big, { maxBytes: (256 * 1024 * 1024) / SCALE });
+		const { got, store } = fakeStore();
+		await buildOwnImage({ master, app, builder, open, store, ...real() });
+		expect(await sha256Hex(got.bytes)).toBe(await sha256Hex(big));
+		// The build, one per run, the drop: one attestation per run.
+		expect(seen.opened).toBe(1 + Math.ceil(big.length / (RUN_BYTES / SCALE)) + 1);
 	});
 
 
@@ -230,8 +238,9 @@ describe('an image of one\'s own', () => {
 		const result = await buildOwnImage({ master, app, builder: { ...builder, vprogram: '12'.repeat(32) }, open, store, onProgress: (p) => p.step === 'fetch' && shown.push(p.detail), ...real() });
 		expect(got.bytes.length).toBe(big.length);
 		expect(await sha256Hex(got.bytes)).toBe(await sha256Hex(big));
-		// One connection for the build, one per run of the image, one to have it dropped.
-		expect(seen.opened).toBe(1 + Math.ceil(big.length / (RUN_BYTES / SCALE)) + 1);
+		// One connection for the build, one per 4 MiB the relay carries (a run goes
+		// on where the relay cut it), one to have it dropped.
+		expect(seen.opened).toBe(1 + Math.ceil(big.length / (RELAY_BYTES / SCALE)) + 1);
 		expect(seen.mostOpen).toBeLessThanOrEqual(LANES);
 		expect(seen.open).toBe(0);
 		expect(seen.deleted).toBe(1);
