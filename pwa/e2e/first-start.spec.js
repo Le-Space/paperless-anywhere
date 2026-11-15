@@ -15,6 +15,36 @@ import { BUILDER } from '../src/lib/own-image.js';
 const IMAGE = 'a1'.repeat(32);
 test.use({ locale: 'de-DE', timezoneId: 'Europe/Berlin' });
 
+async function vaultWith(page, extra) {
+	const install = alephMock();
+	const aggregates = await install(page.context());
+	const master = newMasterSecret();
+	const phrase = newSeedPhrase();
+	aggregates.set(seedIndexAccount(phrase).address, { [VAULT_KEY]: { v: 1, box: await seal(master, sealingKeyFromSeedPhrase(phrase), 'master/seed') } });
+	const profile = { network: 'calibration', role: 'test', appPays: true, crnHash: 'd'.repeat(64), ...extra };
+	const sealed = await seal(new TextEncoder().encode(JSON.stringify(profile)), deriveBytes(master, LABELS.profileKey), 'profile');
+	aggregates.set(privateKeyToAccount(alephPrivateKey(master)).address, { [PROFILE_KEY]: { v: 1, box: sealed } });
+	await page.context().route(/^https?:\/\/(?!localhost|api2\.aleph\.im)/, (route) => route.abort());
+	await page.goto('/app/');
+	await page.getByTestId('open-with-phrase').click();
+	await page.locator('textarea').first().fill(phrase);
+	await page.getByTestId('open-phrase').click();
+}
+const ownImage = (plainSha256) => ({ rootfsItemHash: IMAGE, luksPassphrase: 'made-up passphrase', luksFor: IMAGE, ownImage: { plainSha256, cid: 'bafybeiexample', builtAt: '2026-11-15T07:30:00.000Z', builder: { vprogram: 'f'.repeat(64), measurement: 'ab'.repeat(24) } } });
+
+test('the overview says which image Paperless starts from, and offers a newer version while it is off', async ({ page }) => {
+	await vaultWith(page, ownImage('0'.repeat(64)));
+	await expect(page.getByTestId('image-line')).toContainText('Eigenes Image, gebaut am 15.11.2026.');
+	await expect(page.getByTestId('image-newer')).toHaveText('Eine neuere Image-Version ist da.');
+	await expect(page.getByTestId('image-rebuild')).toHaveText('Jetzt neu bauen');
+});
+
+test('the overview names the public image when no own one is built or planned', async ({ page }) => {
+	await vaultWith(page, { rootfsItemHash: IMAGE, luksPassphrase: 'made-up passphrase' });
+	await expect(page.getByTestId('image-line')).toHaveText('Öffentliches Image von Le Space.');
+	await expect(page.getByTestId('image-rebuild')).toHaveCount(0);
+});
+
 test('the certificate of the own image opens under "Erweitert", with its evidence, and closes again', async ({ page }) => {
 	const install = alephMock();
 	const aggregates = await install(page.context());
@@ -39,6 +69,9 @@ test('the certificate of the own image opens under "Erweitert", with its evidenc
 	await page.getByTestId('open-with-phrase').click();
 	await page.locator('textarea').first().fill(phrase);
 	await page.getByTestId('open-phrase').click();
+	// The overview names the own image, current: no newer version.
+	await expect(page.getByTestId('image-line')).toHaveText('Eigenes Image, gebaut am 15.11.2026.');
+	await expect(page.getByTestId('image-newer')).toHaveCount(0);
 	await page.getByTestId('tab-advanced').click();
 	await page.getByTestId('open-certificate').click();
 	const cert = page.getByTestId('certificate');
