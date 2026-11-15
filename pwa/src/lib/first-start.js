@@ -72,9 +72,6 @@ const HOST = /^[a-z0-9.-]{1,253}(:\d{1,5})?$/i;
 /** Which station comes before which. @param {string} a @param {string} b */
 const beyond = (a, b) => STATIONS.findIndex((s) => s.key === a) > STATIONS.findIndex((s) => s.key === b);
 
-/** How often the build tries the upload (own-image.js: api2, then api3, then api2). */
-export const UPLOAD_TRIES = 3;
-
 /** The start's steps (lifecycle.js), in order. */
 export const START_STEPS = Object.freeze(['measure', 'instance', 'network', 'unlock', 'ready']);
 
