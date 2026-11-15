@@ -216,8 +216,15 @@ export const RUN_BYTES = 3 * 1024 * 1024;
  * that, and for the next run's connection while the last one closes.
  */
 export const LANES = 3;
-/** How often one run is tried before the fetch gives up. */
-export const RUN_TRIES = 4;
+/**
+ * How often a run may fail in a row, without a single piece coming back,
+ * before the fetch gives up. A try that brings pieces starts the count
+ * anew, and the next try goes on where the last one broke off: an unsteady
+ * connection (a VPN across continents, 2026-11-15) only slows it down.
+ */
+export const RUN_TRIES = 10;
+/** The longest wait between two tries of a run. */
+export const RETRY_MAX_MS = 30_000;
 
 /** An attestation that was refused: nothing is retried after that. */
 const refusedAttestation = (error) => /rejected|measurement|policy|signature/i.test(String(error));
@@ -237,18 +244,21 @@ async function fetchImage({ open, job, size, pieceBytes, runBytes, lanes, runTri
 
 	const fetchRun = async (run) => {
 		let last = '';
-		for (let attempt = 0; attempt < runTries && !failed; attempt++) {
-			if (attempt) await sleep(retryMs * attempt);
+		const pieces = [];
+		let at = run.start;
+		for (let failures = 0; failures < runTries && !failed; ) {
+			if (failures) await sleep(Math.min(retryMs * failures, RETRY_MAX_MS));
 			let channel = null;
+			const before = at;
 			try {
 				channel = await open();
-				const pieces = [];
-				for (let start = run.start; start < run.end; start += pieceBytes) {
-					const end = Math.min(start + pieceBytes, run.end) - 1;
-					const piece = await channel.request('GET', `/job/${job}/image`, { headers: { range: `bytes=${start}-${end}` } });
+				for (; at < run.end; ) {
+					const end = Math.min(at + pieceBytes, run.end) - 1;
+					const piece = await channel.request('GET', `/job/${job}/image`, { headers: { range: `bytes=${at}-${end}` } });
 					if ([404, 409, 410, 416].includes(piece.status)) throw new BuilderError(tr().ownImage.error.imageGone(piece.status));
-					if (piece.status !== 206 || piece.body.length !== end - start + 1) throw new Error(String(piece.status));
+					if (piece.status !== 206 || piece.body.length !== end - at + 1) throw new Error(String(piece.status));
 					pieces.push(piece.body);
+					at = end + 1;
 					onBytes(piece.body.length);
 				}
 				return pieces;
@@ -258,6 +268,8 @@ async function fetchImage({ open, job, size, pieceBytes, runBytes, lanes, runTri
 				// relay closed two connections during their attestation).
 				if (refusedAttestation(error) || (error instanceof BuilderError && error.code !== 'unreachable')) throw error;
 				last = error instanceof Error ? error.message : String(error);
+				// Pieces came back: the connection is slow, not gone. Count anew.
+				failures = at > before ? 1 : failures + 1;
 			} finally {
 				channel?.close();
 			}
