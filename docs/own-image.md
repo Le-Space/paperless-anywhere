@@ -294,8 +294,10 @@ measurement and sealed the real image
 
 **Who pays.** With a Le Space package, the Le Space Credits balance
 does (model A): each build is charged to it, separately from the plan
-price, and needs a running plan. A voucher period includes its first
-build; the setup then says so instead of a price. The setup shows the price of one build first, the
+price, and needs a running plan. In a voucher period, builds are
+included until one succeeds (up to 3 tries); the setup then says so
+instead of a price. The app always reports a build's end
+(`/v1/image/build/done`), also after a failure or a closed window. The setup shows the price of one build first, the
 builder's runtime taken from the Credits balance, and asks. The service
 then charges it and grants the customer's Le Space sub-account what
 Aleph's one-day check needs. The app's key, allowed by the sub-account to
