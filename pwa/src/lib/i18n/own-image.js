@@ -8,7 +8,7 @@ export const ownImage = {
 	de: {
 		intro: {
 			before: 'Ein Image nur für diesen Tresor: Ein geprüfter Build-Dienst versiegelt das öffentliche Image mit einer Passphrase, die aus deinem Tresor abgeleitet wird. Die App prüft den Hardware-Nachweis des Dienstes, bevor sie die Passphrase schickt, holt das versiegelte Image in Stücken über ebenso geprüfte Verbindungen zurück und lädt es selbst zu Aleph hoch (knapp 900 MiB; das dauert und braucht eine stabile Verbindung). Das Image liegt danach bei Aleph auf der Adresse dieser App (',
-			after: '), die auch den Speicher bezahlt.'
+			after: '), die auch den Speicher bezahlt. Mit einem Le-Space-Paket liegt es stattdessen auf deinem Aleph-Konto bei Le Space: Jeder Bau wird von deinem Le-Space-Guthaben abgebucht, den Preis siehst du vorher; der Speicher des Images ist im Paket enthalten.'
 		},
 		sourcesFold: 'Woraus und womit wird gebaut?',
 		sourcesHint: 'Diese Werte sind in der App festgelegt und für alle gleich. Das öffentliche Image kann jeder laden und den Hash vergleichen; den Messwert bestätigt die Hardware, bevor die App die Passphrase schickt.',
@@ -31,6 +31,9 @@ export const ownImage = {
 			ownHint: 'Eine Passphrase nur für diesen Tresor: Niemand sonst kennt sie, auch Le Space nicht.',
 			notBuilt: 'Noch nicht gebaut: Bis dahin startet die VM vom öffentlichen Image.',
 			checking: 'Guthaben der App-Adresse wird geprüft …',
+			price: (/** @type {string} */ price) => `Ein Bau kostet ${price} aus deinem Le-Space-Guthaben (Laufzeit des Build-Dienstes); die Ablage des Images ist enthalten.`,
+			confirmPrice: (/** @type {string} */ price) => `Eigenes Image bauen? ${price} werden von deinem Le-Space-Guthaben abgebucht. Nimmt Aleph den Build-Dienst gar nicht an, kommt der Betrag zurück; scheitert der Bau danach, bleibt er abgebucht.`,
+			serviceOld: 'Der Credits-Dienst erlaubt der App das noch nicht (V-PROGRAM und STORE). Bitte später noch einmal versuchen.',
 			needsCredits: (/** @type {string} */ need, /** @type {string} */ have) => `Ein eigenes Image braucht derzeit Aleph-Guthaben auf der Adresse dieser App: Aleph startet den Build-Dienst nur, wenn es für einen Tag seiner Laufzeit, den Speicher des Images und alles, was die Adresse schon bezahlt, reicht (etwa ${need} Credits; vorhanden: ${have}). Mit einem Le-Space-Paket nutzt du vorerst das öffentliche Image.`
 		},
 		step: {
@@ -73,7 +76,7 @@ export const ownImage = {
 	en: {
 		intro: {
 			before: 'An image for this vault only: a verified build service seals the public image with a passphrase derived from your vault. The app checks the service\'s hardware attestation before it sends the passphrase, fetches the sealed image back in pieces over connections verified the same way, and uploads it to Aleph itself (just under 900 MiB; this takes a while and needs a stable connection). The image then lies on Aleph under this app\'s address (',
-			after: '), which also pays for the storage.'
+			after: '), which also pays for the storage. With a Le Space package it lies on your Aleph account at Le Space instead: each build is charged to your Le Space balance, and you see the price first; storing the image is included in your package.'
 		},
 		sourcesFold: 'What is it built from, and by what?',
 		sourcesHint: 'These values are fixed in the app and the same for everyone. Anyone can download the public image and compare the hash; the hardware confirms the measurement before the app sends the passphrase.',
@@ -96,6 +99,9 @@ export const ownImage = {
 			ownHint: 'A passphrase for this vault only: nobody else knows it, Le Space neither.',
 			notBuilt: 'Not built yet: until then the VM starts from the public image.',
 			checking: 'Checking the app address\'s credits …',
+			price: (/** @type {string} */ price) => `A build costs ${price} from your Le Space balance (the build service's runtime); storing the image is included.`,
+			confirmPrice: (/** @type {string} */ price) => `Build an image of your own? ${price} will be taken from your Le Space balance. If Aleph does not accept the build service at all, the amount comes back; if the build fails after that, it stays charged.`,
+			serviceOld: 'The credits service does not allow the app this yet (V-PROGRAM and STORE). Please try again later.',
 			needsCredits: (/** @type {string} */ need, /** @type {string} */ have) => `An image of your own needs Aleph credits on this app\'s address for now: Aleph starts the build service only when they cover a day of its runtime, the image\'s storage and everything the address already pays for (about ${need} credits; there are ${have}). With a Le Space package, use the public image for now.`
 		},
 		step: {

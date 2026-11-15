@@ -33,6 +33,13 @@ export const credits = {
 			PRODUCT: 'Le Space Credits kennen dieses Produkt nicht.'
 		},
 		vmFund: { TOO_SOON: 'Stunden sind schon unterwegs, bitte kurz warten.' },
+		imageBuild: {
+			NO_PLAN: 'Ein eigenes Image über das Paket braucht ein laufendes Paket.',
+			BUILD_RUNNING: 'Für dieses Konto läuft schon ein Bau. Bitte warten, bis er fertig ist (spätestens zwei Stunden).',
+			NO_IMAGES: 'Der Credits-Dienst baut für dieses Produkt keine eigenen Images.',
+			SUBS_OFF: 'Der Credits-Dienst nimmt gerade keine Bauaufträge an.',
+			BUILD: 'Der Credits-Dienst kennt diesen Bau nicht.'
+		},
 		backupKey: { DELEGATES: 'Für dieses Konto sind schon 5 VM-Schlüssel für Sicherungen freigegeben, mehr nimmt der Dienst nicht an.' },
 		backupPlan: {
 			NOT_YET: 'Die Sicherung im Abo und das Jahr Aufbewahrung gibt es erst mit den neuen AGB. Bis dahin: einen Monat Sicherungen aus dem Guthaben bezahlen (Einrichtung).',
@@ -119,6 +126,13 @@ export const credits = {
 			PRODUCT: 'Le Space Credits do not know this product.'
 		},
 		vmFund: { TOO_SOON: 'Hours are already on their way, please wait a moment.' },
+		imageBuild: {
+			NO_PLAN: 'An image of your own through the package needs a running package.',
+			BUILD_RUNNING: 'A build is already running for this account. Please wait until it is done (two hours at most).',
+			NO_IMAGES: 'The credits service builds no images of their own for this product.',
+			SUBS_OFF: 'The credits service takes no builds right now.',
+			BUILD: 'The credits service does not know this build.'
+		},
 		backupKey: { DELEGATES: 'Five VM keys for backups are already approved for this account; the service takes no more.' },
 		backupPlan: {
 			NOT_YET: 'The backup in the subscription and the year of keeping come only with the new terms. Until then: pay a month of backups from the balance (setup).',

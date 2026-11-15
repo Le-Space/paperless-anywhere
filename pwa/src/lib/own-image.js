@@ -155,9 +155,11 @@ export function checkBuilder(builder) {
  * @param {{ address: string, signMessage: (a: { message: string }) => Promise<string> }} app
  * @param {string} cid @param {number} [time] seconds
  */
-export async function storeMessage(app, cid, time = Date.now() / 1000) {
+export async function storeMessage(app, cid, time = Date.now() / 1000, payer = app.address) {
 	if (!CID.test(cid)) throw new BuilderError(tr().ownImage.error.badCid);
-	const item_content = JSON.stringify({ address: app.address, time, item_type: 'ipfs', item_hash: cid, payment: { type: 'credit' } });
+	// `payer`: the address that owns and pays it; the app's own, or the Le
+	// Space sub-account a package pays from, which lets the app's key send it.
+	const item_content = JSON.stringify({ address: payer, time, item_type: 'ipfs', item_hash: cid, payment: { type: 'credit' } });
 	const item_hash = await sha256Hex(item_content);
 	const message = { sender: app.address, chain: 'ETH', type: 'STORE', item_hash, item_type: 'inline', item_content, time, channel: CHANNEL };
 	const signature = await app.signMessage({ message: [message.chain, message.sender, message.type, message.item_hash].join('\n') });
@@ -330,7 +332,7 @@ export async function storeOnAleph(image, message, api = ALEPH_API) {
  *   pollMs?: number, buildTries?: number, confirmTries?: number, pieceBytes?: number, runBytes?: number, lanes?: number, runTries?: number, retryMs?: number
  * }} a
  */
-export async function buildOwnImage({ master, app, builder, open, onProgress = () => {}, store = storeOnAleph, read = storeStatus, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), now = Date.now, kept = fetched, pollMs = 5000, buildTries = 240, confirmTries = 180, pieceBytes = PIECE_BYTES, runBytes = RUN_BYTES, lanes = LANES, runTries = RUN_TRIES, retryMs = 2000 }) {
+export async function buildOwnImage({ master, app, payer = app.address, builder, open, onProgress = () => {}, store = storeOnAleph, read = storeStatus, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), now = Date.now, kept = fetched, pollMs = 5000, buildTries = 240, confirmTries = 180, pieceBytes = PIECE_BYTES, runBytes = RUN_BYTES, lanes = LANES, runTries = RUN_TRIES, retryMs = 2000 }) {
 	const { plain } = checkBuilder(builder);
 	const passphrase = imagePassphrase(master, plain.sha256);
 	const key = `${app.address.toLowerCase()}/${plain.sha256}`;
@@ -343,7 +345,7 @@ export async function buildOwnImage({ master, app, builder, open, onProgress = (
 	let message = kept.current.message;
 	if (!message) {
 		onProgress({ step: 'sign', detail: tr().ownImage.step.sign });
-		message = await storeMessage(app, cid, now() / 1000);
+		message = await storeMessage(app, cid, now() / 1000, payer);
 		onProgress({ step: 'upload', detail: tr().ownImage.step.upload(size) });
 		const stored = await store(image, message);
 		if (stored.status >= 300) throw new BuilderError(tr().ownImage.error.uploadRefused(stored.status));
@@ -541,17 +543,18 @@ export function imageFields({ kind, image, crn, pass, profile }) {
  * @param {{ address: string, signMessage: (a: { message: string }) => Promise<string> }} app
  * @param {BuilderTemplate} builder @param {number} [time] seconds
  */
-export async function builderMessage(app, builder, time = Date.now() / 1000) {
+export async function builderMessage(app, builder, time = Date.now() / 1000, payer = app.address) {
 	if (!builder?.program?.verification || !HEX64.test(builder.crn ?? '')) throw new BuilderError(tr().ownImage.error.noBuilder);
-	const item_content = JSON.stringify({ ...builder.program, address: app.address, time });
+	const item_content = JSON.stringify({ ...builder.program, address: payer, time });
 	const unsigned = { sender: app.address, chain: 'ETH', type: 'V-PROGRAM', item_hash: await sha256Hex(item_content), item_type: 'inline', item_content, time, channel: CHANNEL };
 	return signAlephMessage(unsigned, (_sender, payload) => app.signMessage({ message: payload }));
 }
 
 /** The FORGET of the build's V-PROGRAM, signed by the app's key. */
-export async function builderForget(app, vprogram, time = Date.now() / 1000) {
-	const unsigned = await createUnsignedForgetMessage({ sender: app.address, hashes: [vprogram], reason: 'paperless-anywhere image built', hasher: sha256Hex, channel: CHANNEL, now: time });
-	return signAlephMessage(unsigned, (_sender, payload) => app.signMessage({ message: payload }));
+export async function builderForget(app, vprogram, time = Date.now() / 1000, payer = app.address) {
+	const unsigned = await createUnsignedForgetMessage({ sender: payer, hashes: [vprogram], reason: 'paperless-anywhere image built', hasher: sha256Hex, channel: CHANNEL, now: time });
+	// The FORGET is in the payer's name, sent by the app's key.
+	return signAlephMessage({ ...unsigned, sender: app.address }, (_sender, payload) => app.signMessage({ message: payload }));
 }
 
 /** @param {any} message */
@@ -565,11 +568,11 @@ const send = async (message) => {
  * @param {{ address: string, signMessage: (a: { message: string }) => Promise<string> }} app
  * @param {string} vprogram @param {{ post?: (message: any) => Promise<void>, sleep?: (ms: number) => Promise<void>, tries?: number, retryMs?: number }} [deps]
  */
-export async function forgetBuilder(app, vprogram, { post = send, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), tries = 4, retryMs = 5000 } = {}) {
+export async function forgetBuilder(app, vprogram, { post = send, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), tries = 4, retryMs = 5000, payer = app.address } = {}) {
 	for (let attempt = 0; attempt < tries; attempt++) {
 		if (attempt) await sleep(retryMs * attempt);
 		try {
-			await post(await builderForget(app, vprogram));
+			await post(await builderForget(app, vprogram, undefined, payer));
 			return true;
 		} catch {
 			/* tried again; the profile keeps it for the next opening otherwise */
@@ -595,13 +598,13 @@ export async function forgetBuilder(app, vprogram, { post = send, sleep = (ms) =
  * }} a
  */
 export async function buildOnOwnBuilder({ builder, opener, onStarted = () => {}, onForgotten = () => {}, post = send, upTries = 40, upMs = 15_000, ...rest }) {
-	const { master, app, onProgress = () => {}, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), kept = fetched } = rest;
+	const { master, app, payer = app.address, onProgress = () => {}, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), kept = fetched } = rest;
 	checkBuilder(builder);
 	const key = `${app.address.toLowerCase()}/${builder.plain.sha256}`;
 	if (kept.current?.key === key) return buildOwnImage({ ...rest, builder, open: () => Promise.reject(new BuilderError(tr().ownImage.error.noBuilder)) });
 
 	onProgress({ step: 'start', detail: tr().ownImage.step.start });
-	const message = await builderMessage(app, builder);
+	const message = await builderMessage(app, builder, undefined, payer);
 	const vprogram = message.item_hash;
 	// Noted once Aleph took it: a V-PROGRAM Aleph refused (no credits) is
 	// nothing to forget, and a note of it would be tried again at every opening.
@@ -635,7 +638,7 @@ export async function buildOnOwnBuilder({ builder, opener, onStarted = () => {},
 		const openFirst = () => (handed ? open() : ((handed = true), Promise.resolve(first)));
 		return await buildOwnImage({ ...rest, master, builder: running, open: openFirst });
 	} finally {
-		if (accepted && (await forgetBuilder(app, vprogram, { post, sleep }))) await onForgotten(vprogram);
+		if (accepted && (await forgetBuilder(app, vprogram, { post, sleep, payer }))) await onForgotten(vprogram);
 	}
 }
 
@@ -680,5 +683,34 @@ export async function buildAffordable(app, builder, deps = {}) {
 export async function forgetLeftBuilder(app, profile, deps) {
 	const vprogram = profile?.ownBuilder?.vprogram;
 	if (!HEX64.test(vprogram ?? '')) return false;
-	return forgetBuilder(app, vprogram, deps);
+	const payer = /^0x[0-9a-fA-F]{40}$/.test(profile.ownBuilder.payer ?? '') ? profile.ownBuilder.payer : app.address;
+	return forgetBuilder(app, vprogram, { ...deps, payer });
+}
+
+/**
+ * A build paid by the Le Space package (Le Space Credits, model A): the
+ * service charges the balance and grants the sub-account (`owner`) what
+ * Aleph's one-day check needs; the app's key sends the builder, the STORE
+ * and the FORGETs for that sub-account, and tells the service when it is
+ * over, so the rest of the grant goes back. `charge` and `done` are
+ * imageBuild and imageBuildDone (credits.js) bound to the vault.
+ * @param {Parameters<typeof buildOnOwnBuilder>[0] & {
+ *   charge: () => Promise<{ buildId: string | null, owner: string }>,
+ *   done: (d: { buildId: string, failed?: boolean, program?: string | null }) => Promise<any>
+ * }} a
+ */
+export async function buildPaidByPackage({ charge, done, onStarted = () => {}, ...rest }) {
+	const { buildId, owner } = await charge();
+	if (!buildId) throw new BuilderError(tr().ownImage.error.noBuilder);
+	/** @type {string | null} */
+	let program = null;
+	let ok = false;
+	try {
+		const built = await buildOnOwnBuilder({ ...rest, payer: owner, onStarted: (v) => ((program = v), onStarted(v, { buildId, payer: owner })) });
+		ok = true;
+		return built;
+	} finally {
+		// Without an accepted V-PROGRAM no builder ran: the service undoes the charge.
+		await done({ buildId, failed: !ok, program }).catch(() => {});
+	}
 }

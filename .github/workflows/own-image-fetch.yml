@@ -11,6 +11,12 @@ name: "Own image: fetch through a relay"
 #   relay "runner":   relay-button's attest relay on this runner, with no
 #                     byte or time limit per connection: what the builder and
 #                     the path to it carry, without a relay's limits.
+#   relay "package":  the whole build paid by a Le Space package, from the
+#                     test vault in the secret PACKAGE_TEST_PHRASE (which
+#                     holds a plan): price, charge, builder fixed in the app,
+#                     image stored for the sub-account, /done, image
+#                     forgotten (pwa/scripts/own-image-package.mjs). The
+#                     other inputs are not used; it costs that vault a build.
 
 on:
   workflow_dispatch:
@@ -32,6 +38,11 @@ on:
         options:
           - le-space
           - runner
+          - package
+      plan:
+        description: 'With "package": choose this plan first, paid from the balance (e.g. paperless-15-backup). Empty keeps the running one.'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -54,6 +65,7 @@ jobs:
           node-version: 24.x
 
       - name: Check the inputs
+        if: inputs.relay != 'package'
         env:
           VPROGRAM: ${{ inputs.vprogram }}
           CRN: ${{ inputs.crn }}
@@ -71,7 +83,21 @@ jobs:
             nohup node packages/attest-relay/src/server.ts > "$RUNNER_TEMP/attest-relay.log" 2>&1 &
           for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8787/health && break; sleep 1; done
 
+      - name: Built and paid through the package, from the test vault
+        if: inputs.relay == 'package'
+        working-directory: pwa
+        env:
+          PACKAGE_PHRASE: ${{ secrets.PACKAGE_TEST_PHRASE }}
+          PACKAGE_PLAN: ${{ inputs.plan }}
+          PACKAGE_RESULT: ${{ runner.temp }}/fetch.json
+          VITE_CREDITS_URL: ${{ vars.VITE_CREDITS_URL || 'https://credits.le-space.de' }}
+        run: |
+          [ -n "$PACKAGE_PHRASE" ] || { echo "::error::set the PACKAGE_TEST_PHRASE secret (the test vault's 24 words)"; exit 1; }
+          pnpm install --frozen-lockfile > /dev/null
+          pnpm exec vite-node scripts/own-image-package.mjs
+
       - name: Seal for a throwaway vault and fetch it back
+        if: inputs.relay != 'package'
         working-directory: pwa
         env:
           VPROGRAM: ${{ inputs.vprogram }}

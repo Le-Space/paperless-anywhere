@@ -7,9 +7,9 @@
 	import { BACKUP_LABEL, backupConfigFor } from '$lib/backups.js';
 	import { relayList } from '$lib/attest-p2p.js';
 	import { findAttestRelays } from '$lib/relays.js';
-	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups } from '$lib/credits.js';
+	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups, IMAGE_BUILD_TYPES, imageBuild, imageBuildDone, vmAuthorize } from '$lib/credits.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
-	import { BUILDER, buildAffordable, buildOnOwnBuilder, buildOwnImage, builderOpener, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
+	import { BUILDER, buildAffordable, buildOnOwnBuilder, buildPaidByPackage, buildOwnImage, builderOpener, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
 	import { format, lang, t, tr } from '$lib/i18n/index.js';
 	import {
 		connectPayer,
@@ -80,7 +80,17 @@
 				imageKind = imageKindOf(profile, BUILDER);
 				loaded = true;
 				// A build's builder that a closed window left running: forget it now.
-				if (profile.ownBuilder) forgetLeftBuilder(privateKeyToAccount(alephPrivateKey(master)), profile).then((gone) => gone && save({ ownBuilder: null })).catch(() => {});
+				if (profile.ownBuilder) {
+					const left = profile.ownBuilder;
+					forgetLeftBuilder(privateKeyToAccount(alephPrivateKey(master)), profile)
+						.then(async (gone) => {
+							if (!gone) return;
+							// Paid by the package: the service takes back the rest of its grant.
+							if (left.buildId) await imageBuildDone(master, { buildId: left.buildId, program: left.vprogram }).catch(() => {});
+							await save({ ownBuilder: null });
+						})
+						.catch(() => {});
+				}
 				await refresh();
 			})
 			.catch((e) => (error = e.message));
@@ -241,11 +251,18 @@
 	// Whether the app address can pay a build now (a day of the builder, the
 	// image's storage and what it already pays): the build is offered only
 	// then. Unknown (Aleph not asked) offers it, and Aleph's answer decides.
-	/** @type {{ ok: boolean | null, need: number | null, have: number | null } | null} */
+	// With a Le Space package the package pays (Le Space Credits): its price
+	// for one build, or why it cannot (no package, too little balance).
+	/** @type {{ ok: boolean | null, need?: number | null, have?: number | null, price?: number | null, reason?: string } | null} */
 	let affordable = $state(null);
+	const packagePays = $derived(Boolean(profile?.leSpacePays && CREDITS_URL));
 	$effect(() => {
 		if (!BUILDER || imageKind !== 'own' || !loaded || affordable) return;
-		buildAffordable(privateKeyToAccount(alephPrivateKey(master)), /** @type {any} */ (BUILDER)).then((a) => (affordable = a));
+		if (packagePays)
+			imageBuild(master, { quote: true })
+				.then((q) => (affordable = { ok: true, price: q.chargedCredits }))
+				.catch((e) => (affordable = { ok: false, reason: e.message }));
+		else buildAffordable(privateKeyToAccount(alephPrivateKey(master)), /** @type {any} */ (BUILDER)).then((a) => (affordable = a));
 	});
 	const ownBuilt = $derived(Boolean(BUILDER && hasOwnImage(profile, BUILDER.plain.sha256)));
 	// Back to the public image after an own one: its hash and passphrase are
@@ -261,13 +278,33 @@
 			const common = { master, app: privateKeyToAccount(alephPrivateKey(master)), onProgress: (/** @type {{ detail?: string }} */ { detail }) => (ownStep = detail ?? '') };
 			// A builder fixed by its V-PROGRAM content is started for this build
 			// and forgotten afterwards; the profile notes it meanwhile.
-			const built = 'program' in BUILDER
+			const onForgotten = () => save({ ownBuilder: null });
+			const opener = (/** @type {any} */ running) => builderOpener(running, profile);
+			let built;
+			if ('program' in BUILDER && packagePays) {
+				// The package pays: the app key may send the builder and the STORE
+				// for the sub-account (authorize again picks up new types), and the
+				// person sees the price and agrees first.
+				const granted = await vmAuthorize(master);
+				if (!granted.types || !IMAGE_BUILD_TYPES.every((type) => granted.types?.includes(type))) throw new Error($t.ownImage.choice.serviceOld);
+				const quote = await imageBuild(master, { quote: true });
+				if (!confirm($t.ownImage.choice.confirmPrice(format.euro(quote.chargedCredits ?? 0, $lang)))) return;
+				built = await buildPaidByPackage({
+					...common,
+					builder: /** @type {any} */ (BUILDER),
+					opener,
+					charge: () => imageBuild(master),
+					done: (d) => imageBuildDone(master, d),
+					onStarted: (vprogram, paid) => save({ ownBuilder: { vprogram, payer: paid?.payer ?? null, buildId: paid?.buildId ?? null, at: new Date().toISOString() } }),
+					onForgotten
+				});
+			} else built = 'program' in BUILDER
 				? await buildOnOwnBuilder({
 						...common,
 						builder: /** @type {any} */ (BUILDER),
 						opener: (running) => builderOpener(running, profile),
 						onStarted: (vprogram) => save({ ownBuilder: { vprogram, at: new Date().toISOString() } }),
-						onForgotten: () => save({ ownBuilder: null })
+						onForgotten
 					})
 				: await buildOwnImage({ ...common, builder: BUILDER, open: builderOpener(BUILDER, profile) });
 			await save(built);
@@ -475,8 +512,9 @@
 				</details>
 				{#if ownBuilt}<p class="saved" data-testid="own-image-have">{$t.ownImage.have(format.date(profile.ownImage.builtAt, undefined, $lang))}</p>{/if}
 				{#if affordable === null}<p class="hint" data-testid="own-image-checking">{$t.ownImage.choice.checking}</p>
+				{:else if affordable.ok === false && affordable.reason}<p class="warn" data-testid="own-image-package-no">{affordable.reason}</p>
 				{:else if affordable.ok === false}<p class="warn" data-testid="own-image-needs-credits">{$t.ownImage.choice.needsCredits(format.number(affordable.need ?? 0, undefined, $lang), format.number(affordable.have ?? 0, undefined, $lang))}</p>
-				{:else}<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{ownBuilt ? $t.ownImage.rebuild : $t.ownImage.build}</button>{/if}
+				{:else}{#if affordable.price != null}<p class="hint" data-testid="own-image-price">{$t.ownImage.choice.price(format.euro(affordable.price, $lang))}</p>{/if}<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{ownBuilt ? $t.ownImage.rebuild : $t.ownImage.build}</button>{/if}
 				{#if profile.running}<p class="hint">{$t.ownImage.whileRunning}</p>{/if}
 				{#if busy === 'own-image' && ownStep}<p class="hint" role="status" data-testid="own-image-step">{ownStep} …</p>{/if}
 				{@render feedback('own-image')}
