@@ -316,12 +316,46 @@ describe('an image of one\'s own', () => {
 		expect(last('fetch')).toMatchObject({ got: image.length, size: image.length, lanes: expect.any(Number) });
 		expect(last('fetch').attested).toBeGreaterThanOrEqual(2);
 		expect(last('sign')).toEqual({ cid, storeHash: result.rootfsItemHash });
-		expect(last('upload')).toEqual({ size: image.length, host: 'api2.aleph.im' });
+		expect(last('upload')).toEqual({ size: image.length, host: 'api2.aleph.im', attempt: 1 });
 		expect(last('confirm')).toEqual({ storeHash: result.rootfsItemHash, processed: true });
 		// Nothing the progress view gets may hold the passphrase.
 		expect(JSON.stringify(seen)).not.toContain(imagePassphrase(master, builder.plain.sha256));
 		expect(relayHost('wss://relay.example.test/attest')).toBe('relay.example.test');
 		expect(relayHost('/dns4/relay.example.test/tcp/443/tls/ws/p2p/x')).toBe('relay.example.test');
+	});
+
+	it('uploads again over another API node when the connection breaks, unless Aleph has the STORE already', async () => {
+		const hosts = [];
+		let tries = 0;
+		const flaky = async (blob, message, host) => {
+			hosts.push(host);
+			if (++tries === 1) throw new TypeError('Failed to fetch');
+			return { status: 200, cid };
+		};
+		const { open } = fakeBuilder();
+		let asked = 0;
+		// Not there after the broken upload; processed after the second one.
+		const read = async () => (asked++ === 0 ? null : 'processed');
+		const result = await buildOwnImage({ master, app, builder, open, store: flaky, ...quick(), read });
+		expect(result.rootfsItemHash).toMatch(/^[0-9a-f]{64}$/);
+		expect(hosts).toEqual(['https://api2.aleph.im', 'https://api3.aleph.im']);
+
+		// The upload broke, but Aleph got it: no second upload.
+		let uploads = 0;
+		const lost = async () => {
+			uploads++;
+			throw new TypeError('Failed to fetch');
+		};
+		await buildOwnImage({ master, app, builder, open: fakeBuilder().open, store: lost, ...quick(), read: async () => 'pending' }).catch(() => {});
+		expect(uploads).toBe(1);
+
+		// A refusal is final; three broken tries end with a clear message.
+		let refused = 0;
+		await expect(buildOwnImage({ master, app, builder, open: fakeBuilder().open, store: async () => (refused++, { status: 402, cid: null, reason: 'no credits' }), ...quick() })).rejects.toThrow(BuilderError);
+		expect(refused).toBe(1);
+		let broken = 0;
+		await expect(buildOwnImage({ master, app, builder, open: fakeBuilder().open, store: async () => { broken++; throw new TypeError('Failed to fetch'); }, ...quick(), read: async () => null })).rejects.toThrow(/dreimal abgebrochen/);
+		expect(broken).toBe(3);
 	});
 
 	it('gives up where trying again cannot help: the image is gone, or a connection fails its attestation', async () => {
