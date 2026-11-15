@@ -7,9 +7,10 @@
 	import { BACKUP_LABEL, backupConfigFor } from '$lib/backups.js';
 	import { relayList } from '$lib/attest-p2p.js';
 	import { findAttestRelays } from '$lib/relays.js';
-	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups, IMAGE_BUILD_TYPES, imageBuild, imageBuildDone, vmAuthorize } from '$lib/credits.js';
+	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups, imageBuild, imageBuildDone } from '$lib/credits.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
-	import { BUILDER, buildAffordable, buildOnOwnBuilder, buildPaidByPackage, buildOwnImage, builderOpener, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
+	import { buildImageForVault } from '$lib/own-image-build.js';
+	import { BUILDER, buildAffordable, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
 	import { format, lang, t, tr } from '$lib/i18n/index.js';
 	import {
 		connectPayer,
@@ -275,38 +276,15 @@
 		if (!BUILDER) return;
 		ownStep = '';
 		try {
-			const common = { master, app: privateKeyToAccount(alephPrivateKey(master)), onProgress: (/** @type {{ detail?: string }} */ { detail }) => (ownStep = detail ?? '') };
-			// A builder fixed by its V-PROGRAM content is started for this build
-			// and forgotten afterwards; the profile notes it meanwhile.
-			const onForgotten = () => save({ ownBuilder: null });
-			const opener = (/** @type {any} */ running) => builderOpener(running, profile);
-			let built;
-			if ('program' in BUILDER && packagePays) {
-				// The package pays: the app key may send the builder and the STORE
-				// for the sub-account (authorize again picks up new types), and the
-				// person sees the price and agrees first.
-				const granted = await vmAuthorize(master);
-				if (!granted.types || !IMAGE_BUILD_TYPES.every((type) => granted.types?.includes(type))) throw new Error($t.ownImage.choice.serviceOld);
-				const quote = await imageBuild(master, { quote: true });
-				if (!confirm(quote.included ? $t.ownImage.choice.confirmIncluded : $t.ownImage.choice.confirmPrice(format.euro(quote.chargedCredits ?? 0, $lang)))) return;
-				built = await buildPaidByPackage({
-					...common,
-					builder: /** @type {any} */ (BUILDER),
-					opener,
-					charge: () => imageBuild(master),
-					done: (d) => imageBuildDone(master, d),
-					onStarted: (vprogram, paid) => save({ ownBuilder: { vprogram, payer: paid?.payer ?? null, buildId: paid?.buildId ?? null, at: new Date().toISOString() } }),
-					onForgotten
-				});
-			} else built = 'program' in BUILDER
-				? await buildOnOwnBuilder({
-						...common,
-						builder: /** @type {any} */ (BUILDER),
-						opener: (running) => builderOpener(running, profile),
-						onStarted: (vprogram) => save({ ownBuilder: { vprogram, at: new Date().toISOString() } }),
-						onForgotten
-					})
-				: await buildOwnImage({ ...common, builder: BUILDER, open: builderOpener(BUILDER, profile) });
+			const built = await buildImageForVault({
+				master,
+				profile,
+				packagePays,
+				confirm: (question) => confirm(question),
+				save,
+				onProgress: ({ detail }) => (ownStep = detail ?? '')
+			});
+			if (!built) return;
 			await save(built);
 			imageInput = built.rootfsItemHash;
 			passInput = '';
@@ -542,6 +520,8 @@
 	.sources dd { margin: 0; overflow-wrap: anywhere; }
 	.image-choice { border: none; padding: 0; margin: 0 0 0.75rem; }
 	.image-choice label { display: block; margin: 0.25rem 0; }
+	/* The radio before its label, not stretched above it like the text inputs. */
+	.image-choice input[type='radio'] { width: auto; margin: 0 0.4rem 0 0; vertical-align: middle; }
 	.own-image { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--line); }
 	.self-pay { margin: 0.25rem 0 0.75rem; font-size: 0.95rem; color: var(--text-2); }
 	.self-pay summary { cursor: pointer; }
