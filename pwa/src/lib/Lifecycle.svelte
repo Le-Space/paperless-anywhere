@@ -4,6 +4,7 @@
 	import { buildImageForVault } from '$lib/own-image-build.js';
 	import { BUILDER, hasOwnImage, imageStatus } from '$lib/own-image.js';
 	import FirstStart from '$lib/FirstStart.svelte';
+	import { onImageBuild } from '$lib/image-build-request.js';
 	import { fetchPercent, stationOfBuildStep } from '$lib/first-start.js';
 	import { vmStatus } from '$lib/vm.js';
 	import Storage from '$lib/Storage.svelte';
@@ -422,18 +423,36 @@
 		return true;
 	}
 	// A newer image version: built again while Paperless is off, without a start after it.
-	const rebuildImage = () =>
-		run(async () => {
-			try {
-				if (await buildWithJourney(true)) {
-					progress = '';
-					if (ceremony) ceremony = { ...ceremony, done: true, minimized: false };
-				}
-			} catch (e) {
-				if (ceremony) ceremony = { ...ceremony, failed: true, minimized: false };
-				throw e;
-			}
-		});
+	async function rebuildFlow() {
+		if (profile.running || profile.starting) throw new Error(tr().first.whileRunning);
+		try {
+			if (!(await buildWithJourney(true))) return false;
+			progress = '';
+			if (ceremony) ceremony = { ...ceremony, done: true, minimized: false };
+			return true;
+		} catch (e) {
+			if (ceremony) ceremony = { ...ceremony, failed: true, minimized: false };
+			throw e;
+		}
+	}
+	const rebuildImage = () => run(rebuildFlow);
+	// "Mein Image bauen" in the setup comes here too (image-build-request.js),
+	// so every build shows the same full screen.
+	$effect(() =>
+		onImageBuild(() => {
+			if (busy) return Promise.reject(new Error(tr().first.busy));
+			return new Promise((resolve, reject) => {
+				run(async () => {
+					try {
+						resolve(await rebuildFlow());
+					} catch (e) {
+						reject(e);
+						throw e;
+					}
+				});
+			});
+		})
+	);
 	/** @param {any} chosen @param {boolean} first */
 	async function startNowInner(chosen, first) {
 		if (first) {
