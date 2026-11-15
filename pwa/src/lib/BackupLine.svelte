@@ -8,6 +8,7 @@
 	import { addBackupLine, backupStatus, startBackupYear, waitForBackup, waiverOf, WaiverError } from '$lib/credits.js';
 	import StripeCheckout from '$lib/StripeCheckout.svelte';
 	import Waiver from '$lib/Waiver.svelte';
+	import { preparing } from '$lib/purchase-step.js';
 	import { format, lang, t, tr } from '$lib/i18n/index.js';
 
 	/**
@@ -50,6 +51,17 @@
 	let waivedAdd = $state(false);
 	let waivedYear = $state(false);
 	const blocked = (/** @type {boolean} */ ticked) => !termsRead || (Boolean(withdrawal) && !ticked);
+	// An open fold is the purchase chosen; choosing another one closes it, unticked.
+	$effect(() => {
+		if ($preparing !== 'backup-add') (addOpen = false), (waivedAdd = false);
+	});
+	$effect(() => {
+		if ($preparing !== 'backup-year') (yearOpen = false), (waivedYear = false);
+	});
+	const toggled = (/** @type {string} */ key, /** @type {Event} */ e) => {
+		if (/** @type {HTMLDetailsElement} */ (e.currentTarget).open) preparing.set(key);
+		else if ($preparing === key) preparing.set('');
+	};
 	/** @type {StripeCheckout | undefined} */
 	let checkout = $state();
 
@@ -96,7 +108,7 @@
 
 	{#if sold && offer}
 		{#if canAdd}
-			<details class="buy" data-testid="backup-add-fold" bind:open={addOpen}>
+			<details class="buy" data-testid="backup-add-fold" bind:open={addOpen} ontoggle={(e) => toggled('backup-add', e)}>
 				<summary data-testid="backup-add-summary">{x.addFold(euro(offer.monthCents))}</summary>
 				<p class="hint">{x.addHint(nextCharge, offer.retentionDays)}</p>
 				<Waiver {withdrawal} bind:checked={waivedAdd} testid="backup-add-waiver" />
@@ -106,7 +118,7 @@
 			<p class="hint">{x.remove.before}<button class="link" onclick={() => onportal()} disabled={disabled || busy} data-testid="backup-remove">{x.remove.link}</button>{x.remove.after(offer.retentionDays)}</p>
 		{/if}
 
-		<details class="buy" data-testid="backup-year-fold" bind:open={yearOpen}>
+		<details class="buy" data-testid="backup-year-fold" bind:open={yearOpen} ontoggle={(e) => toggled('backup-year', e)}>
 			<summary data-testid="backup-year-summary">{x.yearFold(euro(offer.yearCents))}</summary>
 			<p><strong>{x.keepStrong}</strong> {x.keep}</p>
 			<p class="hint">{x.yearHint(offer.yearDays)}</p>

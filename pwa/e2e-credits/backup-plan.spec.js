@@ -39,8 +39,9 @@ test('until the service sells it, nothing of the backup line shows', async ({ pa
 	await expect(page.getByTestId('plan-backup')).toHaveCount(0);
 	await expect(page.getByTestId('backup-status')).toContainText('nicht gebucht');
 	await expect(page.getByTestId('backup-year-fold')).toHaveCount(0);
-	await page.getByTestId('plan-waiver-box').check();
 	await page.getByTestId('plan-paperless-30').click();
+	await page.getByTestId('plan-waiver-box').check();
+	await page.getByTestId('plan-pay').click();
 	await expect.poll(async () => (await received('/v1/subscribe')).map((r) => 'backup' in r.body)).toEqual([false]);
 	await expect(page.getByTestId('checkout-summary')).not.toContainText('Sicherung');
 	await closeCheckout(page);
@@ -58,10 +59,11 @@ test('“mit Sicherung” starts unticked, shows the total and goes into the ord
 	await expect(page.getByTestId('plan-price-paperless-30')).toHaveText('7,50 €');
 	await expect(page.getByTestId('plan-price-paperless-10')).toHaveText('5,50 €');
 	await shot(page, 'plan-with-backup', page.getByTestId('package'));
-	// Still the one declaration of the subscription, no second box.
-	await expect(page.getByTestId('plan-paperless-30')).toBeDisabled();
-	await page.getByTestId('plan-waiver-box').check();
+	// The declaration shows only once a package is chosen, and only one.
+	await expect(page.getByTestId('plan-waiver')).toHaveCount(0);
 	await page.getByTestId('plan-paperless-30').click();
+	await page.getByTestId('plan-waiver-box').check();
+	await page.getByTestId('plan-pay').click();
 	await expect.poll(async () => (await received('/v1/subscribe')).map((r) => [r.body.package, r.body.backup, r.body.waiver])).toEqual([['paperless-30', true, '1']]);
 	await expect(page.getByTestId('checkout-summary')).toHaveText('30 Stunden im Monat: 6,00 € + Sicherung 1,50 € = 7,50 €. Monatsabo, verlängert sich jeden Monat, kündbar zum Monatsende.');
 	await shot(page, 'checkout-summary', page.getByRole('dialog'));
@@ -69,8 +71,9 @@ test('“mit Sicherung” starts unticked, shows the total and goes into the ord
 
 	// Without the tick the order says so and sends no backup.
 	await box.uncheck();
-	await page.getByTestId('plan-waiver-box').check();
 	await page.getByTestId('plan-paperless-30').click();
+	await page.getByTestId('plan-waiver-box').check();
+	await page.getByTestId('plan-pay').click();
 	await expect(page.getByTestId('checkout-summary')).toContainText('6,00 €, ohne Sicherung.');
 	await expect.poll(async () => (await received('/v1/subscribe')).map((r) => 'backup' in r.body)).toEqual([true, false]);
 	await closeCheckout(page);
@@ -86,8 +89,9 @@ test('packages that include the backup show one price, no box, and say what is i
 	await expect(page.getByTestId('plan-price-paperless-always-backup')).toHaveText('90,50 €');
 	await expect(page.getByTestId('plan-paperless-15-backup')).toContainText('Sicherung inklusive');
 	await shot(page, 'plans-backup-included', page.getByTestId('package'));
-	await page.getByTestId('plan-waiver-box').check();
 	await page.getByTestId('plan-paperless-15-backup').click();
+	await page.getByTestId('plan-waiver-box').check();
+	await page.getByTestId('plan-pay').click();
 	// The plan carries the backup: no extra flag goes out, and the order says what it holds.
 	await expect.poll(async () => (await received('/v1/subscribe')).map((r) => [r.body.package, 'backup' in r.body])).toEqual([['paperless-15-backup', false]]);
 	await expect(page.getByTestId('checkout-summary')).toHaveText('15 Stunden im Monat: 6,40 €, Sicherung inklusive. Monatsabo, verlängert sich jeden Monat, kündbar zum Monatsende.');
@@ -243,11 +247,14 @@ test('the package card in English: prices, the declaration in English, legal but
 	await expect(page.getByTestId('plan-price-paperless-15-backup')).toHaveText('€6.40');
 	await expect(page.getByTestId('plan-paperless-always-backup')).toContainText('Always on, around the clock');
 	await expect(page.getByTestId('balance-euro')).toHaveText('€12.34');
-	// The declaration on withdrawal comes from the service, in the language shown.
+	// The declaration on withdrawal comes from the service, in the language shown, once a package is chosen.
+	await page.getByTestId('plan-paperless-15-backup').click();
+	await expect(page.getByTestId('plan-step')).toContainText('For this purchase: 15 hours a month, €6.40');
 	await expect(page.getByTestId('plan-waiver')).toContainText('Example withdrawal text');
+	await expect(page.getByTestId('plan-pay')).toHaveText('Continue to payment');
 	await shot(page, 'package-en', page.getByTestId('package'));
 	await page.getByTestId('plan-waiver-box').check();
-	await page.getByTestId('plan-paperless-15-backup').click();
+	await page.getByTestId('plan-pay').click();
 	// The payment page is asked for in English, and the order is summed up in English.
 	await expect.poll(async () => (await received('/v1/subscribe')).map((r) => r.body.locale)).toEqual(['en']);
 	await expect(page.getByTestId('checkout-summary')).toHaveText('15 hours a month: €6.40, backup included. Monthly subscription, renews every month, can be cancelled to the month’s end.');
