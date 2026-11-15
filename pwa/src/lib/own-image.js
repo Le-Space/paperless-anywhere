@@ -229,6 +229,8 @@ export const LANES = 3;
 export const RUN_TRIES = 10;
 /** The longest wait between two tries of a run. */
 export const RETRY_MAX_MS = 30_000;
+/** Where the sealed image is uploaded, try by try: Aleph's API, then another node, then the first again. */
+export const UPLOAD_HOSTS = [ALEPH_API, 'https://api3.aleph.im', ALEPH_API];
 
 /** An attestation that was refused: nothing is retried after that. */
 const refusedAttestation = (error) => /rejected|measurement|policy|signature/i.test(String(error));
@@ -374,8 +376,7 @@ export async function buildOwnImage({ master, app, payer = app.address, builder,
 		onProgress({ step: 'sign', detail: tr().ownImage.step.sign, data: { cid } });
 		message = await storeMessage(app, cid, now() / 1000, payer);
 		onProgress({ step: 'sign', detail: tr().ownImage.step.sign, data: { cid, storeHash: message.item_hash } });
-		onProgress({ step: 'upload', detail: tr().ownImage.step.upload(size), data: { size, host: apiHost(ALEPH_API) } });
-		const stored = await store(image, message);
+		const stored = await uploadWithRetries(image, message, size);
 		if (stored.status >= 300) throw new BuilderError(tr().ownImage.error.uploadRefused(stored.status));
 		// The node names the content address it made from what it received.
 		if (stored.cid && stored.cid !== cid) {
@@ -406,6 +407,37 @@ export async function buildOwnImage({ master, app, payer = app.address, builder,
 			...(attested ? { builder: { vprogram: builder.vprogram ?? null, measurement: attested.measurement, attestedAt: attested.at } } : {})
 		}
 	};
+
+	/**
+	 * Upload the sealed image, more than once if the connection breaks: one
+	 * request of about 900 MiB, which an unsteady line (a VPN across
+	 * continents, 2026-11-15) can lose. Before trying again it asks Aleph
+	 * whether the STORE arrived after all; the second try goes to another
+	 * API node. A refusal (4xx) is final.
+	 */
+	async function uploadWithRetries(image, message, size) {
+		let last = null;
+		for (let attempt = 0; attempt < UPLOAD_HOSTS.length; attempt++) {
+			const host = UPLOAD_HOSTS[attempt];
+			if (attempt) {
+				await sleep(Math.min(retryMs * 5 * attempt, RETRY_MAX_MS));
+				const status = await read(message.item_hash).catch(() => null);
+				if (status === 'processed' || status === 'pending') return { status: 200, cid: null, reason: '' };
+			}
+			onProgress({ step: 'upload', detail: tr().ownImage.step.upload(size), data: { size, host: apiHost(host), attempt: attempt + 1 } });
+			try {
+				const stored = await store(image, message, host);
+				// Only a gateway that gave up is worth another try; any other answer,
+				// a refusal (credits, a bad message) or an error, is final.
+				if (![502, 503, 504].includes(stored.status)) return stored;
+				last = stored;
+			} catch (error) {
+				last = { status: 0, cid: null, reason: String(error instanceof Error ? error.message : error).slice(0, 200) };
+			}
+		}
+		if (last?.status) return last;
+		throw new BuilderError(tr().ownImage.error.uploadBroken(last?.reason ?? ''));
+	}
 
 	/** Has the builder seal the image and fetches it; the builder drops it afterwards, whatever happened. */
 	async function sealAndFetch() {
