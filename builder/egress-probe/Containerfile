@@ -1,0 +1,4 @@
+FROM node:24-alpine
+COPY probe.mjs /opt/probe.mjs
+USER node
+CMD ["node", "/opt/probe.mjs"]

@@ -18,6 +18,10 @@ name: Image builder on Aleph
 #            it shows that a whole image fits into the VM's memory, how long
 #            it takes, and that the result begins as a LUKS2 disk
 #   delete   forgets a published V-PROGRAM (the scheduler then stops the VM)
+#   egress   publishes a tiny V-PROGRAM (builder/egress-probe) that reports
+#            whether it can reach Aleph's API and two other hosts, calls it
+#            attested, then deletes it with its volumes: can a builder upload
+#            the sealed image itself? Costs a few minutes of a small VM.
 #   forget   forgets the STOREs named in "stores" (space-separated item
 #            hashes): volumes of builders that are gone. Only STOREs this
 #            account sent, and never the plain image named in "plain_store"
@@ -55,6 +59,7 @@ on:
           - delete
           - again
           - forget
+          - egress
       stores:
         description: 'For "forget": the STOREs to forget, item hashes separated by spaces.'
         required: false
@@ -143,7 +148,7 @@ jobs:
             check|trial|delete|again) [[ "$HASH" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::\"$ACTION\" needs the V-PROGRAM's item hash (64 hex)"; exit 1; } ;;
           esac
           case "$ACTION" in
-            dry-run|publish|delete|again|forget) [ -n "$ALEPH_PRIVATE_KEY" ] || { echo "::error::set the ALEPH_PRIVATE_KEY secret"; exit 1; } ;;
+            dry-run|publish|delete|again|forget|egress) [ -n "$ALEPH_PRIVATE_KEY" ] || { echo "::error::set the ALEPH_PRIVATE_KEY secret"; exit 1; } ;;
           esac
 
       - name: Aleph's CLI and the image tools
@@ -341,6 +346,38 @@ jobs:
           done
           ! grep -v ' forgotten$' "$RUNNER_TEMP/forgotten.txt"
 
+      - name: Can a V-PROGRAM reach out? Publish the probe, ask it, delete it
+        if: inputs.action == 'egress'
+        working-directory: builder/egress-probe
+        env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+          CRN: ${{ inputs.crn }}
+          RUNTIME: ${{ inputs.runtime }}
+        run: |
+          docker build --platform linux/amd64 -f Containerfile -t localhost/paperless-anywhere-egress-probe:1 . > /dev/null
+          docker save -o "$RUNNER_TEMP/probe.tar" localhost/paperless-anywhere-egress-probe:1
+          create=(aleph vprogram create paperless-egress-probe --compose docker-compose.yml
+            --image-archive "localhost/paperless-anywhere-egress-probe:1=$RUNNER_TEMP/probe.tar" --runtime "$RUNTIME"
+            --vcpus 1 --memory 2048 --chain eth --json)
+          [ -n "$CRN" ] && create+=(--crn "$CRN")
+          "${create[@]}" --wait 600 > "$RUNNER_TEMP/publish.json" 2> "$RUNNER_TEMP/publish.log" || { tail -20 "$RUNNER_TEMP/publish.log"; }
+          hash="$(jq -rs '[.. | objects | .item_hash? | strings | select(test("^[0-9a-f]{64}$"))] | first // empty' "$RUNNER_TEMP/publish.json")"
+          [ -n "$hash" ] || { echo "::error::not published"; exit 1; }
+          echo "$hash" > "$RUNNER_TEMP/hash.txt"
+          echo "::notice::probe published as $hash"
+          # The volumes, to forget with it afterwards.
+          sleep 5
+          curl -fsS "https://api2.aleph.im/api/v0/messages/$hash" | jq -r '.message.item_content | fromjson | [.workload.ref, .workload.hash_tree, (.volumes[]? | .ref, .hash_tree)] | .[] | select(. != null)' > "$RUNNER_TEMP/refs.txt" || true
+          answer=
+          for try in $(seq 1 20); do
+            if aleph vprogram call "$hash" / > "$RUNNER_TEMP/egress.json" 2> "$RUNNER_TEMP/call.log" && grep -q 'egress probe' "$RUNNER_TEMP/egress.json"; then answer=1; break; fi
+            echo "--- try $try"; tail -2 "$RUNNER_TEMP/call.log"; sleep 30
+          done
+          [ -n "$answer" ] && jq . "$RUNNER_TEMP/egress.json" | tee "$RUNNER_TEMP/egress.txt"
+          aleph vprogram delete "$hash" --yes --chain eth --reason "egress probe done" --json > /dev/null || echo "::error::delete $hash by hand"
+          if [ -s "$RUNNER_TEMP/refs.txt" ]; then aleph message forget $(cat "$RUNNER_TEMP/refs.txt") --reason "egress probe volumes" --chain eth --yes > /dev/null || echo "::warning::forget the probe's volumes by hand: $(tr '\n' ' ' < "$RUNNER_TEMP/refs.txt")"; fi
+          [ -n "$answer" ] || { echo "::error::the probe never answered"; exit 1; }
+
       - name: Show it and call it, attested
         if: inputs.action == 'check'
         env:
@@ -458,6 +495,7 @@ jobs:
           block "Container image" "$RUNNER_TEMP/archive.txt"
           block "Published V-PROGRAM" "$RUNNER_TEMP/publish.json"
           block "Started again from the same volumes" "$RUNNER_TEMP/again.txt"
+          block "Egress probe: what a V-PROGRAM reaches" "$RUNNER_TEMP/egress.txt"
           [ "$ACTION" = dry-run ] && block "What would be published" "$RUNNER_TEMP/dry-run.json"
           block "V-PROGRAM ${HASH:-$(cat "$RUNNER_TEMP/hash.txt" 2>/dev/null)}" "$RUNNER_TEMP/show.json"
           block "Attested call" "$RUNNER_TEMP/call.log"

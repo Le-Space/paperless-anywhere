@@ -1,0 +1,6 @@
+# A V-PROGRAM that only reports whether it can reach out (#202). Published by
+# the workflow "Image builder on Aleph", action "egress", and deleted again.
+services:
+  probe:
+    image: localhost/paperless-anywhere-egress-probe:1
+    network_mode: host
