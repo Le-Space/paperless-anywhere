@@ -267,6 +267,21 @@
 	// that version know, or this vault's own. Shown only when a builder is fixed.
 	/** @type {'public' | 'own'} */
 	let imageKind = $state('public');
+	// Until the person picks one, the choice follows what the profile says.
+	// The profile changes after loading too: a voucher or package sets "Le
+	// Space pays" (customer defaults), and the first start then builds the
+	// own image, so the choice must not stay on the public one shown at load.
+	let imageKindPicked = false;
+	/** @type {string | null} */
+	let suggested = null;
+	$effect(() => {
+		if (!BUILDER || !loaded) return;
+		// Depends on the profile only, so a click on a radio does not re-run it.
+		const kind = buildsImageFirst(profile, BUILDER) ? 'own' : imageKindOf(profile, BUILDER);
+		if (kind === suggested) return;
+		suggested = kind;
+		if (!imageKindPicked) imageKind = kind;
+	});
 	const publicImage = $derived(!BUILDER || imageKind === 'public');
 	// Whether the app address can pay a build now (a day of the builder, the
 	// image's storage and what it already pays): the build is offered only
@@ -281,7 +296,7 @@
 		if (packagePays)
 			imageBuild(master, { quote: true })
 				.then((q) => (affordable = { ok: true, price: q.chargedCredits, included: q.included }))
-				.catch((e) => (affordable = { ok: false, reason: e.message }));
+				.catch((e) => (affordable = { ok: false, reason: e instanceof TypeError ? $t.ownImage.choice.creditsUnreachable : e.message }));
 		else buildAffordable(privateKeyToAccount(alephPrivateKey(master)), /** @type {any} */ (BUILDER)).then((a) => (affordable = a));
 	});
 	const ownBuilt = $derived(Boolean(BUILDER && hasOwnImage(profile, BUILDER.plain.sha256)));
@@ -472,8 +487,8 @@
 		{#if BUILDER}
 			<fieldset class="image-choice" data-testid="image-choice">
 				<legend>{$t.ownImage.choice.legend}</legend>
-				<label><input type="radio" bind:group={imageKind} value="public" onchange={choosePublic} data-testid="image-public" /> {$t.ownImage.choice.public}<br /><small>{$t.ownImage.choice.publicHint}</small></label>
-				<label><input type="radio" bind:group={imageKind} value="own" data-testid="image-own" /> {$t.ownImage.choice.own}<br /><small>{$t.ownImage.choice.ownHint}</small></label>
+				<label><input type="radio" bind:group={imageKind} value="public" onchange={() => ((imageKindPicked = true), choosePublic())} data-testid="image-public" /> {$t.ownImage.choice.public}<br /><small>{$t.ownImage.choice.publicHint}</small></label>
+				<label><input type="radio" bind:group={imageKind} value="own" onchange={() => (imageKindPicked = true)} data-testid="image-own" /> {$t.ownImage.choice.own}<br /><small>{$t.ownImage.choice.ownHint}</small></label>
 			</fieldset>
 		{/if}
 		{#if publicImage}
