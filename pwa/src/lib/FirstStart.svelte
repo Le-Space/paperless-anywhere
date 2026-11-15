@@ -7,7 +7,7 @@
 	// title carries the progress. At the end: "Geschafft" and the certificate.
 	import { onDestroy } from 'svelte';
 	import ImageCertificate from '$lib/ImageCertificate.svelte';
-	import { evidence, fetchRate, flowNow, HARDWARE, journey, STATIONS, substeps } from '$lib/first-start.js';
+	import { evidence, fetchRate, flowNow, HARDWARE, journey, STATIONS, substeps, UPLOAD_TRIES } from '$lib/first-start.js';
 	import { ALEPH_MESSAGE, BUILDER, REPOSITORY } from '$lib/own-image.js';
 	import { format, lang, t } from '$lib/i18n/index.js';
 
@@ -167,9 +167,10 @@
 								<p>{here.text}</p>
 								<ul class="subs" data-testid="first-substeps">
 									{#each steps as st (st.key)}
-										<li class={st.state}><span class="led" class:on={st.state === 'done'} class:blink={st.state === 'active' && running} aria-hidden="true"></span><span>{/** @type {any} */ (x.sub)[st.key]}{#if st.key === 'lanes' && facts.attested}{' · '}<small>{x.attestedCount(facts.attested)}</small>{/if}{#if st.key === 'bytes' && facts.size}{' · '}<small>{x.mib(mib(facts.got ?? 0), mib(facts.size))}{#if rate}{' · '}{x.rate(rate.toFixed(1))}{/if}</small>{/if}</span></li>
+										<li class={st.state}><span class="led" class:on={st.state === 'done'} class:blink={st.state === 'active' && running} aria-hidden="true"></span><span>{/** @type {any} */ (x.sub)[st.key]}{#if st.key === 'lanes' && facts.attested}{' · '}<small>{x.attestedCount(facts.attested)}</small>{/if}{#if st.key === 'bytes' && facts.size}{' · '}<small>{x.mib(mib(facts.got ?? 0), mib(facts.size))}{#if rate}{' · '}{x.rate(rate.toFixed(1))}{/if}</small>{/if}{#if st.key === 'upload' && facts.host && view.station === 'store'}{' · '}<small data-testid="first-upload">{#if (facts.attempt ?? 1) > 1}{x.attempt(facts.attempt ?? 1, UPLOAD_TRIES)}{' · '}{/if}{String(facts.host).replace(/^https?:\/\//, '')}</small>{/if}</span></li>
 									{/each}
 								</ul>
+								{#if view.station === 'store' && (facts.attempt ?? 1) > 1 && !facts.processed}<p class="small retry" data-testid="first-retry">{x.retryNote}</p>{/if}
 								{#if view.station === 'fetch' && view.fetchPct != null}
 									<span class="bar big-bar"><span class="fill gold shimmer" style="width: {view.fetchPct}%"></span></span>
 									<p class="small" data-testid="first-fetch">{x.fetched(view.fetchPct)}</p>
