@@ -44,7 +44,7 @@ on:
         required: false
         default: ''
       check_only:
-        description: 'With "package": only show the test vault's balance and plan; spends nothing.'
+        description: 'With "package": only show the balance and plan of the test vault; spends nothing.'
         required: false
         default: false
         type: boolean
