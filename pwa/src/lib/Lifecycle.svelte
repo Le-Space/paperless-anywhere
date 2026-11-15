@@ -42,7 +42,7 @@
 	let profile = $state({});
 	let progress = $state('');
 	// The full-screen first start with an own image (FirstStart.svelte), or its certificate opened later.
-	/** @type {{ station: string, since: number, fetchPct: number | null, done: boolean, failed: boolean, minimized: boolean, certificate: boolean, only: boolean, rebuild?: boolean } | null} */
+	/** @type {{ station: string, since: number, fetchPct: number | null, done: boolean, failed: boolean, minimized: boolean, certificate: boolean, only: boolean, rebuild?: boolean, facts?: import('$lib/first-start.js').Facts } | null} */
 	let ceremony = $state(null);
 	const showCertificate = () => (ceremony = { station: 'paperless', since: Date.now(), fetchPct: null, done: true, failed: false, minimized: false, certificate: true, only: true });
 	// The steps of a start and a stop, with what they took in our runs so far.
@@ -397,6 +397,8 @@
 		const save = async (/** @type {Record<string, any>} */ patch) => {
 			profile = await updateProfile(master, (now) => ({ ...now, ...patch }));
 			onchange();
+			// The builder's V-PROGRAM, once Aleph took it: a piece of evidence.
+			if (ceremony && patch.ownBuilder?.vprogram) ceremony = { ...ceremony, facts: { ...ceremony.facts, vprogram: patch.ownBuilder.vprogram } };
 		};
 		const built = await buildImageForVault({
 			master,
@@ -404,15 +406,19 @@
 			packagePays: Boolean(profile.leSpacePays),
 			confirm: (question) => window.confirm(question),
 			save,
-			onProgress: ({ step, detail }) => {
+			onProgress: (/** @type {{ step: string, detail?: string, data?: Record<string, any> }} */ { step, detail, data }) => {
 				progress = `${tr().card.progress.buildImage}: ${detail ?? step}`;
 				const station = stationOfBuildStep(step);
 				if (!station) return;
-				const pct = station === 'fetch' ? fetchPercent(detail) : null;
+				const pct = station === 'fetch' ? (data?.size ? Math.floor((Number(data.got ?? 0) / Number(data.size)) * 100) : fetchPercent(detail)) : null;
 				// The first sign of the build opens the full screen (after a price was agreed).
-				if (!ceremony) ceremony = { station, since: Date.now(), fetchPct: pct, done: false, failed: false, minimized: false, certificate: false, only: false, rebuild };
+				if (!ceremony) ceremony = { station, since: Date.now(), fetchPct: pct, done: false, failed: false, minimized: false, certificate: false, only: false, rebuild, facts: { node: BUILDER?.crn } };
 				else if (ceremony.station !== station) ceremony = { ...ceremony, station, since: Date.now(), fetchPct: pct };
 				else if (pct != null) ceremony = { ...ceremony, fetchPct: pct };
+				// What the build reports on the way (own-image.js), and when the fetch began, for its speed.
+				const facts = { ...ceremony.facts, ...(data ?? {}) };
+				if (station === 'fetch' && !facts.fetchSince) facts.fetchSince = Date.now();
+				ceremony = { ...ceremony, facts };
 			}
 		});
 		if (!built) {
@@ -469,7 +475,18 @@
 			profile = await updateProfile(master, (now) => ({ ...now, starting }));
 			onchange();
 		};
-		await finishStart(() => startPaperless(master, forStart, track('start'), { onRequested }));
+		// The start's steps feed the full screen too: the VM's INSTANCE, its step, its attestation.
+		const tracked = track('start');
+		const step = (/** @type {any} */ p) => {
+			tracked(p);
+			if (!ceremony) return;
+			const facts = { ...ceremony.facts };
+			if (p.instanceHash) facts.instanceHash = p.instanceHash;
+			if (p.step) facts.vmStep = p.step;
+			if (p.attestation?.measurement) facts.vmMeasurement = p.attestation.measurement;
+			ceremony = { ...ceremony, facts };
+		};
+		await finishStart(() => startPaperless(master, forStart, step, { onRequested }));
 		if (ceremony) ceremony = { ...ceremony, done: true, minimized: false };
 	}
 	// Buy hours from Le Space Credits: the service grants them (with Aleph's
