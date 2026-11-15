@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { recoverMessageAddress } from 'viem';
 import { imagePassphrase } from './keys/derive.js';
-import { BUILDER, BUILDER_CREDITS_PER_HOUR, BuilderError, IMAGE_STORE_CREDITS_PER_HOUR, LANES, PIECE_BYTES, RUN_BYTES, buildAffordable, imageStatus, buildOnOwnBuilder, buildPaidByPackage, buildOwnImage, builderMessage, builderOpener, checkBuilder, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources, storeMessage } from './own-image.js';
+import { BUILDER, BUILDER_CREDITS_PER_HOUR, BuilderError, IMAGE_STORE_CREDITS_PER_HOUR, LANES, PIECE_BYTES, RUN_BYTES, buildAffordable, imageStatus, relayHost, buildOnOwnBuilder, buildPaidByPackage, buildOwnImage, builderMessage, builderOpener, checkBuilder, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources, storeMessage } from './own-image.js';
 import { sha256Hex } from './vm.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -302,6 +302,26 @@ describe('an image of one\'s own', () => {
 		};
 		await expect(buildOwnImage({ master, app, builder, open: dead, store: fakeStore().store, ...quick(), runTries: 3 })).rejects.toThrow(BuilderError);
 		expect(tries).toBe(3);
+	});
+
+	it('reports what happens as data for the progress view: hashes, sizes, connections, and no secret', async () => {
+		const { open } = fakeBuilder();
+		const relayed = async () => Object.assign(await open(), { relay: 'relay.example.test', measurement: 'ab'.repeat(48) });
+		const { store } = fakeStore();
+		const seen = [];
+		const result = await buildOwnImage({ master, app, builder, open: relayed, store, onProgress: (p) => seen.push(p), ...quick() });
+		const last = (step) => seen.filter((p) => p.step === step).at(-1)?.data;
+		expect(last('attest')).toEqual({ relay: 'relay.example.test', measurement: 'ab'.repeat(48) });
+		expect(last('build')).toEqual({ plainSha256: builder.plain.sha256, cid, size: image.length });
+		expect(last('fetch')).toMatchObject({ got: image.length, size: image.length, lanes: expect.any(Number) });
+		expect(last('fetch').attested).toBeGreaterThanOrEqual(2);
+		expect(last('sign')).toEqual({ cid, storeHash: result.rootfsItemHash });
+		expect(last('upload')).toEqual({ size: image.length, host: 'api2.aleph.im' });
+		expect(last('confirm')).toEqual({ storeHash: result.rootfsItemHash, processed: true });
+		// Nothing the progress view gets may hold the passphrase.
+		expect(JSON.stringify(seen)).not.toContain(imagePassphrase(master, builder.plain.sha256));
+		expect(relayHost('wss://relay.example.test/attest')).toBe('relay.example.test');
+		expect(relayHost('/dns4/relay.example.test/tcp/443/tls/ws/p2p/x')).toBe('relay.example.test');
 	});
 
 	it('gives up where trying again cannot help: the image is gone, or a connection fails its attestation', async () => {

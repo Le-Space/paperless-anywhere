@@ -310,6 +310,15 @@ const fetched = { current: null };
  * own address, and says which content address the node made.
  * @param {Blob} image @param {object} message
  */
+/** The host of an API URL, for showing. @param {string} url */
+const apiHost = (url) => {
+	try {
+		return new URL(url).host;
+	} catch {
+		return '';
+	}
+};
+
 export async function storeOnAleph(image, message, api = ALEPH_API) {
 	const form = new FormData();
 	form.append('file', image, 'rootfs');
@@ -341,7 +350,7 @@ export async function storeOnAleph(image, message, api = ALEPH_API) {
  *   app: { address: string, signMessage: (a: { message: string }) => Promise<string> },
  *   builder: NonNullable<typeof BUILDER>,
  *   open: () => Promise<{ request: (method: string, path: string, init?: any) => Promise<{ status: number, body: Uint8Array }>, close: () => void, measurement?: string }>,
- *   onProgress?: (p: { step: 'start' | 'attest' | 'build' | 'fetch' | 'sign' | 'upload' | 'confirm', detail?: string }) => void,
+ *   onProgress?: (p: { step: 'start' | 'attest' | 'build' | 'fetch' | 'sign' | 'upload' | 'confirm', detail?: string, data?: Record<string, any> }) => void,
  *   store?: typeof storeOnAleph,
  *   read?: (itemHash: string) => Promise<string | null>,
  *   sleep?: (ms: number) => Promise<void>,
@@ -362,9 +371,10 @@ export async function buildOwnImage({ master, app, payer = app.address, builder,
 	// A STORE that was signed and uploaded before is only waited for again.
 	let message = kept.current.message;
 	if (!message) {
-		onProgress({ step: 'sign', detail: tr().ownImage.step.sign });
+		onProgress({ step: 'sign', detail: tr().ownImage.step.sign, data: { cid } });
 		message = await storeMessage(app, cid, now() / 1000, payer);
-		onProgress({ step: 'upload', detail: tr().ownImage.step.upload(size) });
+		onProgress({ step: 'sign', detail: tr().ownImage.step.sign, data: { cid, storeHash: message.item_hash } });
+		onProgress({ step: 'upload', detail: tr().ownImage.step.upload(size), data: { size, host: apiHost(ALEPH_API) } });
 		const stored = await store(image, message);
 		if (stored.status >= 300) throw new BuilderError(tr().ownImage.error.uploadRefused(stored.status));
 		// The node names the content address it made from what it received.
@@ -375,9 +385,10 @@ export async function buildOwnImage({ master, app, payer = app.address, builder,
 		kept.current.message = message;
 	}
 
-	onProgress({ step: 'confirm', detail: tr().ownImage.step.confirm });
+	onProgress({ step: 'confirm', detail: tr().ownImage.step.confirm, data: { storeHash: message.item_hash } });
 	try {
 		await awaitStore(message.item_hash, { read, sleep, tries: confirmTries, delayMs: pollMs });
+		onProgress({ step: 'confirm', detail: tr().ownImage.step.confirm, data: { storeHash: message.item_hash, processed: true } });
 	} catch (error) {
 		// Refused: the next try signs and uploads anew. Not confirmed yet: it waits again.
 		if (error instanceof BuilderError && error.code === 'store-rejected') delete kept.current.message;
@@ -398,12 +409,19 @@ export async function buildOwnImage({ master, app, payer = app.address, builder,
 
 	/** Has the builder seal the image and fetches it; the builder drops it afterwards, whatever happened. */
 	async function sealAndFetch() {
-		onProgress({ step: 'attest', detail: tr().ownImage.step.attest });
-		let channel = await open();
+		onProgress({ step: 'attest', detail: tr().ownImage.step.attest, data: {} });
+		let opened = 0;
+		const counted = async () => {
+			const c = await open();
+			opened++;
+			return c;
+		};
+		let channel = await counted();
 		const attested = typeof channel.measurement === 'string' && channel.measurement ? { measurement: channel.measurement, at: new Date(now()).toISOString() } : null;
+		onProgress({ step: 'attest', detail: tr().ownImage.step.attest, data: { relay: channel.relay ?? null, measurement: attested?.measurement ?? null } });
 		let job = '';
 		try {
-			onProgress({ step: 'build', detail: tr().ownImage.step.build });
+			onProgress({ step: 'build', detail: tr().ownImage.step.build, data: { plainSha256: plain.sha256 } });
 			// Sent once, over the channel that was just attested, and never again.
 			const started = await call(channel, 'POST', '/build', { sha256: plain.sha256, passphrase });
 			if (started.status === 503 && /busy/i.test(String(started.answer?.error ?? ''))) throw new BuilderError(tr().ownImage.error.busy);
@@ -417,7 +435,7 @@ export async function buildOwnImage({ master, app, payer = app.address, builder,
 				await sleep(pollMs);
 				let state;
 				try {
-					channel ??= await open();
+					channel ??= await counted();
 					state = await call(channel, 'GET', `/job/${job}`);
 				} catch (error) {
 					channel?.close();
@@ -435,15 +453,16 @@ export async function buildOwnImage({ master, app, payer = app.address, builder,
 			const size = Number(built.size);
 			if (!Number.isSafeInteger(size) || size <= 0 || size > 1024 ** 3) throw new BuilderError(tr().ownImage.error.badSize);
 			if (!CID.test(built.cid ?? '')) throw new BuilderError(tr().ownImage.error.badCid);
+			onProgress({ step: 'build', detail: tr().ownImage.step.build, data: { plainSha256: plain.sha256, cid: built.cid, size } });
 			channel?.close();
 			channel = null;
 
 			// The sealed image holds nothing readable without the passphrase, and
 			// every run of it arrives over a channel attested like the first.
 			let got = 0;
-			const shown = () => onProgress({ step: 'fetch', detail: tr().ownImage.step.fetch(Math.floor((got / size) * 100)) });
+			const shown = () => onProgress({ step: 'fetch', detail: tr().ownImage.step.fetch(Math.floor((got / size) * 100)), data: { got, size, lanes, attested: opened } });
 			shown();
-			const image = await fetchImage({ open, job, size, pieceBytes, runBytes, lanes, runTries, sleep, retryMs, onBytes: (n) => { got += n; shown(); } });
+			const image = await fetchImage({ open: counted, job, size, pieceBytes, runBytes, lanes, runTries, sleep, retryMs, onBytes: (n) => { got += n; shown(); } });
 			return { key, cid: built.cid, size, image, attested };
 		} finally {
 			channel?.close();
@@ -464,6 +483,15 @@ export async function buildOwnImage({ master, app, payer = app.address, builder,
 				}
 			}
 		}
+	}
+}
+
+/** The host of a relay (wss://host/attest or a multiaddr's dns part), for showing; never its path. @param {string} relay */
+export function relayHost(relay) {
+	try {
+		return new URL(relay).host;
+	} catch {
+		return /\/dns[46]?\/([^/]+)/.exec(String(relay))?.[1] ?? '';
 	}
 }
 
@@ -489,7 +517,7 @@ export function builderOpener(builder, profile, { load = loadAttest } = {}) {
 				const attested = await attestGuest({ wasm, transport: relayTransports([relays[index]])(builder.route), expectedMeasurements: builder.measurements, expectedPolicy: builder.policy });
 				good = index;
 				const measurement = attested.freshVerified?.measurement;
-				return Object.assign(attested.channel, measurement ? { measurement: String(measurement) } : {});
+				return Object.assign(attested.channel, { relay: relayHost(relays[index]) }, measurement ? { measurement: String(measurement) } : {});
 			} catch (error) {
 				if (refusedAttestation(error)) throw error;
 				last = error;
@@ -630,6 +658,7 @@ export async function buildOnOwnBuilder({ builder, opener, onStarted = () => {},
 	try {
 		await post(message);
 		accepted = true;
+		onProgress({ step: 'start', detail: tr().ownImage.step.start, data: { vprogram, node: builder.crn } });
 		await onStarted(vprogram);
 		const running = { ...builder, route: `?crn=${builder.crn}&vm=${vprogram}`, vprogram };
 		const open = opener(running);
