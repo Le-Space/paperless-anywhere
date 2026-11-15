@@ -105,9 +105,12 @@ jobs:
           # is a core channel node with a backend of its own. One host is one
           # point of failure for the whole release. Waiting for the STORE and
           # the retention then use the host that took the upload.
-          # A run by hand can put another host first (first_host): the tool
-          # moves on only when an upload fails, not when the gateway does not
-          # serve what a host took.
+          # Since @le-space/node 0.12.7 every upload has a time limit (5 min),
+          # and a host that does not answer within 90 s gets the next one asked
+          # beside it, with the same signed STORE (2026-11-15: an upload to api2
+          # never answered and the run waited an hour). A run by hand can still
+          # put another host first (first_host); the tool does not move on when
+          # the gateway does not serve what a host took.
           ALEPH_SITE_ENDPOINT_PAIRS: ${{ inputs.first_host == 'api3' && '[{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api3.aleph.im"},{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api2.aleph.im"},{"ipfsGateway":"https://ipfs.aleph.cloud","apiHost":"https://api.aleph.im"}]' || inputs.first_host == 'api' && '[{"ipfsGateway":"https://ipfs.aleph.cloud","apiHost":"https://api.aleph.im"},{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api3.aleph.im"},{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api2.aleph.im"}]' || '[{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api2.aleph.im"},{"ipfsGateway":"https://ipfs.aleph.cloud","apiHost":"https://api.aleph.im"},{"ipfsGateway":"https://ipfs-2.aleph.im","apiHost":"https://api3.aleph.im"}]' }}
           # After the STORE the tool asks <cid>.ipfs.aleph.sh for the site: the
           # gateway that also serves the domain. It may need a while to fetch a
