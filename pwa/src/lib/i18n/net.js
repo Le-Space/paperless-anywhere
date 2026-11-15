@@ -6,6 +6,9 @@ export const net = {
 	de: {
 		unreachable: (/** @type {string} */ host, /** @type {string} */ what, /** @type {number} */ tries, /** @type {string} */ last) => `${host} nicht erreichbar (${what}, ${tries} Versuche: ${last}). Verbindung prüfen und erneut versuchen.`,
 		readSettings: 'Einstellungen lesen',
+		broken: 'Die Verbindung ist unterbrochen worden. Bitte prüfe dein Netz (VPN- oder WLAN-Wechsel) und versuche es noch einmal.',
+		again: 'Noch einmal',
+		details: 'Details',
 		wallet: {
 			none: 'Keine Wallet gefunden (MetaMask oder eine Hardware-Wallet in MetaMask).',
 			noAccount: 'Die Wallet hat kein Konto freigegeben.',
@@ -32,6 +35,9 @@ export const net = {
 	en: {
 		unreachable: (/** @type {string} */ host, /** @type {string} */ what, /** @type {number} */ tries, /** @type {string} */ last) => `${host} cannot be reached (${what}, ${tries} attempts: ${last}). Check the connection and try again.`,
 		readSettings: 'reading the settings',
+		broken: 'The connection was interrupted. Please check your network (a VPN or Wi-Fi change) and try again.',
+		again: 'Try again',
+		details: 'Details',
 		wallet: {
 			none: 'No wallet found (MetaMask, or a hardware wallet in MetaMask).',
 			noAccount: 'The wallet released no account.',

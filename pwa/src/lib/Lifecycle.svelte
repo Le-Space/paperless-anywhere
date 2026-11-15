@@ -33,6 +33,7 @@
 	import { startPanel } from '$lib/start-panel.js';
 	import { RUNTIME } from '$lib/runtime-pin.js';
 	import { ALEPH_API } from '$lib/aleph.js';
+	import { isNetworkError, preloadAttestWasm } from '$lib/attest-wasm-load.js';
 
 	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void, onmissing?: (missing: string[]) => void, onglance?: (g: Glance) => void, onbusy?: (busy: boolean) => void }} */
 	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {}, onmissing = () => {}, onglance = () => {}, onbusy = () => {} } = $props();
@@ -127,6 +128,17 @@
 	const seconds = (ms) => `${Math.max(0, Math.round(ms / 1000))} s`;
 	const minutes = (s) => (s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`);
 	let error = $state('');
+	// A broken connection: a plain sentence above, the browser's own words
+	// under "Details", and what "Noch einmal" does (null: nothing to repeat).
+	let errorRaw = $state('');
+	// The attest WASM (2.4 MB, several seconds from the gateway) is fetched
+	// while the card is read, so a start does not wait for it.
+	$effect(() => {
+		const id = setTimeout(() => preloadAttestWasm(), 2000);
+		return () => clearTimeout(id);
+	});
+	/** @type {(() => unknown) | null} */
+	let again = $state(null);
 	/** @type {string[]} the VM's backup log lines when a backup failed */
 	let errorLog = $state([]);
 	// The providers the VM named in its lines, and the ones the backups go to.
@@ -297,10 +309,13 @@
 		bought = '';
 		purchase.ask(fundHours);
 	};
-	async function run(fn) {
+	/** @param {() => Promise<unknown>} fn @param {(() => unknown) | null} [retry] what "Noch einmal" does after a broken connection */
+	async function run(fn, retry = null) {
 		// Another action closes an open confirmation; it buys nothing.
 		purchase.cancel();
 		error = '';
+		errorRaw = '';
+		again = null;
 		errorLog = [];
 		short = null;
 		partial = null;
@@ -309,6 +324,11 @@
 			await fn();
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
+			if (isNetworkError(e)) {
+				errorRaw = error;
+				error = tr().net.broken;
+				again = retry;
+			}
 			errorLog = [.../** @type {any} */ ((e)?.facts ?? []), .../** @type {any} */ ((e)?.log ?? [])];
 			if (e instanceof AlephShortError) short = e;
 			if (e instanceof BackupPartialError) {
@@ -342,12 +362,15 @@
 		} finally {
 			asking = false;
 		}
-		if (!unpaidBackup) run(startNow);
+		if (!unpaidBackup) run(startNow, startAgain);
 	};
 	const startWithoutBackup = () => {
 		unpaidBackup = false;
-		run(startNow);
+		run(startNow, startAgain);
 	};
+	// Again after a broken connection: a start Aleph may already have carries
+	// on (resume), so a second click never asks for a second VM.
+	const startAgain = () => (profile.running ? undefined : profile.starting ? resume() : start());
 	const toPackage = () => {
 		unpaidBackup = false;
 		document.getElementById('paket')?.scrollIntoView({ behavior: 'smooth' });
@@ -547,7 +570,7 @@
 		}
 		startRestores = Boolean(profile.starting?.restoreEntry);
 		await finishStart(() => resumeStart(master, $state.snapshot(profile), track('start')));
-	});
+	}, () => startAgain());
 	/** @param {() => Promise<any>} bringUp */
 	async function finishStart(bringUp) {
 		try {
@@ -566,7 +589,7 @@
 	const stop = () => run(async () => {
 		await reload();
 		finishStop(await stopPaperless(master, $state.snapshot(profile), track('stop')));
-	});
+	}, () => stop());
 	// A VM whose restore failed runs an empty Paperless and makes no backup
 	// (paperless-backup refuses): it is deleted without one, never stopped
 	// with "Sichern und beenden".
@@ -666,6 +689,14 @@
 	const leftMinutes = $derived(Math.max(1, Math.ceil((typicalTotal - elapsed) / 60)));
 	const stepLabel = $derived(action ? (/** @type {Record<string, string>} */ (c.steps)[STEPS[action].find((s) => s.step === current)?.step ?? 'preparing']) : '');
 </script>
+
+{#snippet errorBox()}
+	<div class="error" role="alert" data-testid="start-error">
+		<p class="error-text">{error}</p>
+		{#if errorRaw}<details class="raw"><summary>{$i18n.net.details}</summary><pre>{errorRaw}</pre></details>{/if}
+		{#if again}<div class="row"><button onclick={() => again?.()} disabled={busy} data-testid="error-again">{$i18n.net.again}</button></div>{/if}
+	</div>
+{/snippet}
 
 {#snippet fundOffer()}
 	{@const locked = busy || purchaseLocked(buying)}
@@ -795,7 +826,7 @@
 		{/if}
 		{#if phase !== 'running' && profile.trial}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
-		{#if error}<p class="error" role="alert">{error}</p>{/if}
+		{#if error}{@render errorBox()}{/if}
 		{#if partial}
 			<div class="partial" role="alert" data-testid="stop-partial">
 				<p class="warn">{partial.message}</p>
@@ -905,7 +936,7 @@
 		{/if}
 		{#if progress}<p data-testid="progress">{progress} …</p>{/if}
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
-		{#if error}<p class="error" role="alert">{error}</p>{/if}
+		{#if error}{@render errorBox()}{/if}
 		{#if partial}
 			<div class="partial" role="alert" data-testid="stop-partial">
 				<p class="warn">{partial.message}</p>
@@ -972,6 +1003,9 @@
 	.login p { margin: 0.15rem 0; }
 	.login .label { color: var(--text-2); font-size: 0.85rem; margin-bottom: 0.35rem; }
 	.login code { word-break: break-all; }
+	.error-text { margin: 0; }
+	.raw { margin-top: 0.4rem; font-size: 0.85rem; color: var(--dim); }
+	.raw pre { white-space: pre-wrap; word-break: break-word; margin: 0.3rem 0 0; }
 	.row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
 	.small { padding: 0.35rem 0.85rem; font-size: 0.875rem; background: var(--surface); color: var(--text); border-color: var(--line); }
 	.simple .hint { margin: 0.5rem 0 0; font-size: 0.9rem; }
