@@ -27,11 +27,16 @@ export const DISCLAIMER = {
 // The terms of the paid service (Le Space Credits). The instruction on
 // withdrawal is their § 9; the page is in German.
 export const TERMS_URL = 'https://credits.le-space.de/agb';
+// Who offers Paperless anywhere, for the structured data (the name as in the terms, § 1).
+export const ORGANIZATION = Object.freeze({ name: 'Le Space', legalName: 'Le Space UG (haftungsbeschränkt)', url: 'https://le-space.de/' });
 
 export const texts = {
 	de: {
 		title: 'Paperless anywhere – ausfallsicher, vertraulich, nach deinem Takt',
 		description: 'Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt: Paperless-ngx in einer vertraulichen VM, auf Knoten mehrerer Betreiber, im Monatspaket rund um die Uhr oder auf Abruf.',
+		// For search engines: the words people search for, within about 60 and 155 characters.
+		seoTitle: 'Paperless-ngx vertraulich gehostet – Paperless anywhere',
+		seoDescription: 'Paperless-ngx in einer vertraulichen VM: ausfallsicher, verschlüsselt gesichert, rund um die Uhr oder auf Abruf. Ohne Konto – ein Passkey genügt.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx in vertraulichen VMs, ein Angebot von Le Space: Ausfallsicher. Vertraulich. Nach deinem Takt.',
 		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Ausfallsicher', storage: 'Sicherungen', trust: 'Nachprüfbar', prices: 'Preise', faq: 'FAQ' },
 		tagline: 'Paperless-ngx in vertraulichen VMs · ein Angebot von Le Space',
@@ -304,6 +309,8 @@ export const texts = {
 	en: {
 		title: 'Paperless anywhere – resilient, confidential, on your schedule',
 		description: 'Paperless anywhere runs resilient, confidential and on your schedule: Paperless-ngx in a confidential VM, on nodes of several operators, in a monthly package around the clock or on demand.',
+		seoTitle: 'Confidential Paperless-ngx hosting – Paperless anywhere',
+		seoDescription: 'Paperless-ngx in a confidential VM: resilient, with encrypted backups, around the clock or on demand. No account – a passkey is all you need.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx in confidential VMs, offered by Le Space: Resilient. Confidential. On your schedule.',
 		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Resilient', storage: 'Backups', trust: 'Verify', prices: 'Prices', faq: 'FAQ' },
 		tagline: 'Paperless-ngx in confidential VMs · offered by Le Space',

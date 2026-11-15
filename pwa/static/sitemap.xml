@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+	<url>
+		<loc>https://paperless.le-space.de/</loc>
+		<xhtml:link rel="alternate" hreflang="de" href="https://paperless.le-space.de/" />
+		<xhtml:link rel="alternate" hreflang="en" href="https://paperless.le-space.de/en/" />
+		<xhtml:link rel="alternate" hreflang="x-default" href="https://paperless.le-space.de/" />
+	</url>
+	<url>
+		<loc>https://paperless.le-space.de/en/</loc>
+		<xhtml:link rel="alternate" hreflang="de" href="https://paperless.le-space.de/" />
+		<xhtml:link rel="alternate" hreflang="en" href="https://paperless.le-space.de/en/" />
+		<xhtml:link rel="alternate" hreflang="x-default" href="https://paperless.le-space.de/" />
+	</url>
+	<url>
+		<loc>https://paperless.le-space.de/lizenzen/</loc>
+	</url>
+</urlset>

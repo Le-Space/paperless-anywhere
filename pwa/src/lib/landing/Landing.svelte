@@ -8,7 +8,7 @@
 	import TeeNodes from '$lib/landing/TeeNodes.svelte';
 	import StorageProviders from '$lib/landing/StorageProviders.svelte';
 	import OwnImage from '$lib/landing/OwnImage.svelte';
-	import { LANGS, TERMS_URL, texts } from '$lib/landing/i18n.js';
+	import { LANGS, ORGANIZATION, TERMS_URL, texts } from '$lib/landing/i18n.js';
 	import { BACKUP_YEAR_CENTS, CREDITS_URL, PLANS, creditsCatalog } from '$lib/credits.js';
 	import Trust from '$lib/landing/Trust.svelte';
 	import BuildLine from '$lib/landing/BuildLine.svelte';
@@ -25,6 +25,18 @@
 	const OG_IMAGES = { de: `${SITE}og.png?v=4`, en: `${SITE}og-en.png?v=1` };
 	const OG_IMAGE = $derived(OG_IMAGES[lang]);
 	const t = $derived(texts[lang]);
+	// Who offers it, the site, the app and the questions answered on this page, as schema.org data.
+	const structured = $derived(
+		JSON.stringify({
+			'@context': 'https://schema.org',
+			'@graph': [
+				{ '@type': 'Organization', '@id': 'https://le-space.de/#org', ...ORGANIZATION },
+				{ '@type': 'WebSite', '@id': `${SITE}#site`, name: 'Paperless anywhere', url: URLS[lang], inLanguage: lang, publisher: { '@id': 'https://le-space.de/#org' } },
+				{ '@type': 'WebApplication', name: 'Paperless anywhere', url: `${SITE}app/`, applicationCategory: 'BusinessApplication', operatingSystem: 'Web', inLanguage: lang, description: t.seoDescription, provider: { '@id': 'https://le-space.de/#org' } },
+				{ '@type': 'FAQPage', inLanguage: lang, mainEntity: t.faq.items.map((/** @type {any} */ i) => ({ '@type': 'Question', name: i.q, acceptedAnswer: { '@type': 'Answer', text: [i.a, ...(i.tips ?? []), i.after ?? ''].filter(Boolean).join(' ') } })) }
+			]
+		}).replace(/</g, '\\u003c')
+	);
 	let plans = $state(PLANS);
 
 	// The page someone is on is the language they chose: the licence page and
@@ -58,8 +70,8 @@
 </script>
 
 <svelte:head>
-	<title>{t.title}</title>
-	<meta name="description" content={t.description} />
+	<title>{t.seoTitle}</title>
+	<meta name="description" content={t.seoDescription} />
 	<link rel="canonical" href={URLS[lang]} />
 	<link rel="alternate" hreflang="de" href={URLS.de} />
 	<link rel="alternate" hreflang="en" href={URLS.en} />
@@ -69,8 +81,8 @@
 	<meta property="og:url" content={URLS[lang]} />
 	<meta property="og:title" content={t.title} />
 	<meta property="og:description" content={t.description} />
-	<meta property="og:locale" content={lang === 'de' ? 'de_DE' : 'en_US'} />
-	<meta property="og:locale:alternate" content={lang === 'de' ? 'en_US' : 'de_DE'} />
+	<meta property="og:locale" content={lang === 'de' ? 'de_DE' : 'en_GB'} />
+	<meta property="og:locale:alternate" content={lang === 'de' ? 'en_GB' : 'de_DE'} />
 	<meta property="og:image" content={OG_IMAGE} />
 	<meta property="og:image:type" content="image/png" />
 	<meta property="og:image:width" content="1200" />
@@ -81,6 +93,8 @@
 	<meta name="twitter:description" content={t.description} />
 	<meta name="twitter:image" content={OG_IMAGE} />
 	<meta name="twitter:image:alt" content={t.ogImageAlt} />
+	<!-- Structured data for search engines, from this page's own texts (no third-party content); `<` escaped. -->
+	{@html `<script type="application/ld+json">${structured}</script>`}
 </svelte:head>
 
 <header class="top">
