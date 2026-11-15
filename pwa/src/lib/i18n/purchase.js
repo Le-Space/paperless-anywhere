@@ -36,6 +36,11 @@ export const buy = {
 			yearCheckout: '1 Jahr Aufbewahrung bezahlen',
 			yearSummary: (/** @type {string} */ price) => `1 Jahr Aufbewahrung der Sicherungen: ${price}, einmalig, keine Verlängerung.`
 		},
+		step: {
+			for: (/** @type {string} */ what) => `Für diesen Kauf: ${what}`,
+			pay: 'Weiter zur Zahlung',
+			cancel: 'Abbrechen'
+		},
 		topup: {
 			preparing: 'Bezahlung wird vorbereitet …',
 			booking: 'Bezahlt – das Guthaben wird gebucht …',
@@ -96,6 +101,11 @@ export const buy = {
 			mailNote: 'A reminder also comes by e-mail, to the address from your card payment at Stripe. Without a card payment the notice is only here.',
 			yearCheckout: 'Pay for 1 year of keeping',
 			yearSummary: (/** @type {string} */ price) => `1 year of keeping the backups: ${price}, once, no renewal.`
+		},
+		step: {
+			for: (/** @type {string} */ what) => `For this purchase: ${what}`,
+			pay: 'Continue to payment',
+			cancel: 'Cancel'
 		},
 		topup: {
 			preparing: 'Preparing the payment …',

@@ -47,7 +47,7 @@
 		{#if error}<p class="warn" role="alert">{error}</p>{/if}
 	</div>
 {:else if terms?.accepted}
-	<p class="hint small-print" data-testid="terms-accepted">{x.accepted(terms.accepted.version, day(terms.accepted.acceptedAt))}{#if terms.accepted.url} · <a href={terms.accepted.url} target="_blank" rel="noopener noreferrer">{x.readLink}</a>{/if}</p>
+	<p class="hint small-print" data-testid="terms-accepted">{x.accepted(terms.accepted.version, day(terms.accepted.acceptedAt))}{#if terms.accepted.url}{' · '}<a href={terms.accepted.url} target="_blank" rel="noopener noreferrer">{x.readLink}</a>{/if}</p>
 {/if}
 
 <style>

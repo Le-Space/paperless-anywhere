@@ -14,6 +14,7 @@
 	import Terms from '$lib/Terms.svelte';
 	import HourQuote from '$lib/HourQuote.svelte';
 	import { hourPurchase, purchaseLocked } from '$lib/purchase.js';
+	import { preparing } from '$lib/purchase-step.js';
 	import { format, lang, t, tr } from '$lib/i18n/index.js';
 
 	/** @type {{ master: Uint8Array, version?: number, onglance?: (g: { plan: boolean, hoursLeft: number | null, pays: string | null, low: boolean } | null) => void }} */
@@ -83,6 +84,18 @@
 	// Unticked for every subscription: it is the declaration for this one.
 	let waivedPlan = $state(false);
 	const planBlocked = $derived(!termsRead || (Boolean(withdrawal) && !waivedPlan));
+	// The package chosen first; its declaration shows below the cards, then the payment.
+	let pickedPlan = $state('');
+	const pickPlan = (/** @type {string} */ id) => ((pickedPlan = id), (waivedPlan = false), preparing.set('plan'));
+	const dropPlan = () => ((pickedPlan = ''), (waivedPlan = false), preparing.set(''));
+	// Another purchase chosen: this one's declaration goes, unticked.
+	$effect(() => {
+		if ($preparing !== 'plan') (pickedPlan = ''), (waivedPlan = false);
+	});
+	const payPlan = async () => {
+		await subscribe(pickedPlan);
+		if (!error) dropPlan();
+	};
 	// The app's own cancel page, open in place (§ 312k BGB). It keeps the plan
 	// it was opened for, so the confirmation stays when the balance changes.
 	/** @type {{ plan: NonNullable<NonNullable<typeof balance>['plan']>, current: typeof current } | null} */
@@ -319,15 +332,22 @@
 						<br /><small class="hint">{x.withBackupHint}</small></span>
 				</label>
 			{/if}
-			{#if !balance.plan}<Waiver {withdrawal} bind:checked={waivedPlan} testid="plan-waiver" />{/if}
 			<div class="plans">
 				{#each plans as p (p.id)}
-					<button class="plan-choice" class:current={balance.plan?.id === p.id} onclick={() => (balance?.plan ? plan(p.id) : subscribe(p.id))} disabled={busy || balance.plan?.id === p.id || (!balance.plan && planBlocked)} data-testid={`plan-${p.id}`}>
+					<button class="plan-choice" class:current={balance.plan?.id === p.id} class:picked={!balance.plan && pickedPlan === p.id} aria-pressed={balance.plan ? undefined : pickedPlan === p.id} onclick={() => (balance?.plan ? plan(p.id) : pickPlan(p.id))} disabled={busy || balance.plan?.id === p.id || (!balance.plan && !termsRead)} data-testid={`plan-${p.id}`}>
 						{#if recommended === p.id}<em class="badge">{x.recommended}</em>{/if}
 						<span>{x.planName(p.hours, p.hours >= 720)}</span><strong data-testid={`plan-price-${p.id}`}>{euro(balance.plan ? p.priceCredits : planTotal(p))}</strong><small class="hint">{perWeek(p.hours)}{included(p) ? x.tagIncluded : !balance.plan && withBackup && backupSold ? x.tagWith : ''}</small>
 					</button>
 				{/each}
 			</div>
+			{#if !balance.plan && pickedPlan}
+				{@const chosen = planOf(pickedPlan, plans)}
+				<div class="step" data-testid="plan-step">
+					{#if chosen}<p class="hint">{$t.buy.step.for(`${x.planName(chosen.hours, chosen.hours >= 720)}, ${euro(planTotal(chosen))}`)}</p>{/if}
+					<Waiver {withdrawal} bind:checked={waivedPlan} testid="plan-waiver" />
+					<p class="row"><button class="small" onclick={payPlan} disabled={busy || planBlocked} data-testid="plan-pay">{$t.buy.step.pay}</button> <button class="link" onclick={dropPlan} disabled={busy} data-testid="plan-step-cancel">{$t.buy.step.cancel}</button></p>
+				</div>
+			{/if}
 		{/if}
 
 		<details class="more" bind:open={moreOpen}>
@@ -411,6 +431,8 @@
 	.plan-choice { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; padding: 0.7rem 0.9rem; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); border-color: var(--line); text-align: left; }
 	.plan-choice strong { font-size: 1.2rem; }
 	.plan-choice.current { border-color: var(--accent); }
+	.plan-choice.picked { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+	.step { margin: 0.75rem 0 0; padding: 0.6rem 0.9rem; border-left: 3px solid var(--accent); }
 	.line { margin: 1rem 0 0; padding: 0.9rem 0 0; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.6rem; }
 	.label { color: var(--text-2); margin: 0; }
 	.line strong { font-size: 1.2rem; }

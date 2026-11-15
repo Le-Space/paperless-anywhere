@@ -33,31 +33,53 @@ const received = async (path) => (await (await fetch(`${MOCK}/__requests`)).json
 
 test.use({ locale: 'de-DE', timezoneId: 'Europe/Berlin' });
 
-test('subscribing and topping up wait for the declaration on withdrawal, and then send it', async ({ page }) => {
+test('a purchase is chosen first, then its one declaration shows, and it goes out with that purchase', async ({ page }) => {
 	test.setTimeout(90_000);
 	await openApp(page, { plan: false });
-	const box = page.getByTestId('plan-waiver');
-	await expect(box).toContainText('Beispieltext zum Widerruf');
+	const declarations = page.getByText('Beispieltext zum Widerruf');
+	// Nothing chosen: no declaration on the screen, even with the top-up open.
+	await page.getByText('Aufladen, Stunden dazukaufen, Paket ändern').click();
+	await expect(declarations).toHaveCount(0);
+	await shot(page, 'waiver-none', page.getByTestId('package'));
+
+	// A package chosen: its declaration below the cards, unticked; payment waits for the tick.
+	await page.getByTestId('plan-paperless-30').click();
+	await expect(page.getByTestId('plan-paperless-30')).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.getByTestId('plan-step')).toContainText('Für diesen Kauf: 30 Stunden im Monat');
+	await expect(declarations).toHaveCount(1);
 	await expect(page.getByTestId('plan-waiver-box')).not.toBeChecked();
-	await expect(page.getByTestId('plan-paperless-30')).toBeDisabled();
+	await expect(page.getByTestId('plan-pay')).toBeDisabled();
 	await shot(page, 'waiver-unticked', page.getByTestId('package'));
 	await page.getByTestId('plan-waiver-box').check();
-	await expect(page.getByTestId('plan-paperless-30')).toBeEnabled();
 	await shot(page, 'waiver-ticked', page.getByTestId('package'));
-	await page.getByTestId('plan-paperless-30').click();
-	await expect.poll(async () => (await received('/v1/subscribe')).map((r) => r.body.waiver)).toEqual(['1']);
-	// The embedded Checkout (mocked) opens; close it, nothing is paid.
-	await page.getByRole('dialog').getByRole('button', { name: 'Schließen' }).click();
-	// Unticked again for the next payment.
-	await expect(page.getByTestId('plan-waiver-box')).not.toBeChecked();
 
-	await page.getByText('Aufladen, Stunden dazukaufen, Paket ändern').click();
-	await expect(page.getByTestId('topup-waiver')).toContainText('Beispieltext zum Widerruf');
-	await expect(page.getByTestId('topup-topup-20')).toBeDisabled();
-	await page.getByTestId('topup-waiver-box').check();
-	await expect(page.getByTestId('topup-topup-20')).toBeEnabled();
+	// An amount chosen instead: the package's declaration goes, unticked; the amount's shows.
 	await page.getByTestId('topup-topup-20').click();
-	await expect.poll(async () => (await received('/v1/checkout')).map((r) => r.body.waiver)).toEqual(['1']);
+	await expect(page.getByTestId('plan-step')).toHaveCount(0);
+	await expect(page.getByTestId('topup-step')).toContainText('Für diesen Kauf: 20 € aufladen');
+	await expect(declarations).toHaveCount(1);
+	await expect(page.getByTestId('topup-waiver-box')).not.toBeChecked();
+	await expect(page.getByTestId('topup-pay')).toBeDisabled();
+
+	// Back to the package: unticked again, and it is the package that goes out with the declaration.
+	await page.getByTestId('plan-paperless-30').click();
+	await expect(page.getByTestId('topup-step')).toHaveCount(0);
+	await expect(page.getByTestId('plan-waiver-box')).not.toBeChecked();
+	await page.getByTestId('plan-waiver-box').check();
+	await page.getByTestId('plan-pay').click();
+	await expect.poll(async () => (await received('/v1/subscribe')).map((r) => [r.body.package, r.body.waiver])).toEqual([['paperless-30', '1']]);
+	expect(await received('/v1/checkout')).toEqual([]);
+	// The embedded Checkout (mocked) opens; close it, nothing is paid. The step is done.
+	await page.getByRole('dialog').getByRole('button', { name: 'Schließen' }).click();
+	await expect(page.getByTestId('plan-step')).toHaveCount(0);
+
+	// The amount, the same way: the declaration goes with the top-up, not with a package.
+	await page.getByTestId('topup-topup-20').click();
+	await expect(declarations).toHaveCount(1);
+	await page.getByTestId('topup-waiver-box').check();
+	await page.getByTestId('topup-pay').click();
+	await expect.poll(async () => (await received('/v1/checkout')).map((r) => [r.body.package, r.body.waiver])).toEqual([['topup-20', '1']]);
+	expect((await received('/v1/subscribe')).length).toBe(1);
 });
 
 test('“Verträge hier kündigen” cancels in the app and keeps a confirmation', async ({ page }) => {
