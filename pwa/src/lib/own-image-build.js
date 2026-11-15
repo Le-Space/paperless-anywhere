@@ -8,7 +8,8 @@ import { IMAGE_BUILD_TYPES, imageBuild, imageBuildDone, vmAuthorize } from './cr
 import { format, tr } from './i18n/index.js';
 import { alephPrivateKey } from './keys/derive.js';
 import { attestRelaysFor } from './relays.js';
-import { BUILDER, BuilderError, buildOnOwnBuilder, buildOwnImage, buildPaidByPackage, builderOpener } from './own-image.js';
+import { ALEPH_API } from './aleph.js';
+import { BUILDER, BuilderError, buildOnOwnBuilder, buildOwnImage, buildPaidByPackage, builderOpener, forgetBuilder } from './own-image.js';
 
 /**
  * Build this vault's own image. Resolves to the profile fields of the new
@@ -22,11 +23,39 @@ import { BUILDER, BuilderError, buildOnOwnBuilder, buildOwnImage, buildPaidByPac
  *   save: (patch: Record<string, any>) => Promise<any>,
  *   onProgress?: (p: { step: string, detail?: string }) => void,
  *   builder?: any,
- *   deps?: { relays?: typeof attestRelaysFor, authorize?: typeof vmAuthorize, build?: typeof imageBuild, done?: typeof imageBuildDone, paid?: typeof buildPaidByPackage, own?: typeof buildOnOwnBuilder, running?: typeof buildOwnImage, opener?: typeof builderOpener }
+ *   deps?: { read?: (hash: string) => Promise<any>, post?: (message: any) => Promise<void>, relays?: typeof attestRelaysFor, authorize?: typeof vmAuthorize, build?: typeof imageBuild, done?: typeof imageBuildDone, paid?: typeof buildPaidByPackage, own?: typeof buildOnOwnBuilder, running?: typeof buildOwnImage, opener?: typeof builderOpener }
  * }} a
  * @returns {Promise<Record<string, any> | null>}
  */
-export async function buildImageForVault({ master, profile, packagePays, confirm, save, onProgress = () => {}, builder = BUILDER, deps = {} }) {
+export async function buildImageForVault(a) {
+	const built = await buildOnce(a);
+	// A rebuild replaces an own image: the old one is no longer booted from
+	// (rebuilding needs a stopped Paperless) and would keep costing storage.
+	if (built && a.profile?.ownImage && a.profile.rootfsItemHash && a.profile.rootfsItemHash !== built.rootfsItemHash) {
+		await forgetOldImage(privateKeyToAccount(alephPrivateKey(a.master)), a.profile.rootfsItemHash, a.deps).catch(() => {});
+	}
+	return built;
+}
+
+/**
+ * Forget an own image's STORE in the name of whoever owns it: the app's
+ * address, or the Le Space sub-account a package paid it from (the app's
+ * key may send FORGET for it). Anything else is left alone.
+ * @param {import('viem').LocalAccount} app @param {string} store
+ * @param {{ read?: (hash: string) => Promise<any>, post?: (message: any) => Promise<void> }} [deps]
+ * @returns {Promise<boolean>} true when forgotten
+ */
+export async function forgetOldImage(app, store, deps = {}) {
+	const read = deps.read ?? (async (hash) => (await fetch(`${ALEPH_API}/api/v0/messages/${hash}`, { cache: 'no-store' })).json());
+	const m = await read(store);
+	if (m?.status !== 'processed' || m?.message?.type !== 'STORE') return false;
+	const owner = String(m.message.content?.address ?? '');
+	// Only what this vault's key sent: its own STORE, or one it sent for the sub-account.
+	if (String(m.message.sender ?? '').toLowerCase() !== app.address.toLowerCase() || !/^0x[0-9a-fA-F]{40}$/.test(owner)) return false;
+	return forgetBuilder(app, store, { payer: owner, ...(deps.post ? { post: deps.post } : {}), sleep: async () => {} });
+}
+
+async function buildOnce({ master, profile, packagePays, confirm, save, onProgress = () => {}, builder = BUILDER, deps = {} }) {
 	if (!builder) throw new BuilderError(tr().ownImage.error.noBuilder);
 	const { relays = attestRelaysFor, authorize = vmAuthorize, build = imageBuild, done = imageBuildDone, paid = buildPaidByPackage, own = buildOnOwnBuilder, running = buildOwnImage, opener: open = builderOpener } = deps;
 	// A relay first: without one the builder cannot be reached, and a builder
