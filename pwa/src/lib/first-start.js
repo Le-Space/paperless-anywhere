@@ -62,7 +62,7 @@ export function journey({ station, since, now, fetchPct = null, startTypical = S
 // and size, bytes fetched, connections attested, the STORE, the upload host,
 // and for the start the VM's INSTANCE, its step, its attestation.
 
-/** @typedef {{ vprogram?: string, node?: string, relay?: string, measurement?: string, plainSha256?: string, cid?: string, size?: number, got?: number, lanes?: number, attested?: number, fetchSince?: number, storeHash?: string, host?: string, processed?: boolean, instanceHash?: string, vmStep?: string, vmMeasurement?: string, vmTimeline?: Record<string, any> }} Facts */
+/** @typedef {{ vprogram?: string, node?: string, relay?: string, measurement?: string, plainSha256?: string, cid?: string, size?: number, got?: number, lanes?: number, attested?: number, fetchSince?: number, storeHash?: string, host?: string, attempt?: number, processed?: boolean, instanceHash?: string, vmStep?: string, vmMeasurement?: string, vmTimeline?: Record<string, any> }} Facts */
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const HEXISH = /^[0-9a-f]{32,128}$/i;
