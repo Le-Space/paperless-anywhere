@@ -114,3 +114,28 @@ test('vouchers in English', async ({ page }) => {
 	await expect(page.getByTestId('plan-note')).toHaveText('Voucher redeemed: always on until 20/11/2026, backups until 20/11/2026.');
 	await expect(page.getByTestId('voucher-period')).toHaveText('Voucher period until 20/11/2026.');
 });
+
+test('after a voucher a new Paperless is set up by itself: Le Space pays, backups on, only the image is left', async ({ page }) => {
+	await openApp(page, { plan: false, backup: 'none', offered: true, included: true, vouchers: true, network: 'mainnet' });
+	await page.getByTestId('voucher').locator('summary').click();
+	await page.getByTestId('voucher-code').fill('PA-ABCD-EFGH-JKLM');
+	await page.getByTestId('voucher-redeem').click();
+	await expect(page.getByTestId('voucher-period')).toBeVisible();
+	// The VM's backup key went to the service.
+	await expect.poll(async () => (await received('/v1/backup/authorize')).length).toBe(1);
+	// The setup shows the defaults: Le Space pays, backups through Le Space Credits, on, mainnet, primary.
+	await page.getByTestId('tab-advanced').click();
+	const setup = page.getByTestId('setup');
+	await setup.scrollIntoViewIfNeeded();
+	await expect(page.getByTestId('pays-lespace')).toBeChecked();
+	await expect(page.getByTestId('backups-credits')).toBeChecked();
+	await expect(page.getByTestId('backups-on')).toBeChecked();
+	// Network and role are folded away for a customer, set to what the service backs up on.
+	await expect(page.getByTestId('dev-fold').locator('summary')).toHaveText('Netz und Rolle: Produktiv (Mainnet) (für Entwickler)');
+	await expect(page.getByTestId('role-warning')).toBeHidden();
+	await page.getByTestId('dev-fold').locator('summary').click();
+	await expect(page.getByTestId('role-primary')).toBeChecked();
+	await expect(page.getByTestId('lifecycle')).toContainText('Paperless-Image, Image-Passphrase');
+	await expect(page.getByTestId('lifecycle')).not.toContainText('zahlendes Konto');
+	await shot(page, 'voucher-defaults', setup);
+});

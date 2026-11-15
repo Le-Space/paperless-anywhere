@@ -17,6 +17,7 @@ export const setup = {
 			moreLink: 'Schlüssel und Wiederherstellung',
 			moreEnd: '.'
 		},
+		devFold: (/** @type {string} */ network) => `Netz und Rolle: ${network} (für Entwickler)`,
 		network: { label: 'Netz', test: 'Test (Calibration)', main: 'Produktiv (Mainnet)' },
 		role: {
 			legend: 'Rolle dieser Instanz',
@@ -161,6 +162,7 @@ export const setup = {
 			moreLink: 'Keys and recovery',
 			moreEnd: '.'
 		},
+		devFold: (/** @type {string} */ network) => `Network and role: ${network} (for developers)`,
 		network: { label: 'Network', test: 'Test (Calibration)', main: 'Production (Mainnet)' },
 		role: {
 			legend: 'Role of this instance',
