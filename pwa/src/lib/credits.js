@@ -614,7 +614,9 @@ export async function imageBuild(master, { quote = false } = {}, options) {
 		chargedCredits: numberOrNull(r.charged_credits),
 		creditsBefore: numberOrNull(r.credits_before),
 		creditsAfter: numberOrNull(r.credits_after),
-		expiration: typeof r.expiration === 'string' ? r.expiration : null
+		expiration: typeof r.expiration === 'string' ? r.expiration : null,
+		// The first build of a running voucher period: included, nothing charged.
+		included: r.included === true
 	};
 }
 

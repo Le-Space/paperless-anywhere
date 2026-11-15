@@ -253,14 +253,14 @@
 	// then. Unknown (Aleph not asked) offers it, and Aleph's answer decides.
 	// With a Le Space package the package pays (Le Space Credits): its price
 	// for one build, or why it cannot (no package, too little balance).
-	/** @type {{ ok: boolean | null, need?: number | null, have?: number | null, price?: number | null, reason?: string } | null} */
+	/** @type {{ ok: boolean | null, need?: number | null, have?: number | null, price?: number | null, included?: boolean, reason?: string } | null} */
 	let affordable = $state(null);
 	const packagePays = $derived(Boolean(profile?.leSpacePays && CREDITS_URL));
 	$effect(() => {
 		if (!BUILDER || imageKind !== 'own' || !loaded || affordable) return;
 		if (packagePays)
 			imageBuild(master, { quote: true })
-				.then((q) => (affordable = { ok: true, price: q.chargedCredits }))
+				.then((q) => (affordable = { ok: true, price: q.chargedCredits, included: q.included }))
 				.catch((e) => (affordable = { ok: false, reason: e.message }));
 		else buildAffordable(privateKeyToAccount(alephPrivateKey(master)), /** @type {any} */ (BUILDER)).then((a) => (affordable = a));
 	});
@@ -288,7 +288,7 @@
 				const granted = await vmAuthorize(master);
 				if (!granted.types || !IMAGE_BUILD_TYPES.every((type) => granted.types?.includes(type))) throw new Error($t.ownImage.choice.serviceOld);
 				const quote = await imageBuild(master, { quote: true });
-				if (!confirm($t.ownImage.choice.confirmPrice(format.euro(quote.chargedCredits ?? 0, $lang)))) return;
+				if (!confirm(quote.included ? $t.ownImage.choice.confirmIncluded : $t.ownImage.choice.confirmPrice(format.euro(quote.chargedCredits ?? 0, $lang)))) return;
 				built = await buildPaidByPackage({
 					...common,
 					builder: /** @type {any} */ (BUILDER),
@@ -514,7 +514,7 @@
 				{#if affordable === null}<p class="hint" data-testid="own-image-checking">{$t.ownImage.choice.checking}</p>
 				{:else if affordable.ok === false && affordable.reason}<p class="warn" data-testid="own-image-package-no">{affordable.reason}</p>
 				{:else if affordable.ok === false}<p class="warn" data-testid="own-image-needs-credits">{$t.ownImage.choice.needsCredits(format.number(affordable.need ?? 0, undefined, $lang), format.number(affordable.have ?? 0, undefined, $lang))}</p>
-				{:else}{#if affordable.price != null}<p class="hint" data-testid="own-image-price">{$t.ownImage.choice.price(format.euro(affordable.price, $lang))}</p>{/if}<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{ownBuilt ? $t.ownImage.rebuild : $t.ownImage.build}</button>{/if}
+				{:else}{#if affordable.included}<p class="hint" data-testid="own-image-price">{$t.ownImage.choice.included}</p>{:else if affordable.price != null}<p class="hint" data-testid="own-image-price">{$t.ownImage.choice.price(format.euro(affordable.price, $lang))}</p>{/if}<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{ownBuilt ? $t.ownImage.rebuild : $t.ownImage.build}</button>{/if}
 				{#if profile.running}<p class="hint">{$t.ownImage.whileRunning}</p>{/if}
 				{#if busy === 'own-image' && ownStep}<p class="hint" role="status" data-testid="own-image-step">{ownStep} …</p>{/if}
 				{@render feedback('own-image')}
