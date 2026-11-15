@@ -263,6 +263,38 @@ describe('an image of one\'s own', () => {
 		expect(slow.seen.calls.filter((c) => c.path === '/build')).toHaveLength(1);
 	});
 
+	it('goes on where a broken connection stopped, and keeps trying while pieces come back', async () => {
+		// Every connection breaks after one piece (an unsteady VPN): the run goes
+		// on from there each time, so with two tries in a row it still completes.
+		const inner = fakeBuilder();
+		const ranges = [];
+		let counted = 0;
+		const shaky = async () => {
+			const channel = await inner.open();
+			let pieces = 0;
+			return { ...channel, request: (method, path, init) => {
+				if (path === `/job/${job}/image`) {
+					if (++pieces > 1) return Promise.reject(new Error('the connection closed while waiting for the answer'));
+					ranges.push(init.headers.range);
+				}
+				return channel.request(method, path, init);
+			} };
+		};
+		const { got, store } = fakeStore();
+		await buildOwnImage({ master, app, builder, open: shaky, store, ...quick(), runTries: 2, onProgress: () => {} });
+		expect(got.bytes).toEqual(image);
+		expect(ranges).toEqual(['bytes=0-999', 'bytes=1000-1999', 'bytes=2000-2499']);
+
+		// No piece at all, try after try: it gives up after runTries in a row.
+		let tries = 0;
+		const dead = async () => {
+			const channel = await inner.open();
+			return { ...channel, request: (method, path, init) => (path === `/job/${job}/image` ? (tries++, Promise.reject(new Error('closed'))) : channel.request(method, path, init)) };
+		};
+		await expect(buildOwnImage({ master, app, builder, open: dead, store: fakeStore().store, ...quick(), runTries: 3 })).rejects.toThrow(BuilderError);
+		expect(tries).toBe(3);
+	});
+
 	it('gives up where trying again cannot help: the image is gone, or a connection fails its attestation', async () => {
 		const lost = relayedBuilder(big, { gone: true });
 		await expect(buildOwnImage({ master, app, builder, open: lost.open, store: fakeStore().store, ...real() })).rejects.toThrow(/hat das Image nicht mehr \(404\)/);
