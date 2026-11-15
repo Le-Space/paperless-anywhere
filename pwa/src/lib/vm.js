@@ -62,7 +62,7 @@ export async function signAsDelegate(unsigned, app) {
 
 async function broadcast(message) {
 	const { httpStatus, response } = await broadcastAndWait(message);
-	if (httpStatus >= 300) throw new Error(`Aleph refused the ${message.type} (${httpStatus}): ${JSON.stringify(response).slice(0, 200)}`);
+	if (httpStatus >= 300) throw Object.assign(new Error(`Aleph refused the ${message.type} (${httpStatus}): ${JSON.stringify(response).slice(0, 200)}`), { refused: true });
 	return response;
 }
 

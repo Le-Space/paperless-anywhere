@@ -564,9 +564,8 @@ async function loadAttest(profile) {
 		import('@le-space/attest-wasm/ratls'),
 		import('./attest-p2p.js'),
 		import('./relays.js'),
-		import('@le-space/attest-wasm/pkg/relay_button_attest.js')
+		import('./attest-wasm-load.js').then((m) => m.loadAttestWasm())
 	]);
-	await wasm.default();
 	return { attestGuest, relayTransports, relays: await attestRelaysFor(profile), wasm };
 }
 

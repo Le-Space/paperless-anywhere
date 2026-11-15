@@ -10,6 +10,7 @@ import { loadTeeNodes } from './landing/tee-nodes.js';
 import { privateKeyToAccount } from 'viem/accounts';
 import { unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
 import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
+import { loadAttestWasm } from './attest-wasm-load.js';
 import { pinnedTrustedExecution } from './runtime-pin.js';
 import { alephPrivateKey, backupPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
 import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
@@ -69,11 +70,8 @@ export class BackupPartialError extends Error {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function loadWasm() {
-	const wasm = await import('@le-space/attest-wasm/pkg/relay_button_attest.js');
-	await wasm.default();
-	return wasm;
-}
+// Loaded once per page, again on a broken connection (attest-wasm-load.js).
+const loadWasm = () => loadAttestWasm();
 
 // When to hand the secrets over again if the status page has not answered
 // yet (normally it answers 2–6 minutes after the unlock, once the certificate
@@ -276,9 +274,18 @@ export async function startPaperless(master, profile, onProgress, { onRequested 
 			{ balance, reserve, vmPerHour }
 		);
 	}
-	const instanceHash = await sendInstance(message);
 	/** @type {Starting} */
-	const starting = { instanceHash, crnHash: profile.crnHash, payer, trustedExecution, restoreEntry: profile.restoreEntry ?? null, at: Date.now() };
+	const starting = { instanceHash: message.item_hash, crnHash: profile.crnHash, payer, trustedExecution, restoreEntry: profile.restoreEntry ?? null, at: Date.now() };
+	try {
+		await sendInstance(message);
+	} catch (e) {
+		// Not refused, but no answer (the connection broke): Aleph may have the
+		// VM. Kept as an interrupted start, so trying again carries on with this
+		// one (resumeStart looks it up) instead of asking Aleph for a second VM.
+		if (!(/** @type {any} */ (e)?.refused)) await onRequested?.(starting);
+		throw e;
+	}
+	const instanceHash = starting.instanceHash;
 	await onRequested?.(starting);
 	await notifyNode(await crnAddress(profile.crnHash), instanceHash);
 	return bringUp(master, profile, starting, wasm, onProgress);
@@ -291,14 +298,22 @@ export async function startPaperless(master, profile, onProgress, { onRequested 
  * @param {Uint8Array} master
  * @param {Record<string, any>} profile with `starting`
  * @param {(p: { step: string, detail?: string, instanceHash?: string }) => void} onProgress
+ * @param {{ lookUpTries?: number, lookUpPauseMs?: number }} [options] how long an unknown or pending request is waited for
  */
-export async function resumeStart(master, profile, onProgress) {
+export async function resumeStart(master, profile, onProgress, { lookUpTries = 24, lookUpPauseMs = 5000 } = {}) {
 	/** @type {Starting} */
 	const starting = profile.starting;
 	if (!starting?.instanceHash) throw new Error(tr().life.errors.noInterruptedStart);
 	onProgress({ step: 'instance', detail: tr().life.progress.lookUp, instanceHash: starting.instanceHash });
-	const res = await readFetch(`${ALEPH_API}/api/v0/messages/${starting.instanceHash}`, tr().life.vm.lookUp);
-	const status = res.ok ? (await res.json())?.status : null;
+	// A start whose request lost its answer may still be on its way to Aleph:
+	// waited for a little while it is unknown or pending.
+	let res, status;
+	for (let i = 0; ; i++) {
+		res = await readFetch(`${ALEPH_API}/api/v0/messages/${starting.instanceHash}`, tr().life.vm.lookUp);
+		status = res.ok ? (await res.json())?.status : null;
+		if (status === 'processed' || i >= lookUpTries - 1 || !(res.status === 404 || status === 'pending')) break;
+		await sleep(lookUpPauseMs);
+	}
 	if (status !== 'processed') throw new Error(tr().life.errors.vmGone(starting.instanceHash.slice(0, 12), status ?? res.status));
 	return bringUp(master, { ...profile, restoreEntry: starting.restoreEntry }, starting, await loadWasm(), onProgress);
 }
