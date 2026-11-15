@@ -2,7 +2,9 @@
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
 	import { AlephShortError, BackupPartialError, attestRunning, eraseStopped, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
 	import { buildImageForVault } from '$lib/own-image-build.js';
-	import { BUILDER } from '$lib/own-image.js';
+	import { BUILDER, hasOwnImage } from '$lib/own-image.js';
+	import FirstStart from '$lib/FirstStart.svelte';
+	import { fetchPercent, stationOfBuildStep } from '$lib/first-start.js';
 	import { vmStatus } from '$lib/vm.js';
 	import Storage from '$lib/Storage.svelte';
 	import { statusToken } from '$lib/keys/derive.js';
@@ -38,6 +40,10 @@
 	/** @type {Record<string, any>} */
 	let profile = $state({});
 	let progress = $state('');
+	// The full-screen first start with an own image (FirstStart.svelte), or its certificate opened later.
+	/** @type {{ station: string, since: number, fetchPct: number | null, done: boolean, failed: boolean, minimized: boolean, certificate: boolean, only: boolean } | null} */
+	let ceremony = $state(null);
+	const showCertificate = () => (ceremony = { station: 'paperless', since: Date.now(), fetchPct: null, done: true, failed: false, minimized: false, certificate: true, only: true });
 	// The steps of a start and a stop, with what they took in our runs so far.
 	// Start, live on mainnet 2026-11-11 (1 GB backup restored): measure 9-14 s,
 	// placing 108 s, port 23 s, attestation and unlock 199 s, then Paperless
@@ -369,8 +375,19 @@
 		if (profile.leSpacePays) await leSpaceOwner();
 		const chosen = chosenBackup;
 		if (gapOpen) throw new Error(tr().card.errors.gapOpen);
-		// No image yet: this vault's own one first (about 15 minutes; the page stays open).
-		if (buildsImageFirst(profile, BUILDER)) {
+		// No image yet: this vault's own one first (about 15 minutes; the page stays open),
+		// shown as the full-screen first start (FirstStart.svelte).
+		const first = buildsImageFirst(profile, BUILDER);
+		try {
+			await startNowInner(chosen, first);
+		} catch (e) {
+			if (ceremony) ceremony = { ...ceremony, failed: true, minimized: false };
+			throw e;
+		}
+	}
+	/** @param {any} chosen @param {boolean} first */
+	async function startNowInner(chosen, first) {
+		if (first) {
 			progress = tr().card.progress.buildImage;
 			const save = async (/** @type {Record<string, any>} */ patch) => {
 				profile = await updateProfile(master, (now) => ({ ...now, ...patch }));
@@ -382,13 +399,23 @@
 				packagePays: Boolean(profile.leSpacePays),
 				confirm: (question) => window.confirm(question),
 				save,
-				onProgress: ({ step, detail }) => (progress = `${tr().card.progress.buildImage}: ${detail ?? step}`)
+				onProgress: ({ step, detail }) => {
+					progress = `${tr().card.progress.buildImage}: ${detail ?? step}`;
+					const station = stationOfBuildStep(step);
+					if (!station) return;
+					const pct = station === 'fetch' ? fetchPercent(detail) : null;
+					// The first sign of the build opens the full screen (after a price was agreed).
+					if (!ceremony) ceremony = { station, since: Date.now(), fetchPct: pct, done: false, failed: false, minimized: false, certificate: false, only: false };
+					else if (ceremony.station !== station) ceremony = { ...ceremony, station, since: Date.now(), fetchPct: pct };
+					else if (pct != null) ceremony = { ...ceremony, fetchPct: pct };
+				}
 			});
 			if (!built) {
 				progress = '';
 				return;
 			}
 			await save(built);
+			if (ceremony) ceremony = { ...ceremony, station: 'paperless', since: Date.now(), fetchPct: null };
 		}
 		// No node fixed in the setup: one with room now.
 		if (!profile.crnHash) progress = tr().card.progress.pickNode;
@@ -401,6 +428,7 @@
 			onchange();
 		};
 		await finishStart(() => startPaperless(master, forStart, track('start'), { onRequested }));
+		if (ceremony) ceremony = { ...ceremony, done: true, minimized: false };
 	}
 	// Buy hours from Le Space Credits: the service grants them (with Aleph's
 	// start reserve) to the account that pays the VM; once Aleph shows them,
@@ -622,6 +650,20 @@
 	{/if}
 {/snippet}
 
+{#if ceremony}
+	<FirstStart
+		view={ceremony}
+		startTypical={STEPS.start.reduce((a, s) => a + typicalOf(s), 0)}
+		host={profile.running?.host ?? null}
+		ownImage={profile.ownImage ?? null}
+		imageHash={profile.rootfsItemHash ?? null}
+		plain={BUILDER?.plain ?? null}
+		onminimize={() => (ceremony = ceremony && { ...ceremony, minimized: true })}
+		onexpand={() => (ceremony = ceremony && { ...ceremony, minimized: false })}
+		oncertificate={(show) => (ceremony = !ceremony ? null : !show && ceremony.only ? null : { ...ceremony, certificate: show })}
+		onclose={() => (ceremony = null)}
+	/>
+{/if}
 <section class="lifecycle" class:simple data-testid="lifecycle">
 	{#if simple}
 		<div class="status is-{phase}" data-testid="simple-status">
@@ -753,6 +795,7 @@
 				{@render unpaidQuestion()}
 				{#if missing.length}<p class="hint">{c.advanced.stillMissing(missing.join(', '))}</p>{/if}
 			{/if}
+			{#if BUILDER && hasOwnImage(profile, BUILDER.plain.sha256)}<button class="quiet" onclick={showCertificate} data-testid="open-certificate">{$i18n.first.cert.open}</button>{/if}
 		{/if}
 		{#if startShown}<StartPanel rows={panel} t={panelT} />{/if}
 		{#if action && (busy || Object.keys(times).length)}

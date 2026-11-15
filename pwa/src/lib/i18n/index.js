@@ -12,6 +12,7 @@ import { app } from './app.js';
 import { backup } from './backup.js';
 import { card } from './card.js';
 import { credits } from './credits.js';
+import { first } from './first-start.js';
 import { funds } from './funds.js';
 import { life } from './lifecycle.js';
 import { net } from './net.js';
@@ -60,6 +61,7 @@ const AREAS = {
 	buy,
 	card,
 	credits,
+	first,
 	funds,
 	life,
 	net,
