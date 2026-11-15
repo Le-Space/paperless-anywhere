@@ -12,7 +12,7 @@
 
 	/**
 	 * @type {{
-	 *   view: { station: string, since: number, fetchPct: number | null, done: boolean, failed: boolean, minimized: boolean, certificate: boolean },
+	 *   view: { station: string, since: number, fetchPct: number | null, done: boolean, failed: boolean, minimized: boolean, certificate: boolean, rebuild?: boolean },
 	 *   startTypical: number,
 	 *   host?: string | null,
 	 *   ownImage?: any,
@@ -31,10 +31,12 @@
 	const tick = setInterval(() => (now = Date.now()), 1000);
 	onDestroy(() => clearInterval(tick));
 
-	const j = $derived(journey({ station: view.station, since: view.since, now, fetchPct: view.fetchPct, startTypical, done: view.done }));
+	// A rebuild of the image ends with the build: no Paperless station.
+	const shown = $derived(view.rebuild ? STATIONS.filter((s) => s.key !== 'paperless') : STATIONS);
+	const j = $derived(journey({ station: view.station, since: view.since, now, fetchPct: view.fetchPct, startTypical: view.rebuild ? 0 : startTypical, done: view.done }));
 	const pct = $derived(Math.round(j.share * 100));
 	const here = $derived(/** @type {any} */ (x.stations)[view.station] ?? x.stations.wake);
-	const stations = $derived(STATIONS.map((s, i) => ({ key: s.key, n: i + 1, ...(/** @type {any} */ (x.stations)[s.key]), done: view.done || i < j.index, active: !view.done && i === j.index })));
+	const stations = $derived(shown.map((s, i) => ({ key: s.key, n: i + 1, ...(/** @type {any} */ (x.stations)[s.key]), done: view.done || i < j.index, active: !view.done && i === j.index })));
 	const ends = $derived(new Date(j.ends).toLocaleTimeString($lang === 'de' ? 'de-DE' : 'en-GB', { hour: '2-digit', minute: '2-digit' }));
 	const running = $derived(!view.done && !view.failed);
 
@@ -100,10 +102,10 @@
 					<span class="ring spin"></span>
 					<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
 				</div>
-				<h2 id="first-title">{x.doneTitle}</h2>
-				<p>{x.doneText}</p>
+				<h2 id="first-title">{view.rebuild ? x.rebuildDoneTitle : x.doneTitle}</h2>
+				<p>{view.rebuild ? x.rebuildDoneText : x.doneText}</p>
 				<p class="row">
-					{#if host}<a class="cta" href={`https://${host}`} target="_blank" rel="noopener noreferrer" data-testid="first-open">{x.open}</a>{/if}
+					{#if host && !view.rebuild}<a class="cta" href={`https://${host}`} target="_blank" rel="noopener noreferrer" data-testid="first-open">{x.open}</a>{/if}
 					{#if ownImage && imageHash}<button type="button" class="secondary" onclick={() => oncertificate(true)} data-testid="first-certificate">{x.showCertificate}</button>{/if}
 					<button type="button" class="link" onclick={onclose} data-testid="first-close">{x.close}</button>
 				</p>
@@ -112,8 +114,8 @@
 			<div class="journey">
 				<div class="top">
 					<div>
-						<p class="kicker">{x.kicker}</p>
-						<h2 id="first-title">{x.title}</h2>
+						<p class="kicker">{view.rebuild ? x.rebuildKicker : x.kicker}</p>
+						<h2 id="first-title">{view.rebuild ? x.rebuildTitle : x.title}</h2>
 					</div>
 					{#if running}<button type="button" class="ghost" onclick={onminimize} data-testid="first-minimize">{x.minimize}</button>
 					{:else}<button type="button" class="ghost" onclick={onclose} data-testid="first-close">{x.close}</button>{/if}
@@ -132,7 +134,7 @@
 					{/each}
 				</ol>
 				<div class="now" aria-live="polite">
-					<p class="step">{x.step(j.index + 1)} · {here.duration}</p>
+					<p class="step">{x.step(j.index + 1, shown.length)} · {here.duration}</p>
 					{#if view.failed}
 						<h3>{x.pausedTitle}</h3>
 						<p>{x.pausedText}</p>

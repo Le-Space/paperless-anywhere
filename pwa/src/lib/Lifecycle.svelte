@@ -2,7 +2,7 @@
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
 	import { AlephShortError, BackupPartialError, attestRunning, eraseStopped, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
 	import { buildImageForVault } from '$lib/own-image-build.js';
-	import { BUILDER, hasOwnImage } from '$lib/own-image.js';
+	import { BUILDER, hasOwnImage, imageStatus } from '$lib/own-image.js';
 	import FirstStart from '$lib/FirstStart.svelte';
 	import { fetchPercent, stationOfBuildStep } from '$lib/first-start.js';
 	import { vmStatus } from '$lib/vm.js';
@@ -41,7 +41,7 @@
 	let profile = $state({});
 	let progress = $state('');
 	// The full-screen first start with an own image (FirstStart.svelte), or its certificate opened later.
-	/** @type {{ station: string, since: number, fetchPct: number | null, done: boolean, failed: boolean, minimized: boolean, certificate: boolean, only: boolean } | null} */
+	/** @type {{ station: string, since: number, fetchPct: number | null, done: boolean, failed: boolean, minimized: boolean, certificate: boolean, only: boolean, rebuild?: boolean } | null} */
 	let ceremony = $state(null);
 	const showCertificate = () => (ceremony = { station: 'paperless', since: Date.now(), fetchPct: null, done: true, failed: false, minimized: false, certificate: true, only: true });
 	// The steps of a start and a stop, with what they took in our runs so far.
@@ -385,36 +385,59 @@
 			throw e;
 		}
 	}
+	/**
+	 * Builds this vault's own image, shown in the full screen (FirstStart.svelte):
+	 * at a first start, or again for a newer image version (`rebuild`, no start
+	 * after it). Resolves false when the person declined the price.
+	 * @param {boolean} rebuild
+	 */
+	async function buildWithJourney(rebuild) {
+		progress = tr().card.progress.buildImage;
+		const save = async (/** @type {Record<string, any>} */ patch) => {
+			profile = await updateProfile(master, (now) => ({ ...now, ...patch }));
+			onchange();
+		};
+		const built = await buildImageForVault({
+			master,
+			profile: $state.snapshot(profile),
+			packagePays: Boolean(profile.leSpacePays),
+			confirm: (question) => window.confirm(question),
+			save,
+			onProgress: ({ step, detail }) => {
+				progress = `${tr().card.progress.buildImage}: ${detail ?? step}`;
+				const station = stationOfBuildStep(step);
+				if (!station) return;
+				const pct = station === 'fetch' ? fetchPercent(detail) : null;
+				// The first sign of the build opens the full screen (after a price was agreed).
+				if (!ceremony) ceremony = { station, since: Date.now(), fetchPct: pct, done: false, failed: false, minimized: false, certificate: false, only: false, rebuild };
+				else if (ceremony.station !== station) ceremony = { ...ceremony, station, since: Date.now(), fetchPct: pct };
+				else if (pct != null) ceremony = { ...ceremony, fetchPct: pct };
+			}
+		});
+		if (!built) {
+			progress = '';
+			return false;
+		}
+		await save(built);
+		return true;
+	}
+	// A newer image version: built again while Paperless is off, without a start after it.
+	const rebuildImage = () =>
+		run(async () => {
+			try {
+				if (await buildWithJourney(true)) {
+					progress = '';
+					if (ceremony) ceremony = { ...ceremony, done: true, minimized: false };
+				}
+			} catch (e) {
+				if (ceremony) ceremony = { ...ceremony, failed: true, minimized: false };
+				throw e;
+			}
+		});
 	/** @param {any} chosen @param {boolean} first */
 	async function startNowInner(chosen, first) {
 		if (first) {
-			progress = tr().card.progress.buildImage;
-			const save = async (/** @type {Record<string, any>} */ patch) => {
-				profile = await updateProfile(master, (now) => ({ ...now, ...patch }));
-				onchange();
-			};
-			const built = await buildImageForVault({
-				master,
-				profile: $state.snapshot(profile),
-				packagePays: Boolean(profile.leSpacePays),
-				confirm: (question) => window.confirm(question),
-				save,
-				onProgress: ({ step, detail }) => {
-					progress = `${tr().card.progress.buildImage}: ${detail ?? step}`;
-					const station = stationOfBuildStep(step);
-					if (!station) return;
-					const pct = station === 'fetch' ? fetchPercent(detail) : null;
-					// The first sign of the build opens the full screen (after a price was agreed).
-					if (!ceremony) ceremony = { station, since: Date.now(), fetchPct: pct, done: false, failed: false, minimized: false, certificate: false, only: false };
-					else if (ceremony.station !== station) ceremony = { ...ceremony, station, since: Date.now(), fetchPct: pct };
-					else if (pct != null) ceremony = { ...ceremony, fetchPct: pct };
-				}
-			});
-			if (!built) {
-				progress = '';
-				return;
-			}
-			await save(built);
+			if (!(await buildWithJourney(false))) return;
 			if (ceremony) ceremony = { ...ceremony, station: 'paperless', since: Date.now(), fetchPct: null };
 		}
 		// No node fixed in the setup: one with room now.
@@ -564,6 +587,8 @@
 	// In the language shown: what a start still needs is named in words.
 	// A new Paperless builds its own image at the first start (own-image-build.js).
 	const buildFirst = $derived(buildsImageFirst(profile, BUILDER));
+	// Which image this Paperless starts from, for the line under its status.
+	const image = $derived(imageStatus(profile, BUILDER, { buildsAtStart: buildFirst }));
 	const missing = $derived(($appLanguage, startRequirements(profile, { buildsImage: buildFirst })));
 	// The card's texts in the language shown.
 	const c = $derived($i18n.card);
@@ -670,11 +695,23 @@
 			<span class="dot" aria-hidden="true"></span>
 			<div>
 				<h1>{TITLES[phase]}</h1>
-				{#if phase === 'off'}<p class="sub">{c.simple.startTakes(minutes(STEPS.start.reduce((a, s) => a + typicalOf(s), 0)))}{#if buildFirst}{' '}<span data-testid="first-build">{c.simple.firstBuild}</span>{/if}</p>
+				{#if phase === 'off'}<p class="sub">{c.simple.startTakes(minutes(STEPS.start.reduce((a, s) => a + typicalOf(s), 0)))}</p>
 				{:else if phase === 'starting'}<p class="sub">{c.simple.keepOpenStart}</p>
 				{:else if phase === 'stopping' || phase === 'discarding'}<p class="sub">{c.simple.keepOpenStop}</p>
 				{:else if phase === 'running'}<p class="sub data">{profile.running.host}</p>
 				{:else if phase === 'interrupted'}<p class="sub">{c.simple.interruptedCosts}</p>{/if}
+				{#if BUILDER}
+					<!-- Which image: the vault's own (and whether a newer version is there), built at the first start, or the public one. -->
+					<p class="image-line" data-testid="image-line">
+						{#if image.own}{$i18n.ownImage.overview.built(format.date(image.builtAt ?? Date.now(), undefined, $appLanguage))}
+							{#if image.newer}{' '}<span data-testid="image-newer">{$i18n.ownImage.overview.newer}</span>
+								{#if phase === 'off'}{' '}<button class="link" onclick={rebuildImage} disabled={busy} data-testid="image-rebuild">{$i18n.ownImage.overview.rebuild}</button>
+								{:else}{' '}<span class="hint">{$i18n.ownImage.overview.rebuildStopped}</span>{/if}
+							{/if}
+						{:else if image.buildsAtStart}<span data-testid="first-build">{c.simple.firstBuild}</span>
+						{:else}{$i18n.ownImage.overview.publicImage}{/if}
+					</p>
+				{/if}
 				{#if profile.backupConfig}
 					<!-- The answer people look for first: when the documents were last safe. -->
 					<p class="good" class:stale={goodStale} data-testid="last-good-backup">{#if lastGood}{fromStop ? c.simple.lastAtStop : c.simple.lastGood}: <strong>{goodWhen(lastGood.at)}</strong>{lastGood.copies ? ` · ${c.simple.copies(lastGood.copies)}` : ''}{#if newerOnChain}<br /><span data-testid="newer-on-chain">{c.simple.newerOnChain(c.simple.copies(backups?.[0]?.copies.length ?? 0))}</span>{/if}{:else}{c.simple.noneKnown}{/if}</p>
@@ -940,4 +977,6 @@
 	.fund select { margin-left: 0.4rem; }
 	.interrupted { padding: 0.5rem 0.75rem; background: var(--warn-bg); border-radius: 4px; }
 	.quiet { background: none; border: none; color: var(--text-2); text-decoration: underline; padding: 0; }
+	.image-line { margin: 0.35rem 0 0; font-size: 0.9rem; color: var(--text-2); }
+	.image-line .link { background: none; border: none; padding: 0; color: var(--accent-2-text); text-decoration: underline; cursor: pointer; font: inherit; }
 </style>
