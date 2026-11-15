@@ -43,6 +43,11 @@ on:
         description: 'With "package": choose this plan first, paid from the balance (e.g. paperless-15-backup). Empty keeps the running one.'
         required: false
         default: ''
+      check_only:
+        description: 'With "package": only show the test vault's balance and plan; spends nothing.'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -89,6 +94,7 @@ jobs:
         env:
           PACKAGE_PHRASE: ${{ secrets.PACKAGE_TEST_PHRASE }}
           PACKAGE_PLAN: ${{ inputs.plan }}
+          PACKAGE_CHECK: ${{ inputs.check_only && '1' || '' }}
           PACKAGE_RESULT: ${{ runner.temp }}/fetch.json
           VITE_CREDITS_URL: ${{ vars.VITE_CREDITS_URL || 'https://credits.le-space.de' }}
         run: |

@@ -23,12 +23,12 @@ import { ALEPH_API, readAggregate } from '../src/lib/aleph.js';
 import { alephPrivateKey } from '../src/lib/keys/derive.js';
 import { sealingKeyFromSeedPhrase, unseal } from '../src/lib/keys/seal.js';
 import { seedIndexAccount, VAULT_KEY } from '../src/lib/keys/index-keys.js';
-import { choosePlan, IMAGE_BUILD_TYPES, imageBuild, imageBuildDone, vmAuthorize } from '../src/lib/credits.js';
+import { choosePlan, creditsBalance, IMAGE_BUILD_TYPES, imageBuild, imageBuildDone, vmAuthorize } from '../src/lib/credits.js';
 import { BUILDER, buildPaidByPackage, builderOpener, forgetBuilder } from '../src/lib/own-image.js';
 import { relayTransports } from '../src/lib/attest-p2p.js';
 import { findAttestRelays } from '../src/lib/relays.js';
 
-const { PACKAGE_PHRASE = '', PACKAGE_PLAN = '', PACKAGE_RESULT = '' } = process.env;
+const { PACKAGE_PHRASE = '', PACKAGE_PLAN = '', PACKAGE_RESULT = '', PACKAGE_CHECK = '' } = process.env;
 // The words as the app shows them may come with their numbers, commas or
 // line breaks: only the words count. Never printed, only how many there are.
 const words = PACKAGE_PHRASE.toLowerCase().match(/[a-z]+/g) ?? [];
@@ -47,6 +47,10 @@ try {
 	const master = await unseal(remote.box, sealingKeyFromSeedPhrase(phrase), 'master/seed');
 	const app = privateKeyToAccount(alephPrivateKey(master));
 	result.account = app.address;
+	// What the vault holds, before anything is spent. PACKAGE_CHECK: only that.
+	const balance = await creditsBalance(master);
+	result.balance = balance && { credits: balance.credits, reserved: balance.reserved, plan: balance.plan ?? null };
+	if (PACKAGE_CHECK) throw Object.assign(new Error('check only'), { check: true });
 
 	if (PACKAGE_PLAN) {
 		step('plan');
@@ -95,7 +99,7 @@ try {
 	step('forget image');
 	result.storeForgotten = await forgetBuilder(app, built.rootfsItemHash, { payer: granted.owner });
 } catch (error) {
-	result.error = String(error?.message ?? error).slice(0, 300);
+	if (!error?.check) result.error = String(error?.message ?? error).slice(0, 300);
 } finally {
 	result.seconds = at();
 	console.log(JSON.stringify(result, null, 1));
