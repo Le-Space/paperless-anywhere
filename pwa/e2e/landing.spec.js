@@ -349,7 +349,7 @@ test('the FAQ says how a voucher is redeemed and how the documents come out with
 	await voucher.locator('summary').click();
 	await expect(voucher).toContainText('„Gutschein einlösen“');
 	await expect(voucher).toContainText('die App zeigt es nach dem Einlösen');
-	await expect(voucher.locator('li')).toHaveText([/^Der Zeitraum beginnt mit dem Einlösen und läuft in Kalendertagen durch/, /^Jeder Code lässt sich mit einem Tresor nur einmal einlösen, und nur bis zu seinem Ablaufdatum/, /^Sichere oder exportiere deine Dokumente vor dem Ende/, /^Umfasst der Gutschein die Sicherung, bleiben/]);
+	await expect(voucher.locator('li')).toHaveText([/^Der Zeitraum beginnt mit dem Einlösen und läuft in Kalendertagen durch/, /^Jeder Code lässt sich mit einem Tresor nur einmal einlösen, und nur bis zu seinem Ablaufdatum/, /^Der erste Bau eines eigenen Images im Gutschein-Zeitraum ist enthalten/, /^Sichere oder exportiere deine Dokumente vor dem Ende/, /^Umfasst der Gutschein die Sicherung, bleiben/]);
 	await expect(voucher.getByRole('link', { name: 'Gutscheine in den AGB (§ 4a)' })).toHaveAttribute('href', 'https://credits.le-space.de/agb');
 	const out = page.locator('#faq details', { hasText: 'Komme ich auch ohne Le Space an meine Dokumente?' });
 	await out.locator('summary').click();

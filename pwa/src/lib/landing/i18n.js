@@ -101,7 +101,7 @@ export const texts = {
 				{ who: 'Der Betreiber des Knotens', v: 'no' },
 				{ who: 'GitHub', v: 'no' }
 			],
-			compare: 'Öffentlich vergleichen lassen sich der Hash des öffentlichen Images und der Messwert des Build-Dienstes; die App zeigt beide neben „Mein Image bauen“. Das verschlüsselte Image sieht bei jeder Person anders aus. Mit einem Paket von Le Space wird der Bau von deinem Le-Space-Guthaben abgebucht: Die App nennt den Preis vorher, das Paket muss laufen, und der Speicher des Images ist enthalten. Ohne Paket bezahlt die Adresse der App Bau und Ablage aus ihren Aleph-Credits; Aleph startet den Build-Dienst erst, wenn sie für einen Tag seiner Laufzeit reichen. Der Build-Dienst läuft derzeit nur auf einem einzigen Knoten; fällt er aus, ist kein Bau möglich, deine VM startet aber weiter. Stand: Ein ganzer Durchgang lief bei Aleph aus einem Browser heraus: Bau des Images in voller Größe, knapp 900 MiB, Hochladen von der Seite, eine VM, die davon startete und sicherte, und eine zweite, die die Sicherung wiederherstellte. Der Bau dauerte etwa 15 Minuten. Ein Bau, den das Paket bezahlt, ist noch nicht im echten Betrieb erprobt.'
+			compare: 'Öffentlich vergleichen lassen sich der Hash des öffentlichen Images und der Messwert des Build-Dienstes; die App zeigt beide neben „Mein Image bauen“. Das verschlüsselte Image sieht bei jeder Person anders aus. Mit einem Paket von Le Space wird der Bau von deinem Le-Space-Guthaben abgebucht: Die App nennt den Preis vorher, das Paket muss laufen, und der Speicher des Images ist enthalten. Ein Gutschein enthält den ersten Bau in seinem Zeitraum. Ohne Paket bezahlt die Adresse der App Bau und Ablage aus ihren Aleph-Credits; Aleph startet den Build-Dienst erst, wenn sie für einen Tag seiner Laufzeit reichen. Der Build-Dienst läuft derzeit nur auf einem einzigen Knoten; fällt er aus, ist kein Bau möglich, deine VM startet aber weiter. Stand: Ein ganzer Durchgang lief bei Aleph aus einem Browser heraus: Bau des Images in voller Größe, knapp 900 MiB, Hochladen von der Seite, eine VM, die davon startete und sicherte, und eine zweite, die die Sicherung wiederherstellte. Der Bau dauerte etwa 15 Minuten. Ein Bau, den das Paket bezahlt, ist noch nicht im echten Betrieb erprobt.'
 		},
 		nodes: {
 			title: 'Ausfallsicher: kein einzelnes Rechenzentrum',
@@ -250,6 +250,7 @@ export const texts = {
 					tips: [
 						'Der Zeitraum beginnt mit dem Einlösen und läuft in Kalendertagen durch, auch wenn Paperless nicht läuft. Er verlängert sich nicht und geht in kein Abo über; wer weitermachen will, schließt ein Paket ab.',
 						'Jeder Code lässt sich mit einem Tresor nur einmal einlösen, und nur bis zu seinem Ablaufdatum. Während ein Paket läuft, lässt sich kein Gutschein einlösen.',
+						'Der erste Bau eines eigenen Images im Gutschein-Zeitraum ist enthalten; die App zeigt dann „im Gutschein enthalten“ statt eines Preises.',
 						'Sichere oder exportiere deine Dokumente vor dem Ende: 3 Tage danach startet die App keine VM mehr, und zum Wiederherstellen brauchst du dann ein Paket.',
 						'Umfasst der Gutschein die Sicherung, bleiben die Sicherungen danach noch mindestens 30 Tage abrufbar.'
 					],
@@ -370,7 +371,7 @@ export const texts = {
 				{ who: 'The node’s operator', v: 'no' },
 				{ who: 'GitHub', v: 'no' }
 			],
-			compare: 'What can be compared in public: the public image’s hash and the builder’s measurement; the app shows both beside “Build my image”. Your encrypted image looks different for every person. With a package from Le Space the build is charged to your Le Space balance: the app shows the price first, the package must be running, and the image’s storage is included. Without a package the app’s address pays for building and storing from its Aleph credits; Aleph starts the builder only once they cover a day of its running time. The builder currently runs on one node only; if that node is down, no build is possible, though your VM still starts. Where it stands: a whole round ran on Aleph from a browser: building the image at full size, a little under 900 MiB, uploading it from the page, a VM that started from it and backed up, and a second one that restored the backup. The build took about 15 minutes. A build paid by the package has not been tried in real operation yet.'
+			compare: 'What can be compared in public: the public image’s hash and the builder’s measurement; the app shows both beside “Build my image”. Your encrypted image looks different for every person. With a package from Le Space the build is charged to your Le Space balance: the app shows the price first, the package must be running, and the image’s storage is included. A voucher includes the first build in its period. Without a package the app’s address pays for building and storing from its Aleph credits; Aleph starts the builder only once they cover a day of its running time. The builder currently runs on one node only; if that node is down, no build is possible, though your VM still starts. Where it stands: a whole round ran on Aleph from a browser: building the image at full size, a little under 900 MiB, uploading it from the page, a VM that started from it and backed up, and a second one that restored the backup. The build took about 15 minutes. A build paid by the package has not been tried in real operation yet.'
 		},
 		nodes: {
 			title: 'Resilient: no single data centre',
@@ -519,6 +520,7 @@ export const texts = {
 					tips: [
 						'The period starts when you redeem it and runs on in calendar days, even while Paperless is not running. It does not renew and does not turn into a subscription; to carry on, take a package.',
 						'Each code can be redeemed only once per vault, and only until its expiry date. While a package runs, no voucher can be redeemed.',
+						'The first build of an own image in the voucher’s period is included; the app then shows “included in your voucher” instead of a price.',
 						'Back up or export your documents before it ends: 3 days later the app starts no more VMs, and to restore you then need a package.',
 						'If the voucher includes the backup, the backups stay available for at least 30 days afterwards.'
 					],
