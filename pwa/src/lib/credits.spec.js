@@ -374,6 +374,12 @@ describe('an image of its own paid by the package', () => {
 		await imageBuildDone(master, { buildId: 'b-2', failed: true }, { baseUrl, fetch: svc.fetch });
 		expect(svc.seen.last?.body).toEqual({ product: CREDITS_PRODUCT, address: account.address, build_id: 'b-2', failed: true });
 	});
+	it('names the build a voucher includes, with nothing charged', async () => {
+		const svc = jsonService(() => [200, { quote: true, owner, aleph_credits: 2_052_000, charged_credits: 0, included: true, credits_before: 0, credits_after: 0 }]);
+		expect(await imageBuild(master, { quote: true }, { baseUrl, fetch: svc.fetch })).toMatchObject({ included: true, chargedCredits: 0 });
+		const paid = jsonService(() => [200, { quote: true, owner, charged_credits: 4 }]);
+		expect((await imageBuild(master, { quote: true }, { baseUrl, fetch: paid.fetch })).included).toBe(false);
+	});
 	it('says why a build cannot be paid', async () => {
 		await expect(imageBuild(master, { quote: true }, { baseUrl, fetch: jsonService(() => [409, { error: 'no plan', code: 'NO_PLAN' }]).fetch })).rejects.toThrow(/laufendes Paket/);
 		await expect(imageBuild(master, {}, { baseUrl, fetch: jsonService(() => [409, { error: 'running', code: 'BUILD_RUNNING' }]).fetch })).rejects.toThrow(/läuft schon ein Bau/);
