@@ -10,6 +10,7 @@
 	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups, imageBuild, imageBuildDone } from '$lib/credits.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
 	import { buildImageForVault } from '$lib/own-image-build.js';
+	import { buildsImageFirst } from '$lib/lifecycle.js';
 	import { BUILDER, buildAffordable, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
 	import { format, lang, t, tr } from '$lib/i18n/index.js';
 	import {
@@ -94,7 +95,9 @@
 				imageInput = profile.rootfsItemHash ?? '';
 				ownerInput = profile.backupOwner ?? '';
 				crnInput = profile.crnHash ?? '';
-				imageKind = imageKindOf(profile, BUILDER);
+				// A Paperless Le Space pays that has no image yet builds its own at
+				// the first start (buildsImageFirst): the own image is the choice.
+				imageKind = buildsImageFirst(profile, BUILDER) ? 'own' : imageKindOf(profile, BUILDER);
 				loaded = true;
 				// A build's builder that a closed window left running: forget it now.
 				if (profile.ownBuilder) {
@@ -484,7 +487,8 @@
 		{@render feedback('image')}
 		{#if BUILDER && !publicImage}
 			<div class="own-image" data-testid="own-image">
-				{#if !ownBuilt}<p class="warn" data-testid="own-image-not-built">{$t.ownImage.choice.notBuilt}</p>{/if}
+				{#if !ownBuilt && buildsImageFirst(profile, BUILDER)}<p class="hint" data-testid="own-image-at-start">{$t.ownImage.choice.builtAtStart}</p>
+				{:else if !ownBuilt}<p class="warn" data-testid="own-image-not-built">{$t.ownImage.choice.notBuilt}</p>{/if}
 				<p class="hint">{$t.ownImage.intro.before}<code>{pwaAddress}</code>{$t.ownImage.intro.after}</p>
 				<details class="sources" data-testid="own-image-sources">
 					<summary>{$t.ownImage.sourcesFold}</summary>
