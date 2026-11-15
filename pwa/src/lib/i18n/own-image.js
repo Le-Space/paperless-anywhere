@@ -10,6 +10,14 @@ export const ownImage = {
 			before: 'Ein Image nur für diesen Tresor: Ein geprüfter Build-Dienst versiegelt das öffentliche Image mit einer Passphrase, die aus deinem Tresor abgeleitet wird. Die App prüft den Hardware-Nachweis des Dienstes, bevor sie die Passphrase schickt, holt das versiegelte Image in Stücken über ebenso geprüfte Verbindungen zurück und lädt es selbst zu Aleph hoch (knapp 900 MiB; das dauert und braucht eine stabile Verbindung). Das Image liegt danach bei Aleph auf der Adresse dieser App (',
 			after: '), die auch den Speicher bezahlt. Mit einem Le-Space-Paket liegt es stattdessen auf deinem Aleph-Konto bei Le Space: Jeder Bau wird von deinem Le-Space-Guthaben abgebucht, den Preis siehst du vorher (ein Gutschein enthält einen Bau); der Speicher des Images ist im Paket enthalten.'
 		},
+		overview: {
+			buildsAtStart: 'Eigenes Image: wird beim ersten Start gebaut (etwa 15 Minuten).',
+			built: (/** @type {string} */ date) => `Eigenes Image, gebaut am ${date}.`,
+			newer: 'Eine neuere Image-Version ist da.',
+			rebuild: 'Jetzt neu bauen',
+			rebuildStopped: 'Neu bauen geht, wenn Paperless gestoppt ist.',
+			publicImage: 'Öffentliches Image von Le Space.'
+		},
 		sourcesFold: 'Woraus und womit wird gebaut?',
 		sourcesHint: 'Diese Werte sind in der App festgelegt und für alle gleich. Das öffentliche Image kann jeder laden und den Hash vergleichen; den Messwert bestätigt die Hardware, bevor die App die Passphrase schickt.',
 		sources: {
@@ -81,6 +89,14 @@ export const ownImage = {
 		intro: {
 			before: 'An image for this vault only: a verified build service seals the public image with a passphrase derived from your vault. The app checks the service\'s hardware attestation before it sends the passphrase, fetches the sealed image back in pieces over connections verified the same way, and uploads it to Aleph itself (just under 900 MiB; this takes a while and needs a stable connection). The image then lies on Aleph under this app\'s address (',
 			after: '), which also pays for the storage. With a Le Space package it lies on your Aleph account at Le Space instead: each build is charged to your Le Space balance, and you see the price first (a voucher includes one build); storing the image is included in your package.'
+		},
+		overview: {
+			buildsAtStart: 'Image of your own: built at the first start (about 15 minutes).',
+			built: (/** @type {string} */ date) => `Image of your own, built on ${date}.`,
+			newer: 'A newer image version is available.',
+			rebuild: 'Build it again now',
+			rebuildStopped: 'Building again works once Paperless is stopped.',
+			publicImage: 'Public image from Le Space.'
 		},
 		sourcesFold: 'What is it built from, and by what?',
 		sourcesHint: 'These values are fixed in the app and the same for everyone. Anyone can download the public image and compare the hash; the hardware confirms the measurement before the app sends the passphrase.',

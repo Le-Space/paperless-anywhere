@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { recoverMessageAddress } from 'viem';
 import { imagePassphrase } from './keys/derive.js';
-import { BUILDER, BUILDER_CREDITS_PER_HOUR, BuilderError, IMAGE_STORE_CREDITS_PER_HOUR, LANES, PIECE_BYTES, RUN_BYTES, buildAffordable, buildOnOwnBuilder, buildPaidByPackage, buildOwnImage, builderMessage, builderOpener, checkBuilder, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources, storeMessage } from './own-image.js';
+import { BUILDER, BUILDER_CREDITS_PER_HOUR, BuilderError, IMAGE_STORE_CREDITS_PER_HOUR, LANES, PIECE_BYTES, RUN_BYTES, buildAffordable, imageStatus, buildOnOwnBuilder, buildPaidByPackage, buildOwnImage, builderMessage, builderOpener, checkBuilder, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources, storeMessage } from './own-image.js';
 import { sha256Hex } from './vm.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -585,5 +585,19 @@ describe('a build paid by the package', () => {
 		const { sent, post } = aleph();
 		expect(await forgetLeftBuilder(app, { ownBuilder: { vprogram: '3d'.repeat(32), payer: owner } }, { post, sleep: async () => {} })).toBe(true);
 		expect(sent.map((m) => [m.type, m.content.address, m.content.hashes])).toEqual([['FORGET', owner, ['3d'.repeat(32)]]]);
+	});
+});
+
+describe('what the overview says about the image', () => {
+	const own = { rootfsItemHash: 'aa'.repeat(32), luksFor: 'aa'.repeat(32), ownImage: { plainSha256: builder.plain.sha256, builtAt: '2026-11-15T08:00:00Z' } };
+	it('an own image, when it was built, and whether the builder holds a newer plain image', () => {
+		expect(imageStatus(own, builder)).toEqual({ own: true, builtAt: '2026-11-15T08:00:00Z', buildsAtStart: false, newer: false });
+		expect(imageStatus({ ...own, ownImage: { ...own.ownImage, plainSha256: '00'.repeat(32) } }, builder).newer).toBe(true);
+	});
+	it('nothing own yet: built at the first start, or the public image', () => {
+		expect(imageStatus({}, builder, { buildsAtStart: true })).toEqual({ own: false, builtAt: null, buildsAtStart: true, newer: false });
+		expect(imageStatus({ rootfsItemHash: 'bb'.repeat(32), luksPassphrase: 'p' }, builder)).toEqual({ own: false, builtAt: null, buildsAtStart: false, newer: false });
+		// An own image noted, but the profile boots another one: not own.
+		expect(imageStatus({ ...own, rootfsItemHash: 'cc'.repeat(32) }, builder).own).toBe(false);
 	});
 });

@@ -714,3 +714,22 @@ export async function buildPaidByPackage({ charge, done, onStarted = () => {}, .
 		await done({ buildId, failed: !ok, program }).catch(() => {});
 	}
 }
+
+/**
+ * What the overview says about the image, in one place:
+ * - `own`: this vault's own image is in the profile;
+ * - `builtAt`: when it was built;
+ * - `buildsAtStart`: the first start will build one (Le Space pays, nothing
+ *   yet; see buildsImageFirst in lifecycle.js, passed in to keep this module
+ *   free of it);
+ * - `newer`: an own image was built from another plain image than the one
+ *   the fixed builder holds now, so a new build gives the newer version.
+ * @param {Record<string, any>} profile @param {typeof BUILDER} builder
+ * @param {{ buildsAtStart?: boolean }} [o]
+ * @returns {{ own: boolean, builtAt: string | null, buildsAtStart: boolean, newer: boolean }}
+ */
+export function imageStatus(profile, builder, { buildsAtStart = false } = {}) {
+	const own = Boolean(profile?.ownImage) && profile.luksFor === profile.rootfsItemHash && Boolean(profile.rootfsItemHash);
+	const newer = own && Boolean(builder?.plain?.sha256) && profile.ownImage.plainSha256 !== builder?.plain?.sha256;
+	return { own, builtAt: own ? (profile.ownImage.builtAt ?? null) : null, buildsAtStart: !own && buildsAtStart, newer };
+}
