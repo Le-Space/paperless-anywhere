@@ -1,6 +1,8 @@
 <script>
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
-	import { AlephShortError, BackupPartialError, attestRunning, eraseStopped, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode } from '$lib/lifecycle.js';
+	import { AlephShortError, BackupPartialError, attestRunning, eraseStopped, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
+	import { buildImageForVault } from '$lib/own-image-build.js';
+	import { BUILDER } from '$lib/own-image.js';
 	import { vmStatus } from '$lib/vm.js';
 	import Storage from '$lib/Storage.svelte';
 	import { statusToken } from '$lib/keys/derive.js';
@@ -367,6 +369,27 @@
 		if (profile.leSpacePays) await leSpaceOwner();
 		const chosen = chosenBackup;
 		if (gapOpen) throw new Error(tr().card.errors.gapOpen);
+		// No image yet: this vault's own one first (about 15 minutes; the page stays open).
+		if (buildsImageFirst(profile, BUILDER)) {
+			progress = tr().card.progress.buildImage;
+			const save = async (/** @type {Record<string, any>} */ patch) => {
+				profile = await updateProfile(master, (now) => ({ ...now, ...patch }));
+				onchange();
+			};
+			const built = await buildImageForVault({
+				master,
+				profile: $state.snapshot(profile),
+				packagePays: Boolean(profile.leSpacePays),
+				confirm: (question) => window.confirm(question),
+				save,
+				onProgress: ({ step, detail }) => (progress = `${tr().card.progress.buildImage}: ${detail ?? step}`)
+			});
+			if (!built) {
+				progress = '';
+				return;
+			}
+			await save(built);
+		}
 		// No node fixed in the setup: one with room now.
 		if (!profile.crnHash) progress = tr().card.progress.pickNode;
 		const crnHash = profile.crnHash || (await pickNode());
@@ -511,7 +534,9 @@
 		onchange();
 	}
 	// In the language shown: what a start still needs is named in words.
-	const missing = $derived(($appLanguage, startRequirements(profile)));
+	// A new Paperless builds its own image at the first start (own-image-build.js).
+	const buildFirst = $derived(buildsImageFirst(profile, BUILDER));
+	const missing = $derived(($appLanguage, startRequirements(profile, { buildsImage: buildFirst })));
 	// The card's texts in the language shown.
 	const c = $derived($i18n.card);
 	// Tells the page, which opens the setup when something is missing.
@@ -603,7 +628,7 @@
 			<span class="dot" aria-hidden="true"></span>
 			<div>
 				<h1>{TITLES[phase]}</h1>
-				{#if phase === 'off'}<p class="sub">{c.simple.startTakes(minutes(STEPS.start.reduce((a, s) => a + typicalOf(s), 0)))}</p>
+				{#if phase === 'off'}<p class="sub">{c.simple.startTakes(minutes(STEPS.start.reduce((a, s) => a + typicalOf(s), 0)))}{#if buildFirst}{' '}<span data-testid="first-build">{c.simple.firstBuild}</span>{/if}</p>
 				{:else if phase === 'starting'}<p class="sub">{c.simple.keepOpenStart}</p>
 				{:else if phase === 'stopping' || phase === 'discarding'}<p class="sub">{c.simple.keepOpenStop}</p>
 				{:else if phase === 'running'}<p class="sub data">{profile.running.host}</p>

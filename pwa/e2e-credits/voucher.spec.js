@@ -115,7 +115,7 @@ test('vouchers in English', async ({ page }) => {
 	await expect(page.getByTestId('voucher-period')).toHaveText('Voucher period until 20/11/2026.');
 });
 
-test('after a voucher a new Paperless is set up by itself: Le Space pays, backups on, only the image is left', async ({ page }) => {
+test('after a voucher a new Paperless is set up by itself: Le Space pays, backups on, the first start builds the image', async ({ page }) => {
 	await openApp(page, { plan: false, backup: 'none', offered: true, included: true, vouchers: true, network: 'mainnet' });
 	await page.getByTestId('voucher').locator('summary').click();
 	await page.getByTestId('voucher-code').fill('PA-ABCD-EFGH-JKLM');
@@ -135,7 +135,10 @@ test('after a voucher a new Paperless is set up by itself: Le Space pays, backup
 	await expect(page.getByTestId('role-warning')).toBeHidden();
 	await page.getByTestId('dev-fold').locator('summary').click();
 	await expect(page.getByTestId('role-primary')).toBeChecked();
-	await expect(page.getByTestId('lifecycle')).toContainText('Paperless-Image, Image-Passphrase');
-	await expect(page.getByTestId('lifecycle')).not.toContainText('zahlendes Konto');
+	// Nothing is missing: the first start builds the own image, and says so.
+	await expect(page.getByTestId('lifecycle')).not.toContainText('Es fehlt noch');
+	await page.getByTestId('tab-simple').click();
+	await expect(page.getByTestId('start')).toBeVisible();
+	await expect(page.getByTestId('first-build')).toHaveText('Beim ersten Start wird zuerst dein eigenes Image gebaut: etwa 15 Minuten länger, und das Fenster muss so lange offen bleiben.');
 	await shot(page, 'voucher-defaults', setup);
 });
