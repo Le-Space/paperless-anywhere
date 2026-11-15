@@ -11,7 +11,7 @@
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
 	import { buildImageForVault } from '$lib/own-image-build.js';
 	import { buildsImageFirst } from '$lib/lifecycle.js';
-	import { BUILDER, buildAffordable, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
+	import { BUILDER, buildAffordable, forgetLeftBuilder, settleLeftBuild, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
 	import { format, lang, t, tr } from '$lib/i18n/index.js';
 	import {
 		connectPayer,
@@ -100,15 +100,11 @@
 				imageKind = buildsImageFirst(profile, BUILDER) ? 'own' : imageKindOf(profile, BUILDER);
 				loaded = true;
 				// A build's builder that a closed window left running: forget it now.
+				// What a closed window or a lost report left: its builder forgotten,
+				// its end reported to Le Space Credits, then the note goes.
 				if (profile.ownBuilder) {
-					const left = profile.ownBuilder;
-					forgetLeftBuilder(privateKeyToAccount(alephPrivateKey(master)), profile)
-						.then(async (gone) => {
-							if (!gone) return;
-							// Paid by the package: the service takes back the rest of its grant.
-							if (left.buildId) await imageBuildDone(master, { buildId: left.buildId, program: left.vprogram }).catch(() => {});
-							await save({ ownBuilder: null });
-						})
+					settleLeftBuild(privateKeyToAccount(alephPrivateKey(master)), profile, { done: (d) => imageBuildDone(master, d) })
+						.then((settled) => settled && save({ ownBuilder: null }))
 						.catch(() => {});
 				}
 				await refresh();

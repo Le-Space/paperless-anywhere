@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { recoverMessageAddress } from 'viem';
 import { imagePassphrase } from './keys/derive.js';
-import { BUILDER, BUILDER_CREDITS_PER_HOUR, BuilderError, IMAGE_STORE_CREDITS_PER_HOUR, LANES, PIECE_BYTES, RUN_BYTES, buildAffordable, imageStatus, relayHost, buildOnOwnBuilder, buildPaidByPackage, buildOwnImage, builderMessage, builderOpener, checkBuilder, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources, storeMessage } from './own-image.js';
+import { BUILDER, BUILDER_CREDITS_PER_HOUR, BuilderError, IMAGE_STORE_CREDITS_PER_HOUR, LANES, PIECE_BYTES, RUN_BYTES, buildAffordable, imageStatus, relayHost, settleLeftBuild, buildOnOwnBuilder, buildPaidByPackage, buildOwnImage, builderMessage, builderOpener, checkBuilder, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources, storeMessage } from './own-image.js';
 import { sha256Hex } from './vm.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -674,6 +674,48 @@ describe('a build paid by the package', () => {
 		const none = aleph();
 		await expect(buildPaidByPackage({ master, app, builder: template, post: none.post, ...quick(), opener: () => open, charge: async () => { throw new Error('402'); }, done: async () => {} })).rejects.toThrow('402');
 		expect(none.sent).toEqual([]);
+	});
+
+	it('reports the end until it arrives, and keeps it for the next opening when it never does', async () => {
+		const { open } = fakeBuilder();
+		const { store } = fakeStore();
+		const { post } = aleph();
+		let tries = 0;
+		const kept = [];
+		await buildPaidByPackage({ master, app, builder: template, store, post, ...quick(), opener: () => open, charge: async () => ({ buildId: 'b4', owner }), done: async () => { if (++tries < 3) throw new TypeError('Failed to fetch'); }, onUndelivered: (d) => void kept.push(d) });
+		expect(tries).toBe(3);
+		expect(kept).toEqual([]);
+		tries = 0;
+		await buildPaidByPackage({ master, app, builder: template, store, post, ...quick(), opener: () => fakeBuilder().open, charge: async () => ({ buildId: 'b5', owner }), done: async () => { tries++; throw new TypeError('Failed to fetch'); }, onUndelivered: (d) => void kept.push(d) });
+		expect(tries).toBe(4);
+		expect(kept).toEqual([expect.objectContaining({ buildId: 'b5', ok: true, payer: owner, program: expect.stringMatching(/^[0-9a-f]{64}$/) })]);
+	});
+
+	it('only uploads, charging nothing, when the sealed image is still in this window', async () => {
+		const { store } = fakeStore();
+		const { sent, post } = aleph();
+		const kept = { current: { key: `${app.address.toLowerCase()}/${builder.plain.sha256}`, cid, size: image.length, image: new Blob([image]), attested: null } };
+		let charged = 0;
+		await buildPaidByPackage({ master, app, builder: template, store, post, ...quick(), kept, owner, opener: () => async () => { throw new Error('no builder needed'); }, charge: async () => (charged++, { buildId: 'b6', owner }), done: async () => {} });
+		expect(charged).toBe(0);
+		expect(sent).toEqual([]);
+	});
+
+	it('settles what a closed window or a lost report left: forgets the builder, reports how it ended', async () => {
+		const vprogram = '6c'.repeat(32);
+		const reports = [];
+		const done = async (d) => void reports.push(d);
+		const forgotten = async () => 'forgotten';
+		// The builder was forgotten already (its FORGET is refused now), the build had succeeded.
+		expect(await settleLeftBuild(app, { ownBuilder: { vprogram, buildId: 'b7', ok: true } }, { done, read: forgotten, forget: async () => false })).toBe(true);
+		// A window closed mid-build: not ok, so failed with its program.
+		expect(await settleLeftBuild(app, { ownBuilder: { vprogram, buildId: 'b8' } }, { done, read: forgotten, forget: async () => true })).toBe(true);
+		expect(reports).toEqual([{ buildId: 'b7', failed: false, program: vprogram }, { buildId: 'b8', failed: true, program: vprogram }]);
+		// The service does not know it any more: settled too. Unreachable: kept for later.
+		expect(await settleLeftBuild(app, { ownBuilder: { vprogram, buildId: 'b9' } }, { done: async () => { throw Object.assign(new Error('gone'), { status: 404 }); }, read: forgotten, forget: async () => true })).toBe(true);
+		expect(await settleLeftBuild(app, { ownBuilder: { vprogram, buildId: 'b9' } }, { done: async () => { throw new TypeError('Failed to fetch'); }, read: forgotten, forget: async () => true })).toBe(false);
+		// The builder still running and not forgettable now: kept.
+		expect(await settleLeftBuild(app, { ownBuilder: { vprogram } }, { read: async () => 'processed', forget: async () => false })).toBe(false);
 	});
 
 	it('forgets a builder a closed window left in the payer\'s name', async () => {
