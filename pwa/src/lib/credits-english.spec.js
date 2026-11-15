@@ -32,7 +32,7 @@ describe('the credits module in English', () => {
 		await expect(fundVm(master, 5, { baseUrl, fetch: refuse(500, 'UNKNOWN_CODE', '') })).rejects.toThrow('Le Space Credits answer 500');
 		const short = await fundVm(master, 5, { baseUrl, fetch: refuse(402, 'SHORT', 'insufficient credits: 100 free, 250 needed') }).catch((e) => e);
 		expect(short).toBeInstanceOf(CreditsShortError);
-		expect(short.message).toBe('The Le Space Credits do not cover this (€1.50 missing). Top up first.');
+		expect(short.message).toBe('Your Le Space balance does not cover this: €1.50 missing. Top it up with your package on this page and try again.');
 		setLang('de');
 		await expect(addBackupLine(master, { baseUrl, fetch: refuse(409, 'BACKUP_ON') })).rejects.toThrow('Die Sicherung ist schon Teil deines Abos.');
 	});
