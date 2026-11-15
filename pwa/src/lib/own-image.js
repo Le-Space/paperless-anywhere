@@ -205,11 +205,15 @@ const storeStatus = async (itemHash) => {
  */
 export const PIECE_BYTES = 256 * 1024;
 /**
- * What one connection carries. An attest relay closes a connection after
- * 4 MiB in one direction or 120 seconds, so the image comes in runs of this
- * size, each over a connection of its own, attested like the first.
+ * What one run asks for. A relay that lets an image builder carry more per
+ * connection (relay-button#230: 256 MiB, 10 minutes) brings a run over one
+ * connection, attested once. A relay with the default limits (4 MiB, 120 s)
+ * closes it earlier; the run then goes on from its last piece over a new
+ * connection at once. So a large run costs nothing where the relay is
+ * strict and saves some 280 attestations where it is not. Three lanes keep
+ * the download going while one connection is attested.
  */
-export const RUN_BYTES = 3 * 1024 * 1024;
+export const RUN_BYTES = 32 * 1024 * 1024;
 /**
  * Connections side by side. A relay allows one client four at a time, and a
  * closed one counts until the relay has seen it close: three leave room for
@@ -269,7 +273,9 @@ async function fetchImage({ open, job, size, pieceBytes, runBytes, lanes, runTri
 				if (refusedAttestation(error) || (error instanceof BuilderError && error.code !== 'unreachable')) throw error;
 				last = error instanceof Error ? error.message : String(error);
 				// Pieces came back: the connection is slow, not gone. Count anew.
-				failures = at > before ? 1 : failures + 1;
+				// Pieces came back: a relay's limit or a short break, not a dead
+				// line. Go on at once; only tries without any piece wait and count.
+				failures = at > before ? 0 : failures + 1;
 			} finally {
 				channel?.close();
 			}

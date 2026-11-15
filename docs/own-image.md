@@ -46,7 +46,7 @@ sequenceDiagram
     V->>B: which plain image it expects (SHA-256), and the passphrase, over the attested channel
     B->>B: unpack the plain image from its volume, check its SHA-256, encrypt it, forget the passphrase
     B-->>V: the content address and size of the sealed image
-    loop in runs of 3 MiB, each over a new connection
+    loop in runs of 32 MiB, each over a new connection (more when the relay cuts one)
         V->>B: attestation request with a fresh nonce, checked as in 2 to 4
         V->>B: the next pieces of the sealed image
         B-->>V: the bytes, over that attested channel
@@ -81,12 +81,15 @@ For the own image, the app
 1. derives the passphrase from the master secret, under its own label and
    the plain image's SHA-256, so the 24 words alone give it back;
 2. opens an attested channel to the builder and sends the build request;
-3. fetches the sealed image back and has the builder remove it. An attest
-   relay carries 4 MiB per connection and direction, and a connection for
-   two minutes, so the image comes in runs of 3 MiB, three side by side, each
-   over a connection of its own that is attested like the first. A run that
-   breaks off is fetched again; a connection whose attestation does not
-   show the builder's measurement ends the build;
+3. fetches the sealed image back and has the builder remove it, in runs of
+   32 MiB, three side by side, each over a connection that is attested like
+   the first. An attest relay carries 4 MiB per connection and direction,
+   and a connection for two minutes; a relay that lists the builder's
+   workload carries 256 MiB for ten minutes (relay-button's attest-relay,
+   `ATTEST_RELAY_BUILDER_ROOTHASHES`). Where the relay or the line cuts a
+   connection, the run goes on from its last piece over a new one, attested
+   again. Only tries without a single piece count against it. A connection
+   whose attestation does not show the builder's measurement ends the build;
 4. signs a STORE message for the image's content address, as the app's own
    address, which also pays the storage, and uploads the image to Aleph;
 5. waits until Aleph has processed it, and saves the image's hash and the
