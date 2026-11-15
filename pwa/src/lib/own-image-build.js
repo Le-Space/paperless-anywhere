@@ -84,6 +84,9 @@ async function buildOnce({ master, profile, packagePays, confirm, save, onProgre
 		charge: () => build(master),
 		done: (d) => done(master, d),
 		onStarted: (vprogram, p) => save({ ownBuilder: { vprogram, payer: p?.payer ?? null, buildId: p?.buildId ?? null, at: new Date().toISOString() } }),
-		onForgotten
+		onForgotten,
+		// The end could not be reported: kept, with how it went, for the next opening.
+		onUndelivered: ({ buildId, program, ok, payer }) => save({ ownBuilder: { vprogram: program, payer: payer ?? null, buildId, ok, at: new Date().toISOString() } }),
+		owner: granted.owner
 	});
 }

@@ -778,19 +778,34 @@ export async function forgetLeftBuilder(app, profile, deps) {
  *   done: (d: { buildId: string, failed?: boolean, program?: string | null }) => Promise<any>
  * }} a
  */
-export async function buildPaidByPackage({ charge, done, onStarted = () => {}, ...rest }) {
-	const { buildId, owner } = await charge();
+export async function buildPaidByPackage({ charge, done, onStarted = () => {}, onForgotten = () => {}, onUndelivered = () => {}, owner = null, ...rest }) {
+	const { app, builder, kept = fetched, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = rest;
+	// The sealed image is still in this window (an upload that broke): only
+	// the upload is left, which needs no builder, so nothing is charged.
+	if (owner && kept.current?.key === `${app.address.toLowerCase()}/${builder.plain.sha256}`) return buildOnOwnBuilder({ ...rest, payer: owner, onStarted, onForgotten });
+	const { buildId, owner: payer } = await charge();
 	if (!buildId) throw new BuilderError(tr().ownImage.error.noBuilder);
 	/** @type {string | null} */
 	let program = null;
 	let ok = false;
+	let forgotten = false;
 	try {
-		const built = await buildOnOwnBuilder({ ...rest, payer: owner, onStarted: (v) => ((program = v), onStarted(v, { buildId, payer: owner })) });
+		const built = await buildOnOwnBuilder({ ...rest, payer, onStarted: (v) => ((program = v), onStarted(v, { buildId, payer })), onForgotten: () => void (forgotten = true) });
 		ok = true;
 		return built;
 	} finally {
-		// Without an accepted V-PROGRAM no builder ran: the service undoes the charge.
-		await done({ buildId, failed: !ok, program }).catch(() => {});
+		// Without an accepted V-PROGRAM no builder ran: the service undoes the
+		// charge. The report must arrive (an unreported build counts as used,
+		// and blocks the next one for two hours): a few tries, and if none
+		// arrives the profile keeps it for the next opening (settleLeftBuild).
+		let delivered = false;
+		for (let attempt = 0; attempt < 4 && !delivered; attempt++) {
+			if (attempt) await sleep(2000 * attempt);
+			delivered = await done({ buildId, failed: !ok, program }).then(() => true, () => false);
+		}
+		if (delivered) {
+			if (forgotten || !program) await onForgotten(program);
+		} else await onUndelivered({ buildId, program, ok, payer });
 	}
 }
 
@@ -811,4 +826,31 @@ export function imageStatus(profile, builder, { buildsAtStart = false } = {}) {
 	const own = Boolean(profile?.ownImage) && profile.luksFor === profile.rootfsItemHash && Boolean(profile.rootfsItemHash);
 	const newer = own && Boolean(builder?.plain?.sha256) && profile.ownImage.plainSha256 !== builder?.plain?.sha256;
 	return { own, builtAt: own ? (profile.ownImage.builtAt ?? null) : null, buildsAtStart: !own && buildsAtStart, newer };
+}
+
+/**
+ * What a closed window, or a lost report, left in the profile
+ * (`profile.ownBuilder`): forget its builder and, for a build the package
+ * paid, report its end to Le Space Credits. Resolves to true once nothing is
+ * left, so the note can go.
+ * @param {{ address: string, signMessage: (a: { message: string }) => Promise<string> }} app
+ * @param {Record<string, any>} profile
+ * @param {{ done?: (d: { buildId: string, failed?: boolean, program?: string | null }) => Promise<any>, read?: (hash: string) => Promise<string | null>, forget?: typeof forgetLeftBuilder }} [deps]
+ */
+export async function settleLeftBuild(app, profile, { done, read = storeStatus, forget = forgetLeftBuilder } = {}) {
+	const left = profile?.ownBuilder;
+	if (!left) return false;
+	const vprogram = HEX64.test(left.vprogram ?? '') ? left.vprogram : null;
+	// Forgotten now, or already (a FORGET of a forgotten message is refused).
+	const gone = !vprogram || (await forget(app, profile).catch(() => false)) || (await read(vprogram).catch(() => null)) === 'forgotten';
+	let reported = !left.buildId;
+	if (left.buildId && done) {
+		// The service knows how it ended only from here: a build that was noted
+		// as done (ok) succeeded; anything else did not.
+		reported = await done({ buildId: left.buildId, failed: left.ok !== true, program: vprogram }).then(
+			() => true,
+			(error) => error?.status === 404
+		);
+	}
+	return Boolean(gone && reported);
 }
