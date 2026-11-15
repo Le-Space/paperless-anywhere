@@ -85,17 +85,24 @@ export async function ownedInstance(instance, owner, fetchImpl = fetch) {
  * @param {{ fetch?: typeof fetch }} [options]
  * @returns {Promise<string[]>}
  */
-export async function findAttestRelays({ fetch: fetchImpl = fetch } = {}) {
-	try {
-		const params = new URLSearchParams({ channels: RELAY_REGISTRATION.channel, refs: RELAY_REGISTRATION.ref, types: RELAY_REGISTRATION.type, pagination: '200' });
-		const res = await fetchImpl(`${ALEPH_API}/api/v0/posts.json?${params}`, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
-		if (!res.ok) return [];
-		const candidates = ownerRegistrations(await res.json());
-		const owned = await Promise.all(candidates.map((c) => ownedInstance(c.instance, c.owner, fetchImpl)));
-		return candidates.filter((_, i) => owned[i]).map((c) => `wss://${c.host}/attest`);
-	} catch {
-		return [];
+export async function findAttestRelays({ fetch: fetchImpl = fetch, tries = 2, timeoutMs = 30_000 } = {}) {
+	// The newest 50 registrations: a running relay registers again every few
+	// hours, so it is among them. 200 were 874 kB and took Aleph 7-10 s on
+	// 2026-11-15, past the 10 s this waited then: the setup said "no relay".
+	const params = new URLSearchParams({ channels: RELAY_REGISTRATION.channel, refs: RELAY_REGISTRATION.ref, types: RELAY_REGISTRATION.type, pagination: '50' });
+	for (let attempt = 0; attempt < tries; attempt++) {
+		try {
+			const res = await fetchImpl(`${ALEPH_API}/api/v0/posts.json?${params}`, { cache: 'no-store', signal: AbortSignal.timeout(timeoutMs) });
+			if (!res.ok) continue;
+			const candidates = ownerRegistrations(await res.json());
+			const owned = await Promise.all(candidates.map((c) => ownedInstance(c.instance, c.owner, fetchImpl)));
+			const found = candidates.filter((_, i) => owned[i]).map((c) => `wss://${c.host}/attest`);
+			if (found.length) return found;
+		} catch {
+			/* slow or unreachable: once more */
+		}
 	}
+	return [];
 }
 
 /**

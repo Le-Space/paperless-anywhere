@@ -60,6 +60,20 @@ describe('findAttestRelays', () => {
 		expect(await findAttestRelays({ fetch: fetchWith(STRANGER) })).toEqual([]);
 		expect(await findAttestRelays({ fetch: () => Promise.reject(new Error('down')) })).toEqual([]);
 	});
+	it('asks for the newest 50 registrations and tries once more when Aleph is slow', async () => {
+		let lookups = 0;
+		const urls = [];
+		const slowOnce = async (url) => {
+			if (!String(url).includes('/api/v0/messages/')) {
+				urls.push(String(url));
+				if (++lookups === 1) throw Object.assign(new Error('timed out'), { name: 'TimeoutError' });
+			}
+			return fetchWith('0x28129bdDa64310221480d4eF903446b0cdFD4BEb')(url);
+		};
+		expect(await findAttestRelays({ fetch: slowOnce })).toEqual([`wss://${HOST}/attest`]);
+		expect(lookups).toBe(2);
+		expect(new URL(urls[0]).searchParams.get('pagination')).toBe('50');
+	});
 });
 
 describe('attestRelaysFor', () => {
