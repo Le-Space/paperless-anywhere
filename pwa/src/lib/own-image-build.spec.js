@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { buildImageForVault } from './own-image-build.js';
+import { privateKeyToAccount } from 'viem/accounts';
+import { alephPrivateKey } from './keys/derive.js';
+import { buildImageForVault, forgetOldImage } from './own-image-build.js';
 
 const master = new Uint8Array(32).fill(7);
 const program = { verification: { measurements: [{ registers: { launch: 'ab'.repeat(48) } }], policy: 196608 } };
@@ -67,5 +69,33 @@ describe('building the own image for a vault', () => {
 		const none = { ...d, relays: async () => { seen.push('relays'); throw new Error('Kein Attest-Relay'); } };
 		await expect(buildImageForVault({ master, profile: {}, packagePays: true, confirm: () => true, save: async () => {}, builder, deps: none })).rejects.toThrow('Kein Attest-Relay');
 		expect(seen).toEqual(['relays']);
+	});
+
+	it('after a rebuild, forgets the old own image in its owner\'s name', async () => {
+		const app = privateKeyToAccount(alephPrivateKey(master));
+		const owner = '0x' + 'a'.repeat(40);
+		const old = '7f'.repeat(32);
+		const sent = [];
+		const { deps: d } = deps();
+		const read = async (hash) => ({ status: 'processed', message: { type: 'STORE', sender: app.address, content: { address: owner }, item_hash: hash } });
+		const post = async (m) => void sent.push({ type: m.type, content: JSON.parse(m.item_content) });
+		const profile = { rootfsItemHash: old, luksFor: old, ownImage: { plainSha256: 'ef'.repeat(32) } };
+		await buildImageForVault({ master, profile, packagePays: false, confirm: () => true, save: async () => {}, builder, deps: { ...d, read, post } });
+		expect(sent).toEqual([{ type: 'FORGET', content: expect.objectContaining({ address: owner, hashes: [old] }) }]);
+		// A first build replaces no own image: nothing forgotten.
+		sent.length = 0;
+		await buildImageForVault({ master, profile: { rootfsItemHash: 'bb'.repeat(32), luksPassphrase: 'p' }, packagePays: false, confirm: () => true, save: async () => {}, builder, deps: { ...d, read, post } });
+		expect(sent).toEqual([]);
+	});
+
+	it('forgets only a STORE this vault\'s key sent', async () => {
+		const app = privateKeyToAccount(alephPrivateKey(master));
+		const sent = [];
+		const post = async (m) => void sent.push(m.type);
+		const other = async () => ({ status: 'processed', message: { type: 'STORE', sender: '0x' + 'b'.repeat(40), content: { address: '0x' + 'b'.repeat(40) } } });
+		expect(await forgetOldImage(app, '7f'.repeat(32), { read: other, post })).toBe(false);
+		const gone = async () => ({ status: 'forgotten', message: { type: 'STORE' } });
+		expect(await forgetOldImage(app, '7f'.repeat(32), { read: gone, post })).toBe(false);
+		expect(sent).toEqual([]);
 	});
 });
