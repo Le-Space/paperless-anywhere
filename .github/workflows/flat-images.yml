@@ -36,11 +36,12 @@ jobs:
             echo "| image | flat copy |"
             echo "|---|---|"
           } >> "$GITHUB_STEP_SUMMARY"
-          grep -vE '^\s*(#|$)' rootfs/images.txt | while read -r name src; do
+          grep -vE '^\s*(#|$)' rootfs/images.txt | while read -r name src packages; do
             ref="${src%@*}"; tag="${ref##*:}"
             dst="ghcr.io/le-space/paperless-anywhere/${name}:${tag}-flat"
-            pushed="$(rootfs/flatten-image.sh "$src" "$dst")"
+            # shellcheck disable=SC2086 # the packages, one word each
+            pushed="$(rootfs/flatten-image.sh "$src" "$dst" $packages)"
             echo "$name: $pushed"
-            echo "| \`$src\` | \`$pushed\` |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| \`$src\`${packages:+ + $packages} | \`$pushed\` |" >> "$GITHUB_STEP_SUMMARY"
             docker image rm -f "$src" "$dst" >/dev/null 2>&1 || true
           done

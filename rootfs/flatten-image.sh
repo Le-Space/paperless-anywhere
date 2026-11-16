@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
-# flatten-image.sh <upstream@digest> <target:tag>: a one-layer copy of an
-# image, with its configuration (entrypoint, command, environment, working
-# directory, user, ports, volumes, labels) carried over, pushed to <target>.
-# Prints the pushed reference with its digest. A health check and a stop
-# signal are not carried over (docker import cannot set them).
+# flatten-image.sh <upstream@digest> <target:tag> [debian-package...]: a
+# one-layer copy of an image, with its configuration (entrypoint, command,
+# environment, working directory, user, ports, volumes, labels) carried over,
+# pushed to <target>. Prints the pushed reference with its digest. A health
+# check and a stop signal are not carried over (docker import cannot set them).
+# Packages given after the target are installed with apt into the copy first
+# (Paperless's extra OCR languages), so the VM never installs them at a start.
 set -euo pipefail
 src="$1" dst="$2"
+shift 2
+for pkg in "$@"; do
+  [[ "$pkg" =~ ^[a-z0-9][a-z0-9.+-]+$ ]] || { echo "flatten-image.sh: not a package name: $pkg" >&2; exit 1; }
+done
 docker pull -q --platform linux/amd64 "$src" >/dev/null
 config="$(docker image inspect --format '{{json .Config}}' "$src")"
 changes_text="$(python3 -c '
@@ -34,8 +40,16 @@ print("\n".join(out))
 mapfile -t changes <<< "$changes_text"
 args=()
 for change in "${changes[@]}"; do args+=(--change "$change"); done
-cid="$(docker create --platform linux/amd64 "$src")"
-trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+if [ "$#" -gt 0 ]; then
+  cid="$(docker create --platform linux/amd64 --user 0 --entrypoint /bin/sh "$src" -c \
+    'set -e; apt-get update -q; apt-get install -y -q --no-install-recommends "$@"; apt-get clean; rm -rf /var/lib/apt/lists/*' sh "$@")"
+  trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+  docker start -a "$cid" >&2
+  [ "$(docker inspect --format '{{.State.ExitCode}}' "$cid")" = 0 ] || { echo "flatten-image.sh: installing $* failed" >&2; exit 1; }
+else
+  cid="$(docker create --platform linux/amd64 "$src")"
+  trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+fi
 docker export "$cid" | docker import "${args[@]}" --platform linux/amd64 - "$dst" >/dev/null
 docker push -q "$dst" >/dev/null
 docker image inspect --format '{{index .RepoDigests 0}}' "$dst"
