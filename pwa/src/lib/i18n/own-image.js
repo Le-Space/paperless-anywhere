@@ -28,6 +28,10 @@ export const ownImage = {
 			measurement: 'Messwert des Build-Dienstes'
 		},
 		have: (/** @type {string} */ date) => `Geschafft: Dein Image ist nur für deinen Tresor versiegelt (gebaut am ${date}).`,
+		previousStart: 'Mit dem vorherigen Image starten',
+		previousHint: 'Dein voriges eigenes Image ist noch da, bis das neue einmal gut gestartet ist.',
+		oldPending: (/** @type {number} */ n) => `${n === 1 ? 'Ein altes eigenes Image ist' : `${n} alte eigene Images sind`} noch nicht entfernt (es kostet Speicher).`,
+		oldRemove: 'Jetzt entfernen',
 		tip: 'Tipp: Mit einem eigenen Image kennt niemand außer dir die Passphrase – auch Le Space nicht. Bau in etwa 15 Minuten; mit Paket oder Gutschein enthalten.',
 		build: 'Mein Image bauen',
 		rebuild: 'Mein Image neu bauen',
@@ -118,6 +122,10 @@ export const ownImage = {
 			measurement: 'Measurement of the build service'
 		},
 		have: (/** @type {string} */ date) => `Done: your image is sealed for your vault only (built on ${date}).`,
+		previousStart: 'Start with the previous image',
+		previousHint: 'Your previous own image stays until the new one has started well once.',
+		oldPending: (/** @type {number} */ n) => `${n === 1 ? 'An old own image has' : `${n} old own images have`} not been removed yet (it costs storage).`,
+		oldRemove: 'Remove now',
 		tip: 'Tip: with an image of your own, nobody but you knows the passphrase – Le Space neither. Built in about 15 minutes; included with a package or a voucher.',
 		build: 'Build my image',
 		rebuild: 'Build my image again',

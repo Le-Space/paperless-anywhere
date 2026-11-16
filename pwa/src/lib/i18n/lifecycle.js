@@ -14,6 +14,8 @@ export const life = {
 			payerAccount: { lespace: 'dem Konto, mit dem Le Space deine VM bezahlt', app: 'der Adresse der App', wallet: 'deiner Wallet' },
 			noInterruptedStart: 'Es gibt keinen unterbrochenen Start.',
 			vmGone: (/** @type {string} */ hash, /** @type {string | number} */ status) => `Die VM ${hash} gibt es bei Aleph nicht mehr (${status}).`,
+			noBackupConfig: 'Für diese VM sind keine Sicherungen eingerichtet.',
+			placesNeedOwnImage: 'Sicherungsorte gehen nur an eine VM mit deinem eigenen Image.',
 			copiesUnreachable: (/** @type {number} */ n) => `Gerade liefert keine der ${n} Kopien deiner Sicherung aus (ihre Anbieter antworten nicht). Darum wird keine VM angefordert: Sie würde leer starten und kosten. Deine Sicherung ist dadurch nicht verloren. Bitte später noch einmal versuchen.`,
 			restoreNeedsOwnImage: 'Eine Sicherung wird nur in dein eigenes Image wiederhergestellt. Baue zuerst dein eigenes Image (Einrichtung, Schritt Image) oder starte ohne Sicherung.',
 			startGone: (/** @type {string} */ status, /** @type {string[]} */ missing) =>
@@ -129,6 +131,8 @@ export const life = {
 			payerAccount: { lespace: 'the account Le Space pays your VM with', app: 'the app’s address', wallet: 'your wallet' },
 			noInterruptedStart: 'There is no interrupted start.',
 			vmGone: (/** @type {string} */ hash, /** @type {string | number} */ status) => `The VM ${hash} no longer exists on Aleph (${status}).`,
+			noBackupConfig: 'No backups are set up for this VM.',
+			placesNeedOwnImage: 'Backup places go only to a VM on your own image.',
 			copiesUnreachable: (/** @type {number} */ n) => `None of the ${n} copies of your backup delivers right now (their providers do not answer). So no VM is requested: it would start empty and cost. Your backup is not lost by this. Please try again later.`,
 			restoreNeedsOwnImage: 'A backup is restored only into your own image. Build your own image first (setup, image step) or start without a backup.',
 			startGone: (/** @type {string} */ status, /** @type {string[]} */ missing) =>

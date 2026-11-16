@@ -9,6 +9,7 @@ import { format, tr } from './i18n/index.js';
 import { alephPrivateKey } from './keys/derive.js';
 import { attestRelaysFor } from './relays.js';
 import { ALEPH_API } from './aleph.js';
+import { keepPrevious } from './old-image.js';
 import { BUILDER, BuilderError, buildOnOwnBuilder, buildOwnImage, buildPaidByPackage, builderOpener, forgetBuilder } from './own-image.js';
 
 /**
@@ -29,12 +30,9 @@ import { BUILDER, BuilderError, buildOnOwnBuilder, buildOwnImage, buildPaidByPac
  */
 export async function buildImageForVault(a) {
 	const built = await buildOnce(a);
-	// A rebuild replaces an own image: the old one is no longer booted from
-	// (rebuilding needs a stopped Paperless) and would keep costing storage.
-	if (built && a.profile?.ownImage && a.profile.rootfsItemHash && a.profile.rootfsItemHash !== built.rootfsItemHash) {
-		await forgetOldImage(privateKeyToAccount(alephPrivateKey(a.master)), a.profile.rootfsItemHash, a.deps).catch(() => {});
-	}
-	return built;
+	// A rebuild replaces an own image: the old one stays as the way back until
+	// the new one has started well, and is forgotten only then (old-image.js).
+	return built ? keepPrevious(a.profile ?? {}, built) : built;
 }
 
 /**

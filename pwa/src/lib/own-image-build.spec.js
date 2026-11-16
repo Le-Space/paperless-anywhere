@@ -74,7 +74,7 @@ describe('building the own image for a vault', () => {
 		expect(seen).toEqual(['relays']);
 	});
 
-	it('after a rebuild, forgets the old own image in its owner\'s name', async () => {
+	it('after a rebuild, keeps the old own image as the way back and forgets nothing yet', async () => {
 		const app = privateKeyToAccount(alephPrivateKey(master));
 		const owner = '0x' + 'a'.repeat(40);
 		const old = '7f'.repeat(32);
@@ -83,8 +83,9 @@ describe('building the own image for a vault', () => {
 		const read = async (hash) => ({ status: 'processed', message: { type: 'STORE', sender: app.address, content: { address: owner }, item_hash: hash } });
 		const post = async (m) => void sent.push({ type: m.type, content: JSON.parse(m.item_content) });
 		const profile = { rootfsItemHash: old, luksFor: old, ownImage: { plainSha256: 'ef'.repeat(32) } };
-		await buildImageForVault({ master, profile, packagePays: false, confirm: () => true, save: async () => {}, builder, deps: { ...d, read, post } });
-		expect(sent).toEqual([{ type: 'FORGET', content: expect.objectContaining({ address: owner, hashes: [old] }) }]);
+		const built = await buildImageForVault({ master, profile, packagePays: false, confirm: () => true, save: async () => {}, builder, deps: { ...d, read, post } });
+		expect(sent).toEqual([]);
+		expect(built.ownImage.previous.rootfsItemHash).toBe(old);
 		// A first build replaces no own image: nothing forgotten.
 		sent.length = 0;
 		await buildImageForVault({ master, profile: { rootfsItemHash: 'bb'.repeat(32), luksPassphrase: 'p' }, packagePays: false, confirm: () => true, save: async () => {}, builder, deps: { ...d, read, post } });

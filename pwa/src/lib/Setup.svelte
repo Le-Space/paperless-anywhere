@@ -11,8 +11,9 @@
 	import { findAttestRelays } from '$lib/relays.js';
 	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups, imageBuild, imageBuildDone, CreditsShortError } from '$lib/credits.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
-	import { buildImageForVault } from '$lib/own-image-build.js';
-	import { buildsImageFirst } from '$lib/lifecycle.js';
+	import { buildImageForVault, forgetOldImage } from '$lib/own-image-build.js';
+	import { forgetQueued } from '$lib/old-image.js';
+	import { buildsImageFirst, pushBackupPlaces } from '$lib/lifecycle.js';
 	import { BUILDER, buildAffordable, forgetLeftBuilder, settleLeftBuild, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
 	import { format, lang, t, tr } from '$lib/i18n/index.js';
 	import {
@@ -242,6 +243,11 @@
 	const savePlaces = (places) => run('places', async () => {
 		await save({ backupConfig: backupConfigFor(profile.network, ageRecipient(profile.ageIdentity || vaultAge), places) });
 	});
+	// A VM that runs reads its backup places at every backup: changed places
+	// reach it only when handed over (pushBackupPlaces, over the attested channel).
+	const pushPlaces = () => run('places-push', async () => {
+		await pushBackupPlaces(master, profile);
+	});
 	const recipient = $derived.by(() => {
 		try {
 			return profile.ageIdentity ? ageRecipient(profile.ageIdentity) : '';
@@ -345,6 +351,13 @@
 		} finally {
 			ownStep = '';
 		}
+	});
+	// Old own images whose FORGET failed: by hand (old-image.js).
+	const removeOldImages = () => run('old-images', async () => {
+		const app = privateKeyToAccount(alephPrivateKey(master));
+		const left = await forgetQueued(profile, (store) => forgetOldImage(app, store));
+		await save({ oldOwnImages: left.length ? left : undefined });
+		if (left.length) throw new Error(tr().ownImage.oldPending(left.length));
 	});
 	const saveDns = () => run('dns', async () => {
 		const token = dnsInput.trim();
@@ -552,6 +565,7 @@
 						</dl>
 					</details>
 					{#if ownBuilt}<p class="saved" data-testid="own-image-have">{$t.ownImage.have(format.date(profile.ownImage.builtAt, undefined, $lang))}</p>{/if}
+					{#if profile.oldOwnImages?.length}<p class="hint" data-testid="old-images">{$t.ownImage.oldPending(profile.oldOwnImages.length)} <button class="link" onclick={removeOldImages} disabled={busy === 'old-images'} data-testid="old-images-remove">{$t.ownImage.oldRemove}</button></p>{/if}{@render feedback('old-images')}
 					{#if affordable === null}<p class="hint" data-testid="own-image-checking">{$t.ownImage.choice.checking}</p>
 					{:else if affordable.ok === false && affordable.reason}<p class="error alert" role="alert" data-testid="own-image-package-no">{affordable.reason}{#if affordable.short} <a href="#paket">{$t.ownImage.choice.toTopUp}</a>{/if} <button class="link" onclick={() => refreshBalances()} data-testid="own-image-recheck">{$t.ownImage.choice.recheck}</button></p>
 					{:else if affordable.ok === false}<p class="error alert" role="alert" data-testid="own-image-needs-credits">{$t.ownImage.choice.needsCredits(format.number(affordable.need ?? 0, undefined, $lang), format.number(affordable.have ?? 0, undefined, $lang))} <button class="link" onclick={() => refreshBalances()} data-testid="own-image-recheck">{$t.ownImage.choice.recheck}</button></p>
@@ -629,6 +643,7 @@
 	</label>
 	{#if profile.backupConfig}
 		<BackupPlaces network={profile.network} payer={profile.backupOwner || (profile.backupsByCredits ? '' : profile.payer)} config={profile.backupConfig} busy={busy === 'places'} onsave={savePlaces} />
+		{#if profile.running}<p class="hint">{$t.backup.places.pushHint} <button class="link" onclick={pushPlaces} disabled={busy === 'places-push'} data-testid="places-push">{$t.backup.places.push}</button></p>{@render feedback('places-push')}{/if}
 	{/if}
 	{@render feedback('backups')}{@render feedback('places')}
 	{#if profile.network === 'mainnet' && profile.role !== 'primary'}<p class="hint" data-testid="mainnet-backup-hint">{x.backups.mainnetHint}</p>

@@ -217,6 +217,7 @@ jobs:
           # drives its VM over SSH.
           printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=$ROLE" --secret "paperless_debug_ssh=yes" \
             --secret "backup_config=$(cat "$RUNNER_TEMP/vm/backup_config.json")" --secret "backup_key=$(cat "$RUNNER_TEMP/vm/backup_key")" \
+            --secret "backup_mark_key=$(cat "$RUNNER_TEMP/vm/backup_mark_key")" \
             > "$RUNNER_TEMP/secrets1.args"
           . "$RUNNER_TEMP/fixed.sh"; fixed_args "$hash" "$RUNNER_TEMP/fixed1.args"; cat "$RUNNER_TEMP/fixed1.args" >> "$RUNNER_TEMP/secrets1.args"
           ok=""
@@ -317,6 +318,7 @@ jobs:
           # A test VM: it restores and does not back up (no backup_config).
           printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=test" \
             --secret "restore_ledger_entry=$(jq -c . "$RUNNER_TEMP/entry.json")" --secret "age_identity=$(cat "$RUNNER_TEMP/vm/age_identity")" \
+            --secret "backup_mark_key=$(cat "$RUNNER_TEMP/vm/backup_mark_key")" \
             > "$RUNNER_TEMP/secrets2.args"
           . "$RUNNER_TEMP/fixed.sh"; fixed_args "$hash" "$RUNNER_TEMP/fixed2.args"; cat "$RUNNER_TEMP/fixed2.args" >> "$RUNNER_TEMP/secrets2.args"
           ok=""

@@ -11,8 +11,8 @@
 	import { backupSize } from '$lib/backups.js';
 	import { lang as appLang } from '$lib/i18n/index.js';
 
-	/** @type {{ master: Uint8Array, profile: Record<string, any>, known?: { at: string, copies?: number | null } | null, disabled?: boolean, onbusy?: (busy: boolean) => void, ongood?: (good: { at: string, copies: number, requested: number }) => void }} */
-	let { master, profile, known = null, disabled = false, onbusy = () => {}, ongood = () => {} } = $props();
+	/** @type {{ master: Uint8Array, profile: Record<string, any>, known?: { at: string, copies?: number | null } | null, disabled?: boolean, guard?: ((then: () => unknown) => unknown) | null, onbusy?: (busy: boolean) => void, ongood?: (good: { at: string, copies: number, requested: number }) => void }} */
+	let { master, profile, known = null, disabled = false, guard = null, onbusy = () => {}, ongood = () => {} } = $props();
 
 	// Follows the language switch in the header.
 	const lang = $derived($appLang);
@@ -134,7 +134,7 @@
 				{/if}
 			</details>
 		{/if}
-		<button type="button" class="small" onclick={backUpNow} disabled={disabled || busy || view.running} data-testid="backup-now">{t.now}</button>
+		<button type="button" class="small" onclick={() => (guard ? guard(backUpNow) : backUpNow())} disabled={disabled || busy || view.running} data-testid="backup-now">{t.now}</button>
 	{:else if answered}
 		<p class="hint" data-testid="backup-unreachable">{t.unreachable}</p>
 	{/if}

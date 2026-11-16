@@ -462,3 +462,18 @@ test('the FAQ says what happens when the relay is down, and how to run one', asy
 	await page.goto('/en/');
 	await expect(page.locator('#faq details', { hasText: 'What if the relay is down or blocked?' })).toHaveCount(1);
 });
+
+test('the FAQ says what happens when a storage provider fails, and what is paid, in both languages', async ({ page }) => {
+	await page.context().route(/crns-list\.aleph\.sh|filecoin|glif|chain\.love/, (route) => route.abort());
+	await page.goto('/');
+	const item = page.locator('#faq details', { hasText: 'Was passiert, wenn ein Speicheranbieter ausfällt?' });
+	await item.locator('summary').click();
+	await expect(item).toContainText('fordert keine VM an, solange keine Kopie antwortet');
+	await expect(item.getByRole('link')).toHaveAttribute('href', /docs\/backup-proofs\.md$/);
+	const pay = page.locator('#faq details', { hasText: 'Zahle ich für ausgefallene Anbieter' });
+	await pay.locator('summary').click();
+	await expect(pay).toContainText('Bezahlt werden nur Beweisperioden');
+	await page.goto('/en/');
+	await expect(page.locator('#faq summary', { hasText: 'Does the app notice beforehand that a provider cannot be reached?' })).toBeVisible();
+	await expect(page.locator('#faq summary', { hasText: 'Do I pay for failed providers, or for more and more copies?' })).toBeVisible();
+});

@@ -136,7 +136,7 @@ if len(parts) > 1:
             sys.exit(f"part {i + 1} names no piece CID")
         if psha and not re.fullmatch(SHA, psha):
             sys.exit(f"the SHA-256 of part {i + 1} is malformed")
-        if psize is not None and not (isinstance(psize, int) and 0 < psize <= 1_000_000_000):
+        if psize is not None and not (isinstance(psize, int) and 0 < psize <= 1_100_000_000):
             sys.exit(f"the size of part {i + 1} is not a part size")
         purls = []
         for c in copies:
@@ -164,15 +164,24 @@ PY
 )" || fail "unusable restore_ledger_entry"
 eval "$vars"
 
-# download <url> <file>: https only, from public hosts only (at the address
-# paperless-public-url checked), at most one part's size (1,000,000,000
-# bytes), and a redirect is followed only after the same check, three at most.
+# download <url> <file> [expected size]: https only, from public hosts only
+# (at the address paperless-public-url checked), and a redirect is followed
+# only after the same check, three at most. At most the size the ledger
+# names plus 1 % and 1 MiB, or 1,100,000,000 bytes when it names none: the
+# backup tool's parts are 1,000,000,000 bytes at most, and a part exactly
+# that large must not fail on the limit.
+max_bytes() {
+  case "${1:-}" in
+    ''|-|*[!0-9]*) echo 1100000000 ;;
+    *) echo $(( $1 + $1 / 100 + 1048576 )) ;;
+  esac
+}
 download() {
-  fu="$1"; hops=0
+  fu="$1"; hops=0; limit="$(max_bytes "${3:-}")"
   while :; do
     pin="$(/usr/local/sbin/paperless-public-url "$fu" 2>>"$log")" || return 1
     # shellcheck disable=SC2086
-    res="$(curl -fsS --proto =https --proto-redir =https --max-filesize 1000000000 --retry 2 --max-time 1800 \
+    res="$(curl -fsS --proto =https --proto-redir =https --max-filesize "$limit" --retry 2 --max-time 1800 \
       ${pin:+--resolve "$pin"} -o "$2" -w '%{http_code} %{redirect_url}' "$fu" 2>>"$log")" || return 1
     case "$res" in
       2[0-9][0-9]\ *) return 0 ;;
@@ -194,7 +203,7 @@ if [ "$nparts" -gt 1 ]; then
   while read -r pcid psha psize purls; do
     i=$((i + 1)); pgot=""
     for u in $purls; do
-      if download "$u" "$work/part.age"; then pgot="${u#https://}"; pgot="${pgot%%/*}"; break; fi
+      if download "$u" "$work/part.age" "$psize"; then pgot="${u#https://}"; pgot="${pgot%%/*}"; break; fi
     done
     [ -n "$pgot" ] || fail "no provider delivered part $i of $nparts"
     [ -n "$got" ] || got="$pgot"
