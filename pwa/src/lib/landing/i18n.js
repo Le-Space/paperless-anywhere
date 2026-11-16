@@ -101,7 +101,7 @@ export const texts = {
 			tech: [
 				'Ein geprüfter Build-Dienst: ein vermessenes V-PROGRAM in einer vertraulichen VM (AMD SEV-SNP). Die App startet ihn nur für deinen Bau und löscht ihn danach.',
 				'Die Prüfung läuft in deinem Browser (WebAssembly): Der Bericht des AMD-Prozessors wird gegen AMDs Zertifikate und den in der App festgelegten Messwert geprüft. Dazwischen leitet ein Relay nur Verschlüsseltes weiter; lesen kann er nichts.',
-				'Erst dann geht die Passphrase an den Dienst. Er versiegelt das öffentliche Image damit (LUKS2) und vergisst sie wieder.',
+				'Erst dann geht die Passphrase an den Dienst. Er versiegelt das Ausgangs-Image damit (LUKS2) und vergisst sie wieder.',
 				'Die App holt das versiegelte Image in Stücken zu 3 MiB zurück, jede Verbindung erneut von der Hardware bestätigt, und legt es selbst bei Aleph ab (STORE, signiert von deiner App).',
 				'Beim Start öffnet deine VM die Platte nur mit deiner Passphrase. Eine andere Platte geht nicht auf.'
 			],
@@ -114,7 +114,7 @@ export const texts = {
 			],
 			docs: { text: 'Im Detail:', links: ['Eigenes Image', 'Ablauf'] },
 			steps: [
-				{ t: 'Öffentliches Image', d: 'Das System, in dem Paperless-ngx läuft, ist für alle gleich und enthält kein Geheimnis. Es liegt unverschlüsselt bei Aleph, mit seinem Hash; jeder kann ihn nachrechnen.' },
+				{ t: 'Ausgangs-Image', d: 'Das System, in dem Paperless-ngx läuft, ist für alle gleich und enthält kein Geheimnis. Es liegt unverschlüsselt bei Aleph, mit seinem Hash; jeder kann ihn nachrechnen.' },
 				{ t: 'Geprüfter Build-Dienst', d: 'Ein kleiner Dienst in einer vertraulichen VM, vollständig gemessen, samt dem Image, das er versiegelt. Die App startet ihn nur für deinen Bau, lässt sich von der Hardware bestätigen, dass dort genau der veröffentlichte Code mit genau diesem Image läuft, und löscht ihn danach wieder.' },
 				{ t: 'Dein Image', d: 'Erst dann schickt die App die Passphrase aus deinem Tresor. Der Dienst versiegelt das Image damit und vergisst sie wieder. Die App holt das versiegelte Image über denselben geprüften Kanal und legt es selbst bei Aleph ab.' },
 				{ t: 'Deine VM', d: 'Beim Start öffnet die VM die Platte mit deiner Passphrase. Eine Platte, die nicht damit versiegelt wurde, geht nicht auf, und es startet nichts.' }
@@ -129,7 +129,7 @@ export const texts = {
 				{ who: 'Der Betreiber des Knotens', v: 'no' },
 				{ who: 'GitHub', v: 'no' }
 			],
-			compare: 'Öffentlich vergleichen lassen sich der Hash des öffentlichen Images und der Messwert des Build-Dienstes; die App zeigt beide neben „Mein Image bauen“. Dein verschlüsseltes Image sieht bei jeder Person anders aus.'
+			compare: 'Öffentlich vergleichen lassen sich der Hash des Ausgangs-Images und der Messwert des Build-Dienstes; die App zeigt beide neben „Mein Image bauen“. Dein verschlüsseltes Image sieht bei jeder Person anders aus.'
 		},
 		nodes: {
 			title: 'Ausfallsicher: kein einzelnes Rechenzentrum',
@@ -469,7 +469,7 @@ export const texts = {
 			tech: [
 				'An attested builder: a measured V-PROGRAM in a confidential VM (AMD SEV-SNP). The app starts it only for your build and deletes it afterwards.',
 				'The check runs in your browser (WebAssembly): the AMD processor’s report is checked against AMD’s certificates and the measurement fixed in the app. In between, a relay only forwards encrypted data; it can read nothing.',
-				'Only then does the passphrase go to the builder. It seals the public image with it (LUKS2) and forgets it again.',
+				'Only then does the passphrase go to the builder. It seals the base image with it (LUKS2) and forgets it again.',
 				'The app fetches the sealed image back in pieces of 3 MiB, every connection confirmed by the hardware again, and stores it on Aleph itself (a STORE signed by your app).',
 				'At the start your VM opens the disk only with your passphrase. Any other disk does not open.'
 			],
@@ -482,7 +482,7 @@ export const texts = {
 			],
 			docs: { text: 'In detail:', links: ['Your own image', 'Workflow'] },
 			steps: [
-				{ t: 'Public image', d: 'The system Paperless-ngx runs in is the same for everyone and holds no secret. It lies unencrypted on Aleph, with its hash; anyone can recompute it.' },
+				{ t: 'Base image', d: 'The system Paperless-ngx runs in is the same for everyone and holds no secret. It lies unencrypted on Aleph, with its hash; anyone can recompute it.' },
 				{ t: 'Attested builder', d: 'A small service in a confidential VM, measured as a whole, together with the image it seals. The app starts it only for your build, has the hardware confirm that exactly the published code runs there with exactly that image, and deletes it afterwards.' },
 				{ t: 'Your image', d: 'Only then the app sends the passphrase from your vault. The service seals the image with it and forgets it again. The app fetches the sealed image over the same attested channel and stores it on Aleph itself.' },
 				{ t: 'Your VM', d: 'At the start the VM opens the disk with your passphrase. A disk that was not sealed with it does not open, and nothing starts.' }
@@ -497,7 +497,7 @@ export const texts = {
 				{ who: 'The node’s operator', v: 'no' },
 				{ who: 'GitHub', v: 'no' }
 			],
-			compare: 'What can be compared in public: the public image’s hash and the builder’s measurement; the app shows both beside “Build my image”. Your encrypted image looks different for every person.'
+			compare: 'What can be compared in public: the base image’s hash and the builder’s measurement; the app shows both beside “Build my image”. Your encrypted image looks different for every person.'
 		},
 		nodes: {
 			title: 'Resilient: no single data centre',
