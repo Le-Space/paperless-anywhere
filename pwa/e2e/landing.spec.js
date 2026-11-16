@@ -179,7 +179,7 @@ test('the landing page shows who holds which key, what is attested and where to 
 	await expect(page.getByTestId('trust-sub')).toContainText('Nachprüfbar: wer welchen Schlüssel hat');
 	await expect(page.getByTestId('trust-sub').getByRole('link')).toHaveAttribute('href', '#trust-open');
 	await expect(page.locator('#trust-open')).toBeVisible();
-	await expect(page.locator('#trust-open h3')).toHaveText('Noch nicht bestätigt');
+	await expect(page.locator('#trust-open h3')).toHaveText('Was die Hardware nicht prüft');
 	if (process.env.SHOTS) await page.locator('#trust').screenshot({ path: `${process.env.SHOTS}/trust-claim.png` });
 	// The diagram, wide on a desktop, tall on a phone, with a text for screen readers.
 	await expect(page.getByTestId('trust-diagram').getByRole('img')).toHaveCount(1);

@@ -222,13 +222,13 @@ export const texts = {
 				'Im Bericht stehen ein frischer Zufallswert und der TLS-Schlüssel der VM: Die Verbindung endet in genau dieser VM. Erst dann gehen Passphrase und Geheimnisse hinaus, signiert von deinem App-Schlüssel; die VM nimmt sie nur mit dieser Unterschrift an.',
 				'Der Relay dazwischen trägt nur verschlüsselte Bytes. Geprüft wird in deinem Browser, nicht dort.'
 			],
-			gapsTitle: 'Noch nicht bestätigt',
+			gapsTitle: 'Was die Hardware nicht prüft',
 			gaps: [
 				'Der Inhalt des Images wird nicht mitgemessen. Dass in der VM das veröffentlichte Image läuft, stützt sich darauf, dass sich seine Platte nur mit der Image-Passphrase öffnet, nicht auf einen Messwert der Hardware. Mit deinem eigenen Image kennt diese Passphrase nur dein Tresor: Weder Le Space noch Aleph Cloud haben einen Schlüssel, der deine Platte öffnet – und sie können dir auch keine andere unterschieben.',
 				'Die Passphrase des öffentlichen Images ist für alle VMs dieser Version gleich, und Le Space kennt sie. Darum liegt alles, was deine VM schreibt, im eigenen Datenbereich. Mit deinem eigenen Image kennt sie nur dein Tresor.',
 				'Der Bau ist nicht Bit für Bit wiederholbar, weil Debian-Pakete beim Bau geladen werden. Nachlesen lässt sich, was hineinkommt.',
 				'Der Relay, über den die App die VM erreicht, läuft in einer gewöhnlichen VM und wird nicht attestiert. Lesen oder unbemerkt ändern kann er nichts; er kann aber Verbindungen verzögern oder verweigern, und er sieht, von welcher IP-Adresse wann welche VM angesprochen wird.',
-				'Weitere Punkte aus dem laufenden Sicherheits-Audit sind noch offen.'
+				'Neben der Hardware läuft ein Sicherheits-Audit des Codes; noch sind nicht alle seine Punkte abgeschlossen.'
 			],
 			verifyTitle: 'Selbst nachprüfen',
 			verify: {
@@ -546,13 +546,13 @@ export const texts = {
 				'The report carries a fresh random value and the VM’s TLS key: the connection ends in exactly this VM. Only then do the passphrase and secrets go out, signed by your app key; the VM accepts them only with that signature.',
 				'The relay in between carries encrypted bytes only. The checking happens in your browser, not there.'
 			],
-			gapsTitle: 'Not confirmed yet',
+			gapsTitle: 'What the hardware does not check',
 			gaps: [
 				'The image’s content is not measured. That the VM runs the published image rests on its disk opening only with the image passphrase, not on a measurement by the hardware. With your own image only your vault knows that passphrase: Neither Le Space nor Aleph Cloud holds a key that opens your disk – and they cannot slip you a different one either.',
 				'The public image’s passphrase is the same for every VM of that version, and Le Space knows it. That is why everything your VM writes goes into its own data area. With your own image only your vault knows it.',
 				'The build cannot be repeated bit for bit, because Debian packages are fetched while it runs. What goes in can be read.',
 				'The relay through which the app reaches the VM runs in an ordinary VM and is not attested. It can read nothing and change nothing unnoticed; it can delay or refuse connections, though, and it sees from which IP address which VM is called and when.',
-				'Further points from the ongoing security audit are still open.'
+				'Besides the hardware, the code is under a security audit; not all of its points are closed yet.'
 			],
 			verifyTitle: 'Check it yourself',
 			verify: {
