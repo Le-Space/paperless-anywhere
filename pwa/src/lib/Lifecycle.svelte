@@ -1,4 +1,5 @@
 <script>
+	import { ownImagePatch } from '$lib/own-image-check.js';
 	import { balancesRound, onceThisRound } from '$lib/balance-refresh.js';
 	import RefreshBalances from '$lib/RefreshBalances.svelte';
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
@@ -283,6 +284,10 @@
 	const listingNow = async () => backupListing(profile, profile.backupsByCredits && profile.backupSigner ? ((await creditsBalance(master).catch(() => null))?.backup ?? null) : null);
 	const reload = async () => {
 		profile = await loadProfile(master);
+		// An own image built before its record named its STORE: completed once
+		// the passphrase proves it, so the start knows it (own-image-check.js).
+		const ownPatch = ownImagePatch(master, profile);
+		if (ownPatch) profile = await updateProfile(master, (now) => ({ ...now, ...ownPatch }));
 		loaded = true;
 		// A revoke that failed when the VM was deleted, as long as no VM uses the key.
 		if (profile.backupRevokePending && !busy) revoking = retryBackupRevoke(master, $state.snapshot(profile)).then(() => {}, () => {});

@@ -40,6 +40,8 @@ export const ownImage = {
 			ownHint: 'Eine Passphrase nur für diesen Tresor: Niemand sonst kennt sie, auch Le Space nicht.',
 			notBuilt: 'Noch nicht gebaut: Bis dahin startet die VM vom öffentlichen Image.',
 			toTopUp: 'Zum Guthaben',
+			primaryNeedsOwn: 'Im Echtbetrieb ist das eigene Image Pflicht: Der nächste Start baut es zuerst.',
+			publicLimits: 'Mit dem öffentlichen Image startet Paperless ohne Sicherungen, ohne Wiederherstellung und ohne feste Adresse: Deren Schlüssel gehen nur an dein eigenes Image.',
 			recheck: 'Ich habe aufgeladen – neu prüfen',
 			packageShort: (/** @type {string | null} */ price, /** @type {string | null} */ missing) =>
 				`${price ? `Ein Bau kostet ${price} aus deinem Le-Space-Guthaben. ` : ''}Dein Guthaben reicht dafür nicht${missing ? `: Es fehlen ${missing}` : ''}. Lade es bei deinem Paket auf dieser Seite auf. Einen Gutschein kannst du nicht einlösen, solange dein Paket läuft.`,
@@ -126,6 +128,8 @@ export const ownImage = {
 			ownHint: 'A passphrase for this vault only: nobody else knows it, Le Space neither.',
 			notBuilt: 'Not built yet: until then the VM starts from the public image.',
 			toTopUp: 'To the balance',
+			primaryNeedsOwn: 'In production the own image is required: the next start builds it first.',
+			publicLimits: 'With the public image, Paperless starts without backups, without a restore and without the fixed address: their keys go only to your own image.',
 			recheck: 'I topped it up – check again',
 			packageShort: (/** @type {string | null} */ price, /** @type {string | null} */ missing) =>
 				`${price ? `A build costs ${price} from your Le Space balance. ` : ''}Your balance does not cover it${missing ? `: ${missing} missing` : ''}. Top it up with your package on this page. A voucher cannot be redeemed while your package runs.`,

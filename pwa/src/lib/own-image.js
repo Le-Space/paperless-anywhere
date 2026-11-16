@@ -10,6 +10,7 @@ import { createUnsignedForgetMessage, signAlephMessage } from '@le-space/core';
 import { ALEPH_API, CHANNEL, broadcast, readFetch } from './aleph.js';
 import { tr } from './i18n/index.js';
 import { imagePassphrase } from './keys/derive.js';
+import { runsOwnImage } from './own-image-check.js';
 import { sha256Hex } from './vm.js';
 
 /**
@@ -402,6 +403,7 @@ export async function buildOwnImage({ master, app, payer = app.address, builder,
 		luksFor: message.item_hash,
 		ownImage: {
 			plainSha256: plain.sha256,
+			rootfsItemHash: message.item_hash,
 			cid,
 			builtAt: new Date(now()).toISOString(),
 			...(attested ? { builder: { vprogram: builder.vprogram ?? null, measurement: attested.measurement, attestedAt: attested.at } } : {})
@@ -570,7 +572,7 @@ async function loadAttest(profile) {
 }
 
 /** True when the profile's image is one this vault had built from `plainSha256`. */
-export const hasOwnImage = (profile, plainSha256) => Boolean(profile?.ownImage) && profile.ownImage.plainSha256 === plainSha256 && profile.luksFor === profile.rootfsItemHash;
+export const hasOwnImage = (profile, plainSha256) => runsOwnImage(profile) && profile.ownImage.plainSha256 === plainSha256;
 
 /**
  * Which image the setup shows as chosen: the vault's own once one is built
@@ -822,7 +824,7 @@ export async function buildPaidByPackage({ charge, done, onStarted = () => {}, o
  * @returns {{ own: boolean, builtAt: string | null, buildsAtStart: boolean, newer: boolean }}
  */
 export function imageStatus(profile, builder, { buildsAtStart = false } = {}) {
-	const own = Boolean(profile?.ownImage) && profile.luksFor === profile.rootfsItemHash && Boolean(profile.rootfsItemHash);
+	const own = runsOwnImage(profile);
 	const newer = own && Boolean(builder?.plain?.sha256) && profile.ownImage.plainSha256 !== builder?.plain?.sha256;
 	return { own, builtAt: own ? (profile.ownImage.builtAt ?? null) : null, buildsAtStart: !own && buildsAtStart, newer };
 }

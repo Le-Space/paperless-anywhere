@@ -57,7 +57,7 @@ it, or not: that is where the variants part.
 
 ## Variant 1: a measured boot, a disk opened by one passphrase per image
 
-**This is what Paperless anywhere runs today.**
+**For tests only.** A production instance (role primary) runs variant 2.
 
 - *Measured:* firmware, kernel, initrd, and a boot line that names the owner
   (the vault's app key). The app computes the measurement itself from a
@@ -71,8 +71,10 @@ it, or not: that is where the variants part.
   measured.
 - *Who has the passphrase:* it is the same for every VM of an image version.
   Le Space has it (a release build puts it out encrypted to Le Space only),
-  each app has it sealed in its profile, and each VM has it at boot. The
-  node's operator does not.
+  each app that uses that version has it sealed in its profile, and each VM
+  has it at boot. A node's operator who also uses that version has it too.
+  So a disk that opens with it proves less than it seems: it may not be the
+  image Le Space published.
 - *What follows:* that a VM runs the published image rests on the disk opening
   only with that passphrase, not on a measurement by the hardware. Whoever
   holds the passphrase is, for this one question, trusted. The landing page
@@ -86,10 +88,17 @@ it, or not: that is where the variants part.
   - Secrets reach a VM only after the attestation, over the attested channel,
     signed by the owner; the VM's agent accepts no other signature.
   - Backups are encrypted inside the VM to the owner's key before they leave.
+  - A VM on this image gets nothing that reaches beyond its own run: the app
+    sends it no backup keys, no age identity (so it restores no backup) and
+    no DNS token. It starts empty and without backups. Those go only to a VM
+    on the person's own image, checked by the passphrase the vault derives
+    for it (`pwa/src/lib/own-image-check.js`).
 
 ## Variant 2: an image per person, passphrase from the vault
 
-**In preparation; not in operation.** Described in [your own image](own-image.md).
+**In operation, and required for production (role primary).** Described in
+[your own image](own-image.md). A production instance still on the public
+image builds its own image at the next start.
 
 - *What changes:* the passphrase is derived from the person's vault and nobody
   else has it. A disk not sealed with it does not open, so the measured boot
@@ -97,13 +106,9 @@ it, or not: that is where the variants part.
 - *How the image is sealed:* by a builder that itself runs as a confidential
   VM whose whole content is measured (variant 3), the plain image included.
   The app attests the builder before it sends the passphrase.
-- *State, exactly:* the builder is built. It has run on Aleph as a
-  measured VM, was verified by attestation there, and sealed the real image
-  in a trial. It is not in operation: no builder is published at the moment,
-  and the app names none. Fetching the sealed image by the app through the
-  relay, and uploading it from the browser, have never run. Open before it
-  can go live: how the relay reaches the builder, moving nearly 900 MiB
-  through it, and fixing the builder in the app.
+- *State, exactly:* the builder is fixed in the app and started for each
+  build. Builds, fetches through Le Space's relay and uploads from the browser
+  have run, in CI and in real use ([your own image](own-image.md#before-it-goes-live)).
 - *What it still does not give:* a measurement of the image's content at each
   start. The proof is indirect: measured builder, plus a secret only the
   vault has.
@@ -232,8 +237,8 @@ dm-verity (variant 3) is the stronger answer for a disk that does not change.
 
 | | Measured by the hardware | Opens the disk | Who holds that | Checked by | The person can verify |
 |---|---|---|---|---|---|
-| **1. One passphrase per image** (today) | firmware, kernel, initrd, owner | image passphrase | Le Space, every app, every VM of that image | the person's browser | the measurement, the report, the owner; not the image's content |
-| **2. An image per person** (in the app, by choice) | as 1; the builder as 3 | passphrase from the vault | that vault; the builder during a build; the VM at boot | the person's browser | as 1, and that only an image sealed with their passphrase can start |
+| **1. One passphrase per image** (tests) | firmware, kernel, initrd, owner | image passphrase | Le Space, every app and every VM of that image, and so possibly a node's operator | the person's browser | the measurement, the report, the owner; not the image's content |
+| **2. An image per person** (production) | as 1; the builder as 3 | passphrase from the vault | that vault; the builder during a build; the VM at boot | the person's browser | as 1, and that only an image sealed with their passphrase can start |
 | **3. Measured root** (our builder) | as 1, and the root filesystem by its root hash | nothing: the root is public and read-only | nobody | the person's browser | the whole content, by recomputing the measurement |
 | **4. Virtual TPM** | firmware and service module; the rest step by step into the TPM | a key the TPM releases for the right measurements | the TPM in the guest | the person or a key service | depends on who verifies the quote |
 | **5. Intel TDX** | firmware (MRTD); loader, kernel, initrd, boot line (RTMRs) | as 1, 2 or 3 | as there | the person, with Intel's certificates | as there |

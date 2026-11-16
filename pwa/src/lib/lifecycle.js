@@ -11,6 +11,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
 import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
 import { loadAttestWasm } from './attest-wasm-load.js';
+import { ownImageVerified, runsOwnImage } from './own-image-check.js';
 import { pinnedTrustedExecution } from './runtime-pin.js';
 import { alephPrivateKey, backupPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
 import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
@@ -225,7 +226,8 @@ export async function pickNode({ load = () => loadTeeNodes() } = {}) {
  * wallet or the app's address paying is left to the setup's own button.
  * @param {Record<string, any>} profile @param {unknown} builder
  */
-export const buildsImageFirst = (profile, builder) => Boolean(builder) && Boolean(profile?.leSpacePays) && !profile?.rootfsItemHash && !profile?.luksPassphrase;
+export const buildsImageFirst = (profile, builder) =>
+	Boolean(builder) && ((Boolean(profile?.leSpacePays) && !profile?.rootfsItemHash && !profile?.luksPassphrase) || (profile?.role === 'primary' && !runsOwnImage(profile)));
 
 /**
  * What a start needs from the profile; throws with a reason a person can act on.
@@ -269,6 +271,9 @@ export function startRequirements(profile, { buildsImage = false } = {}) {
 export async function startPaperless(master, profile, onProgress, { onRequested } = {}) {
 	const missing = startRequirements(profile);
 	if (missing.length) throw new Error(tr().life.errors.startMissing(missing.join(', ')));
+	// A backup is restored only into this vault's own image: the age identity
+	// that opens it goes to no VM on the public image. Said before any VM is asked for.
+	if (profile.restoreEntry && !ownImageVerified(master, profile)) throw new Error(tr().life.errors.restoreNeedsOwnImage);
 	const app = privateKeyToAccount(alephPrivateKey(master));
 	onProgress({ step: 'measure', detail: tr().life.progress.measure });
 	const wasm = await loadWasm();
@@ -366,7 +371,11 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	// the instance's 2n6 name, new at every start.
 	let host, name;
 	const dns = {};
-	if (profile.dnsToken) {
+	// Only a VM on this vault's own image gets the DNS token, the backups'
+	// keys and the age identity (own-image-check.js).
+	const own = ownImageVerified(master, profile);
+	if (profile.dnsToken && !own) onProgress({ step: 'network', detail: tr().life.progress.publicNoFixed });
+	if (profile.dnsToken && own) {
 		const addr = await until('IPv4-Adresse', () => publicAddress(crnUrl, instanceHash), { tries: 30 });
 		name = `${fixedHostLabel(master)}.${FIXED_HOST_DOMAIN}`;
 		host = `${name}:${addr.port}`;
@@ -385,7 +394,8 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 		paperless_secret_key: p.secretKey,
 		status_token: statusToken(master)
 	};
-	if (profile.backupConfig) {
+	if (profile.backupConfig && !own) onProgress({ step: 'unlock', detail: tr().life.progress.publicNoBackups });
+	if (profile.backupConfig && own) {
 		// Through Le Space Credits: ask the service again (it may have a new
 		// payer or signer, which the profile then keeps); without an answer,
 		// what the setup recorded.
@@ -406,7 +416,7 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	}
 	const keys = debugKeysFor(profile);
 	if (keys) secrets.authorized_keys = keys;
-	if (profile.restoreEntry && profile.ageIdentity) {
+	if (profile.restoreEntry && profile.ageIdentity && own) {
 		secrets.restore_ledger_entry = JSON.stringify(profile.restoreEntry);
 		secrets.age_identity = profile.ageIdentity;
 	}
@@ -460,7 +470,7 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	// earlier, a wildcard in the zone answers with another address, and the
 	// browser keeps that for minutes (2026-10-31: the first answer after
 	// 529 s). The images take longer than this anyway.
-	if (profile.dnsToken) await sleep(FIRST_LOOK_FIXED_MS);
+	if (profile.dnsToken && own) await sleep(FIRST_LOOK_FIXED_MS);
 	const again = [...UNLOCK_AGAIN_AFTER_MS];
 	let ready = null;
 	let answered = false;
