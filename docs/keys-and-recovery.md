@@ -49,6 +49,7 @@ flowchart TB
     M -->|"HKDF age-identity"| G["backup key (age, X25519)"]
     M -->|"HKDF paperless-*"| PW["Paperless admin and DB passwords, secret key"]
     M -->|"HKDF profile-key"| PRK["profile key (AES-256-GCM)"]
+    M -->|"HKDF backup-mark"| BM["backup mark key (HMAC-SHA256)"]
 ```
 
 ### Why a passkey can unlock at all
@@ -250,6 +251,15 @@ Backups are encrypted with age before they leave the VM. By default the app uses
 An existing key can be pasted instead, for example the one the Mac's backups were made with. The app then says "pasted": that key is **not** in the 24 words and must be kept separately, or the backups made with it are lost with it.
 
 A backup can also be fetched and decrypted without a VM: [fetching a backup yourself](restore-yourself.md).
+
+### Backups are bound to the vault
+
+Encryption alone does not say who made a backup: anyone can encrypt to the public recipient. A second key, **the backup mark key**, derived from the master secret (`paperless-anywhere/backup-mark/v1`), goes to the VM with the backups' other keys, so only to a VM on this vault's own image. With it, the VM puts a mark into every backup before it is encrypted (`.paperless-anywhere/vault-mark.json`: a random nonce and its HMAC-SHA256) and reports an HMAC over the backup's piece CID on its private status page.
+
+- A restore imports a backup only when its mark checks out with this vault's key. Another vault's mark, or a broken one, is refused.
+- The app keeps, in the sealed profile, the backups whose piece CID HMAC it has checked itself. Only these are offered without a question, and only these replace the chosen one when an interrupted start carries on later.
+- Backups made before the mark existed, or by the Mac, carry none. The app shows such a backup as "without your vault's mark" and restores it only after the person confirms that very backup; the VM then accepts that one piece without a mark, and no other.
+- After a restore the app says how many administrators besides `admin` came with the backup.
 
 ## What to do when …
 

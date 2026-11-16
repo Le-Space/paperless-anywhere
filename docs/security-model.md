@@ -45,8 +45,8 @@ the person who starts it:
 
 What is sent: the image passphrase (to open the disk), the Paperless secrets,
 the Filecoin session key and backup settings, the DNS token for the fixed
-address (if one is set), and, for a restore, the chosen backup and the age
-identity that opens it. The VM fetches no secret from anywhere else.
+address (if one is set), the key that binds backups to the vault, and, for a
+restore, the chosen backup and the age identity that opens it. The VM fetches no secret from anywhere else.
 
 ## What the image contains, and what it does not
 
@@ -73,6 +73,17 @@ database, so only inside that person's running VM and their encrypted backups.
   content) and decrypts it with the age identity that came with the unlock.
   Another vault's VM receives another identity, so a restore of someone
   else's backup fails at decryption.
+- age proves nothing about who encrypted a backup: anyone can encrypt to the
+  public recipient. So each backup is **bound to the vault**: the VM seals a
+  mark into the archive (a random nonce and its HMAC with a key derived from
+  the vault) and reports an HMAC over the backup's piece CID. A restore
+  imports a backup only with this vault's mark; the app offers a backup
+  without asking only when it has checked its piece CID's HMAC itself.
+  Backups older than the mark carry none: the app shows them as such and
+  restores one only after the person confirms that very backup; another
+  vault's mark, or a broken one, is always refused.
+- After a restore, the app says how many administrators besides `admin`
+  came with the backup, so the person can check them in Paperless.
 - The session key can only add pieces, to the data sets of the wallet that
   authorized it, and expires. It cannot delete pieces.
 - With backups paid through Le Space Credits, Le Space's one Filecoin payer

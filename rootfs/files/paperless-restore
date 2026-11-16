@@ -11,6 +11,14 @@
 #   /tmp/secrets/paperless_role        "primary" keeps the imported mail rules on;
 #                                      anything else ("test") switches them off,
 #                                      since another instance reads that mailbox
+#   /tmp/secrets/backup_mark_key       the vault's key that binds backups to it: a
+#                                      backup is imported only with this vault's mark
+#                                      (.paperless-anywhere/vault-mark.json, written by
+#                                      paperless-backup)
+#   /tmp/secrets/restore_unmarked      the piece CID of a backup without a mark (older
+#                                      than the mark, or from the Mac) that the person
+#                                      chose as such in the app: only that one is
+#                                      imported without the mark
 #
 # The piece is fetched from a provider, checked against the ledger's SHA-256,
 # or its piece CID. A backup above 1 GB comes in parts (each a piece of at
@@ -59,7 +67,7 @@ WHY
   exit 1
 }
 forget_secrets() {
-  for f in "$secrets/age_identity" "$secrets/restore_ledger_entry"; do
+  for f in "$secrets/age_identity" "$secrets/restore_ledger_entry" "$secrets/restore_unmarked"; do
     [ -e "$f" ] || continue
     size=$(stat -c %s "$f" 2>/dev/null || echo 0)
     dd if=/dev/zero of="$f" bs=1 count="$size" conv=notrunc 2>/dev/null
@@ -248,13 +256,49 @@ for n in names:
             dst.write(src.read())
 PY
 rm -f "$work/export.zip"
+# The vault's mark, checked before anything of the backup is used: "verified"
+# with this vault's key; a backup without one only when the person chose this
+# very piece as such ("accepted"). Another vault's mark, a broken one, or none
+# without that choice: refused, and the plaintext goes at once.
+mark="$(python3 - "$work/extra/vault-mark.json" "$secrets/backup_mark_key" <<'PY' 2>>"$log"
+import hashlib, hmac, json, re, sys
+try:
+    key = open(sys.argv[2]).read().strip()
+except OSError:
+    key = ""
+try:
+    m = json.load(open(sys.argv[1]))
+except FileNotFoundError:
+    print("missing")
+    sys.exit()
+except Exception:
+    print("invalid")
+    sys.exit()
+if not re.fullmatch(r"[0-9a-f]{64}", key):
+    print("nokey")
+    sys.exit()
+nonce, mac = str(m.get("nonce", "")), str(m.get("mac", ""))
+want = hmac.new(bytes.fromhex(key), ("paperless-anywhere/backup-archive/v1\n" + nonce).encode(), hashlib.sha256).hexdigest()
+print("verified" if m.get("v") == 1 and re.fullmatch(r"[0-9a-f]{32}", nonce) and hmac.compare_digest(want, mac) else "invalid")
+PY
+)"
+rm -f "$work/extra/vault-mark.json"
+if [ "$mark" != verified ]; then
+  unmarked="$(tr -cd 'a-z0-9' < "$secrets/restore_unmarked" 2>/dev/null)"
+  if [ "$mark" = missing ] && [ -n "$unmarked" ] && [ "$unmarked" = "$cid" ]; then
+    mark=accepted
+  else
+    rm -rf "$work/import" "$work/extra"
+    fail "the backup does not carry this vault's mark (${mark:-unreadable})"
+  fi
+fi
 # The certificate and the lego account, unless this VM already has its own.
 if [ -d "$work/extra" ] && ! [ -d /etc/paperless-anywhere/tls/certificates ]; then
   install -d -m 700 /etc/paperless-anywhere/tls
   cp -a "$work/extra/." /etc/paperless-anywhere/tls/
 fi
 rm -rf "$work/extra"
-printf 'name=%s\ngot=%s\nt0=%s\nt1=%s\nt2=%s\nt3=%s\n' "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._:-')" "$(printf '%s' "$got" | tr -cd 'A-Za-z0-9.:-')" "$t0" "$t1" "$t2" "$t3" > "$entry_env"
+printf 'name=%s\ngot=%s\nt0=%s\nt1=%s\nt2=%s\nt3=%s\nmark=%s\n' "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._:-')" "$(printf '%s' "$got" | tr -cd 'A-Za-z0-9.:-')" "$t0" "$t1" "$t2" "$t3" "$(printf '%s' "$mark" | tr -cd 'a-z')" > "$entry_env"
 }
 
 fetch
@@ -300,11 +344,24 @@ else:
         user.save()
         print("admin set")' 2>>"$log" | sed -n 's/^admin //p' | tail -1)"
 
+# Administrators besides the app's own "admin" that came with the backup: the
+# app says how many, so the person can look; their names stay in the log on
+# the encrypted disk.
+supers="$(paperless-manage shell -c 'import os
+from django.contrib.auth.models import User
+name = os.environ.get("PAPERLESS_ADMIN_USER") or "admin"
+others = User.objects.filter(is_superuser=True).exclude(username=name)
+print("others", others.count())
+for u in others[:20]:
+    print("other-user", u.username)' 2>>"$log")"
+superusers="$(printf '%s\n' "$supers" | sed -n 's/^others //p' | tail -1 | tr -cd '0-9')"
+printf '%s\n' "$supers" | sed -n 's/^other-user /paperless-restore: administrator from the backup: /p' >> "$log"
+
 counts="$(paperless-manage shell -c 'from documents.models import Document; a = Document.objects.count(); g = Document.global_objects.count() if hasattr(Document, "global_objects") else a; print("counts", a, g - a)' 2>>"$log" | sed -n 's/^counts //p' | tail -1)"
 documents="${counts%% *}"; trash="${counts##* }"
 
 # What was restored needs no new backup: the first check compares against it.
 paperless-backup fingerprint > /var/lib/paperless-anywhere/backed-up.fingerprint 2>>"$log" || true
 
-status done ",\"backup\":\"$name\",\"provider\":\"$got\",\"documents\":${documents:-0},\"trash\":${trash:-0},\"mail_rules\":\"$mail\",\"admin\":\"${admin:-unknown}\",\"role\":\"$role\",\"seconds\":{\"download\":$((t2 - t1)),\"decrypt\":$((t3 - t2)),\"import\":$((t4 - t3)),\"total\":$((t4 - t0))}"
+status done ",\"backup\":\"$name\",\"provider\":\"$got\",\"documents\":${documents:-0},\"trash\":${trash:-0},\"mail_rules\":\"$mail\",\"admin\":\"${admin:-unknown}\",\"superusers\":${superusers:-0},\"mark\":\"${mark:-unknown}\",\"role\":\"$role\",\"seconds\":{\"download\":$((t2 - t1)),\"decrypt\":$((t3 - t2)),\"import\":$((t4 - t3)),\"total\":$((t4 - t0))}"
 echo "paperless-restore: $name restored, ${documents:-?} documents, mail rules $mail, admin ${admin:-unknown}"

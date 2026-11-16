@@ -13,14 +13,14 @@ import { newSeedPhrase, seal, sealingKeyFromSeedPhrase } from '../src/lib/keys/s
 import { seedIndexAccount, VAULT_KEY } from '../src/lib/keys/index-keys.js';
 import { PROFILE_KEY } from '../src/lib/profile.js';
 
-async function vault(aggregates, pieceCid) {
+async function vault(aggregates, pieceCid, extra = {}) {
 	const master = newMasterSecret();
 	const phrase = newSeedPhrase();
 	const box = await seal(master, sealingKeyFromSeedPhrase(phrase), 'master/seed');
 	aggregates.set(seedIndexAccount(phrase).address, { [VAULT_KEY]: { v: 1, box } });
 	const profile = {
 		network: 'calibration', role: 'test', payer: PAYER, backupConfig: { copies: 2, providerIds: [9, 2], regions: [] },
-		ageIdentity: 'AGE-SECRET-KEY-1' + 'Q'.repeat(58), ownBackups: [pieceCid]
+		ageIdentity: 'AGE-SECRET-KEY-1' + 'Q'.repeat(58), ownBackups: [pieceCid], ...extra
 	};
 	const sealed = await seal(new TextEncoder().encode(JSON.stringify(profile)), deriveBytes(master, LABELS.profileKey), 'profile');
 	aggregates.set(privateKeyToAccount(alephPrivateKey(master)).address, { [PROFILE_KEY]: { v: 1, box: sealed } });
@@ -69,5 +69,40 @@ test.describe('German', () => {
 		await expect(good.getByTestId('chain-sample')).toHaveAttribute('data-state', 'reported');
 		await expect(good.getByTestId('chain-sample')).toContainText('vom Anbieter gemeldet');
 		await page.screenshot({ path: test.info().outputPath('backup-chain.png'), fullPage: true });
+	});
+
+	/** Opens the app on a vault whose profile adds `extra`, with the chain mocked. */
+	async function openWith(page, extra) {
+		const piece = await calculate(new Uint8Array(4096).fill(9));
+		const aggregates = await alephMock()(page.context());
+		const phrase = await vault(aggregates, piece.toString(), extra(piece.toString()));
+		await page.context().route(/^https?:\/\/(?!localhost|api2\.aleph\.im)/, (route) => route.abort());
+		await page.context().route(calibration.rpcUrls.default.http[0], rpc(answers(piece)));
+		await page.goto('/app/');
+		await page.getByTestId('open-with-phrase').click();
+		await page.locator('textarea').first().fill(phrase);
+		await page.getByTestId('open-phrase').click();
+		return piece.toString();
+	}
+
+	test('a backup without the vault’s mark is restored only after the person says so', async ({ page }) => {
+		test.setTimeout(90_000);
+		const piece = await openWith(page, () => ({}));
+		await page.getByRole('tab', { name: 'Erweitert' }).click();
+		const question = page.getByTestId('restore-unmarked').first();
+		await expect(question).toContainText('trägt nicht das Siegel deines Tresors', { timeout: 30_000 });
+		await expect(question).toContainText(piece.slice(-12));
+		const accept = question.getByTestId('restore-unmarked-accept');
+		await expect(accept).not.toBeChecked();
+		await accept.check();
+		await expect(accept).toBeChecked();
+	});
+
+	test('a backup with the vault’s mark starts without the question', async ({ page }) => {
+		test.setTimeout(90_000);
+		await openWith(page, (piece) => ({ vaultBackups: [piece] }));
+		await page.getByRole('tab', { name: 'Erweitert' }).click();
+		await expect(page.getByTestId('newest-backup')).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByTestId('restore-unmarked')).toHaveCount(0);
 	});
 });

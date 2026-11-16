@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { newerBackup, restoreEntry, backupConfigFor, backupDataSets, backupFacts, dataSetsByClientIds, vmBackupSecrets, knownBackup, restoreGap, ageSecretKey, pieceSources, selfRestoreGuide } from './backups.js';
+import { newerBackup, reportedMarks, vaultBound, withVaultBackups, restoreEntry, backupConfigFor, backupDataSets, backupFacts, dataSetsByClientIds, vmBackupSecrets, knownBackup, restoreGap, ageSecretKey, pieceSources, selfRestoreGuide } from './backups.js';
 
 describe('restoreEntry', () => {
 	it('names the piece and its copies, without a SHA-256 (the piece CID is the check)', () => {
@@ -270,6 +270,43 @@ describe('backups in parts (above 1 GB)', async () => {
 		// Nothing chosen, or a backup the list does not know: it stays as it is.
 		expect(newerBackup(list, null)).toBe(null);
 		expect(newerBackup(list, { pieceCid: 'elsewhere' })).toBe(null);
+		// Only one that may take its place: those with the vault's mark.
+		expect(newerBackup(list, { pieceCid: 'c2' }, (b) => b.pieceCid === 'c5')?.pieceCid).toBe('c5');
+		expect(newerBackup(list, { pieceCid: 'c2' }, () => false)).toBe(null);
+	});
+});
+
+describe('backups bound to the vault', () => {
+	const markOf = (/** @type {string} */ cid) => `m-${cid}`;
+	it('reads every mark a status page reports', () => {
+		const status = {
+			backupMarks: [{ pieceCid: 'c1', mark: 'm-c1' }, { pieceCid: 7, mark: 'x' }, null],
+			stop: { backup: { backup: { pieceCid: 'c3', vaultMark: 'm-c3' } } },
+			backup: { backup: { pieceCid: 'c4' } },
+			lastBackup: { backup: { pieceCid: 'c5', vaultMark: 'm-c5' } }
+		};
+		expect(reportedMarks(status)).toEqual([
+			{ pieceCid: 'c1', mark: 'm-c1' },
+			{ pieceCid: 'c3', mark: 'm-c3' },
+			{ pieceCid: 'c5', mark: 'm-c5' }
+		]);
+		expect(reportedMarks(null)).toEqual([]);
+	});
+	it('keeps only pieces whose mark is the vault’s', () => {
+		const reported = [
+			{ pieceCid: 'c1', mark: 'm-c1' },
+			{ pieceCid: 'c2', mark: 'm-c9' },
+			{ pieceCid: 'c3', mark: 'M-C3'.toLowerCase() },
+			{ pieceCid: 'c1', mark: 'm-c1' }
+		];
+		expect(vaultBound(reported, markOf)).toEqual(['c1', 'c3']);
+	});
+	it('adds new ones in front, and keeps the same list when nothing is new', () => {
+		const known = ['c1'];
+		expect(withVaultBackups(known, ['c1'])).toBe(known);
+		expect(withVaultBackups(known, ['c2', 'c1'])).toEqual(['c2', 'c1']);
+		expect(withVaultBackups(undefined, ['c2'])).toEqual(['c2']);
+		expect(withVaultBackups(['a', 'b', 'c'], ['d'], 2)).toEqual(['d', 'a']);
 	});
 });
 

@@ -3,7 +3,7 @@
 	import { balancesRound, onceThisRound } from '$lib/balance-refresh.js';
 	import RefreshBalances from '$lib/RefreshBalances.svelte';
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
-	import { AlephShortError, BackupPartialError, StartGoneError, attestRunning, confirmStopBackup, eraseStopped, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
+	import { AlephShortError, BackupPartialError, StartGoneError, attestRunning, confirmStopBackup, eraseStopped, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
 	import { buildImageForVault } from '$lib/own-image-build.js';
 	import { BUILDER, hasOwnImage, imageStatus } from '$lib/own-image.js';
 	import FirstStart from '$lib/FirstStart.svelte';
@@ -242,7 +242,13 @@
 	// also hold backups encrypted to other keys (round trips), which this vault
 	// cannot decrypt (live: "age could not decrypt the piece").
 	let choice = $state('empty');
-	const split = $derived(splitOwn(backups ?? [], profile.ownBackups ?? []));
+	// "Own" are the backups that carry this vault's mark (vaultBackups, checked
+	// by the app); any other one is offered only as such, and only after the
+	// person confirms it (unmarkedAccepted): older backups and anything not made by
+	// this vault's Paperless.
+	const split = $derived(splitOwn(backups ?? [], profile.vaultBackups ?? []));
+	// The piece the person confirmed: another backup asks again.
+	let unmarkedAccepted = $state('');
 	// The newest one: a backup counts once it reached at least one provider
 	// (the restore checks the piece itself); "complete" only compared the copies
 	// with every data set the wallet ever used, and a backup that went to a
@@ -253,8 +259,19 @@
 	// app never hears of. It starts from the newest, whoever made it. A test
 	// keeps to this vault's own (the test data sets hold other keys' backups).
 	const production = $derived(profile.role === 'primary' && profile.network === 'mainnet');
-	const defaultChoice = (list) => (production && list.length ? 'latest' : splitOwn(list, profile.ownBackups ?? []).own.length ? 'own' : 'empty');
-	const chosenBackup = $derived(choice === 'latest' ? pick(backups ?? []) : choice === 'own' ? pick(split.own) : choice === 'any' ? pick(split.other) : null);
+	// Without a marked one: the newest unmarked one this vault's stops made
+	// (older than the mark), or for a production Paperless the newest of all;
+	// either one only after the person confirms it.
+	const unmarkedPick = (/** @type {any[]} */ other) => (production ? pick(other) : (pick(other.filter((b) => (profile.ownBackups ?? []).includes(b.pieceCid))) ?? pick(other)));
+	const defaultChoice = (/** @type {any[]} */ list) => {
+		const { own, other } = splitOwn(list, profile.vaultBackups ?? []);
+		if (own.length) return production ? 'latest' : 'own';
+		return (production ? other.length : other.some((b) => (profile.ownBackups ?? []).includes(b.pieceCid))) ? 'any' : 'empty';
+	};
+	// "Latest" is the newest backup with this vault's mark: only those start without asking.
+	const chosenBackup = $derived(choice === 'latest' || choice === 'own' ? pick(split.own) : choice === 'any' ? unmarkedPick(split.other) : null);
+	// A backup without this vault's mark waits for the person's word.
+	const unmarkedOpen = $derived(choice === 'any' && Boolean(chosenBackup) && unmarkedAccepted !== chosenBackup?.pieceCid);
 	// The backup whose copies the chain check shows: the one chosen, else this vault's newest, else the newest.
 	const chainBackup = $derived(chosenBackup ?? pick(split.own) ?? pick(backups ?? []) ?? null);
 	// The chain's answer against what the sealed profile knows: a start that
@@ -292,9 +309,14 @@
 		// A revoke that failed when the VM was deleted, as long as no VM uses the key.
 		if (profile.backupRevokePending && !busy) revoking = retryBackupRevoke(master, $state.snapshot(profile)).then(() => {}, () => {});
 		// A stop that ended partial while this page was closed still waits.
-		if (profile.running && !busy && !partial)
+		if (profile.running)
 			vmStatus(profile.running.host, statusToken(master))
-				.then((s) => { if (s?.phase === 'stop-partial' && !busy) partial = new BackupPartialError(s); })
+				.then(async (s) => {
+					if (s?.phase === 'stop-partial' && !busy && !partial) partial = new BackupPartialError(s);
+					// The backups this VM made with this vault's mark, also the two-hourly ones.
+					const noted = await noteVaultBackups(master, $state.snapshot(profile), s);
+					if (noted) profile = noted;
+				})
 				.catch(() => {});
 		const listing = await listingNow();
 		if (listing && profile.ageIdentity) {
@@ -438,12 +460,14 @@
 		await revoking;
 		if (profile.leSpacePays) await leSpaceOwner();
 		const chosen = chosenBackup;
+		const unmarked = choice === 'any';
 		if (gapOpen) throw new Error(tr().card.errors.gapOpen);
+		if (unmarkedOpen) throw new Error(tr().card.errors.unmarkedOpen);
 		// No image yet: this vault's own one first (about 15 minutes; the page stays open),
 		// shown as the full-screen first start (FirstStart.svelte).
 		const first = buildsImageFirst(profile, BUILDER);
 		try {
-			await startNowInner(chosen, first);
+			await startNowInner(chosen, first, unmarked);
 		} catch (e) {
 			if (ceremony) ceremony = { ...ceremony, failed: true, minimized: false };
 			throw e;
@@ -522,8 +546,8 @@
 			});
 		})
 	);
-	/** @param {any} chosen @param {boolean} first */
-	async function startNowInner(chosen, first) {
+	/** @param {any} chosen @param {boolean} first @param {boolean} [unmarked] the person confirmed a backup without the vault's mark */
+	async function startNowInner(chosen, first, unmarked = false) {
 		if (first) {
 			if (!(await buildWithJourney(false))) return;
 			if (ceremony) ceremony = { ...ceremony, station: 'paperless', since: Date.now(), fetchPct: null };
@@ -531,7 +555,7 @@
 		// No node fixed in the setup: one with room now.
 		if (!profile.crnHash) progress = tr().card.progress.pickNode;
 		const crnHash = profile.crnHash || (await pickNode());
-		const forStart = { ...$state.snapshot(profile), crnHash, restoreEntry: chosen ? restoreEntry(chosen) : null };
+		const forStart = { ...$state.snapshot(profile), crnHash, restoreEntry: chosen ? { ...restoreEntry(chosen), ...(unmarked ? { unmarked: true } : {}) } : null };
 		startRestores = Boolean(forStart.restoreEntry);
 		// Once Aleph has the VM, the profile knows it: a reload carries on from there.
 		const onRequested = async (starting) => {
@@ -605,7 +629,8 @@
 		const listing = chosen && profile.ageIdentity ? await listingNow() : null;
 		if (listing) {
 			progress = tr().card.progress.lookBackups;
-			const newer = newerBackup(await listBackups({ network: profile.network ?? 'calibration', ...listing }), chosen);
+			const vault = profile.vaultBackups ?? [];
+			const newer = newerBackup(await listBackups({ network: profile.network ?? 'calibration', ...listing }), chosen, (b) => vault.includes(b.pieceCid));
 			if (newer) profile = await updateProfile(master, (now) => (now.starting ? { ...now, starting: { ...now.starting, restoreEntry: restoreEntry(newer) } } : now));
 		}
 		startRestores = Boolean(profile.starting?.restoreEntry);
@@ -708,6 +733,9 @@
 				: rest
 		);
 		listedSeen = Boolean(made);
+		// The backups this VM made with this vault's mark, the stop's among them.
+		const noted = await noteVaultBackups(master, $state.snapshot(profile), status).catch(() => null);
+		if (noted) profile = noted;
 		// Public only: the recipient, and whether the key is the vault's own. The
 		// identity goes to the header check (age) and nowhere else.
 		const identity = profile.ageIdentity ? String(profile.ageIdentity) : '';
@@ -817,6 +845,19 @@
 	{/if}
 {/snippet}
 
+{#snippet superusersWarning()}
+	{#if Number(profile.running?.restore?.superusers) > 0}<p class="warn" data-testid="restore-superusers">{c.superusers(Number(profile.running?.restore?.superusers))}</p>{/if}
+{/snippet}
+
+{#snippet unmarkedWarning()}
+	{#if choice === 'any' && chosenBackup}
+		<div class="warn gap" data-testid="restore-unmarked">
+			<p>{c.unmarked.text(chosenBackup.pieceCid.slice(-12), whenOf(chosenBackup))}</p>
+			<label><input type="checkbox" data-testid="restore-unmarked-accept" checked={!unmarkedOpen} onchange={(e) => (unmarkedAccepted = e.currentTarget.checked ? (chosenBackup?.pieceCid ?? '') : '')} /> {c.unmarked.accept}</label>
+		</div>
+	{/if}
+{/snippet}
+
 {#snippet gapWarning()}
 	{#if gap}
 		<div class="warn gap" data-testid="restore-gap">
@@ -880,6 +921,7 @@
 			{#if startShown || stopShown}<StartPanel rows={panel} t={panelShownT} times={panelTook} total={panelTotal} testid={stopShown ? 'stop-panel' : 'start-panel'} />{/if}
 		{:else if phase === 'running'}
 			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="simple-open">{c.simple.open}</a>
+			{@render superusersWarning()}
 			{#if profile.running.restore?.status === 'failed'}<p class="error">{c.simple.restoreFailed}</p>{/if}
 			<div class="login" data-testid="simple-login">
 				<p class="label">{c.simple.login}</p>
@@ -904,12 +946,13 @@
 				<p class="hint">{c.simple.notSetUp}</p>
 				<button class="secondary" onclick={onadvanced}>{c.simple.openSetup}</button>
 			{:else}
-				<button class="cta" onclick={start} disabled={busy || backupsPending || Boolean(backupsError) || gapOpen} data-testid="start">{c.simple.start}</button>
+				<button class="cta" onclick={start} disabled={busy || backupsPending || Boolean(backupsError) || gapOpen || unmarkedOpen} data-testid="start">{c.simple.start}</button>
 				{@render unpaidQuestion()}
 				{#if backupsPending}<p class="hint">{c.simple.readingBackups}</p>
 				{:else if backupsError}<p class="warn">{backupsError} {c.simple.tryAgain}</p>
-				{:else if profile.ageIdentity}<p class="hint" data-testid="simple-restore">{choice === 'latest' || choice === 'own' ? c.simple.startsWith(pick(choice === 'latest' ? backups ?? [] : split.own)?.pieceCid.slice(-12) ?? '', whenOf(chosenBackup)) : c.simple.startsEmpty}</p>{/if}
+				{:else if profile.ageIdentity}<p class="hint" data-testid="simple-restore">{chosenBackup ? c.simple.startsWith(chosenBackup.pieceCid.slice(-12), whenOf(chosenBackup)) : c.simple.startsEmpty}</p>{/if}
 				{@render gapWarning()}
+				{@render unmarkedWarning()}
 				<Storage {master} {profile} />
 			{/if}
 		{/if}
@@ -943,6 +986,7 @@
 		{#if profile.running}
 			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener">{c.simple.open}</a>
 			<p>{c.advanced.runs} <a href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="paperless-link">{profile.running.host}</a></p>
+			{@render superusersWarning()}
 			{#if profile.running.restore?.status === 'failed'}<p class="error" data-testid="restore-failed">{c.advanced.restoreFailed(`${profile.running.restore.reason ?? c.advanced.noReason}${profile.running.restore.error ? `: ${profile.running.restore.error}` : ''}`)}</p>{/if}
 			{#if profile.running.dataDisk === 'encrypted'}<p class="hint" data-testid="data-disk">{c.advanced.diskEncrypted}</p>
 			{:else if profile.running.dataDisk === 'plain'}<p class="warn" data-testid="data-disk">{c.advanced.diskPlain}</p>{/if}
@@ -958,10 +1002,10 @@
 			{#if profile.ageIdentity}
 				<fieldset class="restore">
 					<legend>{c.advanced.atStart}</legend>
-					{#if production && backups?.length}
+					{#if production && split.own.length}
 						<label><input type="radio" bind:group={choice} value="latest" data-testid="restore-latest" />
 							{c.advanced.restoreLatest}
-							<small data-testid="latest-backup">({pick(backups).pieceCid.slice(-12)}{whenOf(pick(backups))}{sizePart(pick(backups))}, {c.advanced.copiesAt(pick(backups).copies.length, wherePlaces(pick(backups)))})</small>
+							<small data-testid="latest-backup">({pick(split.own).pieceCid.slice(-12)}{whenOf(pick(split.own))}{sizePart(pick(split.own))}, {c.advanced.copiesAt(pick(split.own).copies.length, wherePlaces(pick(split.own)))})</small>
 						</label>
 					{/if}
 					<label><input type="radio" bind:group={choice} value="own" disabled={!split.own.length} />
@@ -971,7 +1015,7 @@
 					</label>
 					{#if split.other.length}
 						<label><input type="radio" bind:group={choice} value="any" />
-							{c.advanced.restoreOther} ({pick(split.other).pieceCid.slice(-12)}{sizePart(pick(split.other))}, {wherePlaces(pick(split.other))})
+							{c.advanced.restoreOther} ({unmarkedPick(split.other).pieceCid.slice(-12)}{sizePart(unmarkedPick(split.other))}, {wherePlaces(unmarkedPick(split.other))})
 							<small>{c.advanced.otherHint(split.other.length)}</small>
 						</label>
 					{/if}
@@ -979,6 +1023,7 @@
 					{#if backupsError}<small class="hint">{backupsError}</small>{/if}
 				</fieldset>
 				{@render gapWarning()}
+				{@render unmarkedWarning()}
 				{#if chosenBackup}<BackupExport backup={chosenBackup} identity={profile.ageIdentity} />{/if}
 				{#if chainBackup}<BackupChain network={profile.network ?? 'calibration'} backup={chainBackup} />{/if}
 			{/if}
@@ -990,7 +1035,7 @@
 				</div>
 			{:else}
 				<p class="role-line" data-testid="role-line">{profile.role === 'primary' ? c.advanced.rolePrimary : c.advanced.roleTest}</p>
-				<button class="cta" onclick={start} disabled={busy || missing.length > 0 || gapOpen} data-testid="start">{c.simple.start}</button>
+				<button class="cta" onclick={start} disabled={busy || missing.length > 0 || gapOpen || unmarkedOpen} data-testid="start">{c.simple.start}</button>
 				{@render unpaidQuestion()}
 				{#if missing.length}<p class="hint">{c.advanced.stillMissing(missing.join(', '))}</p>{/if}
 			{/if}

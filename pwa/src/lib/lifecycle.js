@@ -13,11 +13,11 @@ import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
 import { loadAttestWasm } from './attest-wasm-load.js';
 import { ownImageVerified, runsOwnImage } from './own-image-check.js';
 import { pinnedTrustedExecution } from './runtime-pin.js';
-import { alephPrivateKey, backupPrivateKey, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
+import { alephPrivateKey, backupMarkKey, backupPrivateKey, pieceMark, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
 import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
 import { relayTransports } from './attest-p2p.js';
-import { backupFacts, pieceCidOfStop, vmBackupSecrets } from './backups.js';
+import { backupFacts, pieceCidOfStop, reportedMarks, vaultBound, vmBackupSecrets, withVaultBackups } from './backups.js';
 import { attestRelaysFor, relayUsed } from './relays.js';
 import { updateProfile, vmPayer } from './profile.js';
 import { ALEPH_API, readFetch } from './aleph.js';
@@ -431,6 +431,10 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 		paperless_secret_key: p.secretKey,
 		status_token: statusToken(master)
 	};
+	// Binds backups to this vault: the VM marks each one it makes, and a
+	// restore takes only a backup with this vault's mark. Like the backups'
+	// other keys, only for a VM on this vault's own image.
+	if (own) secrets.backup_mark_key = backupMarkKey(master);
 	if (profile.backupConfig && !own) onProgress({ step: 'unlock', detail: tr().life.progress.publicNoBackups });
 	if (profile.backupConfig && own) {
 		// Through Le Space Credits: ask the service again (it may have a new
@@ -454,8 +458,12 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	const keys = debugKeysFor(profile);
 	if (keys) secrets.authorized_keys = keys;
 	if (profile.restoreEntry && profile.ageIdentity && own) {
-		secrets.restore_ledger_entry = JSON.stringify(profile.restoreEntry);
+		const { unmarked, ...entry } = profile.restoreEntry;
+		secrets.restore_ledger_entry = JSON.stringify(entry);
 		secrets.age_identity = profile.ageIdentity;
+		// A backup without this vault's mark, restored because the person chose
+		// it as such: the VM takes it only when this names its piece.
+		if (unmarked === true) secrets.restore_unmarked = String(entry.pieceCid);
 	}
 
 	onProgress({ step: 'unlock', detail: tr().life.progress.unlock });
@@ -533,7 +541,7 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	}
 	// Whether the VM sealed its data area with a key of its own (image paperless-data-disk).
 	const dataDisk = ready.dataDisk?.status === 'encrypted' ? 'encrypted' : ready.dataDisk ? 'plain' : 'unknown';
-	return { instanceHash, crnHash: starting.crnHash, payer, host, trustedExecution, dataDisk, ...(attestation ? { attestation } : {}), ...(ready.phase === 'restore-failed' ? { restore: ready.restore } : {}) };
+	return { instanceHash, crnHash: starting.crnHash, payer, host, trustedExecution, dataDisk, ...(attestation ? { attestation } : {}), ...(ready.phase === 'restore-failed' ? { restore: ready.restore } : Number(ready.restore?.superusers) > 0 ? { restore: { status: 'done', superusers: Number(ready.restore.superusers) } } : {}) };
 }
 
 /**
@@ -609,6 +617,20 @@ async function attestRunningGuest(profile, wasm) {
 		}
 	}
 	return Object.assign(attested, { relay: relayUsed(transports.last(), profile) });
+}
+
+/**
+ * Keep the backups a VM's status page reports with this vault's mark in the
+ * sealed profile (`vaultBackups`): the ones a restore is offered from without
+ * asking. Returns the new profile, or null when nothing was new.
+ * @param {Uint8Array} master @param {Record<string, any>} profile as loaded @param {any} status
+ * @param {{ update?: typeof updateProfile }} [deps]
+ */
+export async function noteVaultBackups(master, profile, status, { update = updateProfile } = {}) {
+	const found = vaultBound(reportedMarks(status), (cid) => pieceMark(master, cid));
+	const known = profile.vaultBackups ?? [];
+	if (found.every((c) => known.includes(c))) return null;
+	return update(master, (now) => ({ ...now, vaultBackups: withVaultBackups(now.vaultBackups, found) }));
 }
 
 /**

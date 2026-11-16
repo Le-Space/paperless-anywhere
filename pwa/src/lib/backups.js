@@ -235,11 +235,12 @@ export function restoreEntry(backup) {
  * listBackups() returns it; an entry the list does not know stays as it is.
  * @param {Array<{ pieceCid: string, copies: any[], order: number }>} backups
  * @param {{ pieceCid?: string } | null | undefined} entry
+ * @param {(b: any) => boolean} [eligible] which backups may take its place (those with the vault's mark)
  */
-export function newerBackup(backups, entry) {
+export function newerBackup(backups, entry, eligible = () => true) {
 	const chosen = entry?.pieceCid ? backups.find((b) => b.pieceCid === entry.pieceCid) : null;
 	if (!chosen) return null;
-	return backups.find((b) => b.order > chosen.order && b.copies.length > 0) ?? null;
+	return backups.find((b) => b.order > chosen.order && b.copies.length > 0 && eligible(b)) ?? null;
 }
 
 /**
@@ -357,6 +358,41 @@ export function vmBackupSecrets(profile, { sessionKey, backupKey, signer, credit
 export function pieceCidOfStop(status) {
 	const b = status?.stop?.backup ?? status?.backup;
 	return b?.backup?.pieceCid ?? b?.pieceCid ?? null;
+}
+
+/**
+ * The piece CIDs a VM's status page reports with a vault mark: its list of
+ * every backup it made (backupMarks), and the mark on the backup a stop, a
+ * "Back up now" or the last check made. Unchecked: vaultBound() checks them.
+ * @param {any} status
+ * @returns {Array<{ pieceCid: string, mark: string }>}
+ */
+export function reportedMarks(status) {
+	const out = [];
+	const add = (/** @type {any} */ pieceCid, /** @type {any} */ mark) => {
+		if (typeof pieceCid === 'string' && typeof mark === 'string') out.push({ pieceCid, mark });
+	};
+	for (const m of Array.isArray(status?.backupMarks) ? status.backupMarks : []) add(m?.pieceCid, m?.mark);
+	for (const b of [status?.stop?.backup, status?.backup, status?.lastBackup, status?.backupRequest?.backup]) add(b?.backup?.pieceCid, b?.backup?.vaultMark);
+	return out;
+}
+
+/**
+ * Of what a VM reports, the piece CIDs whose mark is this vault's: only a VM
+ * this vault unlocked holds the key (`markOf`, pieceMark with the master).
+ * @param {Array<{ pieceCid: string, mark: string }>} reported
+ * @param {(pieceCid: string) => string} markOf
+ */
+export const vaultBound = (reported, markOf) => [...new Set(reported.filter((r) => r.mark.toLowerCase() === markOf(r.pieceCid)).map((r) => r.pieceCid))];
+
+/**
+ * The profile's list of this vault's backups with `found` added in front,
+ * newest first, at most `max`; the same list (===) when nothing is new.
+ * @param {string[] | undefined} known @param {string[]} found
+ */
+export function withVaultBackups(known = [], found, max = 200) {
+	const fresh = found.filter((c) => !known.includes(c));
+	return fresh.length ? [...fresh, ...known].slice(0, max) : known;
 }
 
 /** Backups split into this vault's own (newest first) and the rest. @param {any[]} backups @param {string[]} own */
