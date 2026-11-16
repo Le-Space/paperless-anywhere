@@ -1,0 +1,81 @@
+name: CI
+
+# Every pull request and every push to main: the checks that need no secret
+# and no paid service (docs/testing.md). The live tests on Aleph and Filecoin
+# are started by hand in their own workflows.
+#
+# No path filter: a required check must report on every pull request.
+# Pull requests from forks run here too, so: no secrets, a read-only token,
+# GitHub-hosted runners only, and no install scripts.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  unit:
+    name: Check and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.x
+      - name: Install
+        working-directory: pwa
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: svelte-check
+        working-directory: pwa
+        run: pnpm check
+      - name: Unit tests (pwa, with the rootfs scripts)
+        working-directory: pwa
+        run: pnpm test
+      - name: Image builder tests
+        working-directory: builder
+        run: node --test
+
+  e2e:
+    name: Build and browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.x
+      - name: Install
+        working-directory: pwa
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm exec playwright install --with-deps chromium > /dev/null
+      - name: Build
+        working-directory: pwa
+        run: pnpm build
+      # Aleph is mocked in the page (e2e/aleph-mock.js).
+      - name: Browser tests
+        working-directory: pwa
+        run: pnpm exec playwright test --reporter=line
+      # Against a local mock of Le Space Credits; it builds the app again,
+      # with the mock as its credits service.
+      - name: Browser tests, credits
+        working-directory: pwa
+        run: pnpm exec playwright test -c playwright.credits.config.js --reporter=line
