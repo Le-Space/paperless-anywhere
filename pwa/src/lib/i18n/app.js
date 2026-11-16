@@ -9,6 +9,7 @@ export const app = {
 		lock: 'Sperren',
 		leaveBusy: 'Die App wird beim Wechsel zur Startseite gesperrt. Gerade läuft noch etwas (Start, Sicherung oder Stopp); die VM macht weiter, die App verfolgt es aber erst wieder, wenn du sie neu entsperrst. Trotzdem wechseln?',
 		forgetConfirm: 'Diesen Tresor in diesem Browser vergessen? Mit der Wiederherstellungsphrase lässt er sich neu öffnen.',
+		framed: { before: 'Die App ist hier in eine andere Seite eingebettet. So öffnet sie den Tresor nicht und zeigt nichts an. Bitte direkt unter ', after: ' öffnen.' },
 		shared: { before: 'Diese Adresse teilen sich alle Seiten dieses IPFS-Gateways, auch ihr Speicher und ihre Passkeys. Den Tresor öffnet die App hier nicht. Bitte unter ', after: ' öffnen.' },
 		create: {
 			title: 'Neu hier? Tresor anlegen',
@@ -109,6 +110,7 @@ export const app = {
 		lock: 'Lock',
 		leaveBusy: 'Going to the start page locks the app. Something is still under way (a start, a backup or a stop); the VM carries on, but the app follows it again only once you unlock it. Leave anyway?',
 		forgetConfirm: 'Forget this vault in this browser? The recovery phrase opens it again.',
+		framed: { before: 'The app is embedded in another page here. Like this it does not open the vault and shows nothing. Please open it directly at ', after: '.' },
 		shared: { before: 'This address is shared by every page of this IPFS gateway, and so are its storage and its passkeys. The app does not open the vault here. Please open it at ', after: '.' },
 		create: {
 			title: 'New here? Create your vault',

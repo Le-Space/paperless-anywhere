@@ -165,6 +165,9 @@
 	}
 	const plan = (/** @type {string | null} */ id) => {
 		if (id === null && !confirm(tr().pkg.endConfirm)) return;
+		// A change of package is asked first, with what it costs.
+		const next = id === null ? null : planOf(id, plans);
+		if (next && !confirm(tr().pkg.changeConfirm(tr().pkg.upgrade(next.hours, next.hours >= 720, euro(next.priceCredits))))) return;
 		act(async () => {
 			const r = await choosePlan(master, id);
 			return id ? tr().pkg.chosen(day(r.periodEnd)) : tr().pkg.endsWithPeriod;

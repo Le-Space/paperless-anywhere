@@ -27,11 +27,13 @@
 	import NgxText from '$lib/NgxText.svelte';
 	import { texts } from '$lib/landing/i18n.js';
 	import { LANGS, format, lang, setLang, t, tr } from '$lib/i18n/index.js';
-	import { HOME, sharedOrigin } from '$lib/shared-origin.js';
+	import { HOME, framed, sharedOrigin } from '$lib/shared-origin.js';
 
 	// On a path-style gateway the origin is shared: no vault, no passkey there.
 	const shared = sharedOrigin();
-	let vault = $state(shared ? null : loadVault());
+	// Inside another page's frame: nothing is shown and nothing unlocks.
+	const inFrame = framed();
+	let vault = $state(shared || inFrame ? null : loadVault());
 	/** @type {Uint8Array | null} the master secret, in memory only */
 	let master = $state(null);
 	let phrase = $state('');
@@ -218,9 +220,13 @@
 </header>
 
 <main>
-	<p class="sr-only" data-testid="state">{shared ? 'shared origin' : state}</p>
+	<p class="sr-only" data-testid="state">{inFrame ? 'framed' : shared ? 'shared origin' : state}</p>
 
-	{#if shared}
+	{#if inFrame}
+		<section class="card">
+			<p data-testid="framed">{$t.app.framed.before}<a href={HOME} target="_blank" rel="noopener">{HOME}</a>{$t.app.framed.after}</p>
+		</section>
+	{:else if shared}
 		<section class="card">
 			<p data-testid="shared-origin">{$t.app.shared.before}<a href={HOME}>{HOME}</a>{$t.app.shared.after}</p>
 		</section>
