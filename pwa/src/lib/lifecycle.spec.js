@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BackupFailedError, BackupPartialError, BackupUnconfirmedError, confirmStopBackup, passphraseFitsImage, requestBackup, resumeAfterPartial, startRequirements, stopPaperless, debugKeysFor } from './lifecycle.js';
-import { newMasterSecret, statusToken } from './keys/derive.js';
+import { BackupFailedError, BackupPartialError, BackupUnconfirmedError, confirmStopBackup, noteVaultBackups, passphraseFitsImage, requestBackup, resumeAfterPartial, startRequirements, stopPaperless, debugKeysFor } from './lifecycle.js';
+import { newMasterSecret, pieceMark, statusToken } from './keys/derive.js';
 
 const master = newMasterSecret();
 const profile = { running: { instanceHash: 'c'.repeat(64), crnHash: 'd'.repeat(64), host: 'vm.example.test' } };
@@ -245,5 +245,34 @@ describe('debugKeysFor', () => {
 		expect(debugKeysFor({ debugAuthorizedKeys: key, role: 'primary' })).toBeNull();
 		expect(debugKeysFor({ role: 'test' })).toBeNull();
 		expect(debugKeysFor({})).toBeNull();
+	});
+});
+
+describe('noteVaultBackups', () => {
+	/** An updateProfile on a profile held in memory. */
+	const store = (profile) => {
+		const saved = { profile, writes: 0 };
+		return { saved, update: async (_m, change) => ((saved.writes += 1), (saved.profile = change(saved.profile))) };
+	};
+
+	it('keeps the pieces whose mark is this vault’s, newest first', async () => {
+		const { saved, update } = store({ vaultBackups: ['bafkolder'] });
+		const status = {
+			backupMarks: [
+				{ pieceCid: 'bafkone', mark: pieceMark(master, 'bafkone') },
+				{ pieceCid: 'bafkforged', mark: pieceMark(newMasterSecret(), 'bafkforged') }
+			],
+			stop: { backup: { backup: { pieceCid: 'bafktwo', vaultMark: pieceMark(master, 'bafktwo') } } }
+		};
+		const next = await noteVaultBackups(master, saved.profile, status, { update });
+		expect(next?.vaultBackups).toEqual(['bafkone', 'bafktwo', 'bafkolder']);
+	});
+
+	it('writes nothing when nothing is new', async () => {
+		const { saved, update } = store({ vaultBackups: ['bafkone'] });
+		const status = { backupMarks: [{ pieceCid: 'bafkone', mark: pieceMark(master, 'bafkone') }, { pieceCid: 'bafkforged', mark: 'f'.repeat(64) }] };
+		expect(await noteVaultBackups(master, saved.profile, status, { update })).toBeNull();
+		expect(await noteVaultBackups(master, saved.profile, null, { update })).toBeNull();
+		expect(saved.writes).toBe(0);
 	});
 });

@@ -24,6 +24,7 @@ export const card = {
 			noNode: 'Gerade hat kein vertraulicher Knoten Platz für deine VM. In ein paar Minuten noch einmal starten.',
 			noDelegation: 'Aleph zeigt die Freigabe von Le Space noch nicht. In ein paar Minuten noch einmal starten.',
 			gapOpen: 'Der Start wartet auf deine Bestätigung: die letzte bekannte Sicherung würde nicht eingespielt.',
+			unmarkedOpen: 'Der Start wartet auf deine Bestätigung: die gewählte Sicherung trägt nicht das Siegel deines Tresors.',
 			creditNotSeen: 'Die Gutschrift ist bei Aleph noch nicht zu sehen. In ein paar Minuten noch einmal starten – nicht noch einmal kaufen, sonst werden die Stunden doppelt gekauft.'
 		},
 		bought: (/** @type {{ hours: number, price: string, balance: string | null, vmHours: string | null }} */ b) => `${b.hours} Stunden gekauft für ${b.price} €.${b.balance != null ? ` Guthaben jetzt ${b.balance} €.` : ''}${b.vmHours != null ? ` VM-Stunden: ${b.vmHours} h.` : ''}`,
@@ -45,6 +46,11 @@ export const card = {
 			without: 'Ohne Sicherung starten',
 			cancel: 'Doch nicht starten'
 		},
+		unmarked: {
+			text: (/** @type {string} */ cid, /** @type {string} */ dated) => `Die Sicherung ${cid}${dated} trägt nicht das Siegel deines Tresors. Entweder ist sie älter als dieses Siegel, oder sie stammt nicht von deinem Paperless. Spiel sie nur ein, wenn du weißt, dass sie deine ist.`,
+			accept: 'Sie ist meine: trotzdem einspielen'
+		},
+		superusers: (/** @type {number} */ n) => `Mit der Sicherung kam${n === 1 ? ' ein weiterer Administrator' : `en ${n} weitere Administratoren`} außer „admin“. Wenn du ${n === 1 ? 'ihn' : 'sie'} nicht kennst, prüfe die Benutzer in Paperless-ngx.`,
 		gap: {
 			missing: (/** @type {string} */ known, /** @type {string} */ dated, /** @type {boolean} */ other) => `Die letzte Sicherung, die diese App kennt (${known}${dated}), steht gerade nicht in der Liste der Sicherungen. Ein Start jetzt beginnt ${other ? 'mit einem anderen Stand' : 'ohne Daten'}.`,
 			older: (/** @type {string} */ known) => `Die gewählte Sicherung ist älter als die letzte, die diese App kennt (${known}). Was danach dazukam, fehlt nach dem Start.`,
@@ -100,12 +106,12 @@ export const card = {
 			login: 'Anmeldung:',
 			atStart: 'Beim Start',
 			restoreLatest: 'Neueste Sicherung wiederherstellen',
-			restoreOwn: 'Neueste eigene Sicherung wiederherstellen',
+			restoreOwn: 'Neueste eigene Sicherung (mit Siegel des Tresors) wiederherstellen',
 			copiesAt: (/** @type {number} */ n, /** @type {string} */ places) => `${n} Kopien: ${places}`,
-			noneOwn: '(dieser Tresor hat noch keine gemacht)',
+			noneOwn: '(noch keine mit dem Siegel dieses Tresors)',
 			reading: '(lese …)',
-			restoreOther: 'Neueste andere Sicherung des Kontos',
-			otherHint: (/** @type {number} */ n) => `– nicht von diesem Tresor (${n}); nur wenn sie mit deinem Schlüssel verschlüsselt ist, z. B. vom Mac mit eingefügtem Schlüssel`,
+			restoreOther: 'Neueste Sicherung ohne Siegel deines Tresors',
+			otherHint: (/** @type {number} */ n) => `– ${n} ohne Siegel: ältere Sicherungen oder solche, die nicht von deinem Paperless stammen (z. B. vom Mac mit eingefügtem Schlüssel); nur nach deiner Bestätigung`,
 			empty: 'Leeres Paperless-ngx',
 			interrupted: { before: 'Ein Start wurde unterbrochen: VM', requested: (/** @type {string} */ when) => `, angefordert ${when}. Sie läuft auf Aleph und kostet, bis sie fertig gestartet oder gelöscht ist.` },
 			discard: 'Verwerfen (die VM dann unten unter „Meine VMs“ löschen)',
@@ -153,6 +159,7 @@ export const card = {
 			noNode: 'No confidential node has room for your VM right now. Start again in a few minutes.',
 			noDelegation: 'Aleph does not show Le Space’s approval yet. Start again in a few minutes.',
 			gapOpen: 'The start is waiting for your confirmation: the last known backup would not be restored.',
+			unmarkedOpen: 'The start is waiting for your confirmation: the chosen backup does not carry your vault’s mark.',
 			creditNotSeen: 'The credit does not show on Aleph yet. Start again in a few minutes – do not buy again, or the hours are bought twice.'
 		},
 		bought: (/** @type {{ hours: number, price: string, balance: string | null, vmHours: string | null }} */ b) => `Bought ${b.hours} hours for €${b.price}.${b.balance != null ? ` Balance now €${b.balance}.` : ''}${b.vmHours != null ? ` VM hours: ${b.vmHours} h.` : ''}`,
@@ -174,6 +181,11 @@ export const card = {
 			without: 'Start without a backup',
 			cancel: 'Do not start after all'
 		},
+		unmarked: {
+			text: (/** @type {string} */ cid, /** @type {string} */ dated) => `The backup ${cid}${dated} does not carry your vault’s mark. Either it is older than this mark, or it does not come from your Paperless. Restore it only if you know it is yours.`,
+			accept: 'It is mine: restore it anyway'
+		},
+		superusers: (/** @type {number} */ n) => `${n === 1 ? 'One more administrator' : `${n} more administrators`} besides “admin” came with the backup. If you do not know ${n === 1 ? 'it' : 'them'}, check the users in Paperless-ngx.`,
 		gap: {
 			missing: (/** @type {string} */ known, /** @type {string} */ dated, /** @type {boolean} */ other) => `The last backup this app knows (${known}${dated}) is not in the list of backups right now. A start now begins ${other ? 'with another state' : 'without data'}.`,
 			older: (/** @type {string} */ known) => `The chosen backup is older than the last one this app knows (${known}). What came after it is missing after the start.`,
@@ -229,12 +241,12 @@ export const card = {
 			login: 'Sign-in:',
 			atStart: 'At the start',
 			restoreLatest: 'Restore the newest backup',
-			restoreOwn: 'Restore the newest backup of your own',
+			restoreOwn: 'Restore the newest backup of your own (with the vault’s mark)',
 			copiesAt: (/** @type {number} */ n, /** @type {string} */ places) => `${n} copies: ${places}`,
-			noneOwn: '(this vault has not made one yet)',
+			noneOwn: '(none with this vault’s mark yet)',
 			reading: '(reading …)',
-			restoreOther: 'Newest other backup of the account',
-			otherHint: (/** @type {number} */ n) => `– not from this vault (${n}); only if it is encrypted with your key, for example from the Mac with a pasted key`,
+			restoreOther: 'Newest backup without your vault’s mark',
+			otherHint: (/** @type {number} */ n) => `– ${n} without the mark: older backups, or ones not made by your Paperless (for example from the Mac with a pasted key); only after you confirm`,
 			empty: 'Empty Paperless-ngx',
 			interrupted: { before: 'A start was interrupted: VM', requested: (/** @type {string} */ when) => `, requested ${when}. It runs on Aleph and costs until it has finished starting or is deleted.` },
 			discard: 'Discard (then delete the VM below under “My VMs”)',

@@ -24,6 +24,14 @@
 #                                    the service to sign each step (BACKUP_KEY_FILE)
 #   /tmp/secrets/paperless_role      "primary" backs up to mainnet; anything else is a
 #                                    test and must use the calibration network
+#   /tmp/secrets/backup_mark_key     64 hex, derived from the vault: binds each backup
+#                                    to it. A mark (a nonce and its HMAC) goes into the
+#                                    sealed archive (.paperless-anywhere/vault-mark.json),
+#                                    which paperless-restore checks, and the backup's
+#                                    piece CID gets an HMAC (vaultMark), which the app
+#                                    checks; every one this VM made is kept in
+#                                    /var/lib/paperless-anywhere/backup-marks.json.
+#                                    Without it, backups carry no mark.
 #
 # No age identity is needed: backups are encrypted to ageRecipient. The session key
 # cannot delete pieces, so pruning stays with the wallet. Outcome:
@@ -194,8 +202,27 @@ else
   export SESSION_KEY_FILE="$secrets/backup_session_key"
 fi
 # The fixed address's certificate and lego account go along (sealed with the
-# backup), so a restore brings them back instead of asking the CA again.
-[ -d /etc/paperless-anywhere/tls ] && export EXPORT_EXTRA_DIR=/etc/paperless-anywhere/tls
+# backup), so a restore brings them back instead of asking the CA again. With
+# the vault's mark key, the mark goes along as well: the certificate is then
+# copied beside it into a folder in /run (memory), removed when this ends.
+mark_key="$(tr -cd '0-9a-f' < "$secrets/backup_mark_key" 2>/dev/null | head -c 64)"
+[ "${#mark_key}" = 64 ] || mark_key=""
+if [ -n "$mark_key" ]; then
+  extra="$state_dir/export-extra"
+  rm -rf "$extra" && mkdir -m 700 "$extra" || fail "could not prepare the backup's mark"
+  trap 'rm -rf "$extra"' EXIT
+  [ -d /etc/paperless-anywhere/tls ] && cp -a /etc/paperless-anywhere/tls/. "$extra/"
+  MARK_KEY="$mark_key" python3 - "$extra/vault-mark.json" <<'PY' || fail "could not write the backup's mark"
+import hashlib, hmac, json, os, secrets, sys
+nonce = secrets.token_hex(16)
+mac = hmac.new(bytes.fromhex(os.environ["MARK_KEY"]), ("paperless-anywhere/backup-archive/v1\n" + nonce).encode(), hashlib.sha256).hexdigest()
+with open(os.open(sys.argv[1], os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+    json.dump({"v": 1, "nonce": nonce, "mac": mac}, f)
+PY
+  export EXPORT_EXTRA_DIR="$extra"
+elif [ -d /etc/paperless-anywhere/tls ]; then
+  export EXPORT_EXTRA_DIR=/etc/paperless-anywhere/tls
+fi
 # While it runs, its latest lines go to the status page (the app shows them).
 : > "$log_dir/backup.log.run"
 node backup.mjs run > "$log_dir/backup.log.run" 2>&1 &
@@ -224,6 +251,26 @@ print(json.dumps({"name": e.get("name"), "date": e.get("date"), "pieceCid": e.ge
   "copies": [{k: c.get(k) for k in keep} for c in e.get("copies", [])],
   "failedAttempts": len(e.get("failedAttempts", []))}))' \
   "$( [ "$role" = primary ] && echo ledger.json || echo ledger.calibration.json )")"
+# The vault's MAC over the piece CID, in the entry and in the list of every
+# backup this VM made (the app reads it from the private status page).
+if [ -n "$mark_key" ]; then
+  entry="$(printf '%s' "$entry" | MARK_KEY="$mark_key" python3 -c '
+import hashlib, hmac, json, os, sys
+e = json.load(sys.stdin)
+cid = e.get("pieceCid")
+if isinstance(cid, str) and cid:
+    e["vaultMark"] = hmac.new(bytes.fromhex(os.environ["MARK_KEY"]), ("paperless-anywhere/backup-piece/v1\n" + cid).encode(), hashlib.sha256).hexdigest()
+    path = sys.argv[1]
+    try:
+        marks = json.load(open(path))
+        marks = marks if isinstance(marks, list) else []
+    except Exception:
+        marks = []
+    marks = [m for m in marks if isinstance(m, dict) and m.get("pieceCid") != cid] + [{"pieceCid": cid, "mark": e["vaultMark"]}]
+    json.dump(marks[-200:], open(path + ".tmp", "w"))
+    os.replace(path + ".tmp", path)
+print(json.dumps(e))' "$lib/backup-marks.json")" || fail "could not mark the backup"
+fi
 # Fewer copies than requested (a provider refused the piece; the tool went on
 # with the others): "partial", exit 2. The fingerprint is not recorded, so the
 # next check tries every provider again; a stop does not erase the VM without

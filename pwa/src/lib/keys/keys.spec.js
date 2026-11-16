@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
-import { alephPrivateKey, backupPrivateKey, deriveBytes, fixedHostLabel, LABELS, newMasterSecret, paperlessSecrets, statusToken } from './derive.js';
+import { alephPrivateKey, backupMarkKey, backupPrivateKey, deriveBytes, pieceMark, fixedHostLabel, LABELS, newMasterSecret, paperlessSecrets, statusToken } from './derive.js';
 import { newSeedPhrase, seal, sealingKeyFromPrf, sealingKeyFromSeedPhrase, unseal } from './seal.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -84,5 +84,26 @@ describe('backupPrivateKey', () => {
 		expect(LABELS.backupKey).toBe('paperless-anywhere/backup-key/v1');
 		expect(() => backupPrivateKey(master, -1)).toThrow();
 		expect(() => backupPrivateKey(master, 1.5)).toThrow();
+	});
+});
+
+describe('the backup mark', () => {
+	const master = newMasterSecret();
+	it('is a key of its own, as 64 hex', () => {
+		expect(backupMarkKey(master)).toMatch(/^[0-9a-f]{64}$/);
+		expect(backupMarkKey(master)).toBe(backupMarkKey(master));
+		expect(backupMarkKey(master)).not.toBe(backupMarkKey(newMasterSecret()));
+		expect(LABELS.backupMark).toBe('paperless-anywhere/backup-mark/v1');
+	});
+	it('marks a piece CID with an HMAC that differs per vault and per piece', () => {
+		expect(pieceMark(master, 'bafkzcibexampleone')).toMatch(/^[0-9a-f]{64}$/);
+		expect(pieceMark(master, 'bafkzcibexampleone')).not.toBe(pieceMark(master, 'bafkzcibexampletwo'));
+		expect(pieceMark(master, 'bafkzcibexampleone')).not.toBe(pieceMark(newMasterSecret(), 'bafkzcibexampleone'));
+	});
+	it('matches what the VM computes (HMAC-SHA256 over the context and the CID)', () => {
+		// A fixed master, so the value is the VM's (paperless-backup, Python's hmac) as well.
+		const fixed = new Uint8Array(32).fill(7);
+		expect(backupMarkKey(fixed)).toBe('686084a07093e5ff88469b077a85990e79ce3b39e4acf9a560add7cd0c52b916');
+		expect(pieceMark(fixed, 'bafkzcibexample')).toBe('8fd91189d174475c4909a63ed8e8afe2f0bd20d41ffefa6294c5fc988fd41b3f');
 	});
 });

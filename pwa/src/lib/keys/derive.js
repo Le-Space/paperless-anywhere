@@ -2,6 +2,7 @@
 // a distinct label per purpose: the same secret always gives the same keys,
 // and one key reveals nothing about another.
 import { hkdf } from '@noble/hashes/hkdf.js';
+import { hmac } from '@noble/hashes/hmac.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 
 const encoder = new TextEncoder();
@@ -34,7 +35,11 @@ export const LABELS = Object.freeze({
 	// The passphrase of this vault's own image (docs/own-image.md), one per
 	// plain image (`/<its SHA-256>` after the label): the 24 words alone open
 	// every image that was ever built for the vault.
-	imagePassphrase: 'paperless-anywhere/image-passphrase/v1'
+	imagePassphrase: 'paperless-anywhere/image-passphrase/v1',
+	// The key that binds backups to this vault: the VM seals a mark into each
+	// backup and reports a MAC over each piece CID with it; a restore and the
+	// app's list take only backups that carry them (docs/keys-and-recovery.md).
+	backupMark: 'paperless-anywhere/backup-mark/v1'
 });
 
 // The order of secp256k1: a private key must be in [1, n).
@@ -125,3 +130,18 @@ export function newMasterSecret() {
 
 /** The secret path segment of the VM's detailed status page (32 hex). @param {Uint8Array} master */
 export const statusToken = (master) => hex(deriveBytes(master, LABELS.statusToken)).slice(0, 32);
+
+/** The key that binds backups to this vault, as 64 hex (the VM's backup_mark_key). @param {Uint8Array} master */
+export const backupMarkKey = (master) => hex(deriveBytes(master, LABELS.backupMark));
+
+/** What a MAC over a piece CID says: the VM's paperless-backup makes the same. */
+export const PIECE_MARK_CONTEXT = 'paperless-anywhere/backup-piece/v1\n';
+
+/**
+ * The MAC this vault's VMs report for a backup's piece CID (its first part's,
+ * for a backup in parts): HMAC-SHA256 with the backup mark key, as 64 hex.
+ * @param {Uint8Array} master @param {string} pieceCid
+ */
+export function pieceMark(master, pieceCid) {
+	return hex(hmac(sha256, deriveBytes(master, LABELS.backupMark), encoder.encode(`${PIECE_MARK_CONTEXT}${pieceCid}`)));
+}

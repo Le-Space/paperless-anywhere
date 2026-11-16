@@ -69,6 +69,13 @@ if backup and backup.get("status") in ("done", "partial", "failed") and backup !
     except OSError:
         pass
     last = backup
+# Every backup this VM made with the vault's mark (paperless-backup): piece
+# CID and the vault's MAC over it, for the app to check. Only on the private page.
+try:
+    marks = json.load(open("/var/lib/paperless-anywhere/backup-marks.json"))
+    marks = [{"pieceCid": str(m["pieceCid"]), "mark": str(m["mark"])} for m in marks if isinstance(m, dict) and "pieceCid" in m and "mark" in m][-200:]
+except Exception:
+    marks = []
 def usage(path):
     try:
         st = os.statvfs(path)
@@ -129,7 +136,7 @@ elif up:
     phase = "ready"
 else:
     phase = "starting"
-full = {"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "lastBackup": last, "backupSchedule": schedule, "backupRequest": request, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "netHardening": net, "disks": disks, "memory": memory(), "storage": storage(), "at": now}
+full = {"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "lastBackup": last, "backupSchedule": schedule, "backupRequest": request, "backupMarks": marks, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "netHardening": net, "disks": disks, "memory": memory(), "storage": storage(), "at": now}
 # The details only at a path the app that started this VM derives from its
 # vault (the status_token secret); the public page says no more than the phase.
 token = ""

@@ -29,7 +29,8 @@
 			// Through Le Space Credits, the data sets the service lists for this account.
 			const ids = profile.backupsByCredits && !profile.backupOwner ? (await creditsBalance(master).catch(() => null))?.backup?.dataSets : undefined;
 			const list = await listBackups({ network: profile.network ?? 'calibration', ...listing, ...(ids ? { dataSetIds: ids } : {}) });
-			const newest = list[0];
+			// Only a backup with this vault's mark: the trial asks nothing more.
+			const newest = list.find((b) => (profile.vaultBackups ?? []).includes(b.pieceCid));
 			if (!newest) throw new Error(tr().life.trial.noBackup);
 			const entry = restoreEntry(newest);
 			const run = await startTrial(master, $state.snapshot(profile), entry, ({ detail, step: s }) => (step = detail ?? s), {
