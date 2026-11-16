@@ -160,43 +160,43 @@ export const backup = {
 		},
 		chain: {
 			title: 'Was die Chain sagt',
-			intro: 'Für jede Kopie liest die App selbst aus den Filecoin-Verträgen (PDPVerifier, Filecoin Warm Storage, Filecoin Pay), ob sie noch da ist. Den Anbieter fragt sie dafür nicht. Sie liest über einen öffentlichen Filecoin-Knoten (Glif) und vertraut dessen Antworten; die Nachweise selbst rechnet sie nicht nach.',
+			intro: 'Für jede Kopie liest die App selbst aus den Filecoin-Verträgen (PDPVerifier, Filecoin Warm Storage, Filecoin Pay), ob sie noch da ist. Den Anbieter fragt sie dafür nicht. Sie liest über einen öffentlichen Filecoin-Knoten (Glif) und vertraut dessen Antworten; die Beweise selbst rechnet sie nicht nach.',
 			check: 'Jetzt prüfen',
 			checking: 'Lese die Chain …',
 			checkedAt: (/** @type {string} */ when, /** @type {string} */ epoch) => `Gelesen ${when}, bei Epoche ${epoch}.`,
 			unreadable: (/** @type {string} */ reason) => `Die Chain ließ sich für diese Kopie nicht lesen: ${reason}`,
-			copy: (provider, place, dataSet) => `Kopie bei Anbieter ${provider}${place ? ` (${place})` : ''} · Data Set ${dataSet}`,
+			copy: (provider, place, dataSet) => `Kopie bei Anbieter ${provider}${place ? ` (${place})` : ''} · Datensatz ${dataSet}`,
 			copyState: { app: 'alles in Ordnung', failed: 'Problem', off: 'nicht vollständig gelesen' },
-			noDataSets: 'Für diese Sicherung nennt die Liste kein Data Set; die App kann ihre Kopien nicht auf der Chain prüfen.',
+			noDataSets: 'Für diese Sicherung nennt die Liste keinen Datensatz; die App kann ihre Kopien nicht auf der Chain prüfen.',
 			states: { app: 'von der App geprüft', reported: 'vom Anbieter gemeldet', failed: 'Problem', off: 'keine Angabe', run: 'wird gelesen' },
-			lights: { dataSet: 'Data Set aktiv', lastProof: 'Letzter Nachweis', nextChallenge: 'Nächste Prüfung', faults: 'Verpasste Nachweise', paid: 'Bezahlt bis', sample: 'Stichprobe beim Anbieter' },
+			lights: { dataSet: 'Datensatz aktiv', lastProof: 'Letzter Beweis', nextChallenge: 'Nächste Stichprobe', faults: 'Verpasste Beweise', paid: 'Bezahlt bis', sample: 'Probeabruf beim Anbieter' },
 			notes: {
 				dataSet: {
 					live: (/** @type {number} */ n) => (n === 1 ? 'ja, mit dem Stück dieser Sicherung' : `ja, mit den ${n} Stücken dieser Sicherung`),
 					liveSet: 'ja',
-					notLive: 'nein: Der PDPVerifier führt das Data Set nicht mehr.',
-					piecesGone: (/** @type {number} */ n, /** @type {number} */ of) => `${n} von ${of} Stücken dieser Sicherung sind nicht mehr im Data Set.`,
-					ending: (/** @type {string} */ when) => `Der Dienst für dieses Data Set ist gekündigt; er endet ${when}.`,
+					notLive: 'nein: Der PDPVerifier führt den Datensatz nicht mehr.',
+					piecesGone: (/** @type {number} */ n, /** @type {number} */ of) => `${n} von ${of} Stücken dieser Sicherung sind nicht mehr im Datensatz.`,
+					ending: (/** @type {string} */ when) => `Der Dienst für diesen Datensatz ist gekündigt; er endet ${when}.`,
 					unread: 'nicht gelesen'
 				},
 				lastProof: {
 					recent: (/** @type {string} */ when, /** @type {string} */ epoch) => `${when} (Epoche ${epoch})`,
-					old: (/** @type {string} */ when, /** @type {string} */ epoch) => `${when} (Epoche ${epoch}), länger als zwei Prüfzeiträume her`,
+					old: (/** @type {string} */ when, /** @type {string} */ epoch) => `${when} (Epoche ${epoch}), länger als zwei Beweisperioden her`,
 					none: 'noch keiner',
 					unread: 'nicht gelesen'
 				},
 				nextChallenge: {
 					scheduled: (/** @type {string} */ when, /** @type {string} */ epoch) => `${when} (Epoche ${epoch})`,
-					due: (/** @type {string} */ when, /** @type {string} */ epoch) => `fällig seit ${when} (Epoche ${epoch}); der Nachweis läuft`,
-					overdue: (/** @type {string} */ when, /** @type {string} */ epoch) => `Frist ${when} (Epoche ${epoch}) ohne Nachweis verstrichen`,
+					due: (/** @type {string} */ when, /** @type {string} */ epoch) => `fällig seit ${when} (Epoche ${epoch}); der Beweis läuft`,
+					overdue: (/** @type {string} */ when, /** @type {string} */ epoch) => `Frist ${when} (Epoche ${epoch}) ohne Beweis verstrichen`,
 					none: 'keine geplant',
 					unread: 'nicht gelesen'
 				},
 				faults: {
-					none: (/** @type {number} */ n) => `keine in den letzten ${n} Prüfzeiträumen`,
-					missed: (/** @type {number} */ n, /** @type {number} */ of) => `${n} von ${of} Prüfzeiträumen ohne Nachweis`,
-					noneEnded: 'noch kein Prüfzeitraum abgelaufen',
-					notStarted: 'Nachweise haben noch nicht begonnen',
+					none: (/** @type {number} */ n) => `keine in den letzten ${n} Beweisperioden`,
+					missed: (/** @type {number} */ n, /** @type {number} */ of) => `${n} von ${of} Beweisperioden ohne Beweis (Fehler)`,
+					noneEnded: 'noch keine Beweisperiode abgelaufen',
+					notStarted: 'Beweise haben noch nicht begonnen',
 					unread: 'nicht gelesen'
 				},
 				paid: {
@@ -204,7 +204,7 @@ export const backup = {
 					runOut: 'Das zahlende Konto deckt die Speicherung nicht mehr.',
 					railEnded: (/** @type {string} */ when) => `Die Zahlung ist beendet; sie endet ${when}.`,
 					noRate: 'gedeckt, ohne absehbares Ende',
-					noRail: 'Kein Zahlungsweg für dieses Data Set.',
+					noRail: 'Kein Zahlungsweg für diesen Datensatz.',
 					unread: 'nicht gelesen'
 				},
 				sample: {
@@ -402,7 +402,7 @@ export const backup = {
 			copyState: { app: 'all well', failed: 'problem', off: 'not fully read' },
 			noDataSets: 'The list names no data set for this backup; the app cannot check its copies on the chain.',
 			states: { app: 'checked by the app', reported: 'reported by the provider', failed: 'problem', off: 'no answer', run: 'reading' },
-			lights: { dataSet: 'Data set active', lastProof: 'Last proof', nextChallenge: 'Next challenge', faults: 'Missed proofs', paid: 'Paid until', sample: 'Sample from the provider' },
+			lights: { dataSet: 'Data set active', lastProof: 'Last proof', nextChallenge: 'Next challenge', faults: 'Missed proofs', paid: 'Paid until', sample: 'Test fetch from the provider' },
 			notes: {
 				dataSet: {
 					live: (/** @type {number} */ n) => (n === 1 ? 'yes, with the piece of this backup' : `yes, with the ${n} pieces of this backup`),
@@ -427,7 +427,7 @@ export const backup = {
 				},
 				faults: {
 					none: (/** @type {number} */ n) => `none in the last ${n} proving periods`,
-					missed: (/** @type {number} */ n, /** @type {number} */ of) => `${n} of ${of} proving periods without a proof`,
+					missed: (/** @type {number} */ n, /** @type {number} */ of) => `${n} of ${of} proving periods without a proof (faults)`,
 					noneEnded: 'no proving period has ended yet',
 					notStarted: 'proving has not started yet',
 					unread: 'not read'

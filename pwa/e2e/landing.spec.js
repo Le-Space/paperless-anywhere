@@ -109,6 +109,22 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.getByTestId('state')).toHaveText('new');
 });
 
+test('the backup section says how a provider proves it still has the backup, with the maths and its limits', async ({ page }) => {
+	await page.context().route(/^https?:\/\/(?!localhost)/, (route) => route.abort());
+	await page.goto('/');
+	const proof = page.getByTestId('backup-proof');
+	await expect(proof.getByRole('heading', { level: 3 })).toHaveText('Woher weiß ich, dass meine Sicherung noch da ist?');
+	await expect(proof).toContainText('Die Beweise prüft ein Vertrag auf der Filecoin-Kette, nicht Le Space');
+	await page.getByTestId('backup-proof-maths').locator('summary').click();
+	await expect(proof).toContainText('Blätter zu je 32 Byte');
+	await expect(proof).toContainText('höchstens 24 Stunden (2880 Epochen zu 30 Sekunden)');
+	await expect(page.getByTestId('backup-proof-table').locator('tbody tr')).toHaveText([/^100 %.*100 %\s*100 %\s*100 %$/, /^10 %\s*41 %\s*97,5 %\s*> 99,99 %$/, /^1 %\s*4,9 %\s*30 %\s*78 %$/, /^0,1 %\s*0,5 %\s*3,4 %\s*14 %$/]);
+	await expect(proof).toContainText('PDP beweist Besitz, nicht die Herausgabe');
+	await expect(proof.getByRole('link', { name: /Mit Quellen und den Verträgen/ })).toHaveAttribute('href', /docs\/backup-proofs\.md$/);
+	await page.goto('/en/');
+	await expect(page.getByTestId('backup-proof').getByRole('heading', { level: 3 })).toHaveText('How do I know my backup is still there?');
+});
+
 test('search engines find a robots.txt, a sitemap with both languages, and leave the app out', async ({ request }) => {
 	const robots = await (await request.get('/robots.txt')).text();
 	expect(robots).toContain('Sitemap: https://paperless.le-space.de/sitemap.xml');

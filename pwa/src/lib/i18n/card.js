@@ -4,7 +4,6 @@
 export const card = {
 	de: {
 		steps: { measure: 'Messwerte berechnen', instance: 'VM anfordern und platzieren', network: 'Port 443 und Adresse', unlock: 'VM prüfen (AMD) und entsperren', ready: 'Paperless-ngx startet (Container, Zertifikat)', stop: 'Stopp anfordern (letzte Sicherung)', forget: 'VM löschen', preparing: 'Vorbereiten' },
-		substeps: { docker: 'Docker bereit', images: 'Container-Images geladen', containers: 'Container laufen', cert: 'Zertifikat ausgestellt', paperless: 'Paperless-ngx antwortet' },
 		ago: { now: 'gerade eben', minutes: (/** @type {number} */ n) => `vor ${n} Minuten`, hours: (/** @type {number} */ n) => `vor ${n} ${n === 1 ? 'Stunde' : 'Stunden'}`, days: (/** @type {number} */ n) => `vor ${n} Tagen` },
 		dated: (/** @type {string} */ when) => `, vom ${when}`,
 		provider: (/** @type {string | number} */ id) => `Anbieter ${id}`,
@@ -114,8 +113,6 @@ export const card = {
 			roleTest: 'Startet als Test: Mail-Regeln aus, Sicherungen ins Testnetz.',
 			stillMissing: (/** @type {string} */ what) => `Es fehlt noch: ${what}`,
 			usual: (/** @type {string} */ time) => `(üblich ca. ${time})`,
-			after: (/** @type {number} */ s) => `nach ${s} s`,
-			statusLater: 'Die Status-Seite der VM antwortet erst, wenn ihr Zertifikat da ist. Bis dahin lädt sie die Container-Images (der längste Teil); die Einzelschritte erscheinen dann hier.',
 			total: (/** @type {string} */ time, /** @type {string} */ usual) => `Gesamt: ${time} · üblich ca. ${usual}`,
 			vmSays: 'Was die VM zur Sicherung meldet'
 		},
@@ -136,7 +133,6 @@ export const card = {
 	},
 	en: {
 		steps: { measure: 'Computing the measurements', instance: 'Requesting and placing the VM', network: 'Port 443 and address', unlock: 'Checking the VM (AMD) and unlocking', ready: 'Paperless-ngx is starting (containers, certificate)', stop: 'Requesting the stop (last backup)', forget: 'Deleting the VM', preparing: 'Preparing' },
-		substeps: { docker: 'Docker ready', images: 'Container images loaded', containers: 'Containers running', cert: 'Certificate issued', paperless: 'Paperless-ngx answers' },
 		ago: { now: 'just now', minutes: (/** @type {number} */ n) => `${n} minutes ago`, hours: (/** @type {number} */ n) => `${n} ${n === 1 ? 'hour' : 'hours'} ago`, days: (/** @type {number} */ n) => `${n} days ago` },
 		dated: (/** @type {string} */ when) => `, from ${when}`,
 		provider: (/** @type {string | number} */ id) => `provider ${id}`,
@@ -246,8 +242,6 @@ export const card = {
 			roleTest: 'Starts as a test: mail rules off, backups to the test network.',
 			stillMissing: (/** @type {string} */ what) => `Still missing: ${what}`,
 			usual: (/** @type {string} */ time) => `(usually about ${time})`,
-			after: (/** @type {number} */ s) => `after ${s} s`,
-			statusLater: 'The VM’s status page answers only once its certificate is there. Until then it loads the container images (the longest part); the single steps then appear here.',
 			total: (/** @type {string} */ time, /** @type {string} */ usual) => `Total: ${time} · usually about ${usual}`,
 			vmSays: 'What the VM reports about the backup'
 		},

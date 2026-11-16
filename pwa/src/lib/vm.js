@@ -191,7 +191,9 @@ export async function vmStatus(host, token) {
 /** FORGET the instance on behalf of the payer (the node then stops it). */
 export async function forgetInstance(app, payer, itemHash, reason = 'paperless-anywhere stop') {
 	const unsigned = await createUnsignedForgetMessage({ sender: payer, hashes: [itemHash], reason, hasher: sha256Hex, channel: CHANNEL });
-	return broadcast(await signAsDelegate(unsigned, app));
+	const signed = await signAsDelegate(unsigned, app);
+	// The FORGET's own hash, for its link under "Nachweis".
+	return { ...(await broadcast(signed)), itemHash: String(signed.item_hash) };
 }
 
 /**

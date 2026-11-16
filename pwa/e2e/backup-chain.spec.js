@@ -133,14 +133,14 @@ test.describe('German', () => {
 
 		const good = chain.getByTestId('chain-copy-500');
 		await expect(good).toHaveAttribute('data-state', 'app');
-		await expect(good).toContainText('Kopie bei Anbieter 9 (DE, Musterstadt) · Data Set 500');
+		await expect(good).toContainText('Kopie bei Anbieter 9 (DE, Musterstadt) · Datensatz 500');
 		for (const id of ['dataSet', 'lastProof', 'nextChallenge', 'faults', 'paid']) await expect(good.getByTestId(`chain-${id}`)).toHaveAttribute('data-state', 'app');
-		await expect(good.getByTestId('chain-faults')).toContainText('keine in den letzten 20 Prüfzeiträumen');
+		await expect(good.getByTestId('chain-faults')).toContainText('keine in den letzten 20 Beweisperioden');
 		await expect(good.getByTestId('chain-lastProof')).toContainText(`Epoche ${NOW - 100n}`);
 
 		const bad = chain.getByTestId('chain-copy-501');
 		await expect(bad).toHaveAttribute('data-state', 'failed');
-		await expect(bad.getByTestId('chain-faults')).toContainText('2 von 20 Prüfzeiträumen ohne Nachweis');
+		await expect(bad.getByTestId('chain-faults')).toContainText('2 von 20 Beweisperioden ohne Beweis');
 
 		// The provider is asked only on the button, and what it sends is blue, never green.
 		await expect(good.getByTestId('chain-sample')).toHaveCount(0);

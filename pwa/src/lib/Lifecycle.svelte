@@ -34,6 +34,8 @@
 	import { format, lang as appLanguage, t as i18n, tr } from '$lib/i18n/index.js';
 	import StartPanel from '$lib/StartPanel.svelte';
 	import { panelTimes, startPanel } from '$lib/start-panel.js';
+	import { stopPanel } from '$lib/stop-panel.js';
+	import { stopEvidenceRows } from '$lib/evidence.js';
 	import { RUNTIME } from '$lib/runtime-pin.js';
 	import { ALEPH_API } from '$lib/aleph.js';
 	import { isNetworkError, preloadAttestWasm } from '$lib/attest-wasm-load.js';
@@ -78,16 +80,6 @@
 	let times = $state({});
 	let current = $state('');
 	let startedAt = $state(0);
-	/** @type {any} the VM's status page during the last step, once it answers */
-	let vmStart = $state(null);
-	// What the VM reports about its own start (status page v2), in order.
-	const SUBSTEPS = [
-		{ key: 'docker' },
-		{ key: 'images' },
-		{ key: 'containers' },
-		{ key: 'cert' },
-		{ key: 'paperless' }
-	];
 	// What the start panel's lights are lit from: the library's phase within
 	// the unlock, what the unlock returned, the VM's status page, and whether
 	// this start restores a backup.
@@ -97,27 +89,47 @@
 	/** @type {any} */
 	let vmPage = $state(null);
 	let startRestores = $state(false);
+	// What a stop or an erase panel is lit from, besides the status page: the
+	// request sent, the backup's log lines seen so far, what the node, Aleph
+	// and Le Space's service answered, and whether the backup went into the list.
+	let stopSent = $state(false);
+	/** @type {string[]} */
+	let vmLines = $state([]);
+	/** @type {{ node?: string | null, forgot?: string, revoke?: string } | null} */
+	let eraseSeen = $state(null);
+	/** @type {boolean | null} */
+	let listedSeen = $state(null);
+	/** @type {{ status: any, erase: typeof eraseSeen, instanceHash: string } | null} the last stop's facts, for its evidence */
+	let stopDone = $state(null);
 	let now = $state(Date.now());
 	let ticker = 0;
 	const track = (/** @type {'start' | 'stop' | 'discard'} */ kind) => {
 		action = kind;
 		times = {};
-		vmStart = null;
 		libPhase = '';
 		unlockSeen = null;
 		vmPage = null;
 		current = '';
+		stopSent = false;
+		vmLines = [];
+		eraseSeen = null;
+		listedSeen = null;
+		stopDone = null;
 		startedAt = Date.now();
 		clearInterval(ticker);
 		ticker = setInterval(() => (now = Date.now()), 1000);
-		return (/** @type {{ step: string, detail?: string, status?: any, instanceHash?: string, phase?: string, already?: boolean, injected?: string[], attestation?: any }} */ { step, detail, status, instanceHash, phase, already, injected, attestation }) => {
+		return (/** @type {{ step: string, detail?: string, status?: any, instanceHash?: string, phase?: string, already?: boolean, injected?: string[], attestation?: any, sent?: boolean, erase?: any }} */ { step, detail, status, instanceHash, phase, already, injected, attestation, sent, erase }) => {
 			progress = detail ?? step;
+			if (sent) stopSent = true;
+			if (erase) eraseSeen = erase;
+			// The status page shows the backup's last three lines only: keep all seen.
+			const lines = status?.backup?.log;
+			if (Array.isArray(lines)) vmLines = [...vmLines, ...lines.filter((l) => !vmLines.includes(l))].slice(-200);
 			if (step === 'unlock' && phase) libPhase = phase;
 			if (already) unlockSeen = { already: true };
 			if (injected) unlockSeen = { injected, attestation };
 			if (status) vmPage = status;
 			if (instanceHash) startingInstance.set(instanceHash);
-			if (status?.start) vmStart = status.start;
 			if (step !== current) {
 				if (current && times[current]) times[current].to = Date.now();
 				times[step] = { from: Date.now() };
@@ -191,9 +203,18 @@
 	);
 	const panelT = $derived(panelTexts[$appLanguage]);
 	const startShown = $derived(action === 'start' && (busy || Object.keys(times).length > 0));
+	const stopShown = $derived((action === 'stop' || action === 'discard') && (busy || Object.keys(times).length > 0));
 	const panel = $derived(
-		startShown ? startPanel({ step: current, libPhase, unlock: unlockSeen, status: vmPage, restore: startRestores, finished: !busy && Boolean(profile.running), failed: !busy && !profile.running && Boolean(error) }) : []
+		startShown ? startPanel({ step: current, libPhase, unlock: unlockSeen, status: vmPage, restore: startRestores, finished: !busy && Boolean(profile.running), failed: !busy && !profile.running && Boolean(error) })
+		: stopShown ? stopPanel({ kind: action === 'discard' ? 'discard' : 'stop', sent: stopSent, status: vmPage, lines: vmLines, erase: eraseSeen, listed: listedSeen, busy, finished: !busy && !profile.running && !error, failed: !busy && Boolean(error) })
+		: []
 	);
+	// The stop's texts: the start's states and legend, its own rows and lights.
+	const panelShownT = $derived(
+		stopShown ? { ...panelT, ...panelT.stop, ...(action === 'discard' ? { title: panelT.stop.titleDiscard, after: panelT.stop.afterDiscard } : {}) } : panelT
+	);
+	// After a stop: where the backup went and how the VM was forgotten.
+	const stopEvidence = $derived(stopDone && !busy ? stopEvidenceRows({ ...stopDone, alephApi: ALEPH_API }) : []);
 	const checkAgain = async () => {
 		await attestRunning(master, $state.snapshot(profile));
 		profile = await loadProfile(master);
@@ -637,7 +658,11 @@
 	};
 	const eraseAnyway = () => answer(async (p) => {
 		await reload();
-		finishStop(await eraseStopped(master, $state.snapshot(profile), p.status, track('stop')));
+		const on = track('stop');
+		// The stop's backup, as the VM reported it before it asked.
+		stopSent = true;
+		vmPage = p.status;
+		finishStop(await eraseStopped(master, $state.snapshot(profile), p.status, on));
 	});
 	const keepVm = () => answer(async () => {
 		progress = tr().card.progress.restart;
@@ -646,6 +671,7 @@
 	/** @param {any} status the VM's status page at the end of the stop */
 	async function finishStop(status) {
 		const made = pieceCidOfStop(status);
+		const was = profile.running;
 		const result = status?.stop?.backup?.backup ?? null;
 		const goodAt = result?.date ?? status?.stop?.backup?.at ?? null;
 		profile = await updateProfile(master, ({ running, ...rest }) =>
@@ -658,6 +684,8 @@
 					}
 				: rest
 		);
+		listedSeen = Boolean(made);
+		stopDone = { status, erase: eraseSeen, instanceHash: String(was?.instanceHash ?? '') };
 		onchange();
 	}
 	// In the language shown: what a start still needs is named in words.
@@ -701,13 +729,15 @@
 	const TITLES = $derived(/** @type {Record<string, string>} */ (c.titles));
 	const backupsPending = $derived(Boolean(profile.ageIdentity && backupListing(profile) && backups === null));
 	// The panel's times: the same steps and stamps as the start's progress, one display.
+	// A stop's time stands at its last row the VM lights (the piece), the erase's at the erase.
+	const STOP_ROWS = /** @type {Record<string, string>} */ ({ stop: 'piece', forget: 'forget' });
 	const panelTook = $derived.by(() => {
-		if (!startShown) return {};
-		const took = panelTimes(STEPS.start.map((s) => ({ step: s.step, typical: typicalOf(s) })), times, now);
-		return Object.fromEntries(Object.entries(took).map(([id, x]) => [id, `${x.ms != null ? `${seconds(x.ms)} ` : ''}${c.advanced.usual(minutes(x.typical))}`]));
+		if (!action || !(startShown || stopShown)) return {};
+		const took = panelTimes(STEPS[action].map((s) => ({ step: s.step, typical: typicalOf(s) })), times, now);
+		return Object.fromEntries(Object.entries(took).map(([id, x]) => [stopShown ? STOP_ROWS[id] ?? id : id, `${x.ms != null ? `${seconds(x.ms)} ` : ''}${c.advanced.usual(minutes(x.typical))}`]));
 	});
 	const panelTotal = $derived(
-		startShown ? c.advanced.total(seconds((busy ? now : Object.values(times).reduce((m, t) => Math.max(m, t.to ?? 0), startedAt)) - startedAt), minutes(STEPS.start.reduce((a, s) => a + typicalOf(s), 0))) : ''
+		action && (startShown || stopShown) ? c.advanced.total(seconds((busy ? now : Object.values(times).reduce((m, t) => Math.max(m, t.to ?? 0), startedAt)) - startedAt), minutes(STEPS[action].reduce((a, s) => a + typicalOf(s), 0))) : ''
 	);
 	const typicalTotal = $derived(action ? STEPS[action].reduce((a, s) => a + typicalOf(s), 0) : 0);
 	const elapsed = $derived(Math.max(0, (now - startedAt) / 1000));
@@ -816,7 +846,7 @@
 		{#if phase === 'starting' || phase === 'stopping' || phase === 'discarding'}
 			<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(share * 100)} aria-label={TITLES[phase]}><span style="width: {Math.round(share * 100)}%"></span></div>
 			<p class="calm" data-testid="simple-progress">{c.simple.left(stepLabel, leftMinutes)}</p>
-			{#if startShown}<StartPanel rows={panel} t={panelT} times={panelTook} total={panelTotal} />{/if}
+			{#if startShown || stopShown}<StartPanel rows={panel} t={panelShownT} times={panelTook} total={panelTotal} testid={stopShown ? 'stop-panel' : 'start-panel'} />{/if}
 		{:else if phase === 'running'}
 			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="simple-open">{c.simple.open}</a>
 			{#if profile.running.restore?.status === 'failed'}<p class="error">{c.simple.restoreFailed}</p>{/if}
@@ -852,6 +882,9 @@
 				<Storage {master} {profile} />
 			{/if}
 		{/if}
+		<!-- A stop's or an erase's panel stays once it is over, with where the backup went. -->
+		{#if stopShown && !busy}<StartPanel rows={panel} t={panelShownT} times={panelTook} total={panelTotal} testid="stop-panel" />{/if}
+		{#if stopEvidence.length}<Evidence rows={stopEvidence} t={{ ...evidenceT, title: evidenceT.stopTitle }} />{/if}
 		{#if chainBackup}<BackupChain network={profile.network ?? 'calibration'} backup={chainBackup} />{/if}
 		{#if phase !== 'running' && profile.trial}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
@@ -933,39 +966,9 @@
 			{#if BUILDER && hasOwnImage(profile, BUILDER.plain.sha256)}<button class="quiet" onclick={showCertificate} data-testid="open-certificate">{$i18n.first.cert.open}</button>{/if}
 		{/if}
 		{#if startShown}<StartPanel rows={panel} t={panelT} times={panelTook} total={panelTotal} />{/if}
-		<!-- A start shows the panel only; a stop or an erase shows its steps with their times. -->
-		{#if action && action !== 'start' && (busy || Object.keys(times).length)}
-			<ol class="steps" data-testid="progress-steps">
-				{#each STEPS[action] as s (s.step)}
-					{@const t = times[s.step]}
-					<li class:done={t?.to} class:active={t && !t.to}>
-						<span class="mark">{t?.to ? '✓' : t ? '▶' : '·'}</span>
-						{/** @type {Record<string, string>} */ (c.steps)[s.step]}
-						<small>
-							{#if t}{seconds((t.to ?? now) - t.from)}{/if}
-							{c.advanced.usual(minutes(typicalOf(s)))}
-						</small>
-						{#if s.step === 'ready' && t}
-							{#if vmStart?.timeline}
-								<ul class="substeps" data-testid="vm-substeps">
-									{#each SUBSTEPS as sub (sub.key)}
-										{@const at = vmStart.timeline[sub.key]}
-										<li class:done={at}>
-											<span class="mark">{at ? '✓' : '·'}</span>{/** @type {Record<string, string>} */ (c.substeps)[sub.key]}
-											{#if sub.key === 'images' && vmStart.imagesTotal}<small>{vmStart.images}/{vmStart.imagesTotal}</small>{/if}
-											{#if at}<small>{c.advanced.after(at - vmStart.timeline.unlocked)}</small>{/if}
-										</li>
-									{/each}
-								</ul>
-							{:else if !t.to}
-								<p class="hint">{c.advanced.statusLater}</p>
-							{/if}
-						{/if}
-					</li>
-				{/each}
-			</ol>
-			<p class="hint">{c.advanced.total(seconds((busy ? now : Object.values(times).reduce((m, t) => Math.max(m, t.to ?? 0), startedAt)) - startedAt), minutes(STEPS[action].reduce((a, s) => a + typicalOf(s), 0)))}</p>
-		{/if}
+		<!-- A start, a stop and an erase each show their panel only, with the times per row. -->
+		{#if stopShown}<StartPanel rows={panel} t={panelShownT} times={panelTook} total={panelTotal} testid="stop-panel" />{/if}
+		{#if stopEvidence.length}<Evidence rows={stopEvidence} t={{ ...evidenceT, title: evidenceT.stopTitle }} />{/if}
 		{#if progress}<p data-testid="progress">{progress} …</p>{/if}
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
@@ -1054,15 +1057,6 @@
 	.backup-card dt { color: var(--text-2); }
 	.backup-card ul { padding-left: 1.2rem; }
 	@media (max-width: 480px) { .backup-card dl { grid-template-columns: 1fr; } }
-	.steps { list-style: none; padding: 0; margin: 0.75rem 0; }
-	.steps li { padding: 0.15rem 0; color: var(--text-2); }
-	.steps li.active { color: var(--text); font-weight: 600; }
-	.steps li.done { color: var(--ok); }
-	.steps .mark { display: inline-block; width: 1.2rem; }
-	.substeps { list-style: none; padding-left: 1.6rem; margin: 0.2rem 0; font-weight: normal; }
-	.substeps li { color: var(--text-2); }
-	.substeps li.done { color: var(--ok); }
-	.steps small { color: var(--text-2); font-weight: normal; margin-left: 0.4rem; }
 	.head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
 	.head h2 { margin: 0; font-size: 1.15rem; }
 	.purpose { color: var(--text-2); font-size: 0.9rem; margin: 0.25rem 0 0.75rem; }
