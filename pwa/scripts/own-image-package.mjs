@@ -29,8 +29,12 @@ import { relayTransports } from '../src/lib/attest-p2p.js';
 import { findAttestRelays } from '../src/lib/relays.js';
 
 const { PACKAGE_PHRASE = '', PACKAGE_PLAN = '', PACKAGE_RESULT = '' } = process.env;
-const phrase = PACKAGE_PHRASE.trim().split(/\s+/).join(' ');
-if (phrase.split(' ').length !== 24) throw new Error('PACKAGE_PHRASE: 24 words');
+// The words only, however the secret was pasted: line breaks, several
+// spaces, commas, quotes or numbering ("1. word") are dropped. Nothing of the
+// phrase is printed, not even its length.
+const words = PACKAGE_PHRASE.toLowerCase().match(/[a-z]+/g) ?? [];
+if (words.length !== 24) throw new Error('PACKAGE_PHRASE: expected the test vault\'s 24 words (letters only; spaces, line breaks, commas and numbering are ignored)');
+const phrase = words.join(' ');
 
 const t0 = Date.now();
 const at = () => Math.round((Date.now() - t0) / 1000);
