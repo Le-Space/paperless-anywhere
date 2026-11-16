@@ -1,5 +1,5 @@
 <script>
-	import { listProviders, outsideEu, pickProviders, sharedWarnings, storagePrices, monthlyCost, bytesPerCopy } from '$lib/providers.js';
+	import { independentCandidate, listProviders, oneOperator, outsideEu, pickProviders, sharedWarnings, storagePrices, monthlyCost, bytesPerCopy } from '$lib/providers.js';
 	import { amount } from '$lib/balances.js';
 	import { lang, t } from '$lib/i18n/index.js';
 
@@ -55,6 +55,17 @@
 	const changed = $derived(JSON.stringify(places) !== JSON.stringify({ copies: config.copies, providerIds: config.providerIds ?? [], regions: config.regions ?? [] }));
 	const valid = $derived(!!preview && !preview.problems.length && preview.picked.length >= 1 && (mode === 'region' || chosen.length <= 3));
 
+	// A provider whose operator already holds a chosen copy: not offered (two copies there fail together).
+	const twinOf = (/** @type {import('$lib/providers.js').Provider} */ p) => (chosen.includes(p.id) ? null : (providers ?? []).find((q) => chosen.includes(q.id) && oneOperator(q, p)) ?? null);
+	// One more copy at an operator that holds none yet, while fewer than three.
+	// The picked copies one per operator: a copy at an operator that holds one already does not count.
+	const independent = $derived(preview ? preview.picked.filter((p, i) => !preview.picked.slice(0, i).some((q) => oneOperator(q, p))) : []);
+	const third = $derived(preview && !preview.problems.length && independent.length >= 1 && independent.length < 3 && providers ? independentCandidate(providers, independent, mode === 'region' ? regions : []) : null);
+	const addThird = () => {
+		if (!third) return;
+		chosen = [...independent.map((p) => p.id), third.provider.id];
+		mode = 'providers';
+	};
 	const toggle = (id, on) => (chosen = on ? [...chosen.filter((x) => x !== id), id] : chosen.filter((x) => x !== id));
 </script>
 
@@ -103,6 +114,13 @@
 			{#each warnings as w}<p class="warn" data-testid="places-warning">{x.notIndependent(w)}</p>{/each}
 			{#if abroad.length}
 				<p class="warn" data-testid="places-outside-eu">{x.outsideEu(abroad.join(', '))}</p>
+			{/if}
+			{#if preview.operators !== undefined && preview.operators < preview.picked.length}<p class="warn" data-testid="places-few-operators">{x.fewOperators(preview.picked.length, preview.operators)}</p>{/if}
+			{#if third}
+				<div class="third" data-testid="places-third">
+					<p>{x.third.offer(`${third.provider.name} (${x.number(third.provider.id)})`, third.provider.place)}{third.inRegion ? '' : ` ${x.third.outside}`}</p>
+					<button type="button" onclick={addThird} disabled={busy} data-testid="places-add-third">{x.third.add}</button>
+				</div>
 			{/if}
 			{#if cost !== null && preview.picked.length}<p><small>{x.cost(amount(cost, 2, $lang), bytes ? amount(bytes / 1e9, 1, $lang) : null)}</small></p>{/if}
 		</div>

@@ -151,7 +151,22 @@ export const backup = {
 				notApproved: (/** @type {number} */ id) => `Anbieter ${id} ist nicht (mehr) zugelassen.`,
 				notActive: (/** @type {number} */ id, /** @type {string} */ name) => `Anbieter ${id} (${name}) ist nicht aktiv.`,
 				outsideRegion: (/** @type {number} */ id, /** @type {string} */ name) => `Anbieter ${id} (${name}) liegt außerhalb der Region.`,
-				tooFew: (/** @type {number} */ copies, /** @type {number} */ found) => `${copies} Kopien gewünscht, in der Region gibt es nur ${found} zugelassene Anbieter.`
+				tooFew: (/** @type {number} */ copies, /** @type {number} */ found) => `${copies} Kopien gewünscht, in der Region gibt es nur ${found} zugelassene Anbieter.`,
+				sameOperator: (/** @type {number} */ id, /** @type {string} */ name, /** @type {string} */ twin, /** @type {string} */ why) =>
+					`Anbieter ${id} (${name}) gehört zum selben Betreiber wie ${twin} (${why}). Zwei Kopien dort fallen zusammen aus: einen Anbieter eines anderen Betreibers wählen.`
+			},
+			signs: {
+				address: (/** @type {string} */ a) => `gleiche Adresse ${a.slice(0, 6)}…${a.slice(-4)}`,
+				domain: (/** @type {string} */ d) => `Domain ${d}`,
+				name: (/** @type {string} */ n) => `Name „${n}…“`
+			},
+			sameOperatorAs: (/** @type {string} */ name) => `gleicher Betreiber wie ${name}`,
+			fewOperators: (/** @type {number} */ copies, /** @type {number} */ found) =>
+				`In der Region gibt es nur ${found === 1 ? 'einen unabhängigen Betreiber' : `${found} unabhängige Betreiber`} für ${copies} Kopien. Was darüber hinausgeht, liegt bei einem Betreiber, der schon eine Kopie hat, und fällt mit ihr aus.`,
+			third: {
+				offer: (/** @type {string} */ name, /** @type {string} */ place) => `Eine weitere Kopie bei einem unabhängigen Betreiber: ${name}${place ? ` (${place})` : ''}.`,
+				outside: 'Er liegt außerhalb der gewählten Region.',
+				add: 'Diese Kopie hinzufügen'
 			},
 			shared: {
 				operator: (/** @type {string} */ a, /** @type {string} */ b, /** @type {string} */ operator) => `${a} und ${b} gehören demselben Betreiber (${operator}).`,
@@ -387,7 +402,22 @@ export const backup = {
 				notApproved: (/** @type {number} */ id) => `Provider ${id} is not approved (any more).`,
 				notActive: (/** @type {number} */ id, /** @type {string} */ name) => `Provider ${id} (${name}) is not active.`,
 				outsideRegion: (/** @type {number} */ id, /** @type {string} */ name) => `Provider ${id} (${name}) lies outside the region.`,
-				tooFew: (/** @type {number} */ copies, /** @type {number} */ found) => `${copies} copies wanted, the region has only ${found} approved ${found === 1 ? 'provider' : 'providers'}.`
+				tooFew: (/** @type {number} */ copies, /** @type {number} */ found) => `${copies} copies wanted, the region has only ${found} approved ${found === 1 ? 'provider' : 'providers'}.`,
+				sameOperator: (/** @type {number} */ id, /** @type {string} */ name, /** @type {string} */ twin, /** @type {string} */ why) =>
+					`Provider ${id} (${name}) belongs to the same operator as ${twin} (${why}). Two copies there fail together: choose a provider of another operator.`
+			},
+			signs: {
+				address: (/** @type {string} */ a) => `same address ${a.slice(0, 6)}…${a.slice(-4)}`,
+				domain: (/** @type {string} */ d) => `domain ${d}`,
+				name: (/** @type {string} */ n) => `name “${n}…”`
+			},
+			sameOperatorAs: (/** @type {string} */ name) => `same operator as ${name}`,
+			fewOperators: (/** @type {number} */ copies, /** @type {number} */ found) =>
+				`The region has only ${found === 1 ? 'one independent operator' : `${found} independent operators`} for ${copies} copies. Whatever goes beyond lies at an operator that already holds a copy, and fails with it.`,
+			third: {
+				offer: (/** @type {string} */ name, /** @type {string} */ place) => `One more copy at an independent operator: ${name}${place ? ` (${place})` : ''}.`,
+				outside: 'It lies outside the chosen region.',
+				add: 'Add this copy'
 			},
 			shared: {
 				operator: (/** @type {string} */ a, /** @type {string} */ b, /** @type {string} */ operator) => `${a} and ${b} belong to the same operator (${operator}).`,

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { explorerUrl, monthlyCost, outsideEu, pickProviders, providerIdsIn, regionCodes, sharedWarnings } from './providers.js';
+import { explorerUrl, independentCandidate, monthlyCost, outsideEu, pickProviders, providerIdsIn, regionCodes, sharedWarnings } from './providers.js';
 
 // Made-up providers, shaped like listProviders' answer (endorsed first).
 const p = (id, country, operator, extra = {}) => ({ id, name: `sp-${id}`, location: `C=${country};L=Stadt ${country}`, place: `${country}, Stadt ${country}`, country, operator, endorsed: false, active: true, ...extra });
@@ -28,10 +28,42 @@ describe('pickProviders', () => {
 	});
 
 	it('checks named providers', () => {
-		expect(pickProviders(list, { providerIds: [9, 2] })).toEqual({ picked: [list[0], list[2]], problems: [] });
+		expect(pickProviders(list, { providerIds: [9, 4] })).toEqual({ picked: [list[0], list[1]], problems: [] });
 		expect(pickProviders(list, { providerIds: [8] }).problems[0]).toMatch(/nicht aktiv/);
 		expect(pickProviders(list, { providerIds: [5] }).problems[0]).toMatch(/nicht \(mehr\) zugelassen/);
 		expect(pickProviders(list, { providerIds: [4], regions: ['EU'] }).problems[0]).toMatch(/außerhalb/);
+	});
+});
+
+describe('one operator', () => {
+	const fidl = [
+		p(36, 'FR', null, { name: 'Cello', endorsed: true, url: 'https://cello.fidl.tech', owner: '0x' + 'd'.repeat(40), payee: '0x' + 'd'.repeat(40) }),
+		p(37, 'PL', null, { name: 'Bass', endorsed: true, url: 'https://bass.fidl.tech', owner: '0x' + 'e'.repeat(40), payee: '0x' + 'e'.repeat(40) }),
+		p(43, 'FI', null, { name: 'ProbeLab', url: 'https://mainnet.pdp.probelab.io', owner: '0x' + 'f'.repeat(40), payee: '0x' + 'f'.repeat(40) }),
+		p(1, 'GB', null, { name: 'ezpdpz-main', url: 'https://main.ezpdpz.net', owner: '0x' + '1'.repeat(40), payee: '0x' + '1'.repeat(40) })
+	];
+	it('refuses two named copies at one operator while another could take one', () => {
+		const r = pickProviders(fidl, { providerIds: [36, 37, 1] });
+		expect(r.picked.map((x) => x.id)).toEqual([36, 1]);
+		expect(r.problems[0]).toMatch(/Anbieter 37 \(Bass\) gehört zum selben Betreiber wie Cello \(Domain fidl\.tech\)/);
+		expect(pickProviders(fidl, { providerIds: [36, 43, 1] }).problems).toEqual([]);
+	});
+	it('only warns where no other operator is there (Calibration: one operator)', () => {
+		const calib = [p(9, 'GB', null, { name: 'ezpdpz-calib', url: 'https://calib.ezpdpz.net' }), p(2, 'GB', null, { name: 'ezpdpz-calib2', url: 'https://calib2.ezpdpz.net' })];
+		const r = pickProviders(calib, { providerIds: [9, 2] });
+		expect(r.problems).toEqual([]);
+		expect(sharedWarnings(r.picked)[0]).toMatch(/demselben Betreiber \(Domain ezpdpz\.net, Name „ezpdpz…“\)/);
+	});
+	it('fills a region one operator at a time, and counts the operators', () => {
+		const eu = pickProviders(fidl, { copies: 3, regions: ['EU'] });
+		expect(eu.picked.map((x) => x.id)).toEqual([36, 43, 37]);
+		expect(eu.operators).toBe(2);
+		expect(pickProviders(fidl, { copies: 2, regions: ['EU'] }).picked.map((x) => x.id)).toEqual([36, 43]);
+	});
+	it('finds where an independent copy could go', () => {
+		expect(independentCandidate(fidl, [fidl[0], fidl[1]], ['EU'])).toEqual({ provider: fidl[2], inRegion: true });
+		expect(independentCandidate(fidl, [fidl[0], fidl[2]], ['EU'])).toEqual({ provider: fidl[3], inRegion: false });
+		expect(independentCandidate(fidl, fidl, [])).toBeNull();
 	});
 });
 

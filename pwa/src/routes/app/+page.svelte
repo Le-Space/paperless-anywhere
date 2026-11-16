@@ -30,6 +30,8 @@
 	import { texts } from '$lib/landing/i18n.js';
 	import { LANGS, format, lang, setLang, t, tr } from '$lib/i18n/index.js';
 	import { HOME, framed, sharedOrigin } from '$lib/shared-origin.js';
+	import BackupLeds from '$lib/BackupLeds.svelte';
+	import { forgetCopies, knownCopies, rememberCopies } from '$lib/backup-status.js';
 
 	// On a path-style gateway the origin is shared: no vault, no passkey there.
 	const shared = sharedOrigin();
@@ -85,6 +87,26 @@
 		vault = loadVault();
 		added = location.host;
 	});
+
+	// The lights at the top (BackupLeds): the newest backup's copies as the
+	// card read them, or, while locked, the provider ids kept from that list.
+	/** @type {{ network: string, copies: { providerId: number, url?: string }[] } | null} */
+	let ledCopies = $state(null);
+	let ledRemembered = $state('');
+	/** @type {import('$lib/backup-status.js').Level} */
+	let reachLed = $state('unknown');
+	function fromMemory() {
+		const k = knownCopies();
+		ledCopies = k ? { network: k.network, copies: k.providerIds.map((providerId) => ({ providerId })) } : null;
+		ledRemembered = k?.at ?? '';
+	}
+	fromMemory();
+	/** @param {{ network: string, copies: { providerId: number, url?: string }[] }} c */
+	function newestCopies(c) {
+		rememberCopies(c.network, c.copies.map((x) => x.providerId));
+		ledCopies = c;
+		ledRemembered = '';
+	}
 
 	const address = $derived(master ? privateKeyToAccount(alephPrivateKey(master)).address : '');
 	const state = $derived(!vault ? 'new' : master ? 'unlocked' : 'locked');
@@ -153,11 +175,14 @@
 		master?.fill(0);
 		master = null;
 		shownPhrase = '';
+		fromMemory();
 	}
 	function reset() {
 		if (!confirm(tr().app.forgetConfirm)) return;
 		lock();
 		forgetVault();
+		forgetCopies();
+		ledCopies = null;
 		vault = null;
 	}
 
@@ -232,6 +257,7 @@
 			{#if state === 'unlocked'}<button class="ghost" onclick={lock} data-testid="lock">{$t.app.lock}</button>{/if}
 		</div>
 	</div>
+	{#if vault && !shared && !inFrame}<BackupLeds copies={ledCopies} remembered={ledRemembered} onreach={(l) => (reachLed = l)} />{/if}
 </header>
 
 <main>
@@ -323,7 +349,7 @@
 						</ul>
 					</section>
 				{/if}
-				<div class="life" id="paperless"><Lifecycle {master} {simple} version={profileVersion} onchange={() => profileVersion++} onadvanced={openSetup} onmissing={(m) => { missing = m; if (m.length) setupOpen = true; }} onglance={(g) => (life = g)} onbusy={(b) => (acting = b)} /></div>
+				<div class="life" id="paperless"><Lifecycle {master} {simple} version={profileVersion} onchange={() => profileVersion++} onadvanced={openSetup} onmissing={(m) => { missing = m; if (m.length) setupOpen = true; }} onglance={(g) => (life = g)} onbusy={(b) => (acting = b)} oncopies={newestCopies} reach={reachLed} /></div>
 				{#if CREDITS_URL}<div class="pkg" id="paket"><Package {master} version={profileVersion} onglance={(g) => (pkg = g)} onprofile={() => profileVersion++} /></div>{/if}
 			</div>
 		{/if}
