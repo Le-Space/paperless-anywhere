@@ -327,6 +327,21 @@ export const texts = {
 				},
 				{ q: 'Was kostet es, wenn Paperless anywhere nicht läuft?', a: 'Stunden verbraucht nur eine laufende Instanz. Dein Monatspaket läuft aber weiter und wird jeden Monat berechnet, bis du kündigst. Die Sicherung ist im Paket enthalten und läuft mit ihm weiter. Nach dem Ende des bezahlten Zeitraums entstehen keine neuen Sicherungen; die vorhandenen bleiben noch mindestens 30 Tage abrufbar.' },
 				{
+					q: 'Was passiert, wenn mein Gutschein oder Paket endet?',
+					a: 'Ein Monatspaket verlängert sich jeden Monat, bis du kündigst. Ein Gutschein endet nach seiner Laufzeit oder wenn seine Stunden verbraucht sind. Drei Tage vor einem Ende, das nicht verlängert wird, zeigt die App eine Warnung mit dem genauen Zeitpunkt, am letzten Tag noch deutlicher.',
+					tips: [
+						'Vor dem Ende: Stoppe Paperless mit „Sichern und beenden“. Dann sind deine Dokumente vollständig in der Sicherung, und die VM ist gelöscht.',
+						'Nach dem Ende bleibt nur eine kleine Reserve. Drei Tage danach holt Le Space das restliche Guthaben zurück, und die App startet keine VM mehr. Verlass dich nicht darauf, dass eine VM über das Ende hinaus weiterläuft.',
+						'Deine Sicherungen bleiben bis 30 Tage nach dem letzten bezahlten Tag abrufbar. In dieser Zeit holst du sie mit einem neuen Gutschein oder Paket zurück, oder du lädst sie selbst herunter und entschlüsselst sie, ohne Le Space.',
+						'Dein eigenes Image wird nach dem Ende nicht mehr bezahlt. Wann Aleph Cloud es entfernt, steht noch nicht fest.',
+						'Weiterbuchen: Ein neuer Gutschein oder ein Paket verlängert die Zeit, auch während Paperless läuft.'
+					],
+					links: [
+						{ text: 'Eine Sicherung selbst holen und entschlüsseln', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/restore-yourself.de.md' },
+						{ text: 'AGB von Le Space Credits', href: TERMS_URL }
+					]
+				},
+				{
 					q: 'Ich habe einen Gutschein. Wie löse ich ihn ein?',
 					a: 'In der App, ohne Zahlung: Lege deinen Tresor an und gib den Code (PA-…) unter „Gutschein einlösen“ ein. Ein Gutschein gibt dir einen festen Zeitraum, meist einige Tage. Was er umfasst, also wie viele Tage, wie viele Stunden und ob die Sicherung dabei ist, steht auf dem Gutschein; die App zeigt es nach dem Einlösen.',
 					tips: [
@@ -675,6 +690,21 @@ export const texts = {
 					more: { text: 'The details are in the security model.', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/security-model.md#your-own-device' }
 				},
 				{ q: 'What does it cost while Paperless anywhere is not running?', a: 'Only a running instance uses hours. Your monthly package runs on, though, and is billed every month until you cancel. The backup is included in the package and runs on with it. After the end of the paid period no new backups are made; the existing ones stay retrievable for at least 30 more days.' },
+				{
+					q: 'What happens when my voucher or package ends?',
+					a: 'A monthly package renews every month until you cancel it. A voucher ends after its term or when its hours are used up. Three days before an end that is not renewed, the app shows a warning with the exact time, and more clearly on the last day.',
+					tips: [
+						'Before the end: stop Paperless with “Back up and stop”. Then your documents are complete in the backup, and the VM is deleted.',
+						'After the end only a small reserve is left. Three days later Le Space takes back the remaining credit, and the app starts no VM any more. Do not rely on a VM running on past the end.',
+						'Your backups can be fetched until 30 days after the last paid day. In that time you bring them back with a new voucher or package, or you download and decrypt them yourself, without Le Space.',
+						'Your own image is no longer paid after the end. When Aleph Cloud removes it is not settled yet.',
+						'Extending: a new voucher or a package extends the time, also while Paperless runs.'
+					],
+					links: [
+						{ text: 'Fetch and decrypt a backup yourself', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/restore-yourself.md' },
+						{ text: 'Le Space Credits terms (German)', href: TERMS_URL }
+					]
+				},
 				{
 					q: 'I have a voucher. How do I redeem it?',
 					a: 'In the app, without a payment: create your vault and enter the code (PA-…) under “Redeem a voucher”. A voucher gives you a fixed period, usually a few days. What it covers, that is how many days, how many hours and whether the backup is included, is stated on the voucher; the app shows it after you redeem it.',

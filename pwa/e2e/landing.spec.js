@@ -477,3 +477,16 @@ test('the FAQ says what happens when a storage provider fails, and what is paid,
 	await expect(page.locator('#faq summary', { hasText: 'Does the app notice beforehand that a provider cannot be reached?' })).toBeVisible();
 	await expect(page.locator('#faq summary', { hasText: 'Do I pay for failed providers, or for more and more copies?' })).toBeVisible();
 });
+
+test('the FAQ says what happens when a voucher or package ends, in both languages', async ({ page }) => {
+	await page.context().route(/crns-list\.aleph\.sh|filecoin|glif|chain\.love/, (route) => route.abort());
+	await page.goto('/');
+	const item = page.locator('#faq details', { hasText: 'Was passiert, wenn mein Gutschein oder Paket endet?' });
+	await item.locator('summary').click();
+	await expect(item).toContainText('bis 30 Tage nach dem letzten bezahlten Tag abrufbar');
+	await expect(item.getByRole('link', { name: 'Eine Sicherung selbst holen und entschlüsseln' })).toHaveAttribute('href', /restore-yourself\.de\.md$/);
+	await page.goto('/en/');
+	const en = page.locator('#faq details', { hasText: 'What happens when my voucher or package ends?' });
+	await en.locator('summary').click();
+	await expect(en.getByRole('link', { name: 'Fetch and decrypt a backup yourself' })).toHaveAttribute('href', /restore-yourself\.md$/);
+});
