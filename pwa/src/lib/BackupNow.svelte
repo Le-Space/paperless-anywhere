@@ -11,7 +11,7 @@
 	import { backupSize } from '$lib/backups.js';
 	import { lang as appLang } from '$lib/i18n/index.js';
 
-	/** @type {{ master: Uint8Array, profile: Record<string, any>, known?: { at: string, copies?: number | null } | null, disabled?: boolean, guard?: ((then: () => unknown) => unknown) | null, onbusy?: (busy: boolean) => void, ongood?: (good: { at: string, copies: number, requested: number }) => void }} */
+	/** @type {{ master: Uint8Array, profile: Record<string, any>, known?: { at: string, copies?: number | null } | null, disabled?: boolean, guard?: ((then: () => unknown) => unknown) | null, onbusy?: (busy: boolean) => void, ongood?: (good: { at: string, copies: number, requested: number, providerIds: number[] }) => void }} */
 	let { master, profile, known = null, disabled = false, guard = null, onbusy = () => {}, ongood = () => {} } = $props();
 
 	// Follows the language switch in the header.
@@ -39,7 +39,7 @@
 	// A backup that reached providers is handed up, so the overview keeps it.
 	$effect(() => {
 		const last = view.last;
-		if (last?.ok && last.at) ongood({ at: last.at.toISOString(), copies: last.copies, requested: last.requested });
+		if (last?.ok && last.at) ongood({ at: last.at.toISOString(), copies: last.copies, requested: last.requested, providerIds: last.providerIds });
 	});
 
 	const read = async () => {
