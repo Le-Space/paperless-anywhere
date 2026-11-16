@@ -142,6 +142,8 @@ test.describe('German', () => {
 		await expect(bad).toHaveAttribute('data-state', 'failed');
 		await expect(bad.getByTestId('chain-faults')).toContainText('2 von 20 Beweisperioden ohne Beweis');
 
+		await expect(chain.getByTestId('chain-explorer-500')).toHaveAttribute('href', 'https://pdp.filecoin.cloud/calibration/dataset/500');
+		await expect(chain.getByTestId('chain-pieces').locator('a')).toHaveAttribute('href', `https://pdp.filecoin.cloud/calibration/piece/${piece.toString()}`);
 		await expect(chain.getByTestId('chain-more')).toHaveAttribute('href', /docs\/backup-proofs\.md$/);
 		// The provider is asked only on the button, and what it sends is blue, never green.
 		await expect(good.getByTestId('chain-sample')).toHaveCount(0);

@@ -4,16 +4,17 @@
 	// again on "Jetzt prüfen". Green only for what the app read from the chain;
 	// the sample from the provider is blue (reported), as in the start panel.
 	// The lights are for the eye; every fact is written out with its state.
-	import { checkBackupOnChain, sampleFetch } from '$lib/backup-chain.js';
+	import { checkBackupOnChain, pdpExplorer, sampleFetch } from '$lib/backup-chain.js';
 	import { untrack } from 'svelte';
 	import { format, lang, t } from '$lib/i18n/index.js';
 
-	/** @type {{ network: string, backup: { pieceCid: string, copies: Array<{ providerId: string, retrievalUrl?: string, dataSetId?: string, pieceIds?: string[], place?: string }> } }} */
+	/** @type {{ network: string, backup: { pieceCid: string, parts?: Array<{ pieceCid: string }>, copies: Array<{ providerId: string, retrievalUrl?: string, dataSetId?: string, pieceIds?: string[], place?: string }> } }} */
 	let { network, backup } = $props();
 
 	const x = $derived($t.backup.chain);
 	const SIGN = { off: '·', run: '▶', app: '✓', reported: '•', failed: '✗' };
 	const named = $derived(backup.copies.filter((c) => c.dataSetId != null));
+	const pieceCids = $derived(backup.parts?.length ? backup.parts.map((p) => p.pieceCid) : [backup.pieceCid]);
 	const key = $derived(`${network}:${backup.pieceCid}:${named.map((c) => c.dataSetId).join(',')}`);
 
 	/** @type {Awaited<ReturnType<typeof checkBackupOnChain>> | null} */
@@ -75,7 +76,7 @@
 	{:else}
 		{#each copies ?? [] as copy (copy.dataSetId)}
 			<section class="copy is-{copy.state}" data-testid="chain-copy-{copy.dataSetId}" data-state={copy.state}>
-				<p class="name">{x.copy(copy.providerId, copy.place, copy.dataSetId)} <span class="state">({x.copyState[copy.state]})</span></p>
+				<p class="name">{x.copy(copy.providerId, copy.place, copy.dataSetId)} <span class="state">({x.copyState[copy.state]})</span> · <a href={pdpExplorer.dataSet(network, copy.dataSetId)} target="_blank" rel="noopener noreferrer" data-testid="chain-explorer-{copy.dataSetId}">{x.explorer}</a></p>
 				{#if copy.error}<p class="err">{x.unreadable(copy.error)}</p>{/if}
 				<ul class="facts">
 					{#each lightsOf(copy) as l (l.id)}
@@ -86,6 +87,9 @@
 				</ul>
 			</section>
 		{/each}
+		<p class="pieces" data-testid="chain-pieces">{x.pieces(pieceCids.length)}
+			{#each pieceCids as cid, i (cid)}{i ? ', ' : ' '}<a href={pdpExplorer.piece(network, cid)} target="_blank" rel="noopener noreferrer"><code>…{cid.slice(-12)}</code></a>{/each}
+		</p>
 		<p class="row">
 			<button class="small" onclick={() => check(true)} disabled={busy} data-testid="chain-check">{x.check}</button>
 			<span class="dim" role="status">{busy ? x.checking : readAt && copies?.[0]?.epoch ? x.checkedAt(when(readAt), copies[0].epoch) : ''}</span>
@@ -124,7 +128,9 @@
 	.failed .sign, .failed .state, .err { color: var(--bad); }
 	.err { margin: 0.25rem 0; }
 	.row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; margin: 0.5rem 0 0; }
-	.legend a { color: var(--rep); }
+	.legend a, .name a, .pieces a { color: var(--rep); }
+	.name a { font-weight: 400; }
+	.pieces { margin: 0.5rem 0 0; color: var(--dim); overflow-wrap: anywhere; }
 	.legend { margin: 0.6rem 0 0; padding-top: 0.6rem; border-top: 1px solid var(--rule); font-size: 0.8rem; }
 	.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 </style>

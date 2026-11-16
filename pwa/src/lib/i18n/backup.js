@@ -214,6 +214,8 @@ export const backup = {
 				}
 			},
 			more: 'Wie ein Anbieter beweist, dass er die Sicherung noch hat',
+			explorer: 'im PDP Explorer',
+			pieces: (/** @type {number} */ n) => (n === 1 ? 'Stück dieser Sicherung im PDP Explorer:' : `Die ${n} Stücke dieser Sicherung im PDP Explorer:`),
 			legend: 'Grün: von der App selbst auf der Chain gelesen. Blau: nur vom Anbieter gemeldet. Rot: ein Problem. Grau: keine Angabe.'
 		},
 		health: {
@@ -448,6 +450,8 @@ export const backup = {
 				}
 			},
 			more: 'How a provider proves it still has the backup',
+			explorer: 'in the PDP Explorer',
+			pieces: (/** @type {number} */ n) => (n === 1 ? 'The piece of this backup in the PDP Explorer:' : `The ${n} pieces of this backup in the PDP Explorer:`),
 			legend: 'Green: read from the chain by the app itself. Blue: only reported by the provider. Red: a problem. Grey: no answer.'
 		},
 		health: {

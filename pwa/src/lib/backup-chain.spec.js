@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { custom, decodeFunctionData, encodeFunctionResult, isAddressEqual, multicall3Abi, numberToHex } from 'viem';
 import { calibration, mainnet } from '@filoz/synapse-core/chains';
-import { checkBackupOnChain, copyState, endedPeriods, epochTime, sampleFetch } from './backup-chain.js';
+import { checkBackupOnChain, copyState, endedPeriods, epochTime, pdpExplorer, sampleFetch } from './backup-chain.js';
 
 // A made-up chain: the contracts answer from a table, through viem's own
 // multicall, as an RPC node would. No real data set, address or hash.
@@ -202,5 +202,13 @@ describe('sampleFetch', () => {
 		expect(await sampleFetch(url, { fetch: async () => new Response('', { status: 404 }) })).toEqual({ state: 'failed', note: 'status', status: 404 });
 		expect(await sampleFetch(url, { fetch: async () => { throw new TypeError('Failed to fetch'); } })).toEqual({ state: 'off', note: 'silent' });
 		expect(await sampleFetch('http://sp.example.com/piece/x', { fetch: async () => { throw new Error('not called'); } })).toEqual({ state: 'off', note: 'silent' });
+	});
+});
+
+describe('pdpExplorer', () => {
+	it('links a data set by its number and a piece by its CID, per network', () => {
+		expect(pdpExplorer.dataSet('mainnet', 500n)).toBe('https://pdp.filecoin.cloud/mainnet/dataset/500');
+		expect(pdpExplorer.dataSet('calibration', '7')).toBe('https://pdp.filecoin.cloud/calibration/dataset/7');
+		expect(pdpExplorer.piece('mainnet', 'bafkzcibmadeup')).toBe('https://pdp.filecoin.cloud/mainnet/piece/bafkzcibmadeup');
 	});
 });

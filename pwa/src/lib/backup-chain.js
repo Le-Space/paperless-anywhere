@@ -23,6 +23,16 @@ export const EPOCH_SECONDS = 30;
 /** A Filecoin epoch as a time (ms since 1970), from the chain's genesis. @param {bigint | number} epoch @param {number} genesis seconds */
 export const epochTime = (epoch, genesis) => (genesis + Number(epoch) * EPOCH_SECONDS) * 1000;
 
+/**
+ * FilOzone's PDP Explorer: a data set by its number, a piece by its CID
+ * (the routes /:network/dataset/:dataSetId and /:network/piece/:cid).
+ * For a person to look for themselves; the app reads nothing from it.
+ */
+export const pdpExplorer = {
+	dataSet: (/** @type {string} */ network, /** @type {string | bigint} */ id) => `https://pdp.filecoin.cloud/${network === 'mainnet' ? 'mainnet' : 'calibration'}/dataset/${encodeURIComponent(String(id))}`,
+	piece: (/** @type {string} */ network, /** @type {string} */ cid) => `https://pdp.filecoin.cloud/${network === 'mainnet' ? 'mainnet' : 'calibration'}/piece/${encodeURIComponent(cid)}`
+};
+
 /** @typedef {'off' | 'run' | 'app' | 'reported' | 'failed'} ChainLight */
 
 /**
