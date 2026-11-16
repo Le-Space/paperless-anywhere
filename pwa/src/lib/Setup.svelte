@@ -1,4 +1,5 @@
 <script>
+	import { balancesRound, refreshBalances } from '$lib/balance-refresh.js';
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey, fixedHostLabel } from '$lib/keys/derive.js';
 	import { FIXED_HOST_DOMAIN } from '$lib/vm.js';
@@ -156,6 +157,7 @@
 	const setPays = (/** @type {'wallet' | 'app' | 'lespace'} */ who) => run('pays', async () => {
 		const byCredits = CREDITS_URL && who !== 'wallet' && !profile.payer && profile.backupsByCredits === undefined;
 		await save({ appPays: who === 'app', leSpacePays: who === 'lespace', ...(byCredits ? { backupsByCredits: true } : {}) });
+		refreshBalances();
 		if (byCredits) await refresh();
 	});
 	const setAppPays = (on) => setPays(on ? 'app' : 'wallet');
@@ -287,11 +289,10 @@
 	/** @type {{ ok: boolean | null, need?: number | null, have?: number | null, price?: number | null, included?: boolean, reason?: string, short?: boolean } | null} */
 	let affordable = $state(null);
 	const packagePays = $derived(Boolean(profile?.leSpacePays && CREDITS_URL));
-	// Asked again when who pays changes, and when the page comes back into
-	// view after a "no" (a top-up in another tab); an answer for an earlier
-	// choice is dropped.
-	let affordableRound = $state(0);
-	const affordableKey = $derived(`${packagePays}|${profile?.appPays ? 'app' : profile?.leSpacePays ? 'lespace' : 'wallet'}|${profile?.payer ?? ''}|${affordableRound}`);
+	// Asked again when who pays changes and in every new balance round
+	// (balance-refresh.js: the reload button, a top-up, the window back in
+	// view); an answer for an earlier choice or round is dropped.
+	const affordableKey = $derived(`${packagePays}|${profile?.appPays ? 'app' : profile?.leSpacePays ? 'lespace' : 'wallet'}|${profile?.payer ?? ''}|${$balancesRound}`);
 	let affordableFor = '';
 	$effect(() => {
 		if (!BUILDER || imageKind !== 'own' || !loaded) return;
@@ -316,17 +317,6 @@
 					})
 				);
 		else buildAffordable(privateKeyToAccount(alephPrivateKey(master)), /** @type {any} */ (BUILDER)).then(answer);
-	});
-	$effect(() => {
-		const again = () => {
-			if (document.visibilityState === 'visible' && affordable?.ok === false) affordableRound++;
-		};
-		document.addEventListener('visibilitychange', again);
-		window.addEventListener('focus', again);
-		return () => {
-			document.removeEventListener('visibilitychange', again);
-			window.removeEventListener('focus', again);
-		};
 	});
 	const ownBuilt = $derived(Boolean(BUILDER && hasOwnImage(profile, BUILDER.plain.sha256)));
 	// Back to the public image after an own one: its hash and passphrase are
@@ -546,8 +536,8 @@
 				</details>
 				{#if ownBuilt}<p class="saved" data-testid="own-image-have">{$t.ownImage.have(format.date(profile.ownImage.builtAt, undefined, $lang))}</p>{/if}
 				{#if affordable === null}<p class="hint" data-testid="own-image-checking">{$t.ownImage.choice.checking}</p>
-				{:else if affordable.ok === false && affordable.reason}<p class="error alert" role="alert" data-testid="own-image-package-no">{affordable.reason}{#if affordable.short} <a href="#paket">{$t.ownImage.choice.toTopUp}</a>{/if} <button class="link" onclick={() => affordableRound++} data-testid="own-image-recheck">{$t.ownImage.choice.recheck}</button></p>
-				{:else if affordable.ok === false}<p class="error alert" role="alert" data-testid="own-image-needs-credits">{$t.ownImage.choice.needsCredits(format.number(affordable.need ?? 0, undefined, $lang), format.number(affordable.have ?? 0, undefined, $lang))} <button class="link" onclick={() => affordableRound++} data-testid="own-image-recheck">{$t.ownImage.choice.recheck}</button></p>
+				{:else if affordable.ok === false && affordable.reason}<p class="error alert" role="alert" data-testid="own-image-package-no">{affordable.reason}{#if affordable.short} <a href="#paket">{$t.ownImage.choice.toTopUp}</a>{/if} <button class="link" onclick={() => refreshBalances()} data-testid="own-image-recheck">{$t.ownImage.choice.recheck}</button></p>
+				{:else if affordable.ok === false}<p class="error alert" role="alert" data-testid="own-image-needs-credits">{$t.ownImage.choice.needsCredits(format.number(affordable.need ?? 0, undefined, $lang), format.number(affordable.have ?? 0, undefined, $lang))} <button class="link" onclick={() => refreshBalances()} data-testid="own-image-recheck">{$t.ownImage.choice.recheck}</button></p>
 				{:else}{#if affordable.included}<p class="hint" data-testid="own-image-price">{$t.ownImage.choice.included}</p>{:else if affordable.price != null}<p class="hint" data-testid="own-image-price">{$t.ownImage.choice.price(format.euro(affordable.price, $lang))}</p>{/if}<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{ownBuilt ? $t.ownImage.rebuild : $t.ownImage.build}</button>{/if}
 				{#if profile.running}<p class="hint">{$t.ownImage.whileRunning}</p>{/if}
 				{#if busy === 'own-image' && ownStep}<p class="hint" role="status" data-testid="own-image-step">{ownStep} …</p>{/if}

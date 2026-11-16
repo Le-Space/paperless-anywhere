@@ -1,4 +1,18 @@
 <script>
+	import { refreshBalancesSoon } from '$lib/balance-refresh.js';
+	// Back in this window (a top-up or a transfer elsewhere): every balance
+	// anew, at most every 30 s (balance-refresh.js).
+	$effect(() => {
+		const back = () => {
+			if (document.visibilityState === 'visible') refreshBalancesSoon();
+		};
+		document.addEventListener('visibilitychange', back);
+		window.addEventListener('focus', back);
+		return () => {
+			document.removeEventListener('visibilitychange', back);
+			window.removeEventListener('focus', back);
+		};
+	});
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey } from '$lib/keys/derive.js';
 	import { addPasskey, confirmationPositions, createVault, forgetVault, loadVault, unlockWithPasskey, unlockWithSeedPhrase } from '$lib/keys/vault.js';

@@ -51,10 +51,34 @@ test('switching who pays asks again whether a build is affordable', async ({ pag
 	}).toPass({ timeout: 20_000 });
 	await expect(page.getByTestId('own-image-needs-credits')).toHaveCount(0);
 
-	// Topped up: "check again" asks the service anew, and the build is offered with its price.
+	// Topped up elsewhere: "Kontostand neu laden" in the package card reads every
+	// balance anew, and the setup's build is offered with its price.
 	await fetch(`${MOCK}/__state`, { method: 'POST', body: JSON.stringify({ plan: true, backup: 'none', buildShort: false }) });
-	await page.getByTestId('own-image-recheck').click();
+	await page.getByTestId('package-refresh').click();
 	await expect(no).toHaveCount(0);
 	await expect(page.getByTestId('own-image-price')).toContainText('Ein Bau kostet 0,30 €');
+	await expect(page.getByTestId('own-image-build')).toBeVisible();
+});
+
+test('"check again" in the message asks anew too', async ({ page }) => {
+	const install = alephMock();
+	const aggregates = await install(page.context());
+	const master = newMasterSecret();
+	const phrase = newSeedPhrase();
+	aggregates.set(seedIndexAccount(phrase).address, { [VAULT_KEY]: { v: 1, box: await seal(master, sealingKeyFromSeedPhrase(phrase), 'master/seed') } });
+	await page.context().route(/^https?:\/\/(?!localhost|127\.0\.0\.1|api2\.aleph\.im)/, (route) => route.abort());
+	await fetch(`${MOCK}/__state`, { method: 'POST', body: JSON.stringify({ plan: true, backup: 'none', buildShort: true }) });
+	await page.goto('/app/');
+	await page.getByTestId('open-with-phrase').click();
+	await page.locator('textarea').first().fill(phrase);
+	await page.getByTestId('open-phrase').click();
+	await page.getByTestId('tab-advanced').click();
+	await page.getByTestId('pays-lespace').check();
+	await expect(async () => {
+		await page.getByTestId('image-own').check();
+		await expect(page.getByTestId('own-image-package-no')).toBeVisible({ timeout: 2000 });
+	}).toPass({ timeout: 20_000 });
+	await fetch(`${MOCK}/__state`, { method: 'POST', body: JSON.stringify({ plan: true, backup: 'none', buildShort: false }) });
+	await page.getByTestId('own-image-recheck').click();
 	await expect(page.getByTestId('own-image-build')).toBeVisible();
 });

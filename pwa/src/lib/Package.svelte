@@ -1,4 +1,6 @@
 <script>
+	import { balancesRound, refreshBalances } from '$lib/balance-refresh.js';
+	import RefreshBalances from '$lib/RefreshBalances.svelte';
 	// What a customer sees of money: the package, the balance in euros, topping
 	// up and the invoices (Le Space Credits, belege#591). No crypto here: Aleph
 	// credits, FIL and USDFC are under "Erweitert" (Balances).
@@ -152,6 +154,8 @@
 		try {
 			note = await fn();
 			choosing = false;
+			// A payment, a voucher or a package: every balance on the page anew.
+			refreshBalances();
 			await read();
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
@@ -250,6 +254,7 @@
 	// Again whenever the profile changed (setup, start, stop).
 	$effect(() => {
 		version;
+		$balancesRound;
 		loadProfile(master)
 			.then((p) => {
 				appPays = Boolean(p.appPays);
@@ -321,7 +326,7 @@
 		{/if}
 
 		<p class="line"><span class="label">{x.balance}</span> <strong data-testid="balance-euro">{euro(balance.credits)}</strong>
-			<span class="hint">{#if balance.reserved}{x.reserved(euro(balance.reserved))}{/if}{x.balanceUse}</span></p>
+			<span class="hint">{#if balance.reserved}{x.reserved(euro(balance.reserved))}{/if}{x.balanceUse}</span> <RefreshBalances testid="package-refresh" /></p>
 
 		{#if !balance.plan || choosing}
 			{#if !balance.plan && voucherOffered}
