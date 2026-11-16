@@ -317,7 +317,7 @@ jobs:
           curl -fsS --retry 3 -r 0-15 "https://ipfs.aleph.im/ipfs/$CID" -o "$RUNNER_TEMP/head.bin"
           [ -s "$RUNNER_TEMP/head.bin" ] || { echo "::error::$CID does not come back from IPFS"; exit 1; }
           echo "first bytes: $(head -c 4 "$RUNNER_TEMP/head.bin" | tr -cd '[:print:]')"
-          aleph file pin "$CID" --payment-type credit --json | tee "$RUNNER_TEMP/pin.json"
+          aleph file pin "$CID" --payment-type credit --chain eth --json | tee "$RUNNER_TEMP/pin.json"
           store="$(jq -r '.item_hash // .message.item_hash // .message_hash // empty' "$RUNNER_TEMP/pin.json" 2>/dev/null || true)"
           [[ "$store" =~ ^[0-9a-f]{64}$ ]] || store="$(grep -oE '[0-9a-f]{64}' "$RUNNER_TEMP/pin.json" | head -1)"
           [[ "$store" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::no STORE hash in the answer"; exit 1; }
