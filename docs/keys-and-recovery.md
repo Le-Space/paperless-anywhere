@@ -264,5 +264,5 @@ A backup can also be fetched and decrypted without a VM: [fetching a backup your
 
 ## Limits, for now
 
-- The image's disk passphrase is shared by every VM made from the same image. A passphrase per person, derived from the master secret, is the other choice in the setup: [your own image](own-image.md).
+- Every Paperless in real use runs on [its own image](own-image.md), with a disk passphrase derived from the master secret; one that still runs on the public image gets its own at its next start. The public image, for trying out only, has one passphrase per version shared by everyone using it; a VM on it gets no backup keys and no fixed address, and starts empty.
 - Backups paid through Le Space Credits are made from the VM on Filecoin **mainnet**, in several parts above 1 GiB, and are in daily use. Backups paid from a person's own wallet take the same way in the VM, but have not been run on mainnet from the app since the latest changes: try them on Calibration first.
