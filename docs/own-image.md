@@ -267,6 +267,9 @@ docker run --rm --network none -v "$PWD/check-container.mjs:/opt/builder/check-c
   94 s, about 15 minutes in all. Both VMs of the round trip booted from that
   image, and the backup was restored. A build paid through a Le Space
   package has not run yet.
+- **In real use** (2026-11-16): a one-part backup made with the public
+  image was restored in full in an own image (build paid by the app's
+  address).
 - **The builder fixed in the app** (`BUILDER` in
   `pwa/src/lib/own-image.js`) was published on 2026-11-14 for the plain
   image `9c32bd…` (release image `e85b9c9a…`) and deleted again; its volumes
