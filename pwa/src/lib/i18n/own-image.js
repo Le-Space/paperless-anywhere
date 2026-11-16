@@ -48,8 +48,8 @@ export const ownImage = {
 			checking: 'Guthaben der App-Adresse wird geprüft …',
 			price: (/** @type {string} */ price) => `Ein Bau kostet ${price} aus deinem Le-Space-Guthaben (Laufzeit des Build-Dienstes); die Ablage des Images ist enthalten.`,
 			confirmPrice: (/** @type {string} */ price) => `Eigenes Image bauen? ${price} werden von deinem Le-Space-Guthaben abgebucht. Nimmt Aleph den Build-Dienst gar nicht an, kommt der Betrag zurück; scheitert der Bau danach, bleibt er abgebucht.`,
-			included: 'Dieser Bau ist im Gutschein enthalten; der Speicher des Images auch.',
-			confirmIncluded: 'Eigenes Image bauen? Dieser Bau ist im Gutschein enthalten, es wird nichts abgebucht.',
+			included: 'Dieser Bau ist enthalten, bis einer gelingt (höchstens 3 Versuche); der Speicher des Images auch.',
+			confirmIncluded: 'Eigenes Image bauen? Dieser Bau ist enthalten, es wird nichts abgebucht.',
 			serviceOld: 'Der Credits-Dienst erlaubt der App das noch nicht (V-PROGRAM und STORE). Bitte später noch einmal versuchen.',
 			needsCredits: (/** @type {string} */ need, /** @type {string} */ have) => `Ein eigenes Image braucht derzeit Aleph-Guthaben auf der Adresse dieser App: Aleph startet den Build-Dienst nur, wenn es für einen Tag seiner Laufzeit, den Speicher des Images und alles, was die Adresse schon bezahlt, reicht (etwa ${need} Credits; vorhanden: ${have}). Mit einem Le-Space-Paket nutzt du vorerst das öffentliche Image.`
 		},
@@ -134,8 +134,8 @@ export const ownImage = {
 			checking: 'Checking the app address\'s credits …',
 			price: (/** @type {string} */ price) => `A build costs ${price} from your Le Space balance (the build service's runtime); storing the image is included.`,
 			confirmPrice: (/** @type {string} */ price) => `Build an image of your own? ${price} will be taken from your Le Space balance. If Aleph does not accept the build service at all, the amount comes back; if the build fails after that, it stays charged.`,
-			included: 'This build is included in your voucher; so is storing the image.',
-			confirmIncluded: 'Build an image of your own? This build is included in your voucher; nothing is charged.',
+			included: 'This build is included until one succeeds (at most 3 tries); so is storing the image.',
+			confirmIncluded: 'Build an image of your own? This build is included; nothing is charged.',
 			serviceOld: 'The credits service does not allow the app this yet (V-PROGRAM and STORE). Please try again later.',
 			needsCredits: (/** @type {string} */ need, /** @type {string} */ have) => `An image of your own needs Aleph credits on this app\'s address for now: Aleph starts the build service only when they cover a day of its runtime, the image\'s storage and everything the address already pays for (about ${need} credits; there are ${have}). With a Le Space package, use the public image for now.`
 		},

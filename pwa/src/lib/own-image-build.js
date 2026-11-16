@@ -74,14 +74,15 @@ async function buildOnce({ master, profile, packagePays, confirm, save, onProgre
 	// the price, or that the voucher includes it, and agrees first.
 	const granted = await authorize(master);
 	if (!granted.types || !IMAGE_BUILD_TYPES.every((type) => granted.types?.includes(type))) throw new Error(tr().ownImage.choice.serviceOld);
-	const quote = await build(master, { quote: true });
+	const version = builder.plain?.sha256 ?? null;
+	const quote = await build(master, { quote: true, version });
 	const question = quote.included ? tr().ownImage.choice.confirmIncluded : tr().ownImage.choice.confirmPrice(format.euro(quote.chargedCredits ?? 0));
 	if (!(await confirm(question))) return null;
 	return paid({
 		...common,
 		builder,
 		opener,
-		charge: () => build(master),
+		charge: () => build(master, { version }),
 		done: (d) => done(master, d),
 		onStarted: (vprogram, p) => save({ ownBuilder: { vprogram, payer: p?.payer ?? null, buildId: p?.buildId ?? null, at: new Date().toISOString() } }),
 		onForgotten,

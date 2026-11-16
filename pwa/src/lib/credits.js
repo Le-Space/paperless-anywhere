@@ -601,11 +601,14 @@ export const IMAGE_BUILD_TYPES = ['V-PROGRAM', 'STORE', 'FORGET'];
  * An image of its own, paid by the package (POST /v1/image/build): with
  * `quote`, what it would cost; without, the charge, and the grant to the
  * sub-account (`owner`) that Aleph's one-day check needs.
- * @param {Uint8Array} master @param {{ quote?: boolean }} [what]
+ * `version` names the image version (the plain image's SHA-256): the service
+ * includes one successful build per version it finds in the published list
+ * (/own-image.json), and charges for any other.
+ * @param {Uint8Array} master @param {{ quote?: boolean, version?: string | null }} [what]
  * @param {{ baseUrl?: string, fetch?: typeof fetch }} [options]
  */
-export async function imageBuild(master, { quote = false } = {}, options) {
-	const r = await send(master, 'POST', '/v1/image/build', quote ? { quote: true } : {}, options, IMAGE_BUILD_MESSAGES);
+export async function imageBuild(master, { quote = false, version = null } = {}, options) {
+	const r = await send(master, 'POST', '/v1/image/build', { ...(quote ? { quote: true } : {}), ...(version ? { version } : {}) }, options, IMAGE_BUILD_MESSAGES);
 	if (!ADDRESS.test(String(r?.owner ?? ''))) throw new Error(tr().credits.noVmAccount);
 	if (!quote && !r?.build_id) throw new Error(tr().credits.answers(200));
 	return {

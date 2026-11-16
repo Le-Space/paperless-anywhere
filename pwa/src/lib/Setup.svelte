@@ -305,7 +305,7 @@
 			if (affordableFor === key) affordable = a;
 		};
 		if (packagePays)
-			imageBuild(master, { quote: true })
+			imageBuild(master, { quote: true, version: BUILDER.plain.sha256 })
 				.then((q) => answer({ ok: true, price: q.chargedCredits, included: q.included }))
 				.catch((e) =>
 					answer({
