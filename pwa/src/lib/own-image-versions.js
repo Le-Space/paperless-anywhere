@@ -9,6 +9,9 @@ import { BUILDER } from './own-image.js';
 
 /** @type {{ plainSha256: string, builder: string, since: string }[]} versions before the current one, newest first */
 export const PREVIOUS_VERSIONS = [
+	// Plain image of main 4c68659 (#317), the builder with the signed claim,
+	// current in v0.1.86 and v0.1.87.
+	{ plainSha256: 'd64a18e73a704e603a7aa8dd6cf0f55423627d90a25e9b60b8ecc62df415dd0e', builder: '775b7c70d0a510a761babe2a3dcf63220b16a20e3e83177c90c0e47e9c86f452', since: '2026-11-16' },
 	// Plain image of main d824eb4 (#309), builder of the morning of 2026-11-16,
 	// current for about an hour before the builder with the signed claim.
 	{ plainSha256: '78025bceb6385d577cfe745603fb2f5c9a0f37d4116d75fe57491a454994cff8', builder: '4b471fe610a5ffe6f4cf39ff171024e72bfd980b5f58b5122c10b6acffbf49a9', since: '2026-11-16' },
