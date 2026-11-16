@@ -116,6 +116,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Check the inputs
         env:
@@ -274,6 +276,11 @@ jobs:
       # The same content as the running V-PROGRAM, a new time: the volumes,
       # the runtime and the measurements it names are that one's. The call
       # that follows shows the measurement the hardware reports for it.
+      # No install scripts, and no secret in the step that installs.
+      - name: The PWA's modules
+        if: inputs.action == 'again'
+        working-directory: pwa
+        run: pnpm install --frozen-lockfile --ignore-scripts > /dev/null
       - name: Start it again from the same volumes, and call it attested
         if: inputs.action == 'again'
         working-directory: pwa
@@ -282,7 +289,6 @@ jobs:
           FROM: ${{ inputs.hash }}
           AGAIN_RESULT: ${{ runner.temp }}/again.json
         run: |
-          pnpm install --frozen-lockfile > /dev/null
           started=$(date +%s)
           pnpm exec vite-node scripts/vprogram-again.mjs
           hash="$(jq -r .again "$AGAIN_RESULT")"

@@ -40,33 +40,50 @@ concurrency:
   group: paperless-try
   cancel-in-progress: false
 
+# The owner's key goes only to the steps that sign as the owner. Inputs reach
+# the shell through env only. The delegate's key goes to the CLI through
+# ALEPH_PRIVATE_KEY for that one command (as_delegate), never as an argument.
 env:
-  ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
   NAME: delegate-measure-${{ github.run_id }}
+  MINUTES: ${{ inputs.minutes || '15' }}
+  REDUCED: ${{ inputs.reduced && 'true' || 'false' }}
 
 jobs:
   measure:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - name: Tools and keys
-        id: keys
+      # Only for the lockfile of the tool that derives the addresses below.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: .github/eth-tool
+          persist-credentials: false
+      - name: Tools
         run: |
+          [[ "$MINUTES" =~ ^[0-9]{1,2}$ ]] || { echo "::error::minutes must be a number below 100"; exit 1; }
           curl -fsSL -o "$RUNNER_TEMP/aleph" https://github.com/aleph-im/aleph-rs/releases/download/v0.22.0/aleph-cli-linux-x86_64
           echo "41b8ced717d9962683ce2d4409725774e826643be0bae1bfc623f6c0c7fb19d7  $RUNNER_TEMP/aleph" | sha256sum -c -
           sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
-          pip install -q eth-account
+          # The exact packages of the lockfile in .github/eth-tool, without install scripts.
+          mkdir -p "$RUNNER_TEMP/eth"
+          cp "$GITHUB_WORKSPACE/.github/eth-tool/package.json" "$GITHUB_WORKSPACE/.github/eth-tool/package-lock.json" "$RUNNER_TEMP/eth/"
+          (cd "$RUNNER_TEMP/eth" && npm ci --ignore-scripts --no-audit --no-fund --loglevel=error >/dev/null)
+          printf 'as_delegate() { ALEPH_PRIVATE_KEY="$(cat "$RUNNER_TEMP/delegate.key")" "$@"; }\n' > "$RUNNER_TEMP/delegate.sh"
+
+      - name: Keys
+        id: keys
+        env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+        run: |
           umask 077
-          python3 - "$RUNNER_TEMP" <<'PY' >> "$GITHUB_OUTPUT"
-          import os, sys, secrets
-          from eth_account import Account
-          k = os.environ["ALEPH_PRIVATE_KEY"].strip()
-          owner = Account.from_key(k if k.startswith("0x") else "0x" + k).address
-          d = "0x" + secrets.token_hex(32)
-          open(os.path.join(sys.argv[1], "delegate.key"), "w").write(d)
-          print(f"owner={owner}")
-          print(f"delegate={Account.from_key(d).address}")
-          PY
+          node - "$RUNNER_TEMP/eth/node_modules/ethers" "$RUNNER_TEMP/delegate.key" <<'JS' >> "$GITHUB_OUTPUT"
+          const { Wallet } = require(process.argv[2]);
+          const k = process.env.ALEPH_PRIVATE_KEY.trim();
+          const delegate = Wallet.createRandom();
+          require('fs').writeFileSync(process.argv[3], delegate.privateKey, { mode: 0o600 });
+          console.log(`owner=${new Wallet(k.startsWith('0x') ? k : '0x' + k).address}`);
+          console.log(`delegate=${delegate.address}`);
+          JS
           ssh-keygen -q -t ed25519 -N '' -f "$RUNNER_TEMP/m_ed25519"
 
       - name: Balances before
@@ -79,6 +96,7 @@ jobs:
 
       - name: The owner authorizes the delegate for INSTANCE and FORGET
         env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
           DELEGATE: ${{ steps.keys.outputs.delegate }}
         run: aleph authorization add "$DELEGATE" --message-types instance,forget --chain eth
 
@@ -87,10 +105,11 @@ jobs:
         env:
           OWNER: ${{ steps.keys.outputs.owner }}
         run: |
+          . "$RUNNER_TEMP/delegate.sh"
           set -o pipefail
           sleep 20
-          aleph instance create "$NAME" --image debian12 --size 1vcpu-2gb --ssh-pubkey-file "$RUNNER_TEMP/m_ed25519.pub" \
-            --on-behalf-of "$OWNER" --private-key "$(cat "$RUNNER_TEMP/delegate.key")" --chain eth --wait 600 2>&1 | tee "$RUNNER_TEMP/create.log" || status=$?
+          as_delegate aleph instance create "$NAME" --image debian12 --size 1vcpu-2gb --ssh-pubkey-file "$RUNNER_TEMP/m_ed25519.pub" \
+            --on-behalf-of "$OWNER" --chain eth --wait 600 2>&1 | tee "$RUNNER_TEMP/create.log" || status=$?
           hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/create.log" | grep -oE '[0-9a-f]{64}' | head -1 || true)"
           echo "hash=$hash" >> "$GITHUB_OUTPUT"
           [ -n "$hash" ] || { echo "::error::the delegate's INSTANCE was not accepted"; exit 1; }
@@ -103,7 +122,7 @@ jobs:
           DELEGATE: ${{ steps.keys.outputs.delegate }}
           HASH: ${{ steps.vm.outputs.hash }}
         run: |
-          sleep $(( ${{ inputs.minutes || '15' }} * 60 ))
+          sleep $(( MINUTES * 60 ))
           for a in "$OWNER" "$DELEGATE"; do
             echo "== $a"
             echo "balance: $(aleph account balance "$a" --json | jq -c '{credits}')"
@@ -114,6 +133,7 @@ jobs:
       - name: The owner reduces the delegate to FORGET and port-forwarding
         if: inputs.reduced && steps.vm.outputs.hash != ''
         env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
           OWNER: ${{ steps.keys.outputs.owner }}
           DELEGATE: ${{ steps.keys.outputs.delegate }}
         run: |
@@ -126,10 +146,12 @@ jobs:
       - name: With the reduced entry, a new INSTANCE from the delegate is refused
         if: inputs.reduced && steps.vm.outputs.hash != ''
         env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
           OWNER: ${{ steps.keys.outputs.owner }}
         run: |
-          aleph instance create "$NAME-reduced" --image debian12 --size 1vcpu-2gb --ssh-pubkey-file "$RUNNER_TEMP/m_ed25519.pub" \
-            --on-behalf-of "$OWNER" --private-key "$(cat "$RUNNER_TEMP/delegate.key")" --chain eth --wait 180 > "$RUNNER_TEMP/reduced.log" 2>&1 || true
+          . "$RUNNER_TEMP/delegate.sh"
+          as_delegate aleph instance create "$NAME-reduced" --image debian12 --size 1vcpu-2gb --ssh-pubkey-file "$RUNNER_TEMP/m_ed25519.pub" \
+            --on-behalf-of "$OWNER" --chain eth --wait 180 > "$RUNNER_TEMP/reduced.log" 2>&1 || true
           tail -5 "$RUNNER_TEMP/reduced.log"
           hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/reduced.log" | grep -oE '[0-9a-f]{64}' | head -1 || true)"
           if [ -z "$hash" ]; then
@@ -150,9 +172,10 @@ jobs:
           OWNER: ${{ steps.keys.outputs.owner }}
           HASH: ${{ steps.vm.outputs.hash }}
         run: |
+          . "$RUNNER_TEMP/delegate.sh"
           # `create` refuses an existing key; `edit --subkey` merges one entry in.
-          out="$(aleph aggregate edit --key port-forwarding --subkey "$HASH" --content '{"ports":{"22":{"tcp":true,"udp":false}}}' \
-            --on-behalf-of "$OWNER" --private-key "$(cat "$RUNNER_TEMP/delegate.key")" --chain eth -y --json 2>&1)" || true
+          out="$(as_delegate aleph aggregate edit --key port-forwarding --subkey "$HASH" --content '{"ports":{"22":{"tcp":true,"udp":false}}}' \
+            --on-behalf-of "$OWNER" --chain eth -y --json 2>&1)" || true
           hash="$(printf '%s' "$out" | grep -oE '[0-9a-f]{64}' | head -1 || true)"
           if [ -z "$hash" ]; then
             echo "REDUCED 3: the delegate's port-forwarding AGGREGATE was not accepted"; printf '%s\n' "$out" | tail -5
@@ -165,15 +188,17 @@ jobs:
       - name: The delegate forgets the VM; the owner revokes the authorization
         if: always()
         env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
           OWNER: ${{ steps.keys.outputs.owner }}
           DELEGATE: ${{ steps.keys.outputs.delegate }}
           HASH: ${{ steps.vm.outputs.hash }}
         run: |
+          . "$RUNNER_TEMP/delegate.sh"
           if [ -n "$HASH" ]; then
             # `aleph instance delete` has no --on-behalf-of, and refuses an
             # instance whose sender is someone else; a raw FORGET does both.
-            if aleph message forget "$HASH" --reason "delegate measure ${GITHUB_RUN_ID}" \
-                --on-behalf-of "$OWNER" --private-key "$(cat "$RUNNER_TEMP/delegate.key")" --chain eth -y; then
+            if as_delegate aleph message forget "$HASH" --reason "delegate measure ${GITHUB_RUN_ID}" \
+                --on-behalf-of "$OWNER" --chain eth -y; then
               echo "FORGET by the delegate: accepted"
             else
               echo "FORGET by the delegate failed; the owner forgets it"
@@ -184,20 +209,22 @@ jobs:
           fi
           aleph authorization revoke "$DELEGATE" --chain eth || true
           # The test VM's port-forwarding entry goes again.
-          if [ -n "$HASH" ] && [ "${{ inputs.reduced }}" = true ]; then
+          if [ -n "$HASH" ] && [ "$REDUCED" = true ]; then
             aleph aggregate unset --key port-forwarding --subkey "$HASH" --chain eth -y || true
           fi
 
       - name: After the revocation, a new INSTANCE from the delegate is refused
         if: always() && !inputs.reduced && steps.vm.outputs.hash != ''
         env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
           OWNER: ${{ steps.keys.outputs.owner }}
         run: |
           # Aleph reads the security aggregate when it processes the message;
           # give the revocation time to be processed first.
+          . "$RUNNER_TEMP/delegate.sh"
           sleep 60
-          aleph instance create "$NAME-revoked" --image debian12 --size 1vcpu-2gb --ssh-pubkey-file "$RUNNER_TEMP/m_ed25519.pub" \
-            --on-behalf-of "$OWNER" --private-key "$(cat "$RUNNER_TEMP/delegate.key")" --chain eth --wait 180 > "$RUNNER_TEMP/revoked.log" 2>&1 || true
+          as_delegate aleph instance create "$NAME-revoked" --image debian12 --size 1vcpu-2gb --ssh-pubkey-file "$RUNNER_TEMP/m_ed25519.pub" \
+            --on-behalf-of "$OWNER" --chain eth --wait 180 > "$RUNNER_TEMP/revoked.log" 2>&1 || true
           tail -5 "$RUNNER_TEMP/revoked.log"
           hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/revoked.log" | grep -oE '[0-9a-f]{64}' | head -1 || true)"
           if [ -z "$hash" ]; then

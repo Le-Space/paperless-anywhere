@@ -63,13 +63,14 @@ on:
 permissions:
   contents: read
 
+# Secrets go only to the steps that use them, never to the whole workflow.
+# FIXED_ADDRESS only says whether the DNS token is set.
 env:
   CREDITS_URL: ${{ vars.VITE_CREDITS_URL || 'https://credits.le-space.de' }}
-  ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
   ITEM: ${{ inputs.rootfs_item_hash }}
   CRN: ${{ inputs.crn }}
   NAME: paperless-rtc-${{ github.run_id }}
-  DNS_TOKEN: ${{ secrets.CLOUDFLARE_DNS_TOKEN }}
+  FIXED_ADDRESS: ${{ secrets.CLOUDFLARE_DNS_TOKEN != '' && 'yes' || '' }}
   FIXED_NAME: rtc-${{ github.run_id }}.vm.le-space.de
 
 jobs:
@@ -79,6 +80,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
         with:
           version: 10.33.0
@@ -87,7 +90,7 @@ jobs:
           node-version: 22.x
       - name: The PWA's modules
         working-directory: pwa
-        run: pnpm install --frozen-lockfile --prod > /dev/null
+        run: pnpm install --frozen-lockfile --prod --ignore-scripts > /dev/null
       - name: Addresses, balance and terms (no spending)
         working-directory: pwa
         env:
@@ -114,6 +117,8 @@ jobs:
           [[ -z "$PROVIDER_IDS" || "$PROVIDER_IDS" =~ ^[0-9]+(,[0-9]+){0,2}$ ]] || { echo "::error::provider_ids: one to three ids, comma-separated"; exit 1; }
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
         with:
           version: 10.33.0
@@ -126,7 +131,7 @@ jobs:
           curl -fsSL -o "$RUNNER_TEMP/aleph" https://github.com/aleph-im/aleph-rs/releases/download/v0.22.0/aleph-cli-linux-x86_64
           echo "41b8ced717d9962683ce2d4409725774e826643be0bae1bfc623f6c0c7fb19d7  $RUNNER_TEMP/aleph" | sha256sum -c -
           sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
-          (cd pwa && pnpm install --frozen-lockfile --prod > /dev/null)
+          (cd pwa && pnpm install --frozen-lockfile --prod --ignore-scripts > /dev/null)
 
       - name: Keys for this run (disk, SSH)
         env:
@@ -193,6 +198,8 @@ jobs:
       - name: VM 1 - start, unlock with the remoteSigner config and the backup key
         id: vm1
         env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+          DNS_TOKEN: ${{ secrets.CLOUDFLARE_DNS_TOKEN }}
           ROLE: ${{ steps.credits.outputs.role }}
         run: |
           set -o pipefail
@@ -226,6 +233,7 @@ jobs:
         id: backup
         env:
           HASH: ${{ steps.vm1.outputs.hash }}
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: |
           . "$RUNNER_TEMP/wait_ssh.sh"
           for i in $(seq 1 30); do
@@ -276,7 +284,7 @@ jobs:
           echo "backup: $status, piece CID $pieces, $copies copies, data sets [$sets] (new: [${new:-none}]), providers [$providers], $(( $(date +%s) - start )) s"
           [ "$status" = done ] || [ "$status" = partial ] || { echo "::error::backup: status $status"; exit 1; }
           [ "$status" = done ] || echo "::warning::backup: partial, $copies copies reached the providers; the restore goes on with what is there"
-          if [ -n "$DNS_TOKEN" ]; then
+          if [ -n "$FIXED_ADDRESS" ]; then
             serial="$($SSH "openssl x509 -noout -serial -in /etc/paperless-anywhere/tls/certificates/$FIXED_NAME.crt" | sed 's/^serial=//')"
             [ -n "$serial" ] || { echo "::error::VM 1 has no certificate for the fixed address"; exit 1; }
             echo "VM1_SERIAL=$serial" >> "$GITHUB_ENV"
@@ -288,12 +296,16 @@ jobs:
         if: always() && steps.vm1.outputs.hash != ''
         env:
           HASH: ${{ steps.vm1.outputs.hash }}
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: |
           aleph instance erase "$HASH" --crn "$CRN" --chain eth || true
           echo y | aleph instance delete "$HASH" --reason "paperless credits round trip ${GITHUB_RUN_ID}" --chain eth || true
 
       - name: VM 2 - start, unlock with the backup's entry and the age identity, restore
         id: vm2
+        env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+          DNS_TOKEN: ${{ secrets.CLOUDFLARE_DNS_TOKEN }}
         run: |
           set -o pipefail
           aleph instance create "$NAME-b" --confidential --image "$ITEM" --vcpus 2 --memory 4GB --disk-size 40GB --crn "$CRN" \
@@ -382,7 +394,7 @@ jobs:
             echo "| Documents VM 1 / VM 2 | ${DOCS_VM1:-?} / ${DOCS_VM2:-?} |"
             echo "| storage_until (chain, earliest data set) | ${STORAGE_UNTIL:-?} |"
             echo "| funded_until (service) | ${FUNDED_UNTIL:-?} |"
-            [ -z "$DNS_TOKEN" ] || echo "| Fixed address: certificate reused from the backup | ${CERT_REUSED:-no} |"
+            [ -z "$FIXED_ADDRESS" ] || echo "| Fixed address: certificate reused from the backup | ${CERT_REUSED:-no} |"
           } >> "$GITHUB_STEP_SUMMARY"
           [ "${BACKUP_STATUS:-}" != partial ] || { echo "::error::backup: partial, fewer copies than requested"; exit 1; }
 
@@ -394,6 +406,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
         with:
           version: 10.33.0
@@ -406,6 +420,9 @@ jobs:
           echo "41b8ced717d9962683ce2d4409725774e826643be0bae1bfc623f6c0c7fb19d7  $RUNNER_TEMP/aleph" | sha256sum -c -
           sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
       - name: Erase and forget every VM of this run
+        env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+          DNS_TOKEN: ${{ secrets.CLOUDFLARE_DNS_TOKEN }}
         run: |
           # The exact packages of the lockfile in .github/eth-tool, and none of
           # their install scripts: this step holds the key.
@@ -428,6 +445,10 @@ jobs:
             aleph instance erase "$h" --crn "$CRN" --chain eth || true
             echo y | aleph instance delete "$h" --reason "paperless credits round trip ${GITHUB_RUN_ID} (cleanup)" --chain eth || true
           done
+      - name: The PWA's modules
+        if: always()
+        working-directory: pwa
+        run: pnpm install --frozen-lockfile --prod --ignore-scripts > /dev/null
       - name: Revoke the backup key (data sets stay)
         if: always()
         working-directory: pwa
@@ -435,5 +456,4 @@ jobs:
           CREDITS_TEST_VAULT_MASTER: ${{ secrets.CREDITS_TEST_VAULT_MASTER }}
         run: |
           [ -n "$CREDITS_TEST_VAULT_MASTER" ] || { echo "cleanup: no CREDITS_TEST_VAULT_MASTER, nothing to revoke"; exit 0; }
-          pnpm install --frozen-lockfile --prod > /dev/null
           node scripts/roundtrip-credits.mjs revoke
