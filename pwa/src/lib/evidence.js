@@ -165,14 +165,16 @@ export const tally = (rows) => rows.reduce((n, r) => ({ ...n, [r.mark]: n[r.mark
  *   fromVault?: boolean,
  *   header?: string | null,
  *   alephApi: string,
- *   links?: boolean
+ *   links?: boolean,
+ *   docsLang?: 'de' | 'en'
  * }} a `status`: the VM's status page at the end of the stop (null for an erase without backup);
  * `recipient`: the public age key the app gave the VM (backupConfig.ageRecipient);
  * `fromVault`: its identity is the one derived from the vault; `header`: the
- * app's check of the backup's age header (backup-header.js)
+ * app's check of the backup's age header (backup-header.js); `docsLang`: which
+ * language the linked guide is in
  * @returns {Row[]}
  */
-export function stopEvidenceRows({ status, erase = null, instanceHash = '', recipient = null, fromVault = false, header = null, alephApi, links = true }) {
+export function stopEvidenceRows({ status, erase = null, instanceHash = '', recipient = null, fromVault = false, header = null, alephApi, links = true, docsLang = 'en' }) {
 	const message = (/** @type {string | null | undefined} */ hash) => (links && hash && HASH.test(hash) ? [{ k: 'message', href: `${alephApi}/api/v0/messages/${hash}` }] : []);
 	const b = status?.stop?.backup ?? status?.backup ?? null;
 	const entry = b?.backup?.pieceCid ? b.backup : null;
@@ -207,7 +209,8 @@ export function stopEvidenceRows({ status, erase = null, instanceHash = '', reci
 			],
 			links: [
 				{ k: 'ageSpec', href: 'https://age-encryption.org/v1' },
-				{ k: 'selfCheck', href: `${REPO}/blob/main/docs/restore-yourself.md` }
+				// The guide in the app's language (docs/restore-yourself.md, .de.md).
+				{ k: 'selfCheck', href: `${REPO}/blob/main/docs/restore-yourself${docsLang === 'de' ? '.de' : ''}.md` }
 			]
 		});
 		for (const c of Array.isArray(entry.copies) ? entry.copies : []) {

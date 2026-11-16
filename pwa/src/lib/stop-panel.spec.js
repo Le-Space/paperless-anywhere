@@ -158,6 +158,9 @@ describe('the evidence of a stop', () => {
 		expect(opened.values).toContainEqual({ k: 'recipient', v: recipient, mono: true, copy: true });
 		expect(opened.values).toContainEqual({ k: 'keyFrom', v: 'vault', say: true });
 		expect(opened.links.map((l) => l.href)).toEqual(['https://age-encryption.org/v1', 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/restore-yourself.md']);
+		// In German the guide in German.
+		const de = stopEvidenceRows({ status: stopped([copy(2, 11)]), recipient, fromVault: true, header: 'opens', alephApi: 'https://api.example', docsLang: 'de' }).find((r) => r.id === 'stopSealed');
+		expect(de.links.map((l) => l.href)).toContain('https://github.com/Le-Space/paperless-anywhere/blob/main/docs/restore-yourself.de.md');
 		// Never a secret: only the public recipient appears among the values.
 		expect(JSON.stringify(opened)).not.toMatch(/AGE-SECRET-KEY/i);
 		for (const lang of ['de', 'en']) {

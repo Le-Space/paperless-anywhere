@@ -219,7 +219,7 @@
 		stopShown ? { ...panelT, ...panelT.stop, ...(action === 'discard' ? { title: panelT.stop.titleDiscard, after: panelT.stop.afterDiscard } : {}) } : panelT
 	);
 	// After a stop: where the backup went and how the VM was forgotten.
-	const stopEvidence = $derived(stopDone && !busy ? stopEvidenceRows({ ...stopDone, header: headerSeen, alephApi: ALEPH_API }) : []);
+	const stopEvidence = $derived(stopDone && !busy ? stopEvidenceRows({ ...stopDone, header: headerSeen, alephApi: ALEPH_API, docsLang: $appLanguage }) : []);
 	const checkAgain = async () => {
 		await attestRunning(master, $state.snapshot(profile));
 		profile = await loadProfile(master);
