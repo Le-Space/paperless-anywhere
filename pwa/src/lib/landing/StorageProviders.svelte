@@ -3,6 +3,12 @@
 	// the app's backup settings (BackupPlaces) read them.
 	import { onMount } from 'svelte';
 
+	// Providers the registry still lists as active but Le Space does not use
+	// for backups at the moment, because they have not answered since
+	// 2026-11-16 (Strasbourg and Warsaw). Taken back in here once they serve
+	// again. Only the landing page's list; the app checks reachability itself.
+	const PAUSED = new Set([36, 37]);
+
 	let { t, lang } = $props();
 
 	/** @type {import('../providers.js').Provider[]} */
@@ -17,16 +23,17 @@
 			return (/** @type {string} */ code) => code;
 		}
 	});
+	const shown = $derived(providers.filter((p) => p.active && !PAUSED.has(p.id)));
 	const byCountry = $derived.by(() => {
 		/** @type {Map<string, typeof providers>} */
 		const groups = new Map();
-		for (const p of providers.filter((p) => p.active)) {
+		for (const p of shown) {
 			const c = p.country ?? '??';
 			groups.set(c, [...(groups.get(c) ?? []), p]);
 		}
 		return [...groups.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
 	});
-	const activeCount = $derived(providers.filter((p) => p.active).length);
+	const activeCount = $derived(shown.length);
 
 	onMount(() => {
 		// Loaded on demand: viem and the Filecoin contracts are not needed above the fold.
