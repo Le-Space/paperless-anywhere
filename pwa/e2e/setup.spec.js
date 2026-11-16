@@ -213,7 +213,7 @@ test('the app can pay its VMs itself: no wallet, no authorization, its own balan
 	await expect(page.getByTestId('image-choice')).toBeVisible();
 	await expect(page.getByTestId('image-public')).toBeChecked();
 	// With the public image, a short tip for the own one: who knows the passphrase, and how long it takes.
-	await expect(page.getByTestId('own-image-tip')).toHaveText('Tipp: Mit einem eigenen Image kennt niemand außer dir die Passphrase – auch Le Space nicht. Bau in etwa 15 Minuten.');
+	await expect(page.getByTestId('own-image-tip')).toHaveText('Tipp: Mit einem eigenen Image kennt niemand außer dir die Passphrase – auch Le Space nicht. Bau in etwa 15 Minuten; mit Paket oder Gutschein enthalten.');
 	await expect(page.getByTestId('own-image')).toHaveCount(0);
 	await page.getByTestId('image-own').check();
 	await expect(page.getByTestId('own-image-not-built')).toContainText('Noch nicht gebaut');

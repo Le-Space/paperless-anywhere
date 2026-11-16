@@ -309,14 +309,15 @@ second V-PROGRAM on a published builder's volumes showed the first one's
 measurement and sealed the real image
 ([#202](https://github.com/Le-Space/paperless-anywhere/issues/202)).
 
-**Who pays.** With a Le Space package, the Le Space Credits balance
-does (model A): each build is charged to it, separately from the plan
-price, and needs a running plan. In a voucher period, builds are
-included until one succeeds (up to 3 tries); the setup then says so
-instead of a price. The app always reports a build's end
-(`/v1/image/build/done`), also after a failure or a closed window. The setup shows the price of one build first, the
-builder's runtime taken from the Credits balance, and asks. The service
-then charges it and grants the customer's Le Space sub-account what
+**Who pays.** With a running Le Space package or a voucher, the build is
+included (model A): until one succeeds (at most 3 tries), and again for
+each new image version. The app names the version it builds (the plain
+image's SHA-256), and Le Space Credits includes only versions listed at
+`/own-image.json` (live since 2026-11-16). For any other version, or
+without a running plan, the setup shows the price of one build first, the
+builder's runtime taken from the Credits balance, and asks. The app always
+reports a build's end (`/v1/image/build/done`), also after a failure or a
+closed window. The service grants the customer's Le Space sub-account what
 Aleph's one-day check needs. The app's key, allowed by the sub-account to
 send `V-PROGRAM`, `STORE` and `FORGET` for it, starts the builder and
 stores the image there. After the builder's FORGET it tells the service

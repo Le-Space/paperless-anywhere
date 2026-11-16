@@ -8,7 +8,7 @@ export const ownImage = {
 	de: {
 		intro: {
 			before: 'Ein Image nur für diesen Tresor: Ein geprüfter Build-Dienst versiegelt das öffentliche Image mit einer Passphrase, die aus deinem Tresor abgeleitet wird. Die App prüft den Hardware-Nachweis des Dienstes, bevor sie die Passphrase schickt, holt das versiegelte Image in Stücken über ebenso geprüfte Verbindungen zurück und lädt es selbst zu Aleph hoch (knapp 900 MiB; das dauert und braucht eine stabile Verbindung). Das Image liegt danach bei Aleph auf der Adresse dieser App (',
-			after: '), die auch den Speicher bezahlt. Mit einem Le-Space-Paket liegt es stattdessen auf deinem Aleph-Konto bei Le Space: Jeder Bau wird von deinem Le-Space-Guthaben abgebucht, den Preis siehst du vorher (mit einem Gutschein ist er enthalten, bis ein Bau gelingt, bis zu 3 Versuche); der Speicher des Images ist im Paket enthalten.'
+			after: '), die auch den Speicher bezahlt. Mit einem Le-Space-Paket oder Gutschein liegt es stattdessen auf deinem Aleph-Konto bei Le Space, und der Bau ist enthalten: bis einer gelingt (höchstens 3 Versuche), und wieder bei jeder neuen Image-Version. Der Speicher des Images ist ebenfalls enthalten. Nur wenn der Dienst einen Bau nicht einschließt, siehst du vorher seinen Preis.'
 		},
 		overview: {
 			buildsAtStart: 'Eigenes Image: wird beim ersten Start gebaut (etwa 15 Minuten).',
@@ -28,7 +28,7 @@ export const ownImage = {
 			measurement: 'Messwert des Build-Dienstes'
 		},
 		have: (/** @type {string} */ date) => `Geschafft: Dein Image ist nur für deinen Tresor versiegelt (gebaut am ${date}).`,
-		tip: 'Tipp: Mit einem eigenen Image kennt niemand außer dir die Passphrase – auch Le Space nicht. Bau in etwa 15 Minuten.',
+		tip: 'Tipp: Mit einem eigenen Image kennt niemand außer dir die Passphrase – auch Le Space nicht. Bau in etwa 15 Minuten; mit Paket oder Gutschein enthalten.',
 		build: 'Mein Image bauen',
 		rebuild: 'Mein Image neu bauen',
 		whileRunning: 'Erst möglich, wenn Paperless gestoppt ist. Der Umzug einer laufenden Paperless: „Sichern und beenden“, hier bauen, neu starten; der Start stellt die neueste Sicherung wieder her. Scheitert das, legt die neue VM keine Sicherung an: Lösche sie ohne Sicherung, die letzte Sicherung bleibt die neueste.',
@@ -54,7 +54,7 @@ export const ownImage = {
 			included: 'Dieser Bau ist enthalten, bis einer gelingt (höchstens 3 Versuche); der Speicher des Images auch.',
 			confirmIncluded: 'Eigenes Image bauen? Dieser Bau ist enthalten, es wird nichts abgebucht.',
 			serviceOld: 'Der Credits-Dienst erlaubt der App das noch nicht (V-PROGRAM und STORE). Bitte später noch einmal versuchen.',
-			needsCredits: (/** @type {string} */ need, /** @type {string} */ have) => `Ein eigenes Image braucht derzeit Aleph-Guthaben auf der Adresse dieser App: Aleph startet den Build-Dienst nur, wenn es für einen Tag seiner Laufzeit, den Speicher des Images und alles, was die Adresse schon bezahlt, reicht (etwa ${need} Credits; vorhanden: ${have}). Mit einem Le-Space-Paket nutzt du vorerst das öffentliche Image.`
+			needsCredits: (/** @type {string} */ need, /** @type {string} */ have) => `Ein eigenes Image braucht derzeit Aleph-Guthaben auf der Adresse dieser App: Aleph startet den Build-Dienst nur, wenn es für einen Tag seiner Laufzeit, den Speicher des Images und alles, was die Adresse schon bezahlt, reicht (etwa ${need} Credits; vorhanden: ${have}). Mit einem Le-Space-Paket oder Gutschein ist der Bau enthalten.`
 		},
 		step: {
 			start: 'Build-Dienst starten (einige Minuten)',
@@ -98,7 +98,7 @@ export const ownImage = {
 	en: {
 		intro: {
 			before: 'An image for this vault only: a verified build service seals the public image with a passphrase derived from your vault. The app checks the service\'s hardware attestation before it sends the passphrase, fetches the sealed image back in pieces over connections verified the same way, and uploads it to Aleph itself (just under 900 MiB; this takes a while and needs a stable connection). The image then lies on Aleph under this app\'s address (',
-			after: '), which also pays for the storage. With a Le Space package it lies on your Aleph account at Le Space instead: each build is charged to your Le Space balance, and you see the price first (with a voucher it is included until a build succeeds, up to 3 tries); storing the image is included in your package.'
+			after: '), which also pays for the storage. With a Le Space package or a voucher it lies on your Aleph account at Le Space instead, and the build is included: until one succeeds (at most 3 tries), and again for each new image version. Storing the image is included too. Only when the service does not include a build do you see its price first.'
 		},
 		overview: {
 			buildsAtStart: 'Image of your own: built at the first start (about 15 minutes).',
@@ -118,7 +118,7 @@ export const ownImage = {
 			measurement: 'Measurement of the build service'
 		},
 		have: (/** @type {string} */ date) => `Done: your image is sealed for your vault only (built on ${date}).`,
-		tip: 'Tip: with an image of your own, nobody but you knows the passphrase – Le Space neither. Built in about 15 minutes.',
+		tip: 'Tip: with an image of your own, nobody but you knows the passphrase – Le Space neither. Built in about 15 minutes; included with a package or a voucher.',
 		build: 'Build my image',
 		rebuild: 'Build my image again',
 		whileRunning: 'Possible once Paperless is stopped. To move a running Paperless: “Back up and stop”, build here, start again; the start restores the newest backup. If that fails, the new VM makes no backup: delete it without a backup, and the last backup stays the newest.',
@@ -144,7 +144,7 @@ export const ownImage = {
 			included: 'This build is included until one succeeds (at most 3 tries); so is storing the image.',
 			confirmIncluded: 'Build an image of your own? This build is included; nothing is charged.',
 			serviceOld: 'The credits service does not allow the app this yet (V-PROGRAM and STORE). Please try again later.',
-			needsCredits: (/** @type {string} */ need, /** @type {string} */ have) => `An image of your own needs Aleph credits on this app\'s address for now: Aleph starts the build service only when they cover a day of its runtime, the image\'s storage and everything the address already pays for (about ${need} credits; there are ${have}). With a Le Space package, use the public image for now.`
+			needsCredits: (/** @type {string} */ need, /** @type {string} */ have) => `An image of your own needs Aleph credits on this app\'s address for now: Aleph starts the build service only when they cover a day of its runtime, the image\'s storage and everything the address already pays for (about ${need} credits; there are ${have}). With a Le Space package or a voucher, the build is included.`
 		},
 		step: {
 			start: 'Starting the build service (a few minutes)',
