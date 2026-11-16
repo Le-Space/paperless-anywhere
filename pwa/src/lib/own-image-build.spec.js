@@ -5,6 +5,7 @@ import { buildImageForVault, forgetOldImage } from './own-image-build.js';
 
 const master = new Uint8Array(32).fill(7);
 const program = { verification: { measurements: [{ registers: { launch: 'ab'.repeat(48) } }], policy: 196608 } };
+const versions = [];
 const builder = { program, crn: '0c'.repeat(32), measurements: ['ab'.repeat(48)], policy: 196608, plain: { sha256: 'ef'.repeat(32) } };
 const image = { rootfsItemHash: '9a'.repeat(32), luksPassphrase: 'p', luksFor: '9a'.repeat(32), ownImage: {} };
 
@@ -15,7 +16,7 @@ function deps({ types = ['INSTANCE', 'V-PROGRAM', 'STORE', 'FORGET', 'AGGREGATE'
 		seen,
 		deps: {
 			authorize: async () => (seen.push('authorize'), { owner: '0x' + 'a'.repeat(40), types }),
-			build: async (_m, what) => (seen.push(what?.quote ? 'quote' : 'charge'), { ...quote, buildId: 'b1', owner: '0x' + 'a'.repeat(40) }),
+			build: async (_m, what) => (seen.push(what?.quote ? 'quote' : 'charge'), versions.push(what?.version), { ...quote, buildId: 'b1', owner: '0x' + 'a'.repeat(40) }),
 			done: async () => seen.push('done'),
 			paid: async (a) => (seen.push('paid'), await a.onStarted('5e'.repeat(32), { buildId: 'b1', payer: '0x' + 'a'.repeat(40) }), await a.onForgotten(), image),
 			own: async (a) => (seen.push('own'), await a.onStarted('5e'.repeat(32)), await a.onForgotten(), image),
@@ -34,6 +35,8 @@ describe('building the own image for a vault', () => {
 		const out = await buildImageForVault({ master, profile: {}, packagePays: true, confirm: (q) => (asked.push(q), true), save: async (p) => void saved.push(p), builder, deps: d });
 		expect(out).toBe(image);
 		expect(seen).toEqual(['relays', 'authorize', 'quote', 'paid']);
+		// The service learns which image version: the plain image's SHA-256.
+		expect(versions).toEqual(['ef'.repeat(32)]);
 		expect(asked[0]).toMatch(/abgebucht/);
 		expect(saved[0].ownBuilder).toMatchObject({ vprogram: '5e'.repeat(32), buildId: 'b1' });
 		expect(saved.at(-1)).toEqual({ ownBuilder: null });
@@ -43,7 +46,7 @@ describe('building the own image for a vault', () => {
 		const { seen, deps: d } = deps({ quote: { included: true, chargedCredits: 0 } });
 		const asked = [];
 		expect(await buildImageForVault({ master, profile: {}, packagePays: true, confirm: (q) => (asked.push(q), false), save: async () => {}, builder, deps: d })).toBeNull();
-		expect(asked[0]).toMatch(/im Gutschein enthalten/);
+		expect(asked[0]).toMatch(/Dieser Bau ist enthalten/);
 		expect(seen).toEqual(['relays', 'authorize', 'quote']);
 	});
 
