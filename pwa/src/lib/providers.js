@@ -59,9 +59,9 @@ export const oneOperator = (a, b) => sameOperator(entry(a), entry(b));
  * Copies go to different operators (operators.js): two copies at one
  * operator are not independent. Named providers of one operator are refused
  * while another operator in the region could take the copy (on Calibration
- * one operator holds every approved provider: there it is only warned of);
- * a region fills copies at operators that hold none first, and `operators`
- * says how many independent ones it found.
+ * one operator holds every approved provider: there it is only warned of).
+ * A region gets one copy per operator, EU first, and never a second one at
+ * an operator: `operators` is how many copies that makes.
  * @param {Provider[]} providers @param {{ copies?: number, providerIds?: number[], regions?: string[] }} config
  * @returns {{ picked: Provider[], problems: string[], operators?: number }}
  */
@@ -86,18 +86,37 @@ export function pickProviders(providers, { copies = 2, providerIds = [], regions
 		}
 		return { picked, problems };
 	}
-	const candidates = providers.filter((p) => p.active && inRegion(p));
-	// One copy per operator, endorsed first (the list's order). Never a second
-	// copy at an operator while another one in the region holds none; only
-	// when the region has fewer operators than copies, the rest goes to an
-	// operator that has one, at another place first (sharedWarnings says so).
+	// EU first, then the rest of the region (GB, CH …), each endorsed first (the list's order).
+	const eu = (p) => EU.includes(p.country ?? '');
+	const candidates = providers.filter((p) => p.active && inRegion(p)).sort((a, b) => (codes.length ? Number(eu(b)) - Number(eu(a)) : 0));
+	// One copy per operator, never two: with fewer operators than copies,
+	// fewer copies, and `operators` says how many there are (the form and
+	// the lights say "nur N unabhängige Betreiber verfügbar").
 	const picked = [];
 	for (const p of candidates) if (picked.length < copies && !picked.some((q) => oneOperator(q, p))) picked.push(p);
-	const operators = picked.length;
-	for (const p of candidates) if (picked.length < copies && !picked.includes(p) && !picked.some((q) => q.place && q.place === p.place)) picked.push(p);
-	for (const p of candidates) if (picked.length < copies && !picked.includes(p)) picked.push(p);
 	const problems = candidates.length < copies ? [say.tooFew(copies, candidates.length)] : [];
-	return { picked, problems, operators };
+	return { picked, problems, operators: picked.length };
+}
+
+/**
+ * The places a VM gets at its start: a region resolved to named providers,
+ * one per operator (pickProviders), so the backup tool in the VM cannot put
+ * two copies at one operator. Named providers stay as they are. Without the
+ * provider list the config goes as it is (the tool picks by domain first).
+ * @template {{ copies?: number, providerIds?: number[], regions?: string[] }} C
+ * @param {string} network @param {C} config
+ * @param {{ list?: (network: string) => Promise<Provider[]> }} [deps]
+ * @returns {Promise<C & { copies: number, providerIds: number[] }>}
+ */
+export async function placedConfig(network, config, { list = listProviders } = {}) {
+	if (config.providerIds?.length) return /** @type {any} */ (config);
+	try {
+		const { picked } = pickProviders(await list(network), config);
+		if (!picked.length) return /** @type {any} */ (config);
+		return { ...config, copies: picked.length, providerIds: picked.map((p) => p.id) };
+	} catch {
+		return /** @type {any} */ (config);
+	}
 }
 
 /**

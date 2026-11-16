@@ -115,7 +115,7 @@
 			{#if abroad.length}
 				<p class="warn" data-testid="places-outside-eu">{x.outsideEu(abroad.join(', '))}</p>
 			{/if}
-			{#if preview.operators !== undefined && preview.operators < preview.picked.length}<p class="warn" data-testid="places-few-operators">{x.fewOperators(preview.picked.length, preview.operators)}</p>{/if}
+			{#if mode === 'region' && !preview.problems.length && preview.operators !== undefined && preview.operators < copies}<p class="warn" data-testid="places-few-operators">{x.fewOperators(copies, preview.operators)}</p>{/if}
 			{#if third}
 				<div class="third" data-testid="places-third">
 					<p>{x.third.offer(`${third.provider.name} (${x.number(third.provider.id)})`, third.provider.place)}{third.inRegion ? '' : ` ${x.third.outside}`}</p>

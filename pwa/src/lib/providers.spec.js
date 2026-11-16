@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { explorerUrl, independentCandidate, monthlyCost, outsideEu, pickProviders, providerIdsIn, regionCodes, sharedWarnings } from './providers.js';
+import { explorerUrl, independentCandidate, placedConfig, monthlyCost, outsideEu, pickProviders, providerIdsIn, regionCodes, sharedWarnings } from './providers.js';
 
 // Made-up providers, shaped like listProviders' answer (endorsed first).
 const p = (id, country, operator, extra = {}) => ({ id, name: `sp-${id}`, location: `C=${country};L=Stadt ${country}`, place: `${country}, Stadt ${country}`, country, operator, endorsed: false, active: true, ...extra });
@@ -24,7 +24,8 @@ describe('pickProviders', () => {
 		const eu = pickProviders(list, { copies: 2, regions: ['EU'] });
 		expect(eu.picked.map((x) => x.id)).toEqual([7]);
 		expect(eu.problems[0]).toMatch(/2 Kopien/);
-		expect(pickProviders(list, { copies: 2, regions: ['EUROPE'] }).picked.map((x) => x.id)).toEqual([9, 7]);
+		// EU first, then the rest of Europe.
+		expect(pickProviders(list, { copies: 2, regions: ['EUROPE'] }).picked.map((x) => x.id)).toEqual([7, 9]);
 	});
 
 	it('checks named providers', () => {
@@ -54,11 +55,23 @@ describe('one operator', () => {
 		expect(r.problems).toEqual([]);
 		expect(sharedWarnings(r.picked)[0]).toMatch(/demselben Betreiber \(Domain ezpdpz\.net, Name „ezpdpz…“\)/);
 	});
-	it('fills a region one operator at a time, and counts the operators', () => {
+	it('never puts two copies of a region at one operator: fewer copies, and says how many operators', () => {
 		const eu = pickProviders(fidl, { copies: 3, regions: ['EU'] });
-		expect(eu.picked.map((x) => x.id)).toEqual([36, 43, 37]);
-		expect(eu.operators).toBe(2);
+		expect(eu.picked.map((x) => x.id)).toEqual([36, 43]);
+		expect(eu).toMatchObject({ operators: 2, problems: [] });
 		expect(pickProviders(fidl, { copies: 2, regions: ['EU'] }).picked.map((x) => x.id)).toEqual([36, 43]);
+	});
+	it('Europe: three operators, the EU first, then GB', () => {
+		const shuffled = [fidl[3], fidl[0], fidl[1], fidl[2]];
+		expect(pickProviders(shuffled, { copies: 3, regions: ['EUROPE'] }).picked.map((x) => x.id)).toEqual([36, 43, 1]);
+	});
+	it('a region becomes named providers at the start; named ones stay', async () => {
+		const list = async () => fidl;
+		expect(await placedConfig('mainnet', { copies: 3, providerIds: [], regions: ['EUROPE'], keepWeeks: 12 }, { list })).toEqual({ copies: 3, providerIds: [36, 43, 1], regions: ['EUROPE'], keepWeeks: 12 });
+		expect(await placedConfig('mainnet', { copies: 3, providerIds: [], regions: ['EU'] }, { list })).toMatchObject({ copies: 2, providerIds: [36, 43] });
+		expect(await placedConfig('mainnet', { copies: 2, providerIds: [36, 37], regions: [] }, { list })).toEqual({ copies: 2, providerIds: [36, 37], regions: [] });
+		const down = async () => { throw new Error('rpc'); };
+		expect(await placedConfig('mainnet', { copies: 3, providerIds: [], regions: ['EU'] }, { list: down })).toEqual({ copies: 3, providerIds: [], regions: ['EU'] });
 	});
 	it('finds where an independent copy could go', () => {
 		expect(independentCandidate(fidl, [fidl[0], fidl[1]], ['EU'])).toEqual({ provider: fidl[2], inRegion: true });

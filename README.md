@@ -20,7 +20,7 @@ Paperless-ngx usually lives on one machine at home. This project moves it to ren
    ├─ Aleph account (pays credits)       Debian · Docker · Caddy
    ├─ Paperless admin/DB/secret key      Paperless · Postgres · Valkey · Tika · Gotenberg
    └─ age key + Filecoin wallet (sealed) bootstrap: restore ◄── Filecoin Onchain Cloud
-                                          daily backup ──► (3 providers, Europe)
+                                          daily backup ──► (3 independent providers, Europe)
  [Start] ─► deploy ─► measure ─► inject secrets ─► https://…/  ─► [Stop] ─► backup ─► erase
 ```
 

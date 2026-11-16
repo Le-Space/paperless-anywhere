@@ -45,7 +45,7 @@
 	import { ALEPH_API } from '$lib/aleph.js';
 	import { isNetworkError, preloadAttestWasm } from '$lib/attest-wasm-load.js';
 
-	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void, onmissing?: (missing: string[]) => void, onglance?: (g: Glance) => void, onbusy?: (busy: boolean) => void, oncopies?: (c: { network: string, copies: { providerId: number, url?: string }[] }) => void, reach?: import('$lib/backup-status.js').Level }} reach: the "Sicherungen erreichbar" light; oncopies: the newest backup's copies, for the lights */
+	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void, onmissing?: (missing: string[]) => void, onglance?: (g: Glance) => void, onbusy?: (busy: boolean) => void, oncopies?: (c: { network: string, copies: { providerId: number, url?: string }[], wanted: number | null }) => void, reach?: import('$lib/backup-status.js').Level }} reach: the "Sicherungen erreichbar" light; oncopies: the newest backup's copies, for the lights */
 	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {}, onmissing = () => {}, onglance = () => {}, onbusy = () => {}, oncopies = () => {}, reach = 'unknown' } = $props();
 	/** @typedef {{ phase: string, host: string | null, lastGood: { at: string, copies: number | null } | null, backupsOn: boolean, pays: 'lespace' | 'app' | 'wallet' | null, fixedHost: boolean }} Glance */
 
@@ -278,7 +278,7 @@
 	const newestBackup = $derived(pick(split.own) ?? pick(backups ?? []) ?? null);
 	$effect(() => {
 		if (backups === null || backupsError) return;
-		oncopies({ network: profile.network ?? 'calibration', copies: (newestBackup?.copies ?? []).map((/** @type {any} */ x) => ({ providerId: Number(x.providerId), url: x.retrievalUrl })) });
+		oncopies({ network: profile.network ?? 'calibration', copies: (newestBackup?.copies ?? []).map((/** @type {any} */ x) => ({ providerId: Number(x.providerId), url: x.retrievalUrl })), wanted: Number.isInteger(profile.backupConfig?.copies) ? profile.backupConfig.copies : null });
 	});
 	// The backup whose copies the chain check shows: the one chosen, else this vault's newest, else the newest.
 	const chainBackup = $derived(chosenBackup ?? pick(split.own) ?? pick(backups ?? []) ?? null);

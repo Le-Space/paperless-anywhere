@@ -8,8 +8,9 @@
 	import { lang, format, t } from '$lib/i18n/index.js';
 	import { untrack } from 'svelte';
 	import { checkCopies, checkDue, independenceLevel, reachLevel } from '$lib/backup-status.js';
+	import { operatorCount } from '$lib/operators.js';
 
-	/** @type {{ copies: { network: string, copies: { providerId: number, url?: string }[] } | null, remembered?: string, onreach?: (level: import('$lib/backup-status.js').Level) => void }} copies: the newest backup's copies (null: none known); remembered: when they were kept, while the vault is locked */
+	/** @type {{ copies: { network: string, copies: { providerId: number, url?: string }[], wanted?: number | null } | null, remembered?: string, onreach?: (level: import('$lib/backup-status.js').Level) => void }} copies: the newest backup's copies (null: none known); remembered: when they were kept, while the vault is locked */
 	let { copies, remembered = '', onreach = () => {} } = $props();
 
 	const x = $derived($t.app.leds);
@@ -58,7 +59,9 @@
 	});
 
 	const reach = $derived(reachLevel(result));
-	const independent = $derived(independenceLevel(result?.copies ?? null));
+	const wanted = $derived(copies?.wanted ?? null);
+	const independent = $derived(independenceLevel(result?.copies ?? null, wanted));
+	const operators = $derived(result ? operatorCount(result.copies) : 0);
 	$effect(() => onreach(reach));
 	const time = (/** @type {Date} */ d) => format.dateTime(d.toISOString(), { hour: '2-digit', minute: '2-digit', second: '2-digit' }, $lang);
 	const short = (/** @type {string | null} */ a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '–');
@@ -89,7 +92,7 @@
 				{#if open === 'reach'}
 					{reach === 'ok' ? x.reachSays.ok(result.answering, result.total) : reach === 'warn' ? x.reachSays.warn(result.total) : reach === 'bad' ? x.reachSays.bad(result.total) : x.reachSays.unknown}
 				{:else}
-					{independent === 'ok' ? x.independentSays.ok(result.total) : result.total < 2 ? x.independentSays.one : x.independentSays.warn}
+					{independent === 'ok' ? x.independentSays.ok(result.total) : result.total < 2 ? x.independentSays.one : operators < result.total ? x.independentSays.warn : x.independentSays.few(operators, wanted ?? operators)}
 				{/if}
 			</p>
 			<ul>

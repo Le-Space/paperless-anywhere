@@ -142,7 +142,7 @@ export const backup = {
 			noKey: 'Der Sicherungsschlüssel dieses Tresors ist hier nicht hinterlegt.'
 		},
 		places: {
-			regions: { EUROPE: 'Europa (EWR, Großbritannien, Schweiz)', EU: 'EU', EEA: 'EWR', US: 'USA', anywhere: 'überall' },
+			regions: { EUROPE: 'Europa (EU/EWR, Großbritannien, Schweiz)', EU: 'EU', EEA: 'EWR', US: 'USA', anywhere: 'überall' },
 			listUnreadable: 'Die Anbieterliste ließ sich gerade nicht lesen.',
 			legend: 'Wohin die Sicherungen gehen',
 			byRegion: 'Region und Anzahl der Kopien',
@@ -179,7 +179,7 @@ export const backup = {
 			},
 			sameOperatorAs: (/** @type {string} */ name) => `gleicher Betreiber wie ${name}`,
 			fewOperators: (/** @type {number} */ copies, /** @type {number} */ found) =>
-				`In der Region gibt es nur ${found === 1 ? 'einen unabhängigen Betreiber' : `${found} unabhängige Betreiber`} für ${copies} Kopien. Was darüber hinausgeht, liegt bei einem Betreiber, der schon eine Kopie hat, und fällt mit ihr aus.`,
+				`Nur ${found} unabhängige Betreiber verfügbar: ${found === 1 ? 'eine Kopie' : `${found} Kopien`} statt ${copies}. Zwei Kopien beim selben Betreiber legt die App nicht an, sie fielen zusammen aus.`,
 			third: {
 				offer: (/** @type {string} */ name, /** @type {string} */ place) => `Eine weitere Kopie bei einem unabhängigen Betreiber: ${name}${place ? ` (${place})` : ''}.`,
 				outside: 'Er liegt außerhalb der gewählten Region.',
@@ -410,7 +410,7 @@ export const backup = {
 			noKey: 'This vault’s backup key is not stored here.'
 		},
 		places: {
-			regions: { EUROPE: 'Europe (EEA, United Kingdom, Switzerland)', EU: 'EU', EEA: 'EEA', US: 'USA', anywhere: 'anywhere' },
+			regions: { EUROPE: 'Europe (EU/EEA, United Kingdom, Switzerland)', EU: 'EU', EEA: 'EEA', US: 'USA', anywhere: 'anywhere' },
 			listUnreadable: 'The list of providers could not be read right now.',
 			legend: 'Where the backups go',
 			byRegion: 'Region and number of copies',
@@ -447,7 +447,7 @@ export const backup = {
 			},
 			sameOperatorAs: (/** @type {string} */ name) => `same operator as ${name}`,
 			fewOperators: (/** @type {number} */ copies, /** @type {number} */ found) =>
-				`The region has only ${found === 1 ? 'one independent operator' : `${found} independent operators`} for ${copies} copies. Whatever goes beyond lies at an operator that already holds a copy, and fails with it.`,
+				`Only ${found} independent ${found === 1 ? 'operator' : 'operators'} available: ${found === 1 ? 'one copy' : `${found} copies`} instead of ${copies}. The app does not put two copies at one operator; they would fail together.`,
 			third: {
 				offer: (/** @type {string} */ name, /** @type {string} */ place) => `One more copy at an independent operator: ${name}${place ? ` (${place})` : ''}.`,
 				outside: 'It lies outside the chosen region.',

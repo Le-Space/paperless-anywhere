@@ -19,6 +19,9 @@ describe('the lights', () => {
 		expect(independenceLevel([cello])).toBe('warn');
 		expect(independenceLevel(null)).toBe('unknown');
 		expect(independenceLevel([cello, { id: 5, listed: false }])).toBe('unknown');
+		// Fewer operators than copies wanted: yellow ("nur 2 unabhängige Betreiber").
+		expect(independenceLevel([cello, probe], 3)).toBe('warn');
+		expect(independenceLevel([cello, probe], 2)).toBe('ok');
 	});
 	it('check again after a while, never twice within the gap', () => {
 		const at = new Date(1_000_000);
@@ -37,7 +40,7 @@ describe('the copies kept for the locked vault', () => {
 	it('are the network and provider ids only', () => {
 		rememberCopies('mainnet', [36, 37, 37]);
 		const kept = JSON.parse(localStorage.getItem('paperless-anywhere.backup-copies') ?? '{}');
-		expect(Object.keys(kept).sort()).toEqual(['at', 'network', 'providerIds']);
+		expect(Object.keys(kept).sort()).toEqual(['at', 'network', 'providerIds', 'wanted']);
 		expect(knownCopies()).toMatchObject({ network: 'mainnet', providerIds: [36, 37] });
 		forgetCopies();
 		expect(knownCopies()).toBeNull();

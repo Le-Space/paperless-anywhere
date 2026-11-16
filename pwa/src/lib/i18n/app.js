@@ -62,6 +62,7 @@ export const app = {
 				ok: (/** @type {number} */ n) => `Die ${n} Kopien liegen bei verschiedenen Betreibern.`,
 				warn: 'Kopien liegen beim selben Betreiber. Fällt er aus, sind sie alle weg. Unter „Erweitert“ → Einrichtung → „Wohin die Sicherungen gehen“ einen anderen Betreiber wählen.',
 				one: 'Es gibt nur eine Kopie. Unter „Erweitert“ → Einrichtung eine zweite bei einem anderen Betreiber anlegen.',
+				few: (/** @type {number} */ n, /** @type {number} */ wanted) => `Nur ${n} unabhängige Betreiber verfügbar (${wanted} Kopien gewünscht). Die Kopien liegen bei verschiedenen Betreibern; eine weitere kommt dazu, sobald ein weiterer Betreiber in der Region zugelassen ist.`,
 				unknown: 'Noch nicht geprüft.'
 			},
 			noBackup: 'Noch keine Sicherung bekannt: Die Lichter zeigen etwas, sobald die App die Liste der Sicherungen gelesen hat (nach dem Entsperren).',
@@ -194,6 +195,7 @@ export const app = {
 				ok: (/** @type {number} */ n) => `The ${n} copies are at different operators.`,
 				warn: 'Copies are at the same operator. If it fails, they are all gone. Choose another operator under “Advanced” → setup → “Where the backups go”.',
 				one: 'There is only one copy. Add a second one at another operator under “Advanced” → setup.',
+				few: (/** @type {number} */ n, /** @type {number} */ wanted) => `Only ${n} independent operators available (${wanted} copies wanted). The copies are at different operators; another one is added once another operator in the region is approved.`,
 				unknown: 'Not checked yet.'
 			},
 			noBackup: 'No backup known yet: the lights show something once the app has read the list of backups (after the unlock).',

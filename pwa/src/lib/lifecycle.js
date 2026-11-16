@@ -13,6 +13,7 @@ import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
 import { loadAttestWasm } from './attest-wasm-load.js';
 import { ownImageVerified, runsOwnImage } from './own-image-check.js';
 import { answeringCopies } from './restore-reach.js';
+import { placedConfig } from './providers.js';
 import { pinnedTrustedExecution } from './runtime-pin.js';
 import { alephPrivateKey, backupMarkKey, backupPrivateKey, pieceMark, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
 import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
@@ -449,10 +450,12 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 		// payer or signer, which the profile then keeps); without an answer,
 		// what the setup recorded.
 		const signer = await refreshBackupSigner(master, profile);
+		// A region becomes named providers, one per operator (providers.js).
+		const backupConfig = await placedConfig(profile.network === 'mainnet' ? 'mainnet' : 'calibration', profile.backupConfig);
 		try {
 			Object.assign(
 				secrets,
-				vmBackupSecrets(profile, {
+				vmBackupSecrets({ ...profile, backupConfig }, {
 					...(profile.backupsByCredits
 						? { backupKey: backupPrivateKey(master), signer, creditsUrl: CREDITS_URL, product: CREDITS_PRODUCT, account: creditsAccount(master).address }
 						: { sessionKey: filecoinSessionPrivateKey(master) })
