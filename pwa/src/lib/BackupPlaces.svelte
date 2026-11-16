@@ -92,9 +92,9 @@
 			{#each providers as p (p.id)}
 				<li>
 					<label class="check">
-						<input type="checkbox" checked={chosen.includes(p.id)} disabled={!p.active || (!chosen.includes(p.id) && chosen.length >= 3)}
+						<input type="checkbox" checked={chosen.includes(p.id)} disabled={!p.active || (!chosen.includes(p.id) && (Boolean(p.blocked) || chosen.length >= 3))}
 							onchange={(e) => toggle(p.id, e.currentTarget.checked)} data-testid={`provider-${p.id}`} />
-						<span>{p.place || x.noPlace} · {p.name} <small>({p.endorsed ? x.endorsed : x.approved}{p.active ? '' : x.inactive}, {x.number(p.id)})</small></span>
+						<span>{p.place || x.noPlace} · {p.name} <small>({p.endorsed ? x.endorsed : x.approved}{p.active ? '' : x.inactive}, {x.number(p.id)}{#if p.blocked}, <span class="warn" data-testid={`provider-blocked-${p.id}`} title={x.blockedWhy[p.blocked]}>{x.blockedTag}: {x.blockedWhy[p.blocked]}</span>{/if})</small></span>
 					</label>
 				</li>
 			{/each}
@@ -115,7 +115,7 @@
 			{#if abroad.length}
 				<p class="warn" data-testid="places-outside-eu">{x.outsideEu(abroad.join(', '))}</p>
 			{/if}
-			{#if preview.operators !== undefined && preview.operators < preview.picked.length}<p class="warn" data-testid="places-few-operators">{x.fewOperators(preview.picked.length, preview.operators)}</p>{/if}
+			{#if mode === 'region' && preview.picked.length && preview.operators !== undefined && preview.operators < copies}<p class="warn" data-testid="places-few-operators">{x.fewOperators(copies, preview.operators)}</p>{/if}
 			{#if third}
 				<div class="third" data-testid="places-third">
 					<p>{x.third.offer(`${third.provider.name} (${x.number(third.provider.id)})`, third.provider.place)}{third.inRegion ? '' : ` ${x.third.outside}`}</p>

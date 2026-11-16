@@ -32,3 +32,11 @@ describe('a replacement for a provider that does not answer', () => {
 		expect(r.ids).toEqual([36]);
 	});
 });
+
+describe('a blocked provider', () => {
+	it('is never the replacement', async () => {
+		const withBlocked = providers.map((x) => (x.id === 43 ? { ...x, blocked: 'fidl' } : x));
+		const r = await replacementPlan({ providers: withBlocked, ids: [36, 37], down: [37], answers: up(['probe', 'brown']) });
+		expect(r.replaced[0].to?.id).toBe(38);
+	});
+});

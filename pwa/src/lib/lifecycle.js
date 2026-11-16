@@ -13,6 +13,7 @@ import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
 import { loadAttestWasm } from './attest-wasm-load.js';
 import { ownImageVerified, runsOwnImage } from './own-image-check.js';
 import { answeringCopies } from './restore-reach.js';
+import { placedConfig } from './providers.js';
 import { pinnedTrustedExecution } from './runtime-pin.js';
 import { alephPrivateKey, backupMarkKey, backupPrivateKey, pieceMark, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
 import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
@@ -449,10 +450,12 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 		// payer or signer, which the profile then keeps); without an answer,
 		// what the setup recorded.
 		const signer = await refreshBackupSigner(master, profile);
+		// A region becomes named providers: one per operator, none blocked (providers.js).
+		const backupConfig = await placedConfig(profile.network === 'mainnet' ? 'mainnet' : 'calibration', profile.backupConfig);
 		try {
 			Object.assign(
 				secrets,
-				vmBackupSecrets(profile, {
+				vmBackupSecrets({ ...profile, backupConfig }, {
 					...(profile.backupsByCredits
 						? { backupKey: backupPrivateKey(master), signer, creditsUrl: CREDITS_URL, product: CREDITS_PRODUCT, account: creditsAccount(master).address }
 						: { sessionKey: filecoinSessionPrivateKey(master) })
@@ -557,14 +560,16 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
  * (the VM reads them at every backup): the config, and the key or signer
  * that pays and signs. Only to a VM on this vault's own image.
  * @param {Uint8Array} master @param {Record<string, any>} profile with `running` and `backupConfig`
- * @param {{ send?: typeof sendToGuest }} [deps]
+ * @param {{ send?: typeof sendToGuest, place?: typeof placedConfig }} [deps]
  */
-export async function pushBackupPlaces(master, profile, { send = sendToGuest } = {}) {
+export async function pushBackupPlaces(master, profile, { send = sendToGuest, place = placedConfig } = {}) {
 	if (!profile.running?.instanceHash) throw new Error(tr().life.errors.noVm);
 	if (!profile.backupConfig) throw new Error(tr().life.errors.noBackupConfig);
 	if (!ownImageVerified(master, profile)) throw new Error(tr().life.errors.placesNeedOwnImage);
 	const signer = profile.backupsByCredits ? await refreshBackupSigner(master, profile) : null;
-	const secrets = vmBackupSecrets(profile, {
+	// A region becomes named providers, as at the start.
+	const backupConfig = await place(profile.network === 'mainnet' ? 'mainnet' : 'calibration', profile.backupConfig);
+	const secrets = vmBackupSecrets({ ...profile, backupConfig }, {
 		...(profile.backupsByCredits
 			? { backupKey: backupPrivateKey(master), signer, creditsUrl: CREDITS_URL, product: CREDITS_PRODUCT, account: creditsAccount(master).address }
 			: { sessionKey: filecoinSessionPrivateKey(master) })

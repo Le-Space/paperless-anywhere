@@ -171,7 +171,8 @@ export const backup = {
 				notApproved: (/** @type {number} */ id) => `Anbieter ${id} ist nicht (mehr) zugelassen.`,
 				notActive: (/** @type {number} */ id, /** @type {string} */ name) => `Anbieter ${id} (${name}) ist nicht aktiv.`,
 				outsideRegion: (/** @type {number} */ id, /** @type {string} */ name) => `Anbieter ${id} (${name}) liegt außerhalb der Region.`,
-				tooFew: (/** @type {number} */ copies, /** @type {number} */ found) => `${copies} Kopien gewünscht, in der Region gibt es nur ${found} zugelassene Anbieter.`,
+				blocked: (/** @type {number} */ id, /** @type {string} */ name, /** @type {string} */ why) => `Anbieter ${id} (${name}) ist gesperrt: ${why}. Bitte einen anderen wählen.`,
+				tooFew: (/** @type {number} */ copies, /** @type {number} */ found) => `${copies} Kopien gewünscht, in der Region gibt es ${found ? `nur ${found}` : 'keinen'} zugelassene${found ? '' : 'n'} Anbieter.`,
 				sameOperator: (/** @type {number} */ id, /** @type {string} */ name, /** @type {string} */ twin, /** @type {string} */ why) =>
 					`Anbieter ${id} (${name}) gehört zum selben Betreiber wie ${twin} (${why}). Zwei Kopien dort fallen zusammen aus: einen Anbieter eines anderen Betreibers wählen.`
 			},
@@ -182,7 +183,9 @@ export const backup = {
 			},
 			sameOperatorAs: (/** @type {string} */ name) => `gleicher Betreiber wie ${name}`,
 			fewOperators: (/** @type {number} */ copies, /** @type {number} */ found) =>
-				`In der Region gibt es nur ${found === 1 ? 'einen unabhängigen Betreiber' : `${found} unabhängige Betreiber`} für ${copies} Kopien. Was darüber hinausgeht, liegt bei einem Betreiber, der schon eine Kopie hat, und fällt mit ihr aus.`,
+				`Nur ${found} unabhängige${found === 1 ? 'r' : ''} Betreiber verfügbar: ${found === 1 ? 'eine Kopie' : `${found} Kopien`} statt ${copies}. Zwei Kopien beim selben Betreiber legt die App nicht an, sie fielen zusammen aus.`,
+			blockedWhy: { fidl: 'FIDL (Cello, Bass): am 16.11.2026 beide zugleich nicht erreichbar, ein Betreiber; von Le Space aus den Sicherungsorten genommen' },
+			blockedTag: 'gesperrt',
 			third: {
 				offer: (/** @type {string} */ name, /** @type {string} */ place) => `Eine weitere Kopie bei einem unabhängigen Betreiber: ${name}${place ? ` (${place})` : ''}.`,
 				outside: 'Er liegt außerhalb der gewählten Region.',
@@ -442,7 +445,8 @@ export const backup = {
 				notApproved: (/** @type {number} */ id) => `Provider ${id} is not approved (any more).`,
 				notActive: (/** @type {number} */ id, /** @type {string} */ name) => `Provider ${id} (${name}) is not active.`,
 				outsideRegion: (/** @type {number} */ id, /** @type {string} */ name) => `Provider ${id} (${name}) lies outside the region.`,
-				tooFew: (/** @type {number} */ copies, /** @type {number} */ found) => `${copies} copies wanted, the region has only ${found} approved ${found === 1 ? 'provider' : 'providers'}.`,
+				blocked: (/** @type {number} */ id, /** @type {string} */ name, /** @type {string} */ why) => `Provider ${id} (${name}) is blocked: ${why}. Please choose another one.`,
+				tooFew: (/** @type {number} */ copies, /** @type {number} */ found) => (found ? `${copies} copies wanted, the region has only ${found} approved ${found === 1 ? 'provider' : 'providers'}.` : `${copies} copies wanted, the region has no approved provider.`),
 				sameOperator: (/** @type {number} */ id, /** @type {string} */ name, /** @type {string} */ twin, /** @type {string} */ why) =>
 					`Provider ${id} (${name}) belongs to the same operator as ${twin} (${why}). Two copies there fail together: choose a provider of another operator.`
 			},
@@ -453,7 +457,9 @@ export const backup = {
 			},
 			sameOperatorAs: (/** @type {string} */ name) => `same operator as ${name}`,
 			fewOperators: (/** @type {number} */ copies, /** @type {number} */ found) =>
-				`The region has only ${found === 1 ? 'one independent operator' : `${found} independent operators`} for ${copies} copies. Whatever goes beyond lies at an operator that already holds a copy, and fails with it.`,
+				`Only ${found} independent ${found === 1 ? 'operator' : 'operators'} available: ${found === 1 ? 'one copy' : `${found} copies`} instead of ${copies}. The app does not put two copies at one operator; they would fail together.`,
+			blockedWhy: { fidl: 'FIDL (Cello, Bass): both unreachable at the same time on 2026-11-16, one operator; taken out of the backup places by Le Space' },
+			blockedTag: 'blocked',
 			third: {
 				offer: (/** @type {string} */ name, /** @type {string} */ place) => `One more copy at an independent operator: ${name}${place ? ` (${place})` : ''}.`,
 				outside: 'It lies outside the chosen region.',
