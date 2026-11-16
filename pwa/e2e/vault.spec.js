@@ -128,3 +128,16 @@ test('the app speaks English when asked, from the first screen on, and changes w
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Neu hier? Tresor anlegen');
 	await expect(page.getByTestId('logo-home')).toHaveAttribute('href', '/');
 });
+
+test('inside another page’s frame the app shows only a link and opens no vault', async ({ page }) => {
+	const install = alephMock();
+	await install(page.context());
+	// Another page that frames the app.
+	await page.route('**/frame-host', (route) => route.fulfill({ contentType: 'text/html', body: '<iframe id="f" src="/app/" style="width:800px;height:600px"></iframe>' }));
+	await page.goto('/frame-host');
+	const app = page.frameLocator('#f');
+	await expect(app.getByTestId('state')).toHaveText('framed');
+	await expect(app.getByTestId('framed')).toContainText('eingebettet');
+	await expect(app.getByRole('button', { name: /Passkey/ })).toHaveCount(0);
+	await expect(app.getByRole('button', { name: 'Öffnen' })).toHaveCount(0);
+});
