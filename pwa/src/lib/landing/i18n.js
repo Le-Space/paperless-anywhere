@@ -133,6 +133,34 @@ export const texts = {
 			error: 'Die Anbieterliste ist gerade nicht erreichbar.',
 			count: (n, c) => `${n} ${n === 1 ? 'zugelassener Anbieter' : 'zugelassene Anbieter'} in ${c} ${c === 1 ? 'Land' : 'Ländern'}`,
 			endorsed: 'empfohlen',
+			proof: {
+				title: 'Woher weiß ich, dass meine Sicherung noch da ist?',
+				short: [
+					'Jeder Speicheranbieter muss mindestens einmal am Tag beweisen, dass er deine Sicherung noch hat – an Stellen, die er vorher nicht kennt.',
+					'Die Beweise prüft ein Vertrag auf der Filecoin-Kette, nicht Le Space und nicht der Anbieter selbst.',
+					'Wer nicht rechtzeitig beweist, fällt öffentlich auf und wird für diese Zeit nicht bezahlt.'
+				],
+				name: 'Das Verfahren heißt Proof of Data Possession (PDP), Teil von Filecoin Warm Storage.',
+				mathsTitle: 'So funktioniert es mathematisch',
+				steps: [
+					{ t: 'Zerlegen', d: 'Deine verschlüsselte Sicherung wird in Blätter zu je 32 Byte zerlegt, vorher so aufgefüllt, dass jedes Blatt in den Zahlenbereich des Beweissystems passt.' },
+					{ t: 'Festhalten', d: 'Aus den Blättern entsteht ein Merkle-Baum mit SHA-256 (auf 254 Bit gekürzt). Seine Wurzel ist die Inhaltsadresse des Stücks, die Piece-CID. Sie wird beim Hochladen auf der Kette festgehalten.' },
+					{ t: 'Stichproben ziehen', d: 'In jeder Beweisperiode zieht der Vertrag aus dem Zufall der Kette (drand-Beacon) 5 Blatt-Nummern. Vorher kennt sie niemand, auch der Anbieter nicht.' },
+					{ t: 'Beweisen', d: 'Der Anbieter liefert genau diese Blätter samt Merkle-Pfad zur festgehaltenen Wurzel, und der Vertrag rechnet den Pfad nach. Ohne die Daten gelingt das nicht.' },
+					{ t: 'Abrechnen', d: 'Bezahlt wird nur für Zeiträume mit gültigem Beweis. Ein verpasster Beweis steht als Fehler auf der Kette.' }
+				],
+				params: 'Die Werte, aus dem Vertrag gelesen (Filecoin-Mainnet): eine Beweisperiode dauert höchstens 24 Stunden (2880 Epochen zu 30 Sekunden), der Beweis muss in einem Fenster von 30 Minuten kommen, mit 5 Stichproben.',
+				formula: 'Wie schnell ein Verlust auffällt: Fehlt ein Anteil f der Daten, trifft jede Stichprobe mit Wahrscheinlichkeit f eine fehlende Stelle. Bei k Stichproben pro Periode fällt der Verlust also mit Wahrscheinlichkeit 1 − (1 − f)ᵏ auf, nach n Perioden mit 1 − (1 − f)ᵏⁿ.',
+				table: { missing: 'Es fehlt', within: (/** @type {number} */ d) => (d === 1 ? 'nach 1 Tag' : `nach ${d} Tagen`), gone: '(Kopie weg)' },
+				tableNote: 'Eine verlorene Kopie fällt beim nächsten Beweis auf. Kleine Schäden brauchen länger – auch deshalb liegen deine Sicherungen in mehreren Kopien bei verschiedenen Anbietern.',
+				limitsTitle: 'Was PDP nicht beweist',
+				limits: [
+					'Dass der Anbieter die Daten herausgibt: PDP beweist Besitz, nicht die Herausgabe. Deshalb gibt es mehrere Kopien bei verschiedenen Anbietern, und du kannst eine Sicherung jederzeit selbst holen.',
+					'Was zwischen zwei Beweisen geschieht: Ein Verlust fällt erst bei einer der folgenden Stichproben auf, wie die Rechnung zeigt.',
+					'Was drin ist: Anbieter und Vertrag sehen nur Verschlüsseltes und Prüfsummen. Deine Sicherung wird in der VM mit dem Schlüssel aus deinem Tresor verschlüsselt, bevor sie hochgeladen wird.'
+				],
+				more: 'Mit Quellen und den Verträgen: Woher weiß ich, dass meine Sicherung noch da ist?'
+			},
 		},
 		trust: {
 			title: 'Vertrauen ist gut. Nachprüfen ist besser.',
@@ -405,6 +433,34 @@ export const texts = {
 			error: 'The provider list cannot be reached right now.',
 			count: (n, c) => `${n} approved ${n === 1 ? 'provider' : 'providers'} in ${c} ${c === 1 ? 'country' : 'countries'}`,
 			endorsed: 'endorsed',
+			proof: {
+				title: 'How do I know my backup is still there?',
+				short: [
+					'Every storage provider has to prove at least once a day that it still has your backup – at places it does not know beforehand.',
+					'The proofs are checked by a contract on the Filecoin chain, not by Le Space and not by the provider itself.',
+					'A provider that does not prove in time shows up in public and is not paid for that time.'
+				],
+				name: 'The method is called Proof of Data Possession (PDP), part of Filecoin Warm Storage.',
+				mathsTitle: 'How it works, mathematically',
+				steps: [
+					{ t: 'Cut up', d: 'Your encrypted backup is cut into leaves of 32 bytes each, padded first so that every leaf fits into the number field of the proof system.' },
+					{ t: 'Record', d: 'The leaves form a Merkle tree with SHA-256 (cut to 254 bits). Its root is the piece’s content address, the piece CID. It is recorded on the chain when the backup is uploaded.' },
+					{ t: 'Draw samples', d: 'In every proving period the contract draws 5 leaf numbers from the chain’s randomness (the drand beacon). Nobody knows them beforehand, not even the provider.' },
+					{ t: 'Prove', d: 'The provider hands over exactly these leaves with their Merkle path to the recorded root, and the contract recomputes the path. Without the data it cannot succeed.' },
+					{ t: 'Pay', d: 'Payment is made only for periods with a valid proof. A missed proof is recorded as a fault on the chain.' }
+				],
+				params: 'The values, as read from the contract (Filecoin mainnet): a proving period lasts at most 24 hours (2880 epochs of 30 seconds), the proof must come within a window of 30 minutes, with 5 samples.',
+				formula: 'How fast a loss shows: if a share f of the data is missing, each sample hits a missing place with probability f. With k samples per period the loss shows with probability 1 − (1 − f)ᵏ, and within n periods with 1 − (1 − f)ᵏⁿ.',
+				table: { missing: 'Missing', within: (/** @type {number} */ d) => (d === 1 ? 'within 1 day' : `within ${d} days`), gone: '(copy gone)' },
+				tableNote: 'A lost copy shows at the next proof. Small damage takes longer – one more reason your backups are kept in several copies with different providers.',
+				limitsTitle: 'What PDP does not prove',
+				limits: [
+					'That the provider hands the data out: PDP proves possession, not retrieval. That is why there are several copies with different providers, and why you can fetch a backup yourself at any time.',
+					'What happens between two proofs: a loss shows only with one of the following samples, as the calculation shows.',
+					'What is inside: provider and contract see only encrypted data and checksums. Your backup is encrypted in the VM with the key from your vault before it is uploaded.'
+				],
+				more: 'With sources and the contracts: How do I know my backup is still there?'
+			},
 		},
 		trust: {
 			title: 'Don’t trust. Verify.',
