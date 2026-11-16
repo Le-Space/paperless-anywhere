@@ -378,7 +378,8 @@ export async function startPaperless(master, profile, onProgress, { onRequested,
 	// …and only when a copy of it can be fetched: otherwise the VM would start
 	// empty and cost for nothing. Asked before any VM is requested.
 	if (profile.restoreEntry) {
-		onProgress({ step: 'measure', detail: tr().life.progress.checkCopies });
+		// Before the start's steps: a copy that does not answer fails no step of the panel.
+		onProgress({ step: 'preparing', detail: tr().life.progress.checkCopies });
 		const { answering, total } = await reach(profile.restoreEntry);
 		if (total > 0 && answering === 0) throw Object.assign(new Error(tr().life.errors.copiesUnreachable(total)), { retryable: true });
 	}

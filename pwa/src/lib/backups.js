@@ -110,6 +110,43 @@ export function groupPieces(pieces, sizeOf = pieceSize) {
 }
 
 /**
+ * An order of `keys`, oldest first, that follows every sequence (each one
+ * oldest first); where no sequence decides, the lower `fallback` comes first.
+ * Returns each key's place (0 = oldest). A cycle cannot arise from piece ids;
+ * should one, the rest go by `fallback`.
+ * @param {string[]} keys @param {string[][]} sequences @param {(key: string) => number} fallback
+ * @returns {Map<string, number>}
+ */
+export function chainOrder(keys, sequences, fallback) {
+	const after = new Map(keys.map((k) => [k, new Set()]));
+	const before = new Map(keys.map((k) => [k, 0]));
+	for (const seq of sequences)
+		for (let i = 1; i < seq.length; i++) {
+			const a = seq[i - 1], b = seq[i];
+			if (a === b || after.get(a).has(b)) continue;
+			after.get(a).add(b);
+			before.set(b, before.get(b) + 1);
+		}
+	const ready = keys.filter((k) => before.get(k) === 0);
+	const out = new Map();
+	while (out.size < keys.length) {
+		if (!ready.length) ready.push(...keys.filter((k) => !out.has(k) && !ready.includes(k)));
+		ready.sort((a, b) => fallback(a) - fallback(b));
+		const k = ready.shift();
+		if (out.has(k)) continue;
+		out.set(k, out.size);
+		for (const n of after.get(k)) {
+			before.set(n, before.get(n) - 1);
+			if (before.get(n) === 0 && !out.has(n)) ready.push(n);
+		}
+	}
+	return out;
+}
+
+/** Room for the piece ids of one data set in a backup's order (data set id × span + piece id). */
+export const ORDER_SPAN = 1_000_000;
+
+/**
  * The backups on chain, from each data set's pieces: a backup in parts is
  * one backup, whose size is the sum of its parts, and a data set holds a copy
  * of it only with every part. A data set that holds just some of a backup's
@@ -122,15 +159,30 @@ export function groupPieces(pieces, sizeOf = pieceSize) {
  */
 export function backupsFromPieces(sets, { urlOf, placeOf = () => '', sizeOf = pieceSize }) {
 	const byKey = new Map();
+	/** @type {string[][]} */
+	const sequences = [];
 	for (const ds of sets) {
+		// The fallback for backups no shared data set orders: newer data sets
+		// first (a move to other providers starts new ones), then the piece id.
+		const setRank = Number.isFinite(Number(ds.dataSetId)) ? Number(ds.dataSetId) : 0;
+		const inSet = [];
 		for (const g of groupPieces(ds.pieces, sizeOf)) {
 			const key = g.parts.map((p) => p.pieceCid).join(' ');
 			const entry = byKey.get(key) ?? { parts: g.parts, order: 0, holders: [] };
-			entry.order = Math.max(entry.order, g.order);
+			entry.order = Math.max(entry.order, setRank * ORDER_SPAN + g.order);
+			inSet.push(key);
 			entry.holders.push({ providerId: ds.providerId, dataSetId: ds.dataSetId, pieceIds: g.pieceIds });
 			byKey.set(key, entry);
 		}
+		sequences.push(inSet);
 	}
+	// Newest by time: within one data set the piece ids follow time, so each
+	// set orders its backups; sets that share a backup chain those orders
+	// together (a backup added to an old set after the old ones, and to new
+	// sets at piece 0, is still the newest). Only what no shared set decides
+	// falls back to the data set's id.
+	const ranked = chainOrder([...byKey.keys()], sequences, (k) => byKey.get(k).order);
+	for (const [k, i] of ranked) byKey.get(k).order = i;
 	const all = [...byKey.values()];
 	const cids = all.map((b) => new Set(b.parts.map((p) => p.pieceCid)));
 	// A fragment: some parts of a longer backup, never a backup of its own
