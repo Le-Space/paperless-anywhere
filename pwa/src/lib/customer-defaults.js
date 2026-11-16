@@ -22,11 +22,12 @@ import { ageIdentityFromMaster, ageRecipient } from './keys/age.js';
 import { loadProfile, updateProfile } from './profile.js';
 
 /**
- * Where a customer's backups go: three copies, one per operator (operators.js),
- * in Europe (EU/EEA, GB, CH), EU first (pickProviders). The EU alone has two
- * independent operators today (2026-11-16: FIDL with 36 and 37, ProbeLab with
- * 43), so the third is in GB (ezpdpz) as things stand. Where fewer operators
- * are there, fewer copies, never two at one operator; the lights say so.
+ * Where a customer's backups go: three copies, one per operator (operators.js)
+ * and none blocked (blocked-providers.js), in Europe (EU/EEA, GB, CH), EU
+ * first (pickProviders). With 36 and 37 (FIDL) blocked, the EU has one
+ * operator left (43 ProbeLab, 2026-11-16), so the others are in GB (ezpdpz,
+ * Brown Storage) as things stand. Where fewer operators are there, fewer
+ * copies, never two at one operator; the form and the lights say so.
  * The start resolves the region to named providers (placedConfig).
  */
 export const CUSTOMER_PLACES = Object.freeze({ copies: 3, providerIds: [], regions: ['EUROPE'] });

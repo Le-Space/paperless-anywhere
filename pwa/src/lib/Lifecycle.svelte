@@ -27,6 +27,7 @@
 	import { checkCopies } from '$lib/backup-status.js';
 	import { listProviders } from '$lib/providers.js';
 	import { replacementPlan } from '$lib/places-replace.js';
+	import { blockedAmong, blockedReason } from '$lib/blocked-providers.js';
 	import { backupSize, knownBackup, listBackups, newerBackup, pieceCidOfStop, place, restoreEntry, restoreGap, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
@@ -730,8 +731,16 @@
 	// that does not answer is said before anything is exported, with a
 	// replacement at an independent operator; confirmed, the new places go to
 	// the running VM (pushBackupPlaces), and the backup goes on.
-	/** @type {{ names: string[], plan: Awaited<ReturnType<typeof replacementPlan>> | null, allDown: boolean, then: () => unknown } | null} */
+	/** @type {{ names: string[], plan: Awaited<ReturnType<typeof replacementPlan>> | null, allDown: boolean, then: () => unknown, blocked?: { names: string[], why: string } } | null} */
 	let placesAsk = $state(null);
+	// The named places that Le Space blocked (blocked-providers.js), in words.
+	const blockedOf = (/** @type {number[]} */ ids, /** @type {any[]} */ providers) => {
+		const network = profile.network ?? 'calibration';
+		const blocked = blockedAmong(network, ids);
+		if (!blocked.length) return null;
+		const whys = [...new Set(blocked.map((id) => blockedReason(network, id)))].map((k) => tr().backup.places.blockedWhy[/** @type {'fidl'} */ (k)]);
+		return { ids: blocked, names: blocked.map((id) => `${id} ${providers.find((p) => p.id === id)?.name ?? ''}`.trim()), why: whys.join('; ') };
+	};
 	async function checkPlacesThen(/** @type {() => unknown} */ then) {
 		const named = (profile.backupConfig?.providerIds ?? []).map(Number);
 		const ids = named.length ? named : (newestBackup?.copies ?? []).map((/** @type {any} */ x) => Number(x.providerId));
@@ -740,16 +749,39 @@
 		stopChecking = true;
 		try {
 			const r = await checkCopies({ network, copies: ids.map((providerId) => ({ providerId })) }).catch(() => null);
-			const down = r ? r.copies.filter((c) => !c.answers) : [];
-			// Without the registry's answer, or all answering: nothing to say.
-			if (!r || !down.length) return then();
+			const down = r ? r.copies.filter((c) => !c.answers).map((c) => c.id) : [];
+			// Named places Le Space blocked are replaced too.
+			const blockedIds = blockedAmong(network, named);
+			const out = [...new Set([...down, ...blockedIds])];
+			// Without the registry's answer and nothing blocked, or all answering: nothing to say.
+			if ((!r && !blockedIds.length) || !out.length) return then();
 			const providers = await listProviders(network).catch(() => []);
-			const plan = providers.length ? await replacementPlan({ providers, ids, down: down.map((c) => c.id), regions: profile.backupConfig.regions ?? [] }) : null;
-			placesAsk = { names: down.map((c) => `${c.id} ${c.name}`.trim()), plan: plan && plan.replaced.some((x) => x.to) ? plan : null, allDown: r.answering === 0, then };
+			const plan = providers.length ? await replacementPlan({ providers, ids, down: out, regions: profile.backupConfig.regions ?? [] }) : null;
+			const blocked = blockedOf(blockedIds, providers);
+			placesAsk = { names: (r?.copies ?? []).filter((c) => down.includes(c.id)).map((c) => `${c.id} ${c.name}`.trim()), plan: plan && plan.replaced.some((x) => x.to) ? plan : null, allDown: Boolean(r) && r.answering === 0, then, ...(blocked ? { blocked } : {}) };
 		} finally {
 			stopChecking = false;
 		}
 	}
+	// When the profile opens: named places that are blocked are said, with a
+	// replacement to accept (once a visit). A region needs nothing: the start
+	// and the handover to a running VM leave blocked providers out.
+	let blockedOffered = false;
+	$effect(() => {
+		if (!loaded || blockedOffered || busy || placesAsk) return;
+		const named = (profile.backupConfig?.providerIds ?? []).map(Number);
+		const network = profile.network ?? 'calibration';
+		const blockedIds = blockedAmong(network, named);
+		if (!blockedIds.length) return;
+		blockedOffered = true;
+		listProviders(network)
+			.catch(() => [])
+			.then(async (providers) => {
+				const plan = providers.length ? await replacementPlan({ providers, ids: named, down: blockedIds, regions: profile.backupConfig?.regions ?? [] }) : null;
+				const blocked = blockedOf(blockedIds, providers);
+				if (blocked && !placesAsk) placesAsk = { names: [], plan: plan && plan.replaced.some((x) => x.to) ? plan : null, allDown: false, then: () => {}, blocked };
+			});
+	});
 	async function acceptPlaces() {
 		const ask = placesAsk;
 		if (!ask?.plan) return;
@@ -919,17 +951,23 @@
 {#snippet placesBox()}
 	{#if placesAsk}
 		<div class="warn-box" role="alert" data-testid="places-ask">
-			<p>{c.places.down(placesAsk.names.join(', '))}</p>
+			{#if placesAsk.blocked}<p data-testid="places-blocked">{c.places.blocked(placesAsk.blocked.names.join(', '), placesAsk.blocked.why)}</p>{/if}
+			{#if placesAsk.names.length}<p>{c.places.down(placesAsk.names.join(', '))}</p>{/if}
 			{#if placesAsk.plan}
 				<ul>{#each placesAsk.plan.replaced as r (r.from.id)}<li>{r.to ? c.places.instead(`${r.from.id} ${r.from.name ?? ''}`.trim(), `${r.to.id} ${r.to.name}${r.to.place ? `, ${r.to.place}` : ''}`) : c.places.none(`${r.from.id} ${r.from.name ?? ''}`.trim())}</li>{/each}</ul>
-				<p class="hint">{c.places.hint}</p>
+				<p class="hint">{placesAsk.blocked && !placesAsk.names.length ? c.places.blockedHint : c.places.hint}</p>
 			{:else}
 				<p class="hint">{c.places.noReplacement}</p>
 			{/if}
 			<div class="row">
-				{#if placesAsk.plan}<button onclick={acceptPlaces} disabled={busy} data-testid="places-accept">{c.places.accept}</button>{/if}
-				<button class="secondary" onclick={placesAnyway} disabled={busy} data-testid="places-anyway">{placesAsk.allDown ? c.places.tryAnyway : c.places.goOn}</button>
-				<button class="quiet" onclick={() => (placesAsk = null)} data-testid="places-cancel">{c.places.cancel}</button>
+				{#if placesAsk.blocked && !placesAsk.names.length}
+					{#if placesAsk.plan}<button onclick={acceptPlaces} disabled={busy} data-testid="places-accept">{c.places.acceptOnly}</button>{/if}
+					<button class="quiet" onclick={() => (placesAsk = null)} data-testid="places-cancel">{c.places.later}</button>
+				{:else}
+					{#if placesAsk.plan}<button onclick={acceptPlaces} disabled={busy} data-testid="places-accept">{c.places.accept}</button>{/if}
+					<button class="secondary" onclick={placesAnyway} disabled={busy} data-testid="places-anyway">{placesAsk.allDown ? c.places.tryAnyway : c.places.goOn}</button>
+					<button class="quiet" onclick={() => (placesAsk = null)} data-testid="places-cancel">{c.places.cancel}</button>
+				{/if}
 			</div>
 		</div>
 	{/if}

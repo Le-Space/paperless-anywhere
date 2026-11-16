@@ -67,7 +67,11 @@ export const card = {
 			goOn: 'Ohne Änderung weiter',
 			tryAnyway: 'Trotzdem versuchen',
 			cancel: 'Abbrechen',
-			pushing: 'Neue Sicherungsorte gehen an die VM'
+			pushing: 'Neue Sicherungsorte gehen an die VM',
+			blocked: (/** @type {string} */ names, /** @type {string} */ why) => `Deine Sicherungsorte nennen gesperrte Anbieter: ${names} (${why}). Neue Kopien sollen dort nicht mehr hin; die alten Sicherungen bleiben, wo sie sind.`,
+			blockedHint: 'Übernommen gelten die neuen Orte für die nächsten Sicherungen; läuft Paperless, gehen sie gleich an die laufende VM.',
+			acceptOnly: 'Ersatz übernehmen',
+			later: 'Später'
 		},
 		simple: {
 			startTakes: (/** @type {string} */ time) => `Der Start dauert etwa ${time}.`,
@@ -218,7 +222,11 @@ export const card = {
 			goOn: 'Go on unchanged',
 			tryAnyway: 'Try anyway',
 			cancel: 'Cancel',
-			pushing: 'The new backup places go to the VM'
+			pushing: 'The new backup places go to the VM',
+			blocked: (/** @type {string} */ names, /** @type {string} */ why) => `Your backup places name blocked providers: ${names} (${why}). New copies should not go there any more; the old backups stay where they are.`,
+			blockedHint: 'Once accepted, the new places apply to the next backups; while Paperless runs, they go to the running VM at once.',
+			acceptOnly: 'Accept the replacement',
+			later: 'Later'
 		},
 		simple: {
 			startTakes: (/** @type {string} */ time) => `A start takes about ${time}.`,

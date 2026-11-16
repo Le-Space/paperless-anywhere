@@ -23,7 +23,9 @@ describe('pickProviders', () => {
 	it('stays inside the region and says when it is too small', () => {
 		const eu = pickProviders(list, { copies: 2, regions: ['EU'] });
 		expect(eu.picked.map((x) => x.id)).toEqual([7]);
-		expect(eu.problems[0]).toMatch(/2 Kopien/);
+		// Fewer copies, not a stop: the form says "nur 1 unabhängiger Betreiber".
+		expect(eu).toMatchObject({ problems: [], operators: 1 });
+		expect(pickProviders(list, { copies: 2, regions: ['FR'] }).problems[0]).toMatch(/2 Kopien/);
 		// EU first, then the rest of Europe.
 		expect(pickProviders(list, { copies: 2, regions: ['EUROPE'] }).picked.map((x) => x.id)).toEqual([7, 9]);
 	});
@@ -59,7 +61,27 @@ describe('one operator', () => {
 		const eu = pickProviders(fidl, { copies: 3, regions: ['EU'] });
 		expect(eu.picked.map((x) => x.id)).toEqual([36, 43]);
 		expect(eu).toMatchObject({ operators: 2, problems: [] });
-		expect(pickProviders(fidl, { copies: 2, regions: ['EU'] }).picked.map((x) => x.id)).toEqual([36, 43]);
+	});
+	it('never takes a blocked provider by itself, and refuses one named', () => {
+		const blocked = fidl.map((x) => (x.id === 36 || x.id === 37 ? { ...x, blocked: 'fidl' } : x));
+		expect(pickProviders(blocked, { copies: 3, regions: ['EU'] })).toMatchObject({ problems: [], operators: 1 });
+		expect(pickProviders(blocked, { copies: 3, regions: ['EU'] }).picked.map((x) => x.id)).toEqual([43]);
+		expect(pickProviders(blocked, { copies: 3 }).picked.map((x) => x.id)).toEqual([43, 1]);
+		// Europe with 36/37 blocked: ProbeLab in the EU first, then GB.
+		expect(pickProviders(blocked, { copies: 3, regions: ['EUROPE'] })).toMatchObject({ problems: [], operators: 2 });
+		expect(pickProviders(blocked, { copies: 3, regions: ['EUROPE'] }).picked.map((x) => x.id)).toEqual([43, 1]);
+		const named = pickProviders(blocked, { providerIds: [36, 43, 1] });
+		expect(named.picked.map((x) => x.id)).toEqual([43, 1]);
+		expect(named.problems[0]).toMatch(/Anbieter 36 \(Cello\) ist gesperrt: FIDL/);
+		expect(independentCandidate(blocked, [blocked[3]], [])?.provider.id).toBe(43);
+	});
+	it('a region becomes named providers at the start; named ones stay', async () => {
+		const blocked = fidl.map((x) => (x.id === 36 || x.id === 37 ? { ...x, blocked: 'fidl' } : x));
+		const list = async () => blocked;
+		expect(await placedConfig('mainnet', { copies: 3, providerIds: [], regions: ['EU'], keepWeeks: 12 }, { list })).toEqual({ copies: 1, providerIds: [43], regions: ['EU'], keepWeeks: 12 });
+		expect(await placedConfig('mainnet', { copies: 2, providerIds: [36, 37], regions: [] }, { list })).toEqual({ copies: 2, providerIds: [36, 37], regions: [] });
+		const down = async () => { throw new Error('rpc'); };
+		expect(await placedConfig('mainnet', { copies: 3, providerIds: [], regions: ['EU'] }, { list: down })).toEqual({ copies: 3, providerIds: [], regions: ['EU'] });
 	});
 	it('Europe: three operators, the EU first, then GB', () => {
 		const shuffled = [fidl[3], fidl[0], fidl[1], fidl[2]];

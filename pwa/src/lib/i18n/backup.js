@@ -143,6 +143,7 @@ export const backup = {
 		},
 		places: {
 			push: 'An die laufende VM übergeben',
+			pushPending: 'Orte geändert – jetzt an die laufende VM übergeben? Erst dann sichert sie dorthin.',
 			pushHint: 'Paperless läuft: Geänderte Sicherungsorte gelten für die laufende VM erst, wenn du sie übergibst.',
 			regions: { EUROPE: 'Europa (EU/EWR, Großbritannien, Schweiz)', EU: 'EU', EEA: 'EWR', US: 'USA', anywhere: 'überall' },
 			listUnreadable: 'Die Anbieterliste ließ sich gerade nicht lesen.',
@@ -170,7 +171,8 @@ export const backup = {
 				notApproved: (/** @type {number} */ id) => `Anbieter ${id} ist nicht (mehr) zugelassen.`,
 				notActive: (/** @type {number} */ id, /** @type {string} */ name) => `Anbieter ${id} (${name}) ist nicht aktiv.`,
 				outsideRegion: (/** @type {number} */ id, /** @type {string} */ name) => `Anbieter ${id} (${name}) liegt außerhalb der Region.`,
-				tooFew: (/** @type {number} */ copies, /** @type {number} */ found) => `${copies} Kopien gewünscht, in der Region gibt es nur ${found} zugelassene Anbieter.`,
+				blocked: (/** @type {number} */ id, /** @type {string} */ name, /** @type {string} */ why) => `Anbieter ${id} (${name}) ist gesperrt: ${why}. Bitte einen anderen wählen.`,
+				tooFew: (/** @type {number} */ copies, /** @type {number} */ found) => `${copies} Kopien gewünscht, in der Region gibt es ${found ? `nur ${found}` : 'keinen'} zugelassene${found ? '' : 'n'} Anbieter.`,
 				sameOperator: (/** @type {number} */ id, /** @type {string} */ name, /** @type {string} */ twin, /** @type {string} */ why) =>
 					`Anbieter ${id} (${name}) gehört zum selben Betreiber wie ${twin} (${why}). Zwei Kopien dort fallen zusammen aus: einen Anbieter eines anderen Betreibers wählen.`
 			},
@@ -181,7 +183,9 @@ export const backup = {
 			},
 			sameOperatorAs: (/** @type {string} */ name) => `gleicher Betreiber wie ${name}`,
 			fewOperators: (/** @type {number} */ copies, /** @type {number} */ found) =>
-				`Nur ${found} unabhängige Betreiber verfügbar: ${found === 1 ? 'eine Kopie' : `${found} Kopien`} statt ${copies}. Zwei Kopien beim selben Betreiber legt die App nicht an, sie fielen zusammen aus.`,
+				`Nur ${found} unabhängige${found === 1 ? 'r' : ''} Betreiber verfügbar: ${found === 1 ? 'eine Kopie' : `${found} Kopien`} statt ${copies}. Zwei Kopien beim selben Betreiber legt die App nicht an, sie fielen zusammen aus.`,
+			blockedWhy: { fidl: 'FIDL (Cello, Bass): am 16.11.2026 beide zugleich nicht erreichbar, ein Betreiber; von Le Space aus den Sicherungsorten genommen' },
+			blockedTag: 'gesperrt',
 			third: {
 				offer: (/** @type {string} */ name, /** @type {string} */ place) => `Eine weitere Kopie bei einem unabhängigen Betreiber: ${name}${place ? ` (${place})` : ''}.`,
 				outside: 'Er liegt außerhalb der gewählten Region.',
@@ -413,6 +417,7 @@ export const backup = {
 		},
 		places: {
 			push: 'Hand over to the running VM',
+			pushPending: 'Places changed – hand them to the running VM now? Only then does it back up there.',
 			pushHint: 'Paperless is running: changed backup places apply to the running VM only once you hand them over.',
 			regions: { EUROPE: 'Europe (EU/EEA, United Kingdom, Switzerland)', EU: 'EU', EEA: 'EEA', US: 'USA', anywhere: 'anywhere' },
 			listUnreadable: 'The list of providers could not be read right now.',
@@ -440,7 +445,8 @@ export const backup = {
 				notApproved: (/** @type {number} */ id) => `Provider ${id} is not approved (any more).`,
 				notActive: (/** @type {number} */ id, /** @type {string} */ name) => `Provider ${id} (${name}) is not active.`,
 				outsideRegion: (/** @type {number} */ id, /** @type {string} */ name) => `Provider ${id} (${name}) lies outside the region.`,
-				tooFew: (/** @type {number} */ copies, /** @type {number} */ found) => `${copies} copies wanted, the region has only ${found} approved ${found === 1 ? 'provider' : 'providers'}.`,
+				blocked: (/** @type {number} */ id, /** @type {string} */ name, /** @type {string} */ why) => `Provider ${id} (${name}) is blocked: ${why}. Please choose another one.`,
+				tooFew: (/** @type {number} */ copies, /** @type {number} */ found) => (found ? `${copies} copies wanted, the region has only ${found} approved ${found === 1 ? 'provider' : 'providers'}.` : `${copies} copies wanted, the region has no approved provider.`),
 				sameOperator: (/** @type {number} */ id, /** @type {string} */ name, /** @type {string} */ twin, /** @type {string} */ why) =>
 					`Provider ${id} (${name}) belongs to the same operator as ${twin} (${why}). Two copies there fail together: choose a provider of another operator.`
 			},
@@ -452,6 +458,8 @@ export const backup = {
 			sameOperatorAs: (/** @type {string} */ name) => `same operator as ${name}`,
 			fewOperators: (/** @type {number} */ copies, /** @type {number} */ found) =>
 				`Only ${found} independent ${found === 1 ? 'operator' : 'operators'} available: ${found === 1 ? 'one copy' : `${found} copies`} instead of ${copies}. The app does not put two copies at one operator; they would fail together.`,
+			blockedWhy: { fidl: 'FIDL (Cello, Bass): both unreachable at the same time on 2026-11-16, one operator; taken out of the backup places by Le Space' },
+			blockedTag: 'blocked',
 			third: {
 				offer: (/** @type {string} */ name, /** @type {string} */ place) => `One more copy at an independent operator: ${name}${place ? ` (${place})` : ''}.`,
 				outside: 'It lies outside the chosen region.',

@@ -31,7 +31,7 @@ export async function replacementPlan({ providers, ids, down, regions = [], answ
 		const from = byId.get(id) ?? { id };
 		let to = null;
 		for (const p of candidates) {
-			if (!p.active || !p.url || ids.includes(p.id) || chosen.some((q) => q.id === p.id)) continue;
+			if (!p.active || p.blocked || !p.url || ids.includes(p.id) || chosen.some((q) => q.id === p.id)) continue;
 			if (codes.length && !codes.includes(p.country ?? '')) continue;
 			// Not at the operator of a copy that stays, nor of the one that failed.
 			if (chosen.some((q) => oneOperator(q, p)) || (byId.get(id) && oneOperator(/** @type {any} */ (byId.get(id)), p))) continue;

@@ -450,7 +450,7 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 		// payer or signer, which the profile then keeps); without an answer,
 		// what the setup recorded.
 		const signer = await refreshBackupSigner(master, profile);
-		// A region becomes named providers, one per operator (providers.js).
+		// A region becomes named providers: one per operator, none blocked (providers.js).
 		const backupConfig = await placedConfig(profile.network === 'mainnet' ? 'mainnet' : 'calibration', profile.backupConfig);
 		try {
 			Object.assign(
@@ -567,7 +567,7 @@ export async function pushBackupPlaces(master, profile, { send = sendToGuest, pl
 	if (!profile.backupConfig) throw new Error(tr().life.errors.noBackupConfig);
 	if (!ownImageVerified(master, profile)) throw new Error(tr().life.errors.placesNeedOwnImage);
 	const signer = profile.backupsByCredits ? await refreshBackupSigner(master, profile) : null;
-	// A region becomes named providers, one per operator, as at the start.
+	// A region becomes named providers, as at the start.
 	const backupConfig = await place(profile.network === 'mainnet' ? 'mainnet' : 'calibration', profile.backupConfig);
 	const secrets = vmBackupSecrets({ ...profile, backupConfig }, {
 		...(profile.backupsByCredits

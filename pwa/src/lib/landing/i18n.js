@@ -155,7 +155,7 @@ export const texts = {
 			loading: 'Anbieter werden geladen …',
 			error: 'Die Anbieterliste ist gerade nicht erreichbar.',
 			count: (n, c) => `${n} ${n === 1 ? 'zugelassener Anbieter' : 'zugelassene Anbieter'} in ${c} ${c === 1 ? 'Land' : 'Ländern'}`,
-			endorsed: 'empfohlen',
+			endorsed: 'bei Filecoin Warm Storage empfohlen',
 			proof: {
 				title: 'Woher weiß ich, dass meine Sicherung noch da ist?',
 				short: [
@@ -504,7 +504,7 @@ export const texts = {
 			loading: 'Loading providers …',
 			error: 'The provider list cannot be reached right now.',
 			count: (n, c) => `${n} approved ${n === 1 ? 'provider' : 'providers'} in ${c} ${c === 1 ? 'country' : 'countries'}`,
-			endorsed: 'endorsed',
+			endorsed: 'endorsed in Filecoin Warm Storage',
 			proof: {
 				title: 'How do I know my backup is still there?',
 				short: [
