@@ -68,13 +68,16 @@ passphrase, so it may pass through a relay and lie on public storage.
 In the setup, the image step asks which image (once a builder is fixed in
 the app):
 
-- **The public image from Le Space**: one passphrase per image version,
-  entered with the image's hash. Le Space knows it, and everyone using that
-  version.
-- **My own image**: **Build my image** (`pwa/src/lib/own-image.js`).
-  Nobody but your vault knows the passphrase. Until it is built, the VM
-  starts from the public image, and the step says so. Going back to the
-  public image asks for its hash and passphrase anew.
+- **My own encrypted image (recommended)**: **Build my image**
+  (`pwa/src/lib/own-image.js`). Its passphrase comes from your vault; Le
+  Space does not know it. Only a VM on it gets the keys for backups, a
+  restore and the fixed address (`pwa/src/lib/own-image-check.js`), and a
+  production instance (role primary) needs it: the next start builds it.
+- **Public image, for trying out**: it starts empty, without backups and
+  without the fixed address. The reason, plainly: one passphrase holds for
+  everyone using that image version, and the disk's content is not measured
+  at the start. A test instance whose own image is not built yet starts from
+  it. Going back to it asks for its hash and passphrase anew.
 
 For the own image, the app
 

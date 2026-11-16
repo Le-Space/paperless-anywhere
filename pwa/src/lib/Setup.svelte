@@ -518,8 +518,9 @@
 			{#if BUILDER}
 				<fieldset class="image-choice" data-testid="image-choice">
 					<legend>{$t.ownImage.choice.legend}</legend>
-					<label><input type="radio" bind:group={imageKind} value="public" onchange={() => ((imageKindPicked = true), choosePublic())} data-testid="image-public" /> {$t.ownImage.choice.public}<br /><small>{$t.ownImage.choice.publicHint}</small></label>
 					<label><input type="radio" bind:group={imageKind} value="own" onchange={() => (imageKindPicked = true)} data-testid="image-own" /> {$t.ownImage.choice.own}<br /><small>{$t.ownImage.choice.ownHint}</small></label>
+					<label><input type="radio" bind:group={imageKind} value="public" onchange={() => ((imageKindPicked = true), choosePublic())} data-testid="image-public" /> {$t.ownImage.choice.public}<br /><small>{$t.ownImage.choice.publicHint}</small></label>
+					<details class="more"><summary>{x.more}</summary><p class="hint">{$t.ownImage.choice.publicWhy}</p></details>
 				</fieldset>
 			{/if}
 			{#if BUILDER && publicImage}
