@@ -11,7 +11,8 @@
 	import { findAttestRelays } from '$lib/relays.js';
 	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups, imageBuild, imageBuildDone, CreditsShortError } from '$lib/credits.js';
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
-	import { buildImageForVault } from '$lib/own-image-build.js';
+	import { buildImageForVault, forgetOldImage } from '$lib/own-image-build.js';
+	import { forgetQueued } from '$lib/old-image.js';
 	import { buildsImageFirst } from '$lib/lifecycle.js';
 	import { BUILDER, buildAffordable, forgetLeftBuilder, settleLeftBuild, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
 	import { format, lang, t, tr } from '$lib/i18n/index.js';
@@ -346,6 +347,13 @@
 			ownStep = '';
 		}
 	});
+	// Old own images whose FORGET failed: by hand (old-image.js).
+	const removeOldImages = () => run('old-images', async () => {
+		const app = privateKeyToAccount(alephPrivateKey(master));
+		const left = await forgetQueued(profile, (store) => forgetOldImage(app, store));
+		await save({ oldOwnImages: left.length ? left : undefined });
+		if (left.length) throw new Error(tr().ownImage.oldPending(left.length));
+	});
 	const saveDns = () => run('dns', async () => {
 		const token = dnsInput.trim();
 		// Cloudflare API tokens are 40 characters of [A-Za-z0-9_-].
@@ -552,6 +560,7 @@
 						</dl>
 					</details>
 					{#if ownBuilt}<p class="saved" data-testid="own-image-have">{$t.ownImage.have(format.date(profile.ownImage.builtAt, undefined, $lang))}</p>{/if}
+					{#if profile.oldOwnImages?.length}<p class="hint" data-testid="old-images">{$t.ownImage.oldPending(profile.oldOwnImages.length)} <button class="link" onclick={removeOldImages} disabled={busy === 'old-images'} data-testid="old-images-remove">{$t.ownImage.oldRemove}</button></p>{/if}{@render feedback('old-images')}
 					{#if affordable === null}<p class="hint" data-testid="own-image-checking">{$t.ownImage.choice.checking}</p>
 					{:else if affordable.ok === false && affordable.reason}<p class="error alert" role="alert" data-testid="own-image-package-no">{affordable.reason}{#if affordable.short} <a href="#paket">{$t.ownImage.choice.toTopUp}</a>{/if} <button class="link" onclick={() => refreshBalances()} data-testid="own-image-recheck">{$t.ownImage.choice.recheck}</button></p>
 					{:else if affordable.ok === false}<p class="error alert" role="alert" data-testid="own-image-needs-credits">{$t.ownImage.choice.needsCredits(format.number(affordable.need ?? 0, undefined, $lang), format.number(affordable.have ?? 0, undefined, $lang))} <button class="link" onclick={() => refreshBalances()} data-testid="own-image-recheck">{$t.ownImage.choice.recheck}</button></p>

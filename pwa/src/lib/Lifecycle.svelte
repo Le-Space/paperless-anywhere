@@ -1,4 +1,6 @@
 <script>
+	import { fallbackPatch, forgetQueued, forgettable, releasePrevious, startWentWell } from '$lib/old-image.js';
+	import { forgetOldImage } from '$lib/own-image-build.js';
 	import { ownImagePatch } from '$lib/own-image-check.js';
 	import { balancesRound, onceThisRound } from '$lib/balance-refresh.js';
 	import RefreshBalances from '$lib/RefreshBalances.svelte';
@@ -314,6 +316,8 @@
 		const ownPatch = ownImagePatch(master, profile);
 		if (ownPatch) profile = await updateProfile(master, (now) => ({ ...now, ...ownPatch }));
 		loaded = true;
+		// Old own images whose FORGET failed earlier: tried again.
+		if (!busy) forgetOldImages();
 		// A revoke that failed when the VM was deleted, as long as no VM uses the key.
 		if (profile.backupRevokePending && !busy) revoking = retryBackupRevoke(master, $state.snapshot(profile)).then(() => {}, () => {});
 		// A stop that ended partial while this page was closed still waits.
@@ -658,12 +662,44 @@
 	async function finishStart(bringUp) {
 		try {
 			const running = await bringUp();
-			profile = await updateProfile(master, ({ starting, ...rest }) => ({ ...rest, running }));
+			// Which image this VM runs, so it is never forgotten under it (old-image.js).
+			profile = await updateProfile(master, ({ starting, ...rest }) => ({ ...rest, running: { ...running, rootfsItemHash: rest.rootfsItemHash } }));
+			// The new own image started well: the one before it is no longer the way back.
+			if (startWentWell(running)) {
+				const release = releasePrevious(profile);
+				if (release) profile = await updateProfile(master, (now) => ({ ...now, ...release }));
+				forgetOldImages();
+			}
 		} finally {
 			startingInstance.set('');
 		}
 		onchange();
 	}
+	// Forget the queued old own images; what fails stays queued for the next opening.
+	let forgettingOld = false;
+	async function forgetOldImages() {
+		if (forgettingOld || !forgettable(profile).length) return;
+		forgettingOld = true;
+		try {
+			const app = privateKeyToAccount(alephPrivateKey(master));
+			const left = await forgetQueued($state.snapshot(profile), (store) => forgetOldImage(app, store));
+			profile = await updateProfile(master, ({ oldOwnImages, ...rest }) => (left.length ? { ...rest, oldOwnImages: left } : rest));
+			onchange();
+		} catch {
+			// Tried again at the next opening.
+		} finally {
+			forgettingOld = false;
+		}
+	}
+	// A start with the new own image failed: start from the one before it instead.
+	const startPrevious = () =>
+		run(async () => {
+			const back = fallbackPatch(profile);
+			if (!back) return;
+			profile = await updateProfile(master, (now) => ({ ...now, ...back }));
+			onchange();
+			await startNow();
+		}, startAgain);
 	// Give up on an interrupted start; the VM stays in the list below to remove.
 	const discard = () => run(async () => {
 		profile = await updateProfile(master, ({ starting, ...rest }) => rest);
@@ -1009,6 +1045,7 @@
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
 		{#if error}{@render errorBox()}{/if}
+		{#if error && !busy && !profile.running && profile.ownImage?.previous}<p class="hint" data-testid="previous-image"><button class="secondary" onclick={startPrevious} disabled={busy} data-testid="start-previous">{$i18n.ownImage.previousStart}</button> {$i18n.ownImage.previousHint}</p>{/if}
 		{#if partial}
 			<div class="partial" role="alert" data-testid="stop-partial">
 				<p class="warn">{partial.message}</p>
@@ -1098,6 +1135,7 @@
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
 		{#if error}{@render errorBox()}{/if}
+		{#if error && !busy && !profile.running && profile.ownImage?.previous}<p class="hint" data-testid="previous-image"><button class="secondary" onclick={startPrevious} disabled={busy} data-testid="start-previous">{$i18n.ownImage.previousStart}</button> {$i18n.ownImage.previousHint}</p>{/if}
 		{#if partial}
 			<div class="partial" role="alert" data-testid="stop-partial">
 				<p class="warn">{partial.message}</p>
