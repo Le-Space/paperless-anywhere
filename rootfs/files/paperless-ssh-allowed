@@ -11,9 +11,12 @@
 # unlock must also say so in a secret of its own, paperless_debug_ssh=yes.
 # The app never sends that; the one caller is the live test that backs up to
 # mainnet, which needs the productive role and drives its VM over SSH.
-keys=/root/.ssh/authorized_keys
-role="$(cat /tmp/secrets/paperless_role 2>/dev/null || echo test)"
-if [ "$role" = primary ] && [ "$(cat /tmp/secrets/paperless_debug_ssh 2>/dev/null)" != yes ]; then
+# (The two paths can be moved for the tests in pwa/src/lib/rootfs-vm.spec.js;
+# under systemd they are these.)
+keys="${PAPERLESS_SSH_KEYS:-/root/.ssh/authorized_keys}"
+secrets="${PAPERLESS_SECRETS:-/tmp/secrets}"
+role="$(cat "$secrets/paperless_role" 2>/dev/null || echo test)"
+if [ "$role" = primary ] && [ "$(cat "$secrets/paperless_debug_ssh" 2>/dev/null)" != yes ]; then
   echo "paperless-ssh-allowed: a productive instance runs no sshd" >&2
   exit 1
 fi

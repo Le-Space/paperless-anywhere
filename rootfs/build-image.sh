@@ -100,6 +100,8 @@ install -D -m 644 "$here/files/paperless-fixed-address.service" "$root/etc/syste
 for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-backup-loop paperless-net-hardening paperless-status paperless-stop paperless-stack-up paperless-data-disk paperless-file-extents paperless-forget-passphrase paperless-fixed-address paperless-dns-records paperless-ssh-allowed paperless-require-sealed; do
   install -D -m 755 "$here/files/$script" "$root/usr/local/sbin/$script"
 done
+# paperless-restore checks every download host with it.
+install -D -m 755 "$here/files/paperless-public-url" "$root/usr/local/sbin/paperless-public-url"
 install -d -m 700 "$root/etc/paperless-anywhere"
 
 printf 'PermitRootLogin prohibit-password\nPasswordAuthentication no\nUseDNS no\n' \
