@@ -57,6 +57,8 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
         with:
           version: 10.33.0
@@ -78,10 +80,15 @@ jobs:
         run: |
           git clone -q --depth 1 --branch v0.12.4 https://github.com/NiKrause/relay-button.git "$RUNNER_TEMP/relay-button"
           cd "$RUNNER_TEMP/relay-button"
-          pnpm install --frozen-lockfile --prefer-offline --filter @le-space/attest-relay... > /dev/null
+          pnpm install --frozen-lockfile --ignore-scripts --prefer-offline --filter @le-space/attest-relay... > /dev/null
           ATTEST_RELAY_HOST=127.0.0.1 ATTEST_RELAY_PORT=8787 ATTEST_RELAY_MAX_BYTES=2000000000 ATTEST_RELAY_MAX_SECONDS=7200 \
             nohup node packages/attest-relay/src/server.ts > "$RUNNER_TEMP/attest-relay.log" 2>&1 &
           for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8787/health && break; sleep 1; done
+
+      # No install scripts, and no secret in the step that installs.
+      - name: The PWA's modules
+        working-directory: pwa
+        run: pnpm install --frozen-lockfile --ignore-scripts > /dev/null
 
       - name: Built and paid through the package, from the test vault
         if: inputs.relay == 'package'
@@ -93,7 +100,6 @@ jobs:
           VITE_CREDITS_URL: ${{ vars.VITE_CREDITS_URL || 'https://credits.le-space.de' }}
         run: |
           [ -n "$PACKAGE_PHRASE" ] || { echo "::error::set the PACKAGE_TEST_PHRASE secret (the test vault's 24 words)"; exit 1; }
-          pnpm install --frozen-lockfile > /dev/null
           pnpm exec vite-node scripts/own-image-package.mjs
 
       - name: Seal for a throwaway vault and fetch it back
@@ -106,7 +112,6 @@ jobs:
           RELAY: ${{ inputs.relay == 'runner' && 'ws://127.0.0.1:8787/attest' || '' }}
           FETCH_RESULT: ${{ runner.temp }}/fetch.json
         run: |
-          pnpm install --frozen-lockfile
           pnpm exec vite-node scripts/own-image-fetch.mjs
 
       - name: Summary

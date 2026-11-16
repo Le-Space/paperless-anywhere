@@ -67,9 +67,14 @@ tar -xJf "$work/node.tar.xz" -C "$root/usr/local/lib/nodejs" --strip-components=
   --exclude='*/include' --exclude='*/share' --exclude='*/lib/node_modules/corepack'
 ln -sf /usr/local/lib/nodejs/bin/node "$root/usr/local/bin/node"
 
+# No install scripts for the tool's packages nor for esbuild (npx): this runs
+# as root, writes into the image, and the job holds the signing key later.
+# None of the tool's packages needs its script; esbuild finds its platform
+# binary without its own.
+export npm_config_ignore_scripts=true
 git clone -q "$BACKUP_TOOL_REPO" "$work/backup-tool"
 git -C "$work/backup-tool" checkout -q "$BACKUP_TOOL_COMMIT"
-(cd "$work/backup-tool" && PATH="$root/usr/local/lib/nodejs/bin:$PATH" npm ci --omit=dev --no-audit --no-fund --loglevel=error)
+(cd "$work/backup-tool" && PATH="$root/usr/local/lib/nodejs/bin:$PATH" npm ci --omit=dev --ignore-scripts --no-audit --no-fund --loglevel=error)
 # One file each instead of node_modules: 139 MB down to about 3 MB (viem alone
 # is 75 MB). Same piece CID and the same chain reads as the unbundled tool.
 cp "$here/files/piece-cid.mjs" "$work/backup-tool/piece-cid.mjs"

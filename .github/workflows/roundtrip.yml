@@ -74,13 +74,14 @@ concurrency:
   group: paperless-try
   cancel-in-progress: false
 
+# Secrets go only to the steps that use them, never to the whole workflow.
+# FIXED_ADDRESS only says whether the DNS token is set.
 env:
-  ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
   ITEM: ${{ inputs.rootfs_item_hash }}
   CRN: ${{ inputs.crn }}
   NAME: paperless-roundtrip-${{ github.run_id }}
   BACKUP_TOOL_COMMIT: d18de88e12ab69dd929b7c5e41047138cb853fa3
-  DNS_TOKEN: ${{ secrets.CLOUDFLARE_DNS_TOKEN }}
+  FIXED_ADDRESS: ${{ secrets.CLOUDFLARE_DNS_TOKEN != '' && 'yes' || '' }}
   FIXED_NAME: rt-${{ github.run_id }}.vm.le-space.de
 
 jobs:
@@ -116,6 +117,11 @@ jobs:
         if: inputs.builder != ''
         with:
           node-version: 24.x
+      # No install scripts, and no secret in the step that installs.
+      - name: The PWA's modules
+        if: inputs.builder != ''
+        working-directory: pwa
+        run: pnpm install --frozen-lockfile --ignore-scripts > /dev/null
       - name: An image of its own - seal, fetch through Le Space's relay, upload
         id: own
         if: inputs.builder != ''
@@ -128,7 +134,6 @@ jobs:
           PASSPHRASE_FILE: ${{ runner.temp }}/luks.pass
           FETCH_RESULT: ${{ runner.temp }}/own-image.json
         run: |
-          pnpm install --frozen-lockfile > /dev/null
           pnpm exec vite-node scripts/own-image-fetch.mjs
           store="$(jq -r '.store // empty' "$FETCH_RESULT")"
           [[ "$store" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::no STORE of the own image"; exit 1; }
@@ -149,7 +154,7 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq age >/dev/null
           git clone -q https://github.com/Le-Space/paperless-backup-filecoin.git "$RUNNER_TEMP/tool"
           git -C "$RUNNER_TEMP/tool" checkout -q "$BACKUP_TOOL_COMMIT"
-          (cd "$RUNNER_TEMP/tool" && npm ci --omit=dev --no-audit --no-fund --loglevel=error)
+          (cd "$RUNNER_TEMP/tool" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --loglevel=error)
 
       - name: Keys for this run (disk, SSH, age, session key)
         id: keys
@@ -219,6 +224,9 @@ jobs:
 
       - name: VM 1 - start, unlock with the backup config and the session key
         id: vm1
+        env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+          DNS_TOKEN: ${{ secrets.CLOUDFLARE_DNS_TOKEN }}
         run: |
           set -o pipefail
           start=$(date +%s)
@@ -246,6 +254,7 @@ jobs:
         id: backup
         env:
           HASH: ${{ steps.vm1.outputs.hash }}
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: |
           . "$RUNNER_TEMP/wait_ssh.sh"
           crn_url="$(curl -fsS 'https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel' \
@@ -278,7 +287,7 @@ jobs:
           $SSH 'cat /run/paperless-anywhere/backup.json'
           echo "BACKUP_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
           $SSH 'cat /opt/backup-filecoin/ledger.calibration.json' | jq '.[-1]' > "$RUNNER_TEMP/entry.json"
-          if [ -n "$DNS_TOKEN" ]; then
+          if [ -n "$FIXED_ADDRESS" ]; then
             $SSH 'cat /run/paperless-anywhere/fixed-address.json' | jq -c .
             serial="$($SSH "openssl x509 -noout -serial -in /etc/paperless-anywhere/tls/certificates/$FIXED_NAME.crt" | sed 's/^serial=//')"
             [ -n "$serial" ] || { echo "::error::VM 1 has no certificate for the fixed address"; exit 1; }
@@ -296,12 +305,16 @@ jobs:
         if: always() && steps.vm1.outputs.hash != ''
         env:
           HASH: ${{ steps.vm1.outputs.hash }}
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: |
           aleph instance erase "$HASH" --crn "$CRN" --chain eth || true
           echo y | aleph instance delete "$HASH" --reason "paperless round trip ${GITHUB_RUN_ID}" --chain eth || true
 
       - name: VM 2 - start, unlock with the ledger entry and the age identity, restore
         id: vm2
+        env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+          DNS_TOKEN: ${{ secrets.CLOUDFLARE_DNS_TOKEN }}
         run: |
           set -o pipefail
           aleph instance create "$NAME-b" --confidential --image "${OWN_ITEM:-$ITEM}" --vcpus 2 --memory 4GB --disk-size 40GB --crn "$CRN" \
@@ -373,7 +386,7 @@ jobs:
             echo "| VM 1 up (create + unlock) | ${VM1_UP:-?} s |"
             echo "| Backup with the session key | ${BACKUP_SECONDS:-?} s |"
             echo "| Restore in VM 2 | \`${RESTORE:-none}\` |"
-            [ -z "$DNS_TOKEN" ] || echo "| Fixed address: certificate reused from the backup | ${CERT_REUSED:-no} |"
+            [ -z "$FIXED_ADDRESS" ] || echo "| Fixed address: certificate reused from the backup | ${CERT_REUSED:-no} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Runs even when the round trip was cancelled or timed out.
@@ -424,3 +437,5 @@ jobs:
           fi
         env:
           OWN_STORE: ${{ needs.roundtrip.outputs.own_store }}
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+          DNS_TOKEN: ${{ secrets.CLOUDFLARE_DNS_TOKEN }}

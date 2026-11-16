@@ -42,11 +42,13 @@ concurrency:
   group: paperless-try
   cancel-in-progress: false
 
+# Secrets go only to the steps that use them, never to the whole workflow.
 env:
-  ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
   ITEM: ${{ inputs.rootfs_item_hash }}
   CRN: ${{ inputs.crn }}
   NAME: paperless-try-${{ github.run_id }}
+  KEEP_MINUTES: ${{ inputs.keep_minutes }}
+  DISK_GB: ${{ inputs.disk_gb || '80' }}
 
 jobs:
   try:
@@ -59,8 +61,8 @@ jobs:
         run: |
           [[ "$ITEM" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::rootfs_item_hash is not an item hash"; exit 1; }
           [[ "$CRN" =~ ^[0-9a-f]{6,64}$ ]] || { echo "::error::crn is not a hash or prefix"; exit 1; }
-          [[ "${{ inputs.keep_minutes }}" =~ ^[0-9]{1,3}$ ]] && [ "${{ inputs.keep_minutes }}" -le 240 ] || { echo "::error::keep_minutes must be a number up to 240"; exit 1; }
-          [[ "${{ inputs.disk_gb || '80' }}" =~ ^[0-9]{2,4}$ ]] || { echo "::error::disk_gb is not a number"; exit 1; }
+          [[ "$KEEP_MINUTES" =~ ^[0-9]{1,3}$ ]] && [ "$KEEP_MINUTES" -le 240 ] || { echo "::error::keep_minutes must be a number up to 240"; exit 1; }
+          [[ "$DISK_GB" =~ ^[0-9]{2,4}$ ]] || { echo "::error::disk_gb is not a number"; exit 1; }
 
       - name: Install the aleph CLI
         run: |
@@ -82,11 +84,13 @@ jobs:
 
       - name: Create the confidential instance
         id: create
+        env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: |
           set -o pipefail
           start=$(date +%s)
           aleph instance create "$NAME" --confidential --image "$ITEM" \
-            --vcpus 2 --memory 4GB --disk-size "${{ inputs.disk_gb || '80' }}GB" --crn "$CRN" \
+            --vcpus 2 --memory 4GB --disk-size "${DISK_GB}GB" --crn "$CRN" \
             --ssh-pubkey-file "$RUNNER_TEMP/try_ed25519.pub" --chain eth --wait 600 2>&1 | tee "$RUNNER_TEMP/create.log" || status=$?
           hash="$(grep -oE 'Item hash: +[0-9a-f]{64}' "$RUNNER_TEMP/create.log" | grep -oE '[0-9a-f]{64}' | head -1 || true)"
           echo "item_hash=$hash" >> "$GITHUB_OUTPUT"
@@ -97,6 +101,7 @@ jobs:
       - name: Forward 443
         env:
           HASH: ${{ steps.create.outputs.item_hash }}
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: |
           aleph instance port-forward create "$HASH" 443 --tcp true --chain eth
           aleph instance port-forward refresh "$HASH" --chain eth || true
@@ -127,6 +132,7 @@ jobs:
       - name: Attest and unlock (with this run's key as authorized_keys)
         env:
           HASH: ${{ steps.create.outputs.item_hash }}
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: |
           start=$(date +%s)
           ok=""
@@ -147,6 +153,7 @@ jobs:
         id: up
         env:
           HASH: ${{ steps.create.outputs.item_hash }}
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: |
           crn_url="$CRN_URL"
           for i in $(seq 1 30); do
@@ -245,6 +252,7 @@ jobs:
       - name: Stop through the attested channel
         env:
           HASH: ${{ steps.create.outputs.item_hash }}
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: |
           start=$(date +%s)
           aleph instance unlock "$HASH" --crn "$CRN" --passphrase-file "$RUNNER_TEMP/luks.pass" \
@@ -263,12 +271,13 @@ jobs:
         run: |
           echo "ssh -p ${{ steps.up.outputs.port }} root@${{ steps.up.outputs.host }} (with the key in PAPERLESS_SSH_PUBLIC_KEY, when set)"
           echo "https://${{ steps.https.outputs.hostname }}  (admin password: ssh in, cat /etc/paperless-anywhere/paperless_admin_password)"
-          sleep $(( ${{ inputs.keep_minutes }} * 60 ))
+          sleep $(( KEEP_MINUTES * 60 ))
 
       - name: Forget the instance
         if: always()
         env:
           HASH: ${{ steps.create.outputs.item_hash }}
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: |
           hashes="$HASH $(aleph instance list --json --chain eth 2>/dev/null | jq -r --arg n "$NAME" '.[] | select((.name // .metadata.name // "") == $n) | (.item_hash // .hash)' || true)"
           for h in $(printf '%s\n' $hashes | sort -u); do
@@ -302,16 +311,26 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - name: Install the aleph CLI
+      # Only for the lockfile of the tool that derives the address below.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: .github/eth-tool
+          persist-credentials: false
+      - name: Install the aleph CLI and the address tool
         run: |
           curl -fsSL -o "$RUNNER_TEMP/aleph" https://github.com/aleph-im/aleph-rs/releases/download/v0.22.0/aleph-cli-linux-x86_64
           echo "41b8ced717d9962683ce2d4409725774e826643be0bae1bfc623f6c0c7fb19d7  $RUNNER_TEMP/aleph" | sha256sum -c -
           sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
+          # The exact packages of the lockfile in .github/eth-tool, without install scripts.
+          mkdir -p "$RUNNER_TEMP/eth"
+          cp "$GITHUB_WORKSPACE/.github/eth-tool/package.json" "$GITHUB_WORKSPACE/.github/eth-tool/package-lock.json" "$RUNNER_TEMP/eth/"
+          (cd "$RUNNER_TEMP/eth" && npm ci --ignore-scripts --no-audit --no-fund --loglevel=error >/dev/null)
 
       - name: Erase, forget and unmap every instance of this run
+        env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: |
-          pip install -q eth-account
-          addr="$(python3 -c 'import os; from eth_account import Account; k = os.environ["ALEPH_PRIVATE_KEY"].strip(); print(Account.from_key(k if k.startswith("0x") else "0x" + k).address)')"
+          addr="$(node -e 'const { Wallet } = require(process.argv[1]); const k = process.env.ALEPH_PRIVATE_KEY.trim(); console.log(new Wallet(k.startsWith("0x") ? k : "0x" + k).address)' "$RUNNER_TEMP/eth/node_modules/ethers")"
           hashes="$(curl -fsS "https://api2.aleph.im/api/v0/messages.json?addresses=$addr&msgTypes=INSTANCE&pagination=50" \
             | jq -r --arg n "$NAME" '.messages[] | select((.content.metadata.name // "") == $n) | .item_hash')"
           [ -n "$hashes" ] || { echo "no instance of this run is left"; exit 0; }
