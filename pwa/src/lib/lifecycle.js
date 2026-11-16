@@ -12,6 +12,7 @@ import { unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
 import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
 import { loadAttestWasm } from './attest-wasm-load.js';
 import { ownImageVerified, runsOwnImage } from './own-image-check.js';
+import { answeringCopies } from './restore-reach.js';
 import { pinnedTrustedExecution } from './runtime-pin.js';
 import { alephPrivateKey, backupMarkKey, backupPrivateKey, pieceMark, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
 import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
@@ -305,12 +306,19 @@ export function startRequirements(profile, { buildsImage = false } = {}) {
  * @param {{ onRequested?: (starting: Starting) => Promise<void> | void }} [options] told once Aleph has the VM
  * @returns {Promise<{ instanceHash: string, crnHash: string, host: string, trustedExecution: any }>}
  */
-export async function startPaperless(master, profile, onProgress, { onRequested } = {}) {
+export async function startPaperless(master, profile, onProgress, { onRequested, reach = answeringCopies } = {}) {
 	const missing = startRequirements(profile);
 	if (missing.length) throw new Error(tr().life.errors.startMissing(missing.join(', ')));
 	// A backup is restored only into this vault's own image: the age identity
 	// that opens it goes to no VM on the public image. Said before any VM is asked for.
 	if (profile.restoreEntry && !ownImageVerified(master, profile)) throw new Error(tr().life.errors.restoreNeedsOwnImage);
+	// …and only when a copy of it can be fetched: otherwise the VM would start
+	// empty and cost for nothing. Asked before any VM is requested.
+	if (profile.restoreEntry) {
+		onProgress({ step: 'measure', detail: tr().life.progress.checkCopies });
+		const { answering, total } = await reach(profile.restoreEntry);
+		if (total > 0 && answering === 0) throw Object.assign(new Error(tr().life.errors.copiesUnreachable(total)), { retryable: true });
+	}
 	const app = privateKeyToAccount(alephPrivateKey(master));
 	onProgress({ step: 'measure', detail: tr().life.progress.measure });
 	const wasm = await loadWasm();
