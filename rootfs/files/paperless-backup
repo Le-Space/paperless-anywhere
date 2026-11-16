@@ -34,7 +34,9 @@
 #                                    Without it, backups carry no mark.
 #
 # No age identity is needed: backups are encrypted to ageRecipient. The session key
-# cannot delete pieces, so pruning stays with the wallet. Outcome:
+# cannot delete pieces, so removing stays with the wallet; the tool's retention
+# plans after each complete backup and, with Le Space Credits, removes (see the
+# end). Outcome:
 # /run/paperless-anywhere/backup.json; the tool's log stays on the encrypted disk.
 # Exit 0: backed up (or unchanged); 2: "partial", fewer copies than requested;
 # anything else: failed, or "refused" after a failed restore (see below).
@@ -175,6 +177,16 @@ if r is not None:
         sys.exit("remoteSigner names another payer than the config")
 c.pop("mail", None)
 c["daily"] = {**c.get("daily", {}), "prune": False}
+ret = c.get("retention")
+if ret is not None:
+    if not isinstance(ret, dict):
+        sys.exit("retention must be an object")
+    for k in ("keepLast", "keepDays", "keepWeeks", "keepMonths"):
+        if k in ret and not (isinstance(ret[k], int) and 0 <= ret[k] <= 1000):
+            sys.exit(f"retention.{k} must be a whole number from 0 to 1000")
+    protect = ret.get("protect", [])
+    if not (isinstance(protect, list) and all(isinstance(x, str) and re.fullmatch(r"(baga|bafk)[a-z2-7]{20,}", x) for x in protect)):
+        sys.exit("retention.protect must be a list of piece CIDs")
 json.dump(c, open(sys.argv[2], "w"))
 PY
 chmod 600 "$config"
@@ -290,3 +302,21 @@ fi
 printf '%s\n' "$now" > "$lib/backed-up.fingerprint"
 status done ",\"role\":\"$role\",\"backup\":$entry,\"seconds\":$(( $(date +%s) - t0 ))"
 echo "paperless-backup: done, $entry"
+
+# Retention, after a complete backup only: the tool keeps the last N and one
+# per day, week and month (backup_config's retention), the newest backup of
+# every data set, never the newest complete backup and never the one this VM
+# was restored from. With Le Space Credits it schedules the removal of the
+# others (the service signs removals). A wallet's session key may not remove
+# pieces: the tool only plans, and the wallet removes (the app says so). The
+# plan goes to retention.json, which the app shows. A failure here leaves the
+# backup as it is: it is logged, and the next complete backup tries again.
+protect="$(tr '\n' ' ' < "$lib/restored-from" 2>/dev/null)"
+if [ "$signing" = remote ]; then yes=--yes; else yes=; fi
+if RETAIN_PROTECT="$protect" RETAIN_REPORT="$state_dir/retention.json.tmp" node backup.mjs retain $yes >> "$log_dir/backup.log" 2>&1; then
+  mv "$state_dir/retention.json.tmp" "$state_dir/retention.json"
+else
+  echo "paperless-backup: retention failed, see the backup log" >&2
+  printf '{"failed":true,"at":"%s","log":%s}\n' "$(date -u +%FT%TZ)" "$(loglines 4)" > "$state_dir/retention.json"
+  rm -f "$state_dir/retention.json.tmp"
+fi

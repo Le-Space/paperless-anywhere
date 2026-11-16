@@ -29,7 +29,23 @@ export const backup = {
 			failedNow: 'Die Sicherung ist fehlgeschlagen; Paperless läuft weiter.',
 			oldImage: 'Diese VM läuft mit einem älteren Image: Sicherungsstand und „Jetzt sichern“ gibt es ab dem nächsten Image.',
 			unreachable: 'Die VM meldet ihren Sicherungsstand gerade nicht.',
-			duration: (/** @type {number} */ s) => `Dauer ${s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`}`
+			duration: (/** @type {number} */ s) => `Dauer ${s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`}`,
+			retention: {
+				title: 'Aufbewahrung',
+				summary: (/** @type {number} */ keep, /** @type {number} */ remove) => `${keep} ${keep === 1 ? 'Sicherung bleibt' : 'Sicherungen bleiben'}${remove ? `, ${remove} zum Entfernen vorgemerkt` : ''}`,
+				policy: (/** @type {{ keepLast: number, keepDays: number, keepWeeks: number, keepMonths: number }} */ p) => `Es bleiben die letzten ${p.keepLast}, dazu je eine pro Tag (${p.keepDays} Tage), Woche (${p.keepWeeks} Wochen) und Monat (${p.keepMonths} Monate); immer die neueste vollständige, die neueste bei jedem Anbieter und die, aus der diese VM wiederhergestellt wurde.`,
+				keep: 'bleibt',
+				remove: 'Entfernung geplant',
+				toRemove: 'zum Entfernen vorgemerkt',
+				reasons: { newest: 'neueste vollständige', restored: 'Ausgangspunkt dieser VM', place: 'neueste bei einem Anbieter', last: 'eine der letzten', undated: 'Datum unbekannt', day: 'Tag', week: 'Woche', month: 'Monat' },
+				partial: 'unvollständig',
+				undated: 'Datum unbekannt',
+				queued: 'Entfernungen sind beim Anbieter angemeldet; der Platz wird mit dem nächsten Nachweis frei (meist innerhalb eines Tages).',
+				planned: 'Wird mit der nächsten vollständigen Sicherung entfernt.',
+				needsWallet: 'Entfernen kann nur deine Wallet, die die Sicherungen bezahlt (die VM darf nur hinzufügen): mit dem Sicherungswerkzeug und `node backup.mjs retain --yes`.',
+				overBudget: 'Was bleiben muss, lässt keinen Platz für eine weitere Sicherung im Kontingent.',
+				failed: 'Die Aufbewahrung konnte zuletzt nicht laufen; die Sicherungen bleiben, die nächste versucht es wieder.'
+			}
 		},
 		config: {
 			unknownNetwork: (/** @type {string} */ network) => `Unbekanntes Netz: ${network}`,
@@ -38,7 +54,8 @@ export const backup = {
 			maxProviders: 'Höchstens 3 Anbieter.',
 			signerNotReleased: 'Le Space Credits haben den Schlüssel der VM für die Sicherungen noch nicht freigegeben.',
 			signerNetwork: (/** @type {string} */ theirs, /** @type {string} */ ours) => `Le Space Credits sichern im Netz ${theirs}, diese Paperless in ${ours}.`,
-			signerIncomplete: 'Für Sicherungen über Le Space Credits fehlt die Adresse des Dienstes oder ein Schlüssel.'
+			signerIncomplete: 'Für Sicherungen über Le Space Credits fehlt die Adresse des Dienstes oder ein Schlüssel.',
+			retentionRange: (/** @type {string} */ k) => `${k}: eine ganze Zahl von ${k === 'keepLast' ? 1 : 0} bis 1000.`
 		},
 		facts: {
 			oom: (/** @type {number} */ n) => `Speicher reichte nicht: das System hat ${n === 1 ? 'einen Prozess' : `${n} Prozesse`} beendet.`,
@@ -265,7 +282,23 @@ export const backup = {
 			failedNow: 'The backup failed; Paperless keeps running.',
 			oldImage: 'This VM runs an older image: backup details and “Back up now” come with the next image.',
 			unreachable: 'The VM does not report its backups right now.',
-			duration: (/** @type {number} */ s) => `took ${s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`}`
+			duration: (/** @type {number} */ s) => `took ${s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`}`,
+			retention: {
+				title: 'Retention',
+				summary: (/** @type {number} */ keep, /** @type {number} */ remove) => `${keep} ${keep === 1 ? 'backup stays' : 'backups stay'}${remove ? `, ${remove} marked for removal` : ''}`,
+				policy: (/** @type {{ keepLast: number, keepDays: number, keepWeeks: number, keepMonths: number }} */ p) => `The last ${p.keepLast} stay, plus one per day (${p.keepDays} days), week (${p.keepWeeks} weeks) and month (${p.keepMonths} months); always the newest complete one, the newest at each provider and the one this VM was restored from.`,
+				keep: 'stays',
+				remove: 'removal scheduled',
+				toRemove: 'marked for removal',
+				reasons: { newest: 'newest complete', restored: 'this VM’s starting point', place: 'newest at a provider', last: 'one of the last', undated: 'date unknown', day: 'day', week: 'week', month: 'month' },
+				partial: 'incomplete',
+				undated: 'date unknown',
+				queued: 'The removals are registered with the providers; the space is freed with the next proof (usually within a day).',
+				planned: 'Removed with the next complete backup.',
+				needsWallet: 'Only your wallet, which pays the backups, can remove them (the VM may only add): with the backup tool and `node backup.mjs retain --yes`.',
+				overBudget: 'What must stay leaves no room for another backup within the quota.',
+				failed: 'Retention could not run last time; the backups stay, the next one tries again.'
+			}
 		},
 		config: {
 			unknownNetwork: (/** @type {string} */ network) => `Unknown network: ${network}`,
@@ -274,7 +307,8 @@ export const backup = {
 			maxProviders: 'At most 3 providers.',
 			signerNotReleased: 'Le Space Credits has not released the VM’s key for the backups yet.',
 			signerNetwork: (/** @type {string} */ theirs, /** @type {string} */ ours) => `Le Space Credits backs up on the network ${theirs}, this Paperless on ${ours}.`,
-			signerIncomplete: 'Backups through Le Space Credits lack the address of the service or a key.'
+			signerIncomplete: 'Backups through Le Space Credits lack the address of the service or a key.',
+			retentionRange: (/** @type {string} */ k) => `${k}: a whole number from ${k === 'keepLast' ? 1 : 0} to 1000.`
 		},
 		facts: {
 			oom: (/** @type {number} */ n) => `Memory ran out: the system ended ${n === 1 ? 'one process' : `${n} processes`}.`,

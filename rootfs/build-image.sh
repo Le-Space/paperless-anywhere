@@ -13,7 +13,7 @@ set -euo pipefail
 NODE_VERSION=v22.21.0
 NODE_SHA256=71a04f4b9144870c9407b8019fe912514229e50246bc706862eded3ac8e9025d
 BACKUP_TOOL_REPO=https://github.com/Le-Space/paperless-backup-filecoin.git
-BACKUP_TOOL_COMMIT=d18de88e12ab69dd929b7c5e41047138cb853fa3
+BACKUP_TOOL_COMMIT=d4f99f12dab20c7cafb92c32b97deebca4a4da83
 ESBUILD_VERSION=0.25.10
 
 # lego, for the fixed address's certificate over DNS (Debian's Caddy has no

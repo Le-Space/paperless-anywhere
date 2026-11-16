@@ -360,6 +360,10 @@ printf '%s\n' "$supers" | sed -n 's/^other-user /paperless-restore: administrato
 counts="$(paperless-manage shell -c 'from documents.models import Document; a = Document.objects.count(); g = Document.global_objects.count() if hasattr(Document, "global_objects") else a; print("counts", a, g - a)' 2>>"$log" | sed -n 's/^counts //p' | tail -1)"
 documents="${counts%% *}"; trash="${counts##* }"
 
+# The backup this VM came from, by the piece CIDs of all its parts: retention
+# never removes it while this VM runs (paperless-backup).
+{ printf '%s\n' "$cid"; printf '%s\n' "$plan" | awk 'NF { print $1 }'; } | grep -E '^(baga|bafk)[a-z2-7]{20,}$' | sort -u > /var/lib/paperless-anywhere/restored-from 2>>"$log" || true
+
 # What was restored needs no new backup: the first check compares against it.
 paperless-backup fingerprint > /var/lib/paperless-anywhere/backed-up.fingerprint 2>>"$log" || true
 

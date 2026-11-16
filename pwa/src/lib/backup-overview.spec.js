@@ -73,3 +73,40 @@ describe('check outcomes', () => {
 		expect(BACKUP_TEXTS.de.checkOutcome('unchanged')).toBe('keine Änderung');
 	});
 });
+
+describe('retentionView', async () => {
+	const { retentionView } = await import('./backup-overview.js');
+	it('is null without a plan and says when retention failed', () => {
+		expect(retentionView(null)).toBeNull();
+		expect(retentionView({ retention: null })).toBeNull();
+		expect(retentionView({ retention: { failed: true, at: '2026-11-16T10:00:00Z' } })).toMatchObject({ failed: true, rows: [] });
+	});
+	it('lists kept and removed backups newest first, undated last, with known reasons only', () => {
+		const v = retentionView({
+			retention: {
+				at: '2026-11-16T10:00:00Z',
+				sent: false,
+				needsWallet: true,
+				policy: { keepLast: 3, keepDays: 7, keepWeeks: 4, keepMonths: 6, maxBytes: null },
+				keep: [
+					{ pieceCid: 'k1', date: Date.UTC(2026, 10, 16), size: 1e9, complete: true, reasons: ['newest', 'place', 'nonsense'] },
+					{ pieceCid: 'k2', date: null, size: null, complete: true, reasons: ['undated'] }
+				],
+				remove: [{ pieceCid: 'r1', date: Date.UTC(2026, 10, 1), size: 9e8, complete: false }],
+				overBudget: false
+			}
+		});
+		expect(v?.rows.map((r) => [r.pieceCid, r.keep, r.reasons])).toEqual([
+			['k1', true, ['newest', 'place']],
+			['r1', false, []],
+			['k2', true, ['undated']]
+		]);
+		expect(v).toMatchObject({ keep: 2, remove: 1, sent: false, needsWallet: true, policy: { keepLast: 3, keepDays: 7, keepWeeks: 4, keepMonths: 6 } });
+	});
+	it('has the texts in both languages, a reason for each', () => {
+		for (const t of [BACKUP_TEXTS.de.retention, BACKUP_TEXTS.en.retention]) {
+			for (const r of ['newest', 'restored', 'place', 'last', 'undated', 'day', 'week', 'month']) expect(t.reasons[r]).toBeTruthy();
+			expect(t.summary(3, 2)).toMatch(/3.*2/);
+		}
+	});
+});
