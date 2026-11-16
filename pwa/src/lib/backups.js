@@ -284,12 +284,11 @@ export const backupSize = (bytes) => (typeof bytes === 'number' ? gb(bytes) : ''
 export const DEFAULT_PLACES = Object.freeze({ copies: 2, providerIds: [9, 2], regions: [] });
 
 /**
- * On mainnet three operators: 36 (FIDL, Strasbourg), 43 (ProbeLab, Helsinki)
- * and 1 (ezpdpz, Cheltenham). Until 2026-11-16 it was the Mac's 36, 37, 1,
- * but 36 and 37 are one operator (both fidl.tech) and failed together; 36
- * stays so a production VM keeps adding to that data set.
+ * On mainnet three operators: 43 (ProbeLab, Helsinki), 1 (ezpdpz, Cheltenham)
+ * and 38 (Brown Storage, Southampton). Not 36 and 37: both FIDL, both down on
+ * 2026-11-16, and blocked since (blocked-providers.js).
  */
-export const DEFAULT_PLACES_MAINNET = Object.freeze({ copies: 3, providerIds: [36, 43, 1], regions: [] });
+export const DEFAULT_PLACES_MAINNET = Object.freeze({ copies: 3, providerIds: [43, 1, 38], regions: [] });
 
 /** @param {string} network */
 export const defaultPlaces = (network) => (network === 'mainnet' ? DEFAULT_PLACES_MAINNET : DEFAULT_PLACES);

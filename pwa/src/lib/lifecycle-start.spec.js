@@ -130,5 +130,9 @@ describe('handing backup places to the running VM', () => {
 		expect(names).toEqual(expect.arrayContaining(['backup_config', 'backup_session_key']));
 		expect(JSON.parse(got.backup_config).providerIds).toEqual([43, 38]);
 		await expect(pushBackupPlaces(master, base, { send: async () => {} })).rejects.toThrow(/eigenen Image/);
+		// A region goes as named providers, as at the start.
+		const region = { ...own, backupConfig: { ...own.backupConfig, copies: 3, providerIds: [], regions: ['EU'] } };
+		await pushBackupPlaces(master, region, { send: async (_m, _p, secrets) => void (got = secrets), place: async (_n, c) => ({ ...c, copies: 1, providerIds: [43] }) });
+		expect(JSON.parse(got.backup_config)).toMatchObject({ copies: 1, providerIds: [43], regions: ['EU'] });
 	});
 });

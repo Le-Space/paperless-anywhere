@@ -39,7 +39,8 @@ describe('in English', () => {
 
 	it('says where copies cannot go and when they are not independent', () => {
 		expect(pickProviders([provider(1)], { providerIds: [1, 2] }).problems).toEqual(['Provider 2 is not approved (any more).']);
-		expect(pickProviders([provider(1)], { copies: 2 }).problems).toEqual(['2 copies wanted, the region has only 1 approved provider.']);
+		expect(pickProviders([provider(1)], { copies: 2, regions: ['FR'] }).problems).toEqual(['2 copies wanted, the region has no approved provider.']);
+		expect(pickProviders([provider(1), provider(2, { blocked: 'fidl' })], { providerIds: [1, 2] }).problems[0]).toMatch(/^Provider 2 \(P2\) is blocked: FIDL/);
 		expect(sharedWarnings([provider(1), provider(2, { operator: 'op1.example.com' })])).toEqual(['P1 and P2 belong to the same operator (domain example.com).']);
 	});
 

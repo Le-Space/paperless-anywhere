@@ -20,12 +20,12 @@ import { ageIdentityFromMaster, ageRecipient } from './keys/age.js';
 import { loadProfile, updateProfile } from './profile.js';
 
 /**
- * Where a customer's backups go: three copies, providers in the EU, one per
- * operator as far as the region has operators (pickProviders, operators.js).
- * The EU's approved providers belong to two operators today (2026-11-16:
- * FIDL with 36 and 37, ProbeLab with 43), so the third copy lands at an
- * operator that already holds one, at another place; the places form says so
- * and offers a third copy at an independent operator outside the EU.
+ * Where a customer's backups go: three copies wanted, providers in the EU,
+ * one per operator and none blocked (pickProviders, blocked-providers.js).
+ * Since 36 and 37 (FIDL) are blocked, the EU has one operator left (43
+ * ProbeLab, 2026-11-16): one copy, and the places form says "nur 1
+ * unabhängiger Betreiber verfügbar". The start resolves the region to named
+ * providers (placedConfig), so the VM follows the same rule.
  */
 export const CUSTOMER_PLACES = Object.freeze({ copies: 3, providerIds: [], regions: ['EU'] });
 

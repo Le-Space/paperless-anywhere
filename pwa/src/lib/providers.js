@@ -8,13 +8,14 @@ import { getPDPProvidersByIds } from '@filoz/synapse-core/sp-registry';
 import { filecoinChain } from './permissions.js';
 import { place } from './backups.js';
 import { tr } from './i18n/index.js';
+import { blockedReason } from './blocked-providers.js';
 import { registeredDomain, sameOperator, sharedSigns } from './operators.js';
 
 const EU = ['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE'];
 const EEA = [...EU, 'IS', 'LI', 'NO'];
 export const REGION_PRESETS = { EU, EEA, EUROPE: [...EEA, 'GB', 'CH'] };
 
-/** @typedef {{ id: number, name: string, location: string, place: string, country: string | null, operator: string | null, endorsed: boolean, active: boolean, owner?: string | null, payee?: string | null, url?: string | null }} Provider operator: the registered domain of the service URL; owner, payee: the registry's addresses (operators.js) */
+/** @typedef {{ id: number, name: string, location: string, place: string, country: string | null, operator: string | null, endorsed: boolean, active: boolean, owner?: string | null, payee?: string | null, url?: string | null, blocked?: import('./blocked-providers.js').BlockReason | null }} Provider operator: the registered domain of the service URL; owner, payee: the registry's addresses (operators.js); blocked: taken out by Le Space (blocked-providers.js) */
 const countryOf = (location) => /(?:^|;)C=([A-Z]{2})/i.exec(location ?? '')?.[1]?.toUpperCase() ?? null;
 
 /** The approved providers, endorsed first. @param {string} network @returns {Promise<Provider[]>} */
@@ -41,7 +42,8 @@ export async function listProviders(network) {
 			payee: p.payee ?? null,
 			url: p.pdp?.serviceURL ?? null,
 			endorsed: endorsed.has(Number(p.id)),
-			active: p.isActive
+			active: p.isActive,
+			blocked: blockedReason(network, Number(p.id))
 		}))
 		.sort((a, b) => Number(b.endorsed) - Number(a.endorsed) || a.id - b.id);
 }
@@ -59,9 +61,9 @@ export const oneOperator = (a, b) => sameOperator(entry(a), entry(b));
  * Copies go to different operators (operators.js): two copies at one
  * operator are not independent. Named providers of one operator are refused
  * while another operator in the region could take the copy (on Calibration
- * one operator holds every approved provider: there it is only warned of);
- * a region fills copies at operators that hold none first, and `operators`
- * says how many independent ones it found.
+ * one operator holds every approved provider: there it is only warned of),
+ * and so is a blocked provider (blocked-providers.js). A region gets one
+ * copy per operator and none that is blocked; `operators` is how many.
  * @param {Provider[]} providers @param {{ copies?: number, providerIds?: number[], regions?: string[] }} config
  * @returns {{ picked: Provider[], problems: string[], operators?: number }}
  */
@@ -77,27 +79,47 @@ export function pickProviders(providers, { copies = 2, providerIds = [], regions
 			const p = byId.get(id);
 			// A second copy at one operator is refused while another operator could take it.
 			const twin = p && picked.find((q) => oneOperator(q, p));
-			const elsewhere = twin && providers.some((o) => o.active && inRegion(o) && !providerIds.includes(o.id) && ![...picked, p].some((q) => oneOperator(q, o)));
+			const elsewhere = twin && providers.some((o) => o.active && !o.blocked && inRegion(o) && !providerIds.includes(o.id) && ![...picked, p].some((q) => oneOperator(q, o)));
 			if (!p) problems.push(say.notApproved(id));
 			else if (!p.active) problems.push(say.notActive(id, p.name));
+			else if (p.blocked) problems.push(say.blocked(id, p.name, tr().backup.places.blockedWhy[p.blocked]));
 			else if (!inRegion(p)) problems.push(say.outsideRegion(id, p.name));
 			else if (twin && elsewhere) problems.push(say.sameOperator(id, p.name, twin.name, signsText(twin, p)));
 			else picked.push(p);
 		}
 		return { picked, problems };
 	}
-	const candidates = providers.filter((p) => p.active && inRegion(p));
-	// One copy per operator, endorsed first (the list's order). Never a second
-	// copy at an operator while another one in the region holds none; only
-	// when the region has fewer operators than copies, the rest goes to an
-	// operator that has one, at another place first (sharedWarnings says so).
+	const candidates = providers.filter((p) => p.active && !p.blocked && inRegion(p));
+	// One copy per operator, endorsed first (the list's order), never two at
+	// one operator: with fewer operators than copies, fewer copies, and
+	// `operators` says how many ("nur N unabhängige Betreiber verfügbar").
 	const picked = [];
 	for (const p of candidates) if (picked.length < copies && !picked.some((q) => oneOperator(q, p))) picked.push(p);
-	const operators = picked.length;
-	for (const p of candidates) if (picked.length < copies && !picked.includes(p) && !picked.some((q) => q.place && q.place === p.place)) picked.push(p);
-	for (const p of candidates) if (picked.length < copies && !picked.includes(p)) picked.push(p);
-	const problems = candidates.length < copies ? [say.tooFew(copies, candidates.length)] : [];
-	return { picked, problems, operators };
+	const problems = picked.length ? [] : [say.tooFew(copies, 0)];
+	return { picked, problems, operators: picked.length };
+}
+
+/**
+ * The places a VM gets at its start, and when they are handed to a running
+ * one: a region resolved to named providers, one per operator and none that
+ * is blocked (pickProviders), so the backup tool in the VM can neither put
+ * two copies at one operator nor take a blocked provider. Named providers
+ * stay as they are (the app asks to replace a blocked one). Without the
+ * provider list the config goes as it is.
+ * @template {{ copies?: number, providerIds?: number[], regions?: string[] }} C
+ * @param {string} network @param {C} config
+ * @param {{ list?: (network: string) => Promise<Provider[]> }} [deps]
+ * @returns {Promise<C>}
+ */
+export async function placedConfig(network, config, { list = listProviders } = {}) {
+	if (config.providerIds?.length) return config;
+	try {
+		const { picked } = pickProviders(await list(network), config);
+		if (!picked.length) return config;
+		return { ...config, copies: picked.length, providerIds: picked.map((p) => p.id) };
+	} catch {
+		return config;
+	}
 }
 
 /**
@@ -109,7 +131,7 @@ export function pickProviders(providers, { copies = 2, providerIds = [], regions
  */
 export function independentCandidate(providers, picked, regions = []) {
 	const codes = regionCodes(regions);
-	const free = providers.filter((p) => p.active && !picked.some((q) => oneOperator(q, p)));
+	const free = providers.filter((p) => p.active && !p.blocked && !picked.some((q) => oneOperator(q, p)));
 	const here = free.find((p) => !codes.length || codes.includes(p.country ?? ''));
 	if (here) return { provider: here, inRegion: true };
 	return free[0] ? { provider: free[0], inRegion: false } : null;
