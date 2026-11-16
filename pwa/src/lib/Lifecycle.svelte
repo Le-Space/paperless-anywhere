@@ -22,6 +22,7 @@
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey } from '$lib/keys/derive.js';
 	import BackupExport from '$lib/BackupExport.svelte';
+	import { providersAnswer } from '$lib/backup-status.js';
 	import { backupSize, knownBackup, listBackups, newerBackup, pieceCidOfStop, place, restoreEntry, restoreGap, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
@@ -44,8 +45,8 @@
 	import { ALEPH_API } from '$lib/aleph.js';
 	import { isNetworkError, preloadAttestWasm } from '$lib/attest-wasm-load.js';
 
-	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void, onmissing?: (missing: string[]) => void, onglance?: (g: Glance) => void, onbusy?: (busy: boolean) => void }} */
-	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {}, onmissing = () => {}, onglance = () => {}, onbusy = () => {} } = $props();
+	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void, onmissing?: (missing: string[]) => void, onglance?: (g: Glance) => void, onbusy?: (busy: boolean) => void, oncopies?: (c: { network: string, copies: { providerId: number, url?: string }[] }) => void, reach?: import('$lib/backup-status.js').Level }} reach: the "Sicherungen erreichbar" light; oncopies: the newest backup's copies, for the lights */
+	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {}, onmissing = () => {}, onglance = () => {}, onbusy = () => {}, oncopies = () => {}, reach = 'unknown' } = $props();
 	/** @typedef {{ phase: string, host: string | null, lastGood: { at: string, copies: number | null } | null, backupsOn: boolean, pays: 'lespace' | 'app' | 'wallet' | null, fixedHost: boolean }} Glance */
 
 	/** @type {Record<string, any>} */
@@ -273,6 +274,12 @@
 	const chosenBackup = $derived(choice === 'latest' || choice === 'own' ? pick(split.own) : choice === 'any' ? unmarkedPick(split.other) : null);
 	// A backup without this vault's mark waits for the person's word.
 	const unmarkedOpen = $derived(choice === 'any' && Boolean(chosenBackup) && unmarkedAccepted !== chosenBackup?.pieceCid);
+	// The newest backup, for the lights at the top: this vault's own, else the newest listed.
+	const newestBackup = $derived(pick(split.own) ?? pick(backups ?? []) ?? null);
+	$effect(() => {
+		if (backups === null || backupsError) return;
+		oncopies({ network: profile.network ?? 'calibration', copies: (newestBackup?.copies ?? []).map((/** @type {any} */ x) => ({ providerId: Number(x.providerId), url: x.retrievalUrl })) });
+	});
 	// The backup whose copies the chain check shows: the one chosen, else this vault's newest, else the newest.
 	const chainBackup = $derived(chosenBackup ?? pick(split.own) ?? pick(backups ?? []) ?? null);
 	// The chain's answer against what the sealed profile knows: a start that
@@ -672,10 +679,25 @@
 					return (await listBackups({ network: profile.network ?? 'calibration', ...listing })).filter((b) => b.copies.length > 0).map((b) => b.pieceCid);
 				}
 			: null;
-	const stop = () => run(async () => {
+	const stopNow = () => run(async () => {
 		await reload();
 		await finishStop(await stopPaperless(master, $state.snapshot(profile), track('stop'), { onChain: backupsOnChain() }));
 	}, () => stop());
+	// Before "Sichern und beenden": do the providers the backup goes to answer?
+	// The named ones, else those of the newest backup. If none does, the backup
+	// cannot go up and the VM keeps running: said, and asked. Without the
+	// registry's answer nothing is said.
+	let stopChecking = $state(false);
+	const stop = async () => {
+		const named = (profile.backupConfig?.providerIds ?? []).map(Number);
+		const ids = named.length ? named : (newestBackup?.copies ?? []).map((/** @type {any} */ x) => Number(x.providerId));
+		if (profile.backupConfig && ids.length) {
+			stopChecking = true;
+			const r = await providersAnswer(profile.network ?? 'calibration', ids).finally(() => (stopChecking = false));
+			if (r && r.total > 0 && r.answering === 0 && !confirm(`${tr().card.simple.stopNoProvider(r.names.join(', '))} ${tr().card.simple.stopAnyway}`)) return;
+		}
+		return stopNow();
+	};
 	// A VM whose restore failed runs an empty Paperless and makes no backup
 	// (paperless-backup refuses): it is deleted without one, never stopped
 	// with "Sichern und beenden".
@@ -954,7 +976,11 @@
 			{#if profile.backupConfig && !restoreFailed}<BackupNow {master} {profile} known={lastGood} disabled={busy} onbusy={(b) => (backingUp = b)} ongood={rememberGood} />{/if}
 			<Evidence rows={evidence} t={evidenceT} onagain={busy ? null : checkAgain} />
 			{#if restoreFailed}<button class="secondary stop" onclick={discardFailed} disabled={busy} data-testid="simple-discard">{c.simple.discard}</button>
-			{:else}<button class="secondary stop" onclick={stop} disabled={busy || backingUp} data-testid="simple-stop">{c.simple.stop}</button>{/if}
+			{:else}
+				{#if reach === 'bad'}<p class="warn" role="status" data-testid="stop-reach-bad">{c.simple.stopReachBad}</p>{/if}
+				<button class="secondary stop" onclick={stop} disabled={busy || backingUp || stopChecking} data-testid="simple-stop">{c.simple.stop}</button>
+				{#if stopChecking}<p class="hint" role="status" data-testid="stop-checking">{c.simple.stopChecking}</p>{/if}
+			{/if}
 			<Storage {master} {profile} />
 			{#if profile.ageIdentity && backupListing(profile)}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{:else if phase === 'interrupted'}
@@ -1016,7 +1042,11 @@
 				<button type="button" class="small" onclick={copyPassword}>{c.simple.copy}</button>
 			</p>
 			{#if restoreFailed}<button class="secondary stop" onclick={discardFailed} disabled={busy} data-testid="discard">{c.simple.discard}</button>
-			{:else}<button class="secondary stop" onclick={stop} disabled={busy} data-testid="stop">{c.simple.stop}</button>{/if}
+			{:else}
+				{#if reach === 'bad'}<p class="warn" role="status">{c.simple.stopReachBad}</p>{/if}
+				<button class="secondary stop" onclick={stop} disabled={busy || stopChecking} data-testid="stop">{c.simple.stop}</button>
+				{#if stopChecking}<p class="hint" role="status">{c.simple.stopChecking}</p>{/if}
+			{/if}
 		{:else}
 			{#if profile.ageIdentity}
 				<fieldset class="restore">

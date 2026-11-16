@@ -8,20 +8,13 @@ import { getPDPProvidersByIds } from '@filoz/synapse-core/sp-registry';
 import { filecoinChain } from './permissions.js';
 import { place } from './backups.js';
 import { tr } from './i18n/index.js';
+import { registeredDomain, sameOperator, sharedSigns } from './operators.js';
 
 const EU = ['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE'];
 const EEA = [...EU, 'IS', 'LI', 'NO'];
 export const REGION_PRESETS = { EU, EEA, EUROPE: [...EEA, 'GB', 'CH'] };
 
-/** @typedef {{ id: number, name: string, location: string, place: string, country: string | null, operator: string | null, endorsed: boolean, active: boolean }} Provider */
-
-const operatorOf = (url) => {
-	try {
-		return new URL(url).hostname.split('.').slice(-2).join('.');
-	} catch {
-		return null;
-	}
-};
+/** @typedef {{ id: number, name: string, location: string, place: string, country: string | null, operator: string | null, endorsed: boolean, active: boolean, owner?: string | null, payee?: string | null, url?: string | null }} Provider operator: the registered domain of the service URL; owner, payee: the registry's addresses (operators.js) */
 const countryOf = (location) => /(?:^|;)C=([A-Z]{2})/i.exec(location ?? '')?.[1]?.toUpperCase() ?? null;
 
 /** The approved providers, endorsed first. @param {string} network @returns {Promise<Provider[]>} */
@@ -43,7 +36,10 @@ export async function listProviders(network) {
 			location: p.pdp?.location ?? '',
 			place: place(p.pdp?.location),
 			country: countryOf(p.pdp?.location),
-			operator: operatorOf(p.pdp?.serviceURL),
+			operator: registeredDomain(p.pdp?.serviceURL),
+			owner: p.serviceProvider ?? null,
+			payee: p.payee ?? null,
+			url: p.pdp?.serviceURL ?? null,
 			endorsed: endorsed.has(Number(p.id)),
 			active: p.isActive
 		}))
@@ -53,11 +49,21 @@ export async function listProviders(network) {
 /** Country codes for regions such as ['EUROPE'] or ['DE', 'NL']; [] = anywhere. @param {string[]} [regions] */
 export const regionCodes = (regions = []) => regions.flatMap((r) => REGION_PRESETS[String(r).toUpperCase()] ?? [String(r).toUpperCase()]);
 
+/** A provider as operators.js compares it (the domain stands in for the URL in made-up lists). @param {Provider} p */
+const entry = (p) => ({ id: p.id, name: p.name, owner: p.owner, payee: p.payee, url: p.url ?? (p.operator ? `https://${p.operator}` : null) });
+/** Whether two providers belong to one operator. @param {Provider} a @param {Provider} b */
+export const oneOperator = (a, b) => sameOperator(entry(a), entry(b));
+
 /**
- * The providers a backup config lands on, as the backup tool picks them, and
- * what keeps it from working.
+ * The providers a backup config lands on, and what keeps it from working.
+ * Copies go to different operators (operators.js): two copies at one
+ * operator are not independent. Named providers of one operator are refused
+ * while another operator in the region could take the copy (on Calibration
+ * one operator holds every approved provider: there it is only warned of);
+ * a region fills copies at operators that hold none first, and `operators`
+ * says how many independent ones it found.
  * @param {Provider[]} providers @param {{ copies?: number, providerIds?: number[], regions?: string[] }} config
- * @returns {{ picked: Provider[], problems: string[] }}
+ * @returns {{ picked: Provider[], problems: string[], operators?: number }}
  */
 export function pickProviders(providers, { copies = 2, providerIds = [], regions = [] }) {
 	const codes = regionCodes(regions);
@@ -69,21 +75,50 @@ export function pickProviders(providers, { copies = 2, providerIds = [], regions
 		const picked = [];
 		for (const id of providerIds) {
 			const p = byId.get(id);
+			// A second copy at one operator is refused while another operator could take it.
+			const twin = p && picked.find((q) => oneOperator(q, p));
+			const elsewhere = twin && providers.some((o) => o.active && inRegion(o) && !providerIds.includes(o.id) && ![...picked, p].some((q) => oneOperator(q, o)));
 			if (!p) problems.push(say.notApproved(id));
 			else if (!p.active) problems.push(say.notActive(id, p.name));
 			else if (!inRegion(p)) problems.push(say.outsideRegion(id, p.name));
+			else if (twin && elsewhere) problems.push(say.sameOperator(id, p.name, twin.name, signsText(twin, p)));
 			else picked.push(p);
 		}
 		return { picked, problems };
 	}
 	const candidates = providers.filter((p) => p.active && inRegion(p));
-	// One copy per operator first, then per country, then whatever is left.
+	// One copy per operator, endorsed first (the list's order). Never a second
+	// copy at an operator while another one in the region holds none; only
+	// when the region has fewer operators than copies, the rest goes to an
+	// operator that has one, at another place first (sharedWarnings says so).
 	const picked = [];
-	for (const p of candidates) if (!picked.some((q) => q.operator === p.operator)) picked.push(p);
-	for (const p of candidates) if (!picked.includes(p) && !picked.some((q) => q.country === p.country)) picked.push(p);
-	for (const p of candidates) if (!picked.includes(p)) picked.push(p);
+	for (const p of candidates) if (picked.length < copies && !picked.some((q) => oneOperator(q, p))) picked.push(p);
+	const operators = picked.length;
+	for (const p of candidates) if (picked.length < copies && !picked.includes(p) && !picked.some((q) => q.place && q.place === p.place)) picked.push(p);
+	for (const p of candidates) if (picked.length < copies && !picked.includes(p)) picked.push(p);
 	const problems = candidates.length < copies ? [say.tooFew(copies, candidates.length)] : [];
-	return { picked: picked.slice(0, copies), problems };
+	return { picked, problems, operators };
+}
+
+/**
+ * Where one more copy could go: the first active provider at none of the
+ * picked ones' operators, in the region if there is one there, else anywhere
+ * (`inRegion` says which). Null when every operator already holds a copy.
+ * @param {Provider[]} providers @param {Provider[]} picked @param {string[]} [regions]
+ * @returns {{ provider: Provider, inRegion: boolean } | null}
+ */
+export function independentCandidate(providers, picked, regions = []) {
+	const codes = regionCodes(regions);
+	const free = providers.filter((p) => p.active && !picked.some((q) => oneOperator(q, p)));
+	const here = free.find((p) => !codes.length || codes.includes(p.country ?? ''));
+	if (here) return { provider: here, inRegion: true };
+	return free[0] ? { provider: free[0], inRegion: false } : null;
+}
+
+/** What two providers share, in words ("Domain fidl.tech"). @param {Provider} a @param {Provider} b */
+export function signsText(a, b) {
+	const say = tr().backup.places.signs;
+	return sharedSigns(entry(a), entry(b)).map((s) => say[s.kind](s.value)).join(', ');
 }
 
 /** The countries outside the EU among the picked providers ('??' without a declared country). @param {Provider[]} picked */
@@ -96,7 +131,7 @@ export function sharedWarnings(picked) {
 	for (let i = 0; i < picked.length; i++) {
 		for (let j = i + 1; j < picked.length; j++) {
 			const [a, b] = [picked[i], picked[j]];
-			if (a.operator && a.operator === b.operator) warnings.push(say.operator(a.name, b.name, a.operator));
+			if (oneOperator(a, b)) warnings.push(say.operator(a.name, b.name, signsText(a, b)));
 			else if (a.place && a.place === b.place) warnings.push(say.place(a.name, b.name, a.place));
 		}
 	}

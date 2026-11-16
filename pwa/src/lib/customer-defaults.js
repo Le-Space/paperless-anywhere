@@ -19,7 +19,14 @@ import { backupConfigFor } from './backups.js';
 import { ageIdentityFromMaster, ageRecipient } from './keys/age.js';
 import { loadProfile, updateProfile } from './profile.js';
 
-/** Where a customer's backups go: three copies, providers in the EU. */
+/**
+ * Where a customer's backups go: three copies, providers in the EU, one per
+ * operator as far as the region has operators (pickProviders, operators.js).
+ * The EU's approved providers belong to two operators today (2026-11-16:
+ * FIDL with 36 and 37, ProbeLab with 43), so the third copy lands at an
+ * operator that already holds one, at another place; the places form says so
+ * and offers a third copy at an independent operator outside the EU.
+ */
 export const CUSTOMER_PLACES = Object.freeze({ copies: 3, providerIds: [], regions: ['EU'] });
 
 /** Nobody has chosen who pays yet. @param {Record<string, any>} profile */

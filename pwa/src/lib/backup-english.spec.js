@@ -40,7 +40,7 @@ describe('in English', () => {
 	it('says where copies cannot go and when they are not independent', () => {
 		expect(pickProviders([provider(1)], { providerIds: [1, 2] }).problems).toEqual(['Provider 2 is not approved (any more).']);
 		expect(pickProviders([provider(1)], { copies: 2 }).problems).toEqual(['2 copies wanted, the region has only 1 approved provider.']);
-		expect(sharedWarnings([provider(1), provider(2, { operator: 'op1.example.com' })])).toEqual(['P1 and P2 belong to the same operator (op1.example.com).']);
+		expect(sharedWarnings([provider(1), provider(2, { operator: 'op1.example.com' })])).toEqual(['P1 and P2 belong to the same operator (domain example.com).']);
 	});
 
 	it('writes storage, amounts, durations and money the English way', () => {

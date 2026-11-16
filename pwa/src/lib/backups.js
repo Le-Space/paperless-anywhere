@@ -284,10 +284,12 @@ export const backupSize = (bytes) => (typeof bytes === 'number' ? gb(bytes) : ''
 export const DEFAULT_PLACES = Object.freeze({ copies: 2, providerIds: [9, 2], regions: [] });
 
 /**
- * On mainnet the providers of the Mac's backups (36, 37, 1), so a production
- * VM adds to the same data sets and one history continues.
+ * On mainnet three operators: 36 (FIDL, Strasbourg), 43 (ProbeLab, Helsinki)
+ * and 1 (ezpdpz, Cheltenham). Until 2026-11-16 it was the Mac's 36, 37, 1,
+ * but 36 and 37 are one operator (both fidl.tech) and failed together; 36
+ * stays so a production VM keeps adding to that data set.
  */
-export const DEFAULT_PLACES_MAINNET = Object.freeze({ copies: 3, providerIds: [36, 37, 1], regions: [] });
+export const DEFAULT_PLACES_MAINNET = Object.freeze({ copies: 3, providerIds: [36, 43, 1], regions: [] });
 
 /** @param {string} network */
 export const defaultPlaces = (network) => (network === 'mainnet' ? DEFAULT_PLACES_MAINNET : DEFAULT_PLACES);

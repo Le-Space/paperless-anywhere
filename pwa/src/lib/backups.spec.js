@@ -16,9 +16,9 @@ describe('backupConfigFor', () => {
 			copies: 2, providerIds: [9, 2], regions: [], datasetMetadata: { app: 'paperless-backup-test' }, keepWeeks: 1, retention: { keepLast: 2, keepDays: 2, keepWeeks: 1, keepMonths: 0 }, ageRecipient: recipient
 		});
 	});
-	it('writes mainnet backups to the data sets of the Mac', () => {
+	it('writes mainnet backups to three operators, keeping the Mac’s data set at 36', () => {
 		expect(backupConfigFor('mainnet', recipient, { copies: 3, providerIds: [36, 37, 1], regions: [] })).toMatchObject({ copies: 3, providerIds: [36, 37, 1], datasetMetadata: { app: 'paperless-backup' }, keepWeeks: 12 });
-		expect(backupConfigFor('mainnet', recipient)).toMatchObject({ copies: 3, providerIds: [36, 37, 1] });
+		expect(backupConfigFor('mainnet', recipient)).toMatchObject({ copies: 3, providerIds: [36, 43, 1] });
 		expect(backupConfigFor('calibration', recipient)).toMatchObject({ providerIds: [9, 2] });
 		expect(() => backupConfigFor('other', recipient)).toThrow(/Unbekanntes Netz/);
 	});

@@ -47,6 +47,37 @@ export const app = {
 			again: 'Wörter noch einmal zeigen'
 		},
 		tabs: { label: 'Ansicht', simple: 'Übersicht', advanced: 'Erweitert' },
+		leds: {
+			label: 'Zustand der Sicherungen',
+			reach: 'Sicherungen erreichbar',
+			independent: 'Kopien unabhängig',
+			levels: { ok: 'grün', warn: 'gelb', bad: 'rot', unknown: 'nicht geprüft' },
+			reachSays: {
+				ok: (/** @type {number} */ n, /** @type {number} */ total) => `${n} von ${total} Kopien der neuesten Sicherung antworten.`,
+				warn: (/** @type {number} */ total) => `Nur 1 von ${total} Kopien der neuesten Sicherung antwortet. Fällt auch dieser Anbieter aus, lässt sich die Sicherung nicht holen.`,
+				bad: (/** @type {number} */ total) => `Keine der ${total} Kopien der neuesten Sicherung antwortet. Gerade lässt sich keine Sicherung holen; ein Start, der wiederherstellt, wartet. Die Sicherung ist damit nicht verloren.`,
+				unknown: 'Noch nicht geprüft.'
+			},
+			independentSays: {
+				ok: (/** @type {number} */ n) => `Die ${n} Kopien liegen bei verschiedenen Betreibern.`,
+				warn: 'Kopien liegen beim selben Betreiber. Fällt er aus, sind sie alle weg. Unter „Erweitert“ → Einrichtung → „Wohin die Sicherungen gehen“ einen anderen Betreiber wählen.',
+				one: 'Es gibt nur eine Kopie. Unter „Erweitert“ → Einrichtung eine zweite bei einem anderen Betreiber anlegen.',
+				unknown: 'Noch nicht geprüft.'
+			},
+			noBackup: 'Noch keine Sicherung bekannt: Die Lichter zeigen etwas, sobald die App die Liste der Sicherungen gelesen hat (nach dem Entsperren).',
+			fromMemory: (/** @type {string} */ when) => `Anbieter aus der zuletzt gelesenen Liste (${when}); die Liste selbst liest die App erst nach dem Entsperren.`,
+			unreadable: 'Die Anbieterliste ließ sich gerade nicht lesen. Nichts geprüft.',
+			checking: 'Prüfe …',
+			again: 'Jetzt prüfen',
+			checkedAt: (/** @type {string} */ when) => `Geprüft um ${when}, von diesem Browser aus. Grün ist nur, was die App selbst geprüft hat.`,
+			provider: (/** @type {number} */ id) => `Anbieter ${id}`,
+			answers: 'antwortet',
+			silent: 'antwortet nicht',
+			domain: 'Domain',
+			owner: 'Adresse',
+			pair: (/** @type {string} */ a, /** @type {string} */ b, /** @type {string} */ why) => `${a} und ${b}: selber Betreiber (${why})`,
+			close: 'Schließen'
+		},
 		glance: {
 			title: 'Auf einen Blick',
 			package: 'Paket',
@@ -148,6 +179,37 @@ export const app = {
 			again: 'Show the words again'
 		},
 		tabs: { label: 'View', simple: 'Overview', advanced: 'Advanced' },
+		leds: {
+			label: 'State of the backups',
+			reach: 'Backups reachable',
+			independent: 'Copies independent',
+			levels: { ok: 'green', warn: 'yellow', bad: 'red', unknown: 'not checked' },
+			reachSays: {
+				ok: (/** @type {number} */ n, /** @type {number} */ total) => `${n} of ${total} copies of the newest backup answer.`,
+				warn: (/** @type {number} */ total) => `Only 1 of ${total} copies of the newest backup answers. If this provider fails too, the backup cannot be fetched.`,
+				bad: (/** @type {number} */ total) => `None of the ${total} copies of the newest backup answers. No backup can be fetched right now; a start that restores waits. The backup is not lost by this.`,
+				unknown: 'Not checked yet.'
+			},
+			independentSays: {
+				ok: (/** @type {number} */ n) => `The ${n} copies are at different operators.`,
+				warn: 'Copies are at the same operator. If it fails, they are all gone. Choose another operator under “Advanced” → setup → “Where the backups go”.',
+				one: 'There is only one copy. Add a second one at another operator under “Advanced” → setup.',
+				unknown: 'Not checked yet.'
+			},
+			noBackup: 'No backup known yet: the lights show something once the app has read the list of backups (after the unlock).',
+			fromMemory: (/** @type {string} */ when) => `Providers from the list read last (${when}); the app reads the list itself only after the unlock.`,
+			unreadable: 'The list of providers could not be read right now. Nothing checked.',
+			checking: 'Checking …',
+			again: 'Check now',
+			checkedAt: (/** @type {string} */ when) => `Checked at ${when}, from this browser. Only what the app checked itself is green.`,
+			provider: (/** @type {number} */ id) => `Provider ${id}`,
+			answers: 'answers',
+			silent: 'does not answer',
+			domain: 'Domain',
+			owner: 'Address',
+			pair: (/** @type {string} */ a, /** @type {string} */ b, /** @type {string} */ why) => `${a} and ${b}: same operator (${why})`,
+			close: 'Close'
+		},
 		glance: {
 			title: 'At a glance',
 			package: 'Package',
