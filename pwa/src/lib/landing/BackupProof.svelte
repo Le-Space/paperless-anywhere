@@ -22,6 +22,7 @@
 		{#each t.short as line}<li>{line}</li>{/each}
 	</ul>
 	<p class="name">{t.name}</p>
+	<p class="in-app" data-testid="backup-proof-app">{t.inApp}</p>
 	<details class="maths" data-testid="backup-proof-maths">
 		<summary>{t.mathsTitle}</summary>
 		<ol class="steps">
@@ -54,6 +55,7 @@
 	h4 { margin: 1.25rem 0 0.5rem; font-size: 1rem; }
 	.short { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.4rem; line-height: 1.5; }
 	.name { color: var(--text-2); font-size: 0.9rem; margin: 0.75rem 0 0; }
+	.in-app { margin: 0.75rem 0 0; padding: 0.75rem 1rem; border-radius: var(--radius-sm); background: var(--surface-2); line-height: 1.5; }
 	.maths { margin-top: 1rem; }
 	.maths summary { cursor: pointer; font-weight: 600; }
 	.maths p { line-height: 1.55; }

@@ -122,6 +122,8 @@ test('the backup section says how a provider proves it still has the backup, wit
 	const proof = page.getByTestId('backup-proof');
 	await expect(proof.getByRole('heading', { level: 3 })).toHaveText('Woher weiß ich, dass meine Sicherung noch da ist?');
 	await expect(proof).toContainText('Die Beweise prüft ein Vertrag auf der Filecoin-Kette, nicht Le Space');
+	await expect(page.getByTestId('backup-proof-app')).toContainText('„Was die Chain sagt“');
+	await expect(page.getByTestId('backup-proof-app')).toContainText('Die Beweise rechnet der Vertrag nach, nicht die App.');
 	await page.getByTestId('backup-proof-maths').locator('summary').click();
 	await expect(proof).toContainText('Blätter zu je 32 Byte');
 	await expect(proof).toContainText('höchstens 24 Stunden (2880 Epochen zu 30 Sekunden)');

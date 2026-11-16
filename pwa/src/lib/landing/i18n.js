@@ -164,6 +164,7 @@ export const texts = {
 					'Wer nicht rechtzeitig beweist, fällt öffentlich auf und wird für diese Zeit nicht bezahlt.'
 				],
 				name: 'Das Verfahren heißt Proof of Data Possession (PDP), Teil von Filecoin Warm Storage.',
+				inApp: 'Selbst nachsehen: In der App liest du für jede Kopie selbst von der Chain, ob sie noch da ist – unter „Was die Chain sagt“ bei deiner Sicherung, mit „Jetzt prüfen“. Du siehst, ob der Datensatz aktiv ist, den letzten Beweis, die nächste Stichprobe, verpasste Beweise der letzten 30 Beweisperioden und bis wann bezahlt ist. Grün heißt: von der App selbst auf der Chain gelesen. Die Beweise rechnet der Vertrag nach, nicht die App.',
 				mathsTitle: 'So funktioniert es mathematisch',
 				steps: [
 					{ t: 'Zerlegen', d: 'Deine verschlüsselte Sicherung wird in Blätter zu je 32 Byte zerlegt, vorher so aufgefüllt, dass jedes Blatt in den Zahlenbereich des Beweissystems passt.' },
@@ -487,6 +488,7 @@ export const texts = {
 					'A provider that does not prove in time shows up in public and is not paid for that time.'
 				],
 				name: 'The method is called Proof of Data Possession (PDP), part of Filecoin Warm Storage.',
+				inApp: 'See for yourself: in the app you read from the chain yourself, for each copy, whether it is still there – under “What the chain says” with your backup, with “Check now”. You see whether the data set is active, the last proof, the next challenge, missed proofs over the last 30 proving periods, and until when it is paid. Green means: read from the chain by the app itself. The proofs are checked by the contract, not by the app.',
 				mathsTitle: 'How it works, mathematically',
 				steps: [
 					{ t: 'Cut up', d: 'Your encrypted backup is cut into leaves of 32 bytes each, padded first so that every leaf fits into the number field of the proof system.' },
