@@ -22,7 +22,7 @@ not open, and the VM does not start.
 | Piece | What it is | Who can check it |
 |---|---|---|
 | The plain image | Debian, Docker, Caddy, the scripts: what `rootfs/build-image.sh` builds. It holds no secret and is public on Aleph. | Everyone: its SHA-256 is fixed in the app and printed by the build. |
-| The image builder | A small service that encrypts the plain image with a passphrase it is given. It runs in a confidential VM whose whole content is measured (an Aleph V-PROGRAM), the plain image included: it lies on a verified volume. | Everyone: its launch measurement is fixed in the app and can be recomputed from this repository and the plain image. |
+| The image builder | A small service that encrypts the plain image with a passphrase it is given. It runs in a confidential VM whose whole content is measured (an Aleph V-PROGRAM), the plain image included: it lies on a verified volume. | Everyone: its launch measurement is fixed in the app and can be recomputed from the published volumes (checked against their root hashes) and Aleph's runtime. What the volumes hold can be read and compared with this repository; a rebuild from it does not give the same bytes. |
 | Your app | Derives the passphrase from your vault, checks the builder's attestation, fetches the sealed image and stores it on Aleph. | You. |
 | Your image | The plain image, encrypted with your passphrase, stored on Aleph under your vault's address. | Only your vault can open it. |
 
@@ -191,9 +191,14 @@ check each link of the chain:
    ```
 
    The build is not reproducible bit for bit (Debian packages are fetched at
-   build time), so a rebuild gives the same content with another hash. What
-   it holds can be read: it is an ext4 image, `rootfs/build-image.sh` says
-   what goes in.
+   build time, without a snapshot, and files carry the build's times), so a
+   rebuild gives the same content with another hash. What it holds can be
+   read: it is an ext4 image, `rootfs/build-image.sh` says what goes in. The
+   same holds for the one-layer container images the VM pulls
+   (`rootfs/images.txt`, flattened by `flat-images.yml`; `docker export`
+   keeps times) and for the builder's image archive: they are pinned by
+   digest or root hash, and what can be compared is their content, not their
+   hash against a rebuild.
 
 3. **The builder is the one the app names.** Its V-PROGRAM message on Aleph
    names the runtime, the workload volume and the measurements;
