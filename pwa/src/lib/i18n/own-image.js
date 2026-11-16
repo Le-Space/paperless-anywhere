@@ -27,7 +27,8 @@ export const ownImage = {
 			vprogram: 'Build-Dienst bei Aleph',
 			measurement: 'Messwert des Build-Dienstes'
 		},
-		have: (/** @type {string} */ date) => `Du nutzt dein eigenes Image, gebaut am ${date}.`,
+		have: (/** @type {string} */ date) => `Geschafft: Dein Image ist nur für deinen Tresor versiegelt (gebaut am ${date}).`,
+		tip: 'Tipp: Mit einem eigenen Image kennt niemand außer dir die Passphrase – auch Le Space nicht. Bau in etwa 15 Minuten.',
 		build: 'Mein Image bauen',
 		rebuild: 'Mein Image neu bauen',
 		whileRunning: 'Erst möglich, wenn Paperless gestoppt ist. Der Umzug einer laufenden Paperless: „Sichern und beenden“, hier bauen, neu starten; der Start stellt die neueste Sicherung wieder her. Scheitert das, legt die neue VM keine Sicherung an: Lösche sie ohne Sicherung, die letzte Sicherung bleibt die neueste.',
@@ -112,7 +113,8 @@ export const ownImage = {
 			vprogram: 'Build service on Aleph',
 			measurement: 'Measurement of the build service'
 		},
-		have: (/** @type {string} */ date) => `You are using your own image, built on ${date}.`,
+		have: (/** @type {string} */ date) => `Done: your image is sealed for your vault only (built on ${date}).`,
+		tip: 'Tip: with an image of your own, nobody but you knows the passphrase – Le Space neither. Built in about 15 minutes.',
 		build: 'Build my image',
 		rebuild: 'Build my image again',
 		whileRunning: 'Possible once Paperless is stopped. To move a running Paperless: “Back up and stop”, build here, start again; the start restores the newest backup. If that fails, the new VM makes no backup: delete it without a backup, and the last backup stays the newest.',

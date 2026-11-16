@@ -522,6 +522,7 @@
 					<label><input type="radio" bind:group={imageKind} value="own" onchange={() => (imageKindPicked = true)} data-testid="image-own" /> {$t.ownImage.choice.own}<br /><small>{$t.ownImage.choice.ownHint}</small></label>
 				</fieldset>
 			{/if}
+			{#if BUILDER && publicImage}<p class="tip" data-testid="own-image-tip">{$t.ownImage.tip}</p>{/if}
 			{#if publicImage}
 				<label>{x.image.hash}<input bind:value={imageInput} placeholder={x.image.hashPlaceholder} data-testid="image-hash" /></label>
 			{/if}
@@ -712,5 +713,6 @@
 	.step > summary { padding: 0.6rem 0; }
 	.more { margin: 0.25rem 0 0.5rem; font-size: 0.9rem; color: var(--text-2); }
 	.more summary { cursor: pointer; }
+	.tip { margin: 0 0 0.75rem; padding: 0.5rem 0.75rem; border-left: 3px solid var(--ok); background: color-mix(in srgb, var(--ok) 8%, transparent); border-radius: var(--radius-sm, 6px); font-size: 0.92rem; }
 	.link { background: none; border: none; color: inherit; text-decoration: underline; padding: 0; font: inherit; cursor: pointer; }
 </style>
