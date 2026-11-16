@@ -10,9 +10,9 @@ export const appLang = () => currentLang();
 export const evidenceTexts = {
 	de: {
 		title: 'Nachweis dieser VM',
-		summary: (app, reported, open) => `${app} von der App geprüft · ${reported} gemeldet · ${open} nicht bestätigt`,
+		summary: (app, reported, outside, open) => [`${app} von der App geprüft`, `${reported} gemeldet`, outside && `${outside} außerhalb der Hardware-Prüfung`, open && `${open} nicht bestätigt`].filter(Boolean).join(' · '),
 		sample: 'Beispiel, keine echte VM',
-		marks: { app: 'von der App geprüft', reported: 'gemeldet, nicht von der Hardware bestätigt', open: 'nicht bestätigt' },
+		marks: { app: 'von der App geprüft', reported: 'gemeldet, nicht von der Hardware bestätigt', outside: 'außerhalb der Hardware-Prüfung, anders geschützt', open: 'nicht bestätigt' },
 		rows: {
 			runtime: { t: 'Laufzeit', d: 'Firmware, Kernel und Initrd. Fest in der App eingetragen; liefert Aleph etwas anderes, startet die App nichts.' },
 			measurement: { t: 'Messwert', d: 'Von der App aus der Laufzeit und einer Startzeile berechnet, die deinen App-Schlüssel als Besitzer nennt, und in die INSTANCE-Nachricht geschrieben.' },
@@ -68,9 +68,9 @@ export const evidenceTexts = {
 	},
 	en: {
 		title: 'Evidence of this VM',
-		summary: (app, reported, open) => `${app} checked by the app · ${reported} reported · ${open} not confirmed`,
+		summary: (app, reported, outside, open) => [`${app} checked by the app`, `${reported} reported`, outside && `${outside} outside the hardware check`, open && `${open} not confirmed`].filter(Boolean).join(' · '),
 		sample: 'Sample, not a real VM',
-		marks: { app: 'checked by the app', reported: 'reported, not confirmed by the hardware', open: 'not confirmed' },
+		marks: { app: 'checked by the app', reported: 'reported, not confirmed by the hardware', outside: 'outside the hardware check, protected another way', open: 'not confirmed' },
 		rows: {
 			runtime: { t: 'Runtime', d: 'Firmware, kernel and initrd. Fixed in the app; if Aleph delivers anything else, the app starts nothing.' },
 			measurement: { t: 'Measurement', d: 'Computed by the app from the runtime and a boot line naming your app key as the owner, and written into the INSTANCE message.' },

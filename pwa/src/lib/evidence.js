@@ -1,5 +1,6 @@
 // The evidence of one VM, as rows: what the app pinned, computed and checked
-// itself, what the VM or Aleph only reported, and what nothing confirms yet.
+// itself, what the VM or Aleph only reported, what lies outside the hardware's
+// check by design, and what nothing confirms yet.
 // The rows come from the sealed profile and from the runtime pin; the app's
 // view (Evidence.svelte) and the landing page's sample render the same rows.
 // Nothing here fetches anything, and nothing here knows a language: the
@@ -10,8 +11,10 @@
  * How the app knows a row:
  *   app       it computed, signed or verified it itself
  *   reported  the VM or Aleph says so; no hardware confirms it
+ *   outside   the hardware's check does not cover it, by design (the image's
+ *             content, the relay); something else protects it, the row says what
  *   open      nothing confirms it yet
- * @typedef {'app' | 'reported' | 'open'} Mark
+ * @typedef {'app' | 'reported' | 'outside' | 'open'} Mark
  */
 /** @typedef {{ id: string, kind?: string, mark: Mark, note?: string, values: { k: string, v: string, mono?: boolean, copy?: boolean, say?: boolean }[], links: { k: string, href: string }[] }} Row */
 
@@ -103,11 +106,11 @@ export function evidenceRows({ running, rootfsItemHash = null, runtime, alephApi
 				}
 			: { id: 'attestation', mark: 'open', note: att ? 'mismatch' : 'notKept', values: att ? [{ k: 'reportMeasurement', v: att.measurement, mono: true }] : [], links: [] },
 		// The relay that carried the attestation. It is an ordinary server, not
-		// attested, so it is never more than "not confirmed"; what protects the
+		// attested, so it lies outside the hardware's check; what protects the
 		// exchange is the check above, in the browser.
 		{
 			id: 'relay',
-			mark: 'open',
+			mark: 'outside',
 			note: att?.relay?.host ? (att.relay.own ? 'relayOwn' : 'relayLeSpace') : 'relayUnknown',
 			values: att?.relay?.host ? [{ k: 'relayHost', v: String(att.relay.host), mono: true }] : [],
 			links: [
@@ -120,7 +123,7 @@ export function evidenceRows({ running, rootfsItemHash = null, runtime, alephApi
 		// default (not set there), so it is not named. Never the passphrase.
 		{
 			id: 'image',
-			mark: 'open',
+			mark: 'outside',
 			note: 'notMeasured',
 			values: [...(rootfsItemHash ? [{ k: 'store', v: rootfsItemHash, mono: true }] : []), ...(ownImage ? [{ k: 'luks', v: 'luks', say: true }] : [])],
 			links: [...message(rootfsItemHash), { k: 'build', href: `${REPO}/blob/main/rootfs/build-image.sh` }, ...(ownImage ? [{ k: 'encryptImage', href: `${REPO}/blob/main/builder/encrypt-image.sh` }] : [])]
@@ -150,7 +153,7 @@ export function evidenceRows({ running, rootfsItemHash = null, runtime, alephApi
 }
 
 /** How many rows carry each mark. @param {Row[]} rows @returns {Record<Mark, number>} */
-export const tally = (rows) => rows.reduce((n, r) => ({ ...n, [r.mark]: n[r.mark] + 1 }), { app: 0, reported: 0, open: 0 });
+export const tally = (rows) => rows.reduce((n, r) => ({ ...n, [r.mark]: n[r.mark] + 1 }), { app: 0, reported: 0, outside: 0, open: 0 });
 
 /**
  * The evidence of a stop or an erase, once it is over: where the backup

@@ -54,16 +54,16 @@ export const texts = {
 		},
 		points: [
 			{ t: 'Ausfallsicher', d: 'Kein einzelnes Rechenzentrum: Gerechnet wird auf Knoten mehrerer Betreiber, gesichert bei mehreren unabhängigen Speicheranbietern. Fällt ein Knoten aus, startest du auf einem anderen.' },
-			{ t: 'Vertraulich und nachprüfbar', d: 'Speicher und Platte der VM sind verschlüsselt; der Betreiber des Knotens kann sie nicht lesen. Was der Prozessor bestätigt, musst du uns nicht glauben: Du kannst es prüfen. Was noch offen ist, steht daneben, unter „Nachprüfbar“.' },
+			{ t: 'Vertraulich und nachprüfbar', d: 'Speicher und Platte der VM sind verschlüsselt; der Betreiber des Knotens kann sie nicht lesen. Was der Prozessor bestätigt, musst du uns nicht glauben: Du kannst es prüfen. Was er nicht prüft, steht daneben, unter „Nachprüfbar“.' },
 			{ t: 'Rund um die Uhr oder nach Gebrauch', d: 'Ein Monatspaket, das zu deinem Betrieb passt: Dauerbetrieb rund um die Uhr, oder ein Stundenpaket zum Starten, Arbeiten und Stoppen.' }
 		],
-		trustHint: 'Vertrauen ist gut, nachprüfen ist besser: wer welchen Schlüssel hat, was die Hardware bestätigt und was noch offen ist',
+		trustHint: 'Vertrauen ist gut, nachprüfen ist besser: wer welchen Schlüssel hat, was die Hardware bestätigt und was nicht',
 		audience: {
 			title: 'Für wen?',
 			lead: 'Für alle, die ihr Dokumentenarchiv nicht einem einzelnen Rechenzentrum anvertrauen wollen:',
 			items: [
 				{ who: 'Wer nicht vom Ausfall eines Hosters oder Speicheranbieters abhängen will:', what: 'Gerechnet wird auf Knoten mehrerer Betreiber, gesichert bei mehreren unabhängigen Speicheranbietern. Fällt einer aus, startest du auf einem anderen Knoten und spielst deine Sicherung ein.' },
-				{ who: 'Wem die Vertraulichkeit seiner Dokumente wichtig ist:', what: 'Der Prozessor verschlüsselt den Arbeitsspeicher der VM, und ihre Platte und die Sicherungen sind verschlüsselt. Der Betreiber des Knotens und seine Mitarbeiter sehen nur verschlüsselte Daten, ebenso, wer in ein Rechenzentrum einbricht. Was dabei noch offen ist, steht unter „Nachprüfbar“.' },
+				{ who: 'Wem die Vertraulichkeit seiner Dokumente wichtig ist:', what: 'Der Prozessor verschlüsselt den Arbeitsspeicher der VM, und ihre Platte und die Sicherungen sind verschlüsselt. Der Betreiber des Knotens und seine Mitarbeiter sehen nur verschlüsselte Daten, ebenso, wer in ein Rechenzentrum einbricht. Was die Hardware dabei nicht prüft, steht unter „Nachprüfbar“.' },
 				{ who: 'Unternehmen, die ihr Archiv rund um die Uhr brauchen:', what: 'Paperless anywhere läuft im Dauerbetrieb.' },
 				{ who: 'Selbstständige und kleine Firmen, die es nur ab und zu brauchen:', what: 'Die eigene VM ist in etwa einer Viertelstunde bereit, zum Beispiel einmal in der Woche oder zum Monatsabschluss für die Buchhaltung, und kostet dazwischen keine Rechenzeit.' }
 			]
@@ -189,7 +189,7 @@ export const texts = {
 		trust: {
 			title: 'Vertrauen ist gut. Nachprüfen ist besser.',
 			sub: 'Nachprüfbar: wer welchen Schlüssel hat',
-			lead: 'Wo das Image entsteht, wie seine Platte verschlüsselt ist, wer welches Geheimnis kennt und was die Hardware bestätigt. Dazu steht hier, was noch offen ist und wo du jede Aussage selbst prüfen kannst.',
+			lead: 'Wo das Image entsteht, wie seine Platte verschlüsselt ist, wer welches Geheimnis kennt und was die Hardware bestätigt. Dazu steht hier, was die Hardware nicht prüft und wie das anders abgesichert ist, und wo du jede Aussage selbst prüfen kannst.',
 			diagramLabel: 'Schaubild: Ein GitHub-Runner baut das Image und verschlüsselt es mit LUKS; es liegt bei Aleph. Es läuft in einer vertraulichen VM (AMD SEV-SNP): Gemessen werden Firmware, Kernel, Initrd und Besitzer, nicht das Image; was die VM schreibt, liegt in einem Datenbereich mit einem Zufallsschlüssel, den nur sie hat. Sicherungen werden in der VM mit age verschlüsselt und bei Filecoin abgelegt. Dein Browser prüft den Nachweis der VM und schickt erst dann Passphrase und Geheimnisse.',
 			diagram: {
 				build: { kicker: '1 · Gebaut', title: 'GitHub-Runner', lines: ['rootfs.yml baut Debian,', 'Docker, Caddy, Skripte', 'und verschlüsselt (LUKS)'] },
@@ -378,16 +378,16 @@ export const texts = {
 		},
 		points: [
 			{ t: 'Resilient', d: 'No single data centre: it computes on nodes of several operators and backs up to several independent storage providers. If a node fails, you start on another.' },
-			{ t: 'Confidential and checkable', d: 'The VM’s memory and disk are encrypted; the node’s operator cannot read them. What the processor confirms you need not take from us: you can check it. What is still open is listed beside it, under “Verify”.' },
+			{ t: 'Confidential and checkable', d: 'The VM’s memory and disk are encrypted; the node’s operator cannot read them. What the processor confirms you need not take from us: you can check it. What it does not check is listed beside it, under “Verify”.' },
 			{ t: 'Around the clock or pay as you use', d: 'A monthly package that fits how you work: always on, around the clock, or a package of hours to start, work and stop.' }
 		],
-		trustHint: 'Don’t trust, verify: who holds which key, what the hardware confirms and what is still open',
+		trustHint: 'Don’t trust, verify: who holds which key, what the hardware confirms and what it does not',
 		audience: {
 			title: 'Who is it for?',
 			lead: 'For everyone who does not want to entrust their document archive to a single data centre:',
 			items: [
 				{ who: 'If you do not want to depend on one host or one storage provider staying up:', what: 'the computing runs on nodes of several operators, the backups lie with several independent storage providers. If one fails, you start on another node and restore your backup.' },
-				{ who: 'If the confidentiality of your documents matters to you:', what: 'the processor encrypts the VM’s memory, and its disk and the backups are encrypted. The node’s operator and its staff see encrypted data only, and so does whoever breaks into a data centre. What is still open here is listed under “Verify”.' },
+				{ who: 'If the confidentiality of your documents matters to you:', what: 'the processor encrypts the VM’s memory, and its disk and the backups are encrypted. The node’s operator and its staff see encrypted data only, and so does whoever breaks into a data centre. What the hardware does not check here is listed under “Verify”.' },
 				{ who: 'Companies that need their archive around the clock:', what: 'Paperless anywhere runs always on.' },
 				{ who: 'Freelancers and small businesses that need it only now and then:', what: 'your own VM is ready in about a quarter of an hour, say once a week or at the month’s end for the bookkeeping, and uses no compute time in between.' }
 			]
@@ -513,7 +513,7 @@ export const texts = {
 		trust: {
 			title: 'Don’t trust. Verify.',
 			sub: 'Checkable: who holds which key',
-			lead: 'Where the image is built, how its disk is encrypted, who knows which secret and what the hardware confirms. With the points that are still open, and where you can check each claim yourself.',
+			lead: 'Where the image is built, how its disk is encrypted, who knows which secret and what the hardware confirms. With what the hardware does not check and how that is covered instead, and where you can check each claim yourself.',
 			diagramLabel: 'Diagram: a GitHub runner builds the image and encrypts it with LUKS; it is stored on Aleph. It runs in a confidential VM (AMD SEV-SNP): firmware, kernel, initrd and owner are measured, the image is not; what the VM writes goes into a data area with a random key only the VM has. Backups are encrypted with age inside the VM and stored on Filecoin. Your browser checks the VM’s attestation and only then sends the passphrase and secrets.',
 			diagram: {
 				build: { kicker: '1 · Built', title: 'GitHub runner', lines: ['rootfs.yml builds Debian,', 'Docker, Caddy, scripts', 'and encrypts (LUKS)'] },

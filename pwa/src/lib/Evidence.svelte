@@ -1,13 +1,14 @@
 <script>
 	// The evidence of one VM (evidence.js): one row per claim, each with the
-	// way the app knows it (checked by the app, only reported, not confirmed),
+	// way the app knows it (checked by the app, only reported, outside the
+	// hardware's check by design, not confirmed),
 	// its values and where to check it. Folded; every value is text.
 	import { tally } from '$lib/evidence.js';
 
 	/** @type {{ rows: import('$lib/evidence.js').Row[], t: typeof import('$lib/evidence-i18n.js').evidenceTexts.de, sample?: boolean, open?: boolean, onagain?: (() => Promise<unknown>) | null }} */
 	let { rows, t, sample = false, open = false, onagain = null } = $props();
 	const n = $derived(tally(rows));
-	const SIGN = { app: '✓', reported: '•', open: '○' };
+	const SIGN = { app: '✓', reported: '•', outside: '–', open: '○' };
 	let checking = $state(false);
 	// Only public values are copied (a recipient key, a hash); the full value is in the title.
 	let copied = $state('');
@@ -33,10 +34,10 @@
 	<summary>
 		<strong>{t.title}</strong>
 		{#if sample}<span class="sample" data-testid="evidence-sample">{t.sample}</span>{/if}
-		<span class="tally" data-testid="evidence-tally">{t.summary(n.app, n.reported, n.open)}</span>
+		<span class="tally" data-testid="evidence-tally">{t.summary(n.app, n.reported, n.outside, n.open)}</span>
 	</summary>
 	<ul class="legend" aria-hidden="true">
-		{#each /** @type {const} */ (['app', 'reported', 'open']) as m}<li class={m}><span class="sign">{SIGN[m]}</span>{t.marks[m]}</li>{/each}
+		{#each /** @type {const} */ (['app', 'reported', 'outside', 'open']) as m}<li class={m}><span class="sign">{SIGN[m]}</span>{t.marks[m]}</li>{/each}
 	</ul>
 	<ol class="rows">
 		{#each rows as row (row.id)}
@@ -71,6 +72,7 @@
 	.sign { display: inline-block; width: 1.1rem; font-weight: 700; }
 	.app .sign { color: var(--ok); }
 	.reported .sign { color: var(--accent-2-text); }
+	.outside .sign { color: var(--text-2); }
 	.open .sign { color: var(--warn); }
 	.row { padding: 0.7rem 0.9rem; border-top: 1px solid var(--line); font-size: 0.9rem; }
 	.row p { margin: 0; }

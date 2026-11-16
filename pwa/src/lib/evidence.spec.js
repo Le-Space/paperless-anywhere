@@ -32,19 +32,19 @@ describe('the evidence of a VM', () => {
 
 	it('names the relay that carried the attestation, and never calls a relay confirmed', () => {
 		const unknown = row(evidenceRows({ ...base, running: { ...running, attestation } }), 'relay');
-		expect(unknown).toMatchObject({ mark: 'open', note: 'relayUnknown', values: [] });
+		expect(unknown).toMatchObject({ mark: 'outside', note: 'relayUnknown', values: [] });
 		const leSpace = row(evidenceRows({ ...base, running: { ...running, attestation: { ...attestation, relay: { host: 'four-made-up-words.2n6.me', own: false } } } }), 'relay');
-		expect(leSpace).toMatchObject({ mark: 'open', note: 'relayLeSpace', values: [{ k: 'relayHost', v: 'four-made-up-words.2n6.me', mono: true }] });
+		expect(leSpace).toMatchObject({ mark: 'outside', note: 'relayLeSpace', values: [{ k: 'relayHost', v: 'four-made-up-words.2n6.me', mono: true }] });
 		const own = row(evidenceRows({ ...base, running: { ...running, attestation: { ...attestation, relay: { host: 'relay.example', own: true } } } }), 'relay');
-		expect(own).toMatchObject({ mark: 'open', note: 'relayOwn' });
+		expect(own).toMatchObject({ mark: 'outside', note: 'relayOwn' });
 		// Without a kept attestation there is no relay to name either.
-		expect(row(evidenceRows({ ...base, running }), 'relay')).toMatchObject({ mark: 'open', note: 'relayUnknown' });
+		expect(row(evidenceRows({ ...base, running }), 'relay')).toMatchObject({ mark: 'outside', note: 'relayUnknown' });
 		expect(leSpace.links.map((l) => l.k)).toEqual(['relayWs', 'relayP2p']);
 	});
 
 	it('never calls the image confirmed, and what the VM says about itself only reported', () => {
 		const rows = evidenceRows({ ...base, running, lastGood: { at: '2026-01-02T03:04:05Z', copies: 2, pieceCid: 'bafkexample' }, backupsOn: true });
-		expect(row(rows, 'image')).toMatchObject({ mark: 'open', note: 'notMeasured' });
+		expect(row(rows, 'image')).toMatchObject({ mark: 'outside', note: 'notMeasured' });
 		expect(row(rows, 'data')).toMatchObject({ mark: 'reported', note: 'sealed' });
 		expect(row(rows, 'node').mark).toBe('reported');
 		expect(row(rows, 'backups')).toMatchObject({ mark: 'reported', note: 'encrypted' });
@@ -74,7 +74,7 @@ describe('the evidence of a VM', () => {
 	});
 
 	it('counts the marks and reads measurements and firmware levels', () => {
-		expect(tally(evidenceRows({ ...base, running: { ...running, attestation } }))).toEqual({ app: 4, reported: 2, open: 3 });
+		expect(tally(evidenceRows({ ...base, running: { ...running, attestation } }))).toEqual({ app: 4, reported: 2, outside: 2, open: 1 });
 		expect(launchesOf(tee)).toEqual(['11'.repeat(48), '22'.repeat(48)]);
 		expect(launchesOf(null)).toEqual([]);
 		expect(tcbLine(attestation.launchTcb)).toBe('bootloader 4 · tee 0 · snp 22 · microcode 213');
