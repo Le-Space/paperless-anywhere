@@ -3,6 +3,7 @@
 	import { balancesRound, onceThisRound } from '$lib/balance-refresh.js';
 	import RefreshBalances from '$lib/RefreshBalances.svelte';
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
+	import { noteError, noteState } from '$lib/diagnosis.js';
 	import { AlephShortError, BackupPartialError, StartGoneError, attestRunning, confirmStopBackup, eraseStopped, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
 	import { buildImageForVault } from '$lib/own-image-build.js';
 	import { BUILDER, hasOwnImage, imageStatus } from '$lib/own-image.js';
@@ -392,6 +393,8 @@
 				again = retry;
 			}
 			errorLog = [.../** @type {any} */ ((e)?.facts ?? []), .../** @type {any} */ ((e)?.log ?? [])];
+			// For "Diagnose kopieren": the browser's own words where there are any, and the step.
+			noteError({ action, step: progress, message: errorRaw || error });
 			if (e instanceof AlephShortError) short = e;
 			if (e instanceof BackupPartialError) {
 				partial = e;
@@ -769,6 +772,22 @@
 			backupsOn: Boolean(profile.backupConfig),
 			pays: profile.leSpacePays ? 'lespace' : profile.appPays ? 'app' : profile.payer ? 'wallet' : null,
 			fixedHost: Boolean(profile.dnsToken)
+		});
+	});
+
+	// What "Diagnose kopieren" names of this Paperless (diagnosis.js picks and checks each value).
+	$effect(() => {
+		if (!loaded) return;
+		noteState({
+			phase,
+			instanceHash: profile.running?.instanceHash ?? null,
+			node: profile.running?.crnHash ?? null,
+			host: profile.running?.host ?? null,
+			relay: profile.running?.attestation?.relay?.host ?? null,
+			image: image.own ? 'own' : 'public',
+			network: profile.network ?? null,
+			pays: profile.leSpacePays ? 'lespace' : profile.appPays ? 'app' : profile.payer ? 'wallet' : null,
+			payer: typeof profile.payer === 'string' ? profile.payer : null
 		});
 	});
 
