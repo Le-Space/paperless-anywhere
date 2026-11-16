@@ -32,6 +32,7 @@
 	import { HOME, framed, sharedOrigin } from '$lib/shared-origin.js';
 	import BackupLeds from '$lib/BackupLeds.svelte';
 	import { forgetCopies, knownCopies, rememberCopies } from '$lib/backup-status.js';
+	import { endWarning } from '$lib/period-end.js';
 
 	// On a path-style gateway the origin is shared: no vault, no passkey there.
 	const shared = sharedOrigin();
@@ -214,14 +215,23 @@
 	// "Auf einen Blick" (#105): one row per card, each with its state.
 	/** @type {import('$lib/Lifecycle.svelte').Glance | null} */
 	let life = $state(null);
-	/** @type {{ plan: boolean, hoursLeft: number | null, pays: string | null, low: boolean } | null} */
+	/** @type {{ plan: boolean, hoursLeft: number | null, pays: string | null, low: boolean, endsAt: number | null } | null} */
 	let pkg = $state(null);
+	// The end of the paid time, shortly before it (period-end.js): a warning in
+	// both views, above everything else. The clock moves on once a minute.
+	let clock = $state(Date.now());
+	$effect(() => {
+		const id = setInterval(() => (clock = Date.now()), 60_000);
+		return () => clearInterval(id);
+	});
+	const ending = $derived(CREDITS_URL && pkg?.endsAt != null ? endWarning(pkg.endsAt, clock) : null);
+	const endsAtText = $derived(pkg?.endsAt != null ? format.dateTime(pkg.endsAt, undefined, $lang) : '');
 	const when = (/** @type {string} */ at) => format.dateTime(at, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }, $lang);
 	// `key` names a row whatever the language (tests and anchors use it).
 	const glance = $derived.by(() => {
 		const g = $t.app.glance;
 		return [
-			...(CREDITS_URL && pkg ? [{ key: 'package', id: 'paket', label: g.package, state: !pkg.plan ? g.noPackage : pkg.pays === 'app' || pkg.pays === 'wallet' ? g.notInUse : pkg.hoursLeft != null ? g.hoursLeft(pkg.hoursLeft) : g.active, tone: !pkg.plan || pkg.low ? 'warn' : pkg.pays === 'app' || pkg.pays === 'wallet' ? '' : 'ok' }] : []),
+			...(CREDITS_URL && pkg ? [{ key: 'package', id: 'paket', label: g.package, state: !pkg.plan ? g.noPackage : pkg.pays === 'app' || pkg.pays === 'wallet' ? g.notInUse : ending && ending !== 'ended' ? $t.pkg.ending.chip(endsAtText) : pkg.hoursLeft != null ? g.hoursLeft(pkg.hoursLeft) : g.active, tone: !pkg.plan || pkg.low || ending ? 'warn' : pkg.pays === 'app' || pkg.pays === 'wallet' ? '' : 'ok' }] : []),
 			...(life ? [
 				{ key: 'paperless', id: 'paperless', label: 'Paperless-ngx', state: /** @type {Record<string, string>} */ (g.phases)[life.phase] ?? life.phase, tone: life.phase === 'running' ? 'ok' : life.phase === 'interrupted' ? 'warn' : '' },
 				{ key: 'backups', id: 'paperless', label: g.backups, state: !life.backupsOn ? g.backupsOff : life.lastGood ? `${when(life.lastGood.at)}${life.lastGood.copies ? ` · ${g.copies(life.lastGood.copies)}` : ''}` : g.noneYet, tone: !life.backupsOn || !life.lastGood ? 'warn' : 'ok' },
@@ -339,6 +349,12 @@
 			     Paperless first; only the package moves, by CSS order, so a running
 			     checkout is not torn down when the tab changes. -->
 			<div class="stack" class:simple>
+				{#if ending}
+					<section class="card ending" class:urgent={ending !== 'soon'} role="alert" data-testid="period-ending">
+						<p><strong>{$t.pkg.ending[ending](endsAtText)}</strong> {$t.pkg.ending.what}</p>
+						<a href="#paket">{$t.pkg.ending.more}</a>
+					</section>
+				{/if}
 				{#if !simple && glance.length}
 					<section class="card glance" data-testid="glance">
 						<h2>{$t.app.glance.title}</h2>
@@ -458,6 +474,10 @@
 	.stack { display: flex; flex-direction: column; }
 	.stack:not(.simple) .pkg { order: -1; }
 	.stack:not(.simple) .glance { order: -2; }
+	.ending { order: -3; background: var(--warn-bg); color: var(--warn); }
+	.ending.urgent { border: 2px solid var(--warn); }
+	.ending p { margin: 0 0 0.4rem; }
+	.ending a { color: inherit; font-weight: 600; }
 	.glance h2 { margin: 0 0 0.25rem; font-size: 1.15rem; }
 	.glance ul { list-style: none; margin: 0; padding: 0; }
 	.glance li { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-top: 1px solid var(--line); }

@@ -145,3 +145,25 @@ test('after a voucher a new Paperless is set up by itself: Le Space pays, backup
 	await expect(page.getByTestId('start')).toBeVisible();
 	await expect(page.getByTestId('first-build')).toHaveText('Beim ersten Start wird zuerst dein eigenes Image gebaut: etwa 15 Minuten länger, und das Fenster muss so lange offen bleiben.');
 });
+
+test('shortly before the voucher period ends, both views warn, and the package row says when', async ({ page }) => {
+	// Two days before the made-up voucher's end (2026-11-20 10:15 UTC).
+	await page.clock.setFixedTime(new Date('2026-11-18T10:15:00Z'));
+	await openApp(page, { plan: false, backup: 'none', offered: true, included: true, vouchers: true, network: 'mainnet' });
+	await expect(page.getByTestId('period-ending')).toHaveCount(0);
+	await page.getByTestId('voucher').locator('summary').click();
+	await page.getByTestId('voucher-code').fill('PA-ABCD-EFGH-JKLM');
+	await page.getByTestId('voucher-redeem').click();
+	await expect(page.getByTestId('voucher-period')).toBeVisible();
+	// Le Space pays the VM now (the defaults): the end counts.
+	const banner = page.getByTestId('period-ending');
+	await expect(banner).toContainText('Deine bezahlte Laufzeit endet am 20.11.2026, 11:15. Sie verlängert sich nicht.');
+	await expect(banner).toContainText('Eine Stunde vor dem Ende macht Paperless-ngx eine letzte Sicherung und hält an.');
+	await expect(page.getByTestId('plan-ending')).toContainText('endet am 20.11.2026, 11:15');
+	await shot(page, 'voucher-ending', banner);
+	await page.getByTestId('tab-advanced').click();
+	await expect(banner).toBeVisible();
+	await expect(page.getByTestId('glance-package')).toHaveText('endet 20.11.2026, 11:15');
+	await page.getByTestId('app-lang-en').click();
+	await expect(banner).toContainText('Your paid time ends on 20 Nov 2026, 11:15. It does not renew.');
+});
