@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evidenceRows, launchesOf, tally, tcbLine } from './evidence.js';
+import { evidenceRows, httpsUrl, launchesOf, tally, tcbLine } from './evidence.js';
 import { evidenceTexts } from './evidence-i18n.js';
 import { attestRunning, attestationOf } from './lifecycle.js';
 
@@ -136,5 +136,15 @@ describe('checking a running VM again', () => {
 		expect(saved).toBe(false);
 		expect(attestationOf(null)).toBeNull();
 		expect(attestationOf({ injected: [] })).toBeNull();
+	});
+});
+
+describe('links reported by the VM', () => {
+	it('are kept only as https URLs', () => {
+		expect(httpsUrl('https://provider.example.com/piece/abc')).toBe('https://provider.example.com/piece/abc');
+		expect(httpsUrl('http://provider.example.com/piece/abc')).toBe('');
+		expect(httpsUrl('javascript:alert(1)')).toBe('');
+		expect(httpsUrl(undefined)).toBe('');
+		expect(httpsUrl({})).toBe('');
 	});
 });

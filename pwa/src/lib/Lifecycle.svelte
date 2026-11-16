@@ -35,7 +35,7 @@
 	import StartPanel from '$lib/StartPanel.svelte';
 	import { panelTimes, startPanel } from '$lib/start-panel.js';
 	import { stopPanel } from '$lib/stop-panel.js';
-	import { stopEvidenceRows } from '$lib/evidence.js';
+	import { httpsUrl, stopEvidenceRows } from '$lib/evidence.js';
 	import { checkBackupHeader } from '$lib/backup-header.js';
 	import { ageIdentityFromMaster, ageRecipient } from '$lib/keys/age.js';
 	import { RUNTIME } from '$lib/runtime-pin.js';
@@ -631,7 +631,7 @@
 	});
 	const stop = () => run(async () => {
 		await reload();
-		finishStop(await stopPaperless(master, $state.snapshot(profile), track('stop')));
+		await finishStop(await stopPaperless(master, $state.snapshot(profile), track('stop')));
 	}, () => stop());
 	// A VM whose restore failed runs an empty Paperless and makes no backup
 	// (paperless-backup refuses): it is deleted without one, never stopped
@@ -645,7 +645,7 @@
 		// say so, with what it holds now, and ask.
 		const bytes = await vmStatus(run.host, statusToken(master)).then((s) => s?.storage?.documentsBytes).catch(() => null);
 		if (!confirm(c.simple.discardConfirm(typeof bytes === 'number' ? `${format.number(Math.round(bytes / 1e6), undefined, $appLanguage)} MB` : ''))) return;
-		finishStop(await eraseStopped(master, $state.snapshot(profile), null, track('discard')));
+		await finishStop(await eraseStopped(master, $state.snapshot(profile), null, track('discard')));
 	});
 	// After a partial backup, on the person's word: erase the VM anyway, or
 	// keep it and let Paperless run again. If that fails, the question stays.
@@ -667,7 +667,7 @@
 		// The stop's backup, as the VM reported it before it asked.
 		stopSent = true;
 		vmPage = p.status;
-		finishStop(await eraseStopped(master, $state.snapshot(profile), p.status, on));
+		await finishStop(await eraseStopped(master, $state.snapshot(profile), p.status, on));
 	});
 	const keepVm = () => answer(async () => {
 		progress = tr().card.progress.restart;
@@ -1015,7 +1015,7 @@
 				<ul>
 					{#each b.copies ?? [] as copy (copy.providerId + copy.dataSetId)}
 						<li>{c.last.copy({ provider: copy.providerId, place: copy.location ? place(copy.location) : '', dataSet: copy.dataSetId, piece: copy.pieceId, isNew: Boolean(copy.isNewDataSet) })}
-							{#if copy.retrievalUrl}<br /><a href={copy.retrievalUrl} target="_blank" rel="noopener">{c.last.fetch}</a> <small>{c.last.fetchHint}</small>{/if}</li>
+							{#if httpsUrl(copy.retrievalUrl)}<br /><a href={httpsUrl(copy.retrievalUrl)} target="_blank" rel="noopener">{c.last.fetch}</a> <small>{c.last.fetchHint}</small>{/if}</li>
 					{/each}
 				</ul>
 				{#if b.failedAttempts}<p class="hint">{c.last.failed(b.failedAttempts)}</p>{/if}

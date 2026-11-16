@@ -95,6 +95,16 @@ describe('the /pay page', () => {
 		expect(payMessage(from('https://credits.example.com', 'other'), 'https://credits.example.com')).toBeNull();
 		expect(payMessage(from('https://credits.example.com', 'ls-credits:paid'), '')).toBeNull();
 	});
+
+	it('is heard only from the frame that was opened, when one is named', () => {
+		const mine = /** @type {any} */ ({ name: 'mine' });
+		const other = /** @type {any} */ ({ name: 'other' });
+		const from = (source) => /** @type {MessageEvent} */ ({ origin: 'https://credits.example.com', source, data: { type: 'ls-credits:paid' } });
+		expect(payMessage(from(mine), 'https://credits.example.com', mine)).toBe('paid');
+		expect(payMessage(from(other), 'https://credits.example.com', mine)).toBeNull();
+		// A dialog that is not open has no frame: nothing reaches it.
+		expect(payMessage(from(mine), 'https://credits.example.com', null)).toBeNull();
+	});
 });
 
 describe('waitForTopUp', () => {
