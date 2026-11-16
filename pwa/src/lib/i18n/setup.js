@@ -17,7 +17,22 @@ export const setup = {
 			moreLink: 'Schlüssel und Wiederherstellung',
 			moreEnd: '.'
 		},
-		devFold: (/** @type {string} */ network) => `Netz und Rolle: ${network} (für Entwickler)`,
+		devFold: (/** @type {string} */ network) => `Für Entwickler: Netz (${network}), Rolle, Relay, Sicherungs-Details`,
+		overview: {
+			title: 'Auf einen Blick',
+			labels: { pays: 'Zahlung', aleph: 'Aleph-Freigabe', filecoin: 'Filecoin-Schlüssel', relay: 'Attest-Relay', backups: 'Sicherungen', image: 'Image', address: 'Feste Adresse' },
+			pays: { lespace: 'Le Space, aus deinem Paket', app: 'die Adresse dieser App', wallet: 'deine Wallet', none: 'noch offen' },
+			aleph: { ok: 'freigegeben', no: 'noch nicht freigegeben' },
+			filecoin: { ok: (/** @type {string} */ day) => `gültig bis ${day}`, no: 'noch nicht erteilt' },
+			relay: { own: 'eigenes eingetragen', found: (/** @type {number} */ n) => `von Le Space (${n} gefunden)`, none: 'keines gefunden', looking: 'wird gesucht …' },
+			backups: { off: 'aus', on: 'an', paidUntil: (/** @type {string} */ day) => `an, bezahlt bis ${day}`, noKey: 'an, aber ohne Schlüssel' },
+			image: { own: (/** @type {string} */ day) => `eigenes, gebaut am ${day}`, ownAtStart: 'eigenes, wird beim ersten Start gebaut', ownMissing: 'eigenes, noch nicht gebaut', public: 'öffentliches von Le Space', none: 'noch offen' },
+			address: { on: 'eingerichtet', off: 'keine (optional)' },
+			open: 'Ändern'
+		},
+		more: 'Mehr dazu',
+		copy: 'Kopieren',
+		copied: 'Kopiert ✓',
 		network: { label: 'Netz', test: 'Test (Calibration)', main: 'Produktiv (Mainnet)' },
 		role: {
 			legend: 'Rolle dieser Instanz',
@@ -162,7 +177,22 @@ export const setup = {
 			moreLink: 'Keys and recovery',
 			moreEnd: '.'
 		},
-		devFold: (/** @type {string} */ network) => `Network and role: ${network} (for developers)`,
+		devFold: (/** @type {string} */ network) => `For developers: network (${network}), role, relay, backup details`,
+		overview: {
+			title: 'At a glance',
+			labels: { pays: 'Payment', aleph: 'Aleph permission', filecoin: 'Filecoin key', relay: 'Attest relay', backups: 'Backups', image: 'Image', address: 'Fixed address' },
+			pays: { lespace: 'Le Space, from your package', app: 'this app’s address', wallet: 'your wallet', none: 'open' },
+			aleph: { ok: 'granted', no: 'not granted yet' },
+			filecoin: { ok: (/** @type {string} */ day) => `valid until ${day}`, no: 'not granted yet' },
+			relay: { own: 'own one entered', found: (/** @type {number} */ n) => `Le Space’s (${n} found)`, none: 'none found', looking: 'looking …' },
+			backups: { off: 'off', on: 'on', paidUntil: (/** @type {string} */ day) => `on, paid until ${day}`, noKey: 'on, but without a key' },
+			image: { own: (/** @type {string} */ day) => `own, built on ${day}`, ownAtStart: 'own, built at the first start', ownMissing: 'own, not built yet', public: 'Le Space’s public one', none: 'open' },
+			address: { on: 'set up', off: 'none (optional)' },
+			open: 'Change'
+		},
+		more: 'More',
+		copy: 'Copy',
+		copied: 'Copied ✓',
 		network: { label: 'Network', test: 'Test (Calibration)', main: 'Production (Mainnet)' },
 		role: {
 			legend: 'Role of this instance',

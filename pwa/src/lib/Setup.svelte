@@ -1,5 +1,6 @@
 <script>
 	import { balancesRound, refreshBalances } from '$lib/balance-refresh.js';
+	import Addr from '$lib/Addr.svelte';
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey, fixedHostLabel } from '$lib/keys/derive.js';
 	import { FIXED_HOST_DOMAIN } from '$lib/vm.js';
@@ -356,17 +357,25 @@
 	// Aleph approval; when credits pay the backups, no Filecoin session key.
 	const showAleph = $derived(Boolean(profile?.payer && !profile.appPays && !profile.leSpacePays));
 	const showFilecoin = $derived(Boolean(profile?.payer && !profile.backupsByCredits));
+	// When Le Space pays, relay and backup details are a developer's business:
+	// they move into one fold at the end, unnumbered, and a customer sees three
+	// steps (who pays, image, fixed address).
+	const devSteps = $derived(Boolean(profile?.leSpacePays));
 	const step = $derived.by(() => {
 		let n = 1;
 		const at = /** @type {Record<string, number>} */ ({ pays: n });
 		if (showAleph) at.aleph = ++n;
 		if (showFilecoin) at.filecoin = ++n;
-		at.relay = ++n;
-		at.backups = ++n;
+		if (!devSteps) {
+			at.relay = ++n;
+			at.backups = ++n;
+		}
 		at.image = ++n;
 		at.address = ++n;
 		return at;
 	});
+	/** A step's title, numbered when it is a numbered step. @param {(n: number) => string} title @param {number | undefined} n */
+	const titled = (title, n) => (n ? title(n) : title(0).replace(/^0\.\s*/, ''));
 	// Money for the backups: test coins on Calibration, real ones on mainnet.
 	const backupCoins = $derived(profile?.network === 'mainnet' ? x.pays.coinsMain : x.pays.coinsTest);
 	// As the browser writes a date in the app's language (German: 1.2.2027).
@@ -374,6 +383,45 @@
 	/** A paid-until date still ahead, as a date, else ''. @param {string | null} iso */
 	const fundedUntil = (iso) => (iso && Date.parse(iso) > Date.now() ? day(iso) : '');
 	const until = (s) => (s > 0n && Number(s) * 1000 > Date.now() ? day(Number(s) * 1000) : '');
+
+	// "At a glance": one line per step, what is set and whether it is done.
+	const o = $derived(x.overview);
+	const status = $derived.by(() => {
+		if (!profile) return [];
+		/** @type {{ key: string, label: string, value: string, ok: boolean }[]} */
+		const rows = [];
+		const pays = profile.leSpacePays ? o.pays.lespace : profile.appPays ? o.pays.app : profile.payer ? o.pays.wallet : o.pays.none;
+		rows.push({ key: 'pays', label: o.labels.pays, value: pays, ok: Boolean(profile.leSpacePays || profile.appPays || profile.payer) });
+		if (showAleph) rows.push({ key: 'aleph', label: o.labels.aleph, value: alephOk ? o.aleph.ok : o.aleph.no, ok: alephOk });
+		if (showFilecoin) rows.push({ key: 'filecoin', label: o.labels.filecoin, value: until(sessionUntil) ? o.filecoin.ok(until(sessionUntil)) : o.filecoin.no, ok: Boolean(until(sessionUntil)) });
+		const relayValue = profile.attestRelay ? o.relay.own : foundRelays === null ? o.relay.looking : foundRelays.length ? o.relay.found(foundRelays.length) : o.relay.none;
+		rows.push({ key: 'relay', label: o.labels.relay, value: relayValue, ok: Boolean(profile.attestRelay || foundRelays?.length) });
+		const paid = profile.backupsByCredits && backupState ? fundedUntil(backupState.fundedUntil) : '';
+		const backups = !profile.backupConfig ? o.backups.off : !profile.ageIdentity ? o.backups.noKey : paid ? o.backups.paidUntil(paid) : o.backups.on;
+		rows.push({ key: 'backups', label: o.labels.backups, value: backups, ok: Boolean(profile.backupConfig && profile.ageIdentity) });
+		const own = BUILDER && imageKind === 'own';
+		const image = ownBuilt ? o.image.own(day(profile.ownImage.builtAt)) : own ? (buildsImageFirst(profile, BUILDER) ? o.image.ownAtStart : o.image.ownMissing) : profile.rootfsItemHash ? o.image.public : o.image.none;
+		rows.push({ key: 'image', label: o.labels.image, value: image, ok: Boolean(ownBuilt || (own && buildsImageFirst(profile, BUILDER)) || (!own && profile.rootfsItemHash && profile.luksPassphrase)) });
+		rows.push({ key: 'address', label: o.labels.address, value: profile.dnsToken ? o.address.on : o.address.off, ok: true });
+		return rows;
+	});
+	// Which steps are open: the ones not done when they first show; after that
+	// the person opens and closes them (a save does not fold a step away).
+	/** @type {Record<string, boolean>} */
+	let opened = $state({});
+	// A step that shows up later (the Aleph step once a wallet pays) opens the same way.
+	$effect(() => {
+		if (!loaded) return;
+		const fresh = status.filter((r) => !(r.key in opened));
+		if (fresh.length) opened = { ...opened, ...Object.fromEntries(fresh.map((r) => [r.key, !r.ok])) };
+	});
+	/** Open a step from the overview and bring it into view. @param {string} key */
+	function goTo(key) {
+		if (devSteps && (key === 'relay' || key === 'backups')) devOpen = true;
+		opened = { ...opened, [key]: true };
+		requestAnimationFrame(() => document.getElementById(`setup-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+	}
+	let devOpen = $state(false);
 </script>
 
 <section class="setup" data-testid="setup">
@@ -389,170 +437,200 @@
 	{#if !loaded}
 		<p>{x.loading}</p>
 	{:else}
-		{#if profile.leSpacePays}
-			<!-- Le Space pays: one instance, on the service's network. Network and role stay reachable, folded. -->
-			<details class="dev" data-testid="dev-fold">
-				<summary>{x.devFold(profile.network === 'mainnet' ? x.network.main : x.network.test)}</summary>
-				{@render networkRole()}
-			</details>
-		{:else}
-			{@render networkRole()}
-		{/if}
+		<div class="overview" data-testid="setup-overview">
+			<h4>{o.title}</h4>
+			<ul>
+				{#each status as row (row.key)}
+					<li class:todo={!row.ok} data-testid={`overview-${row.key}`}>
+						<span class="mark" aria-hidden="true">{row.ok ? '✓' : '•'}</span>
+						<span class="what">{row.label}</span>
+						<span class="value">{row.value}</span>
+						<button type="button" class="link" onclick={() => goTo(row.key)}>{o.open}</button>
+					</li>
+				{/each}
+			</ul>
+		</div>
+		{#if !devSteps}{@render networkRole()}{/if}
 
-		<h3>{x.pays.title(step.pays)}</h3>
-		<fieldset class="payer-choice" disabled={busy === 'pays'}>
-			{#if CREDITS_URL}<label><input type="radio" name="pays" checked={Boolean(profile.leSpacePays)} onchange={() => setPays('lespace')} data-testid="pays-lespace" /> {x.pays.lespace}</label>{/if}
-			<label><input type="radio" name="pays" checked={!profile.appPays && !profile.leSpacePays} onchange={() => setPays('wallet')} data-testid="pays-wallet" /> {x.pays.wallet}</label>
-			<label><input type="radio" name="pays" checked={Boolean(profile.appPays) && !profile.leSpacePays} onchange={() => setPays('app')} data-testid="pays-app" /> {x.pays.app}</label>
-		</fieldset>
-		{#if CREDITS_URL}
-			<details class="self-pay" data-testid="self-pay">
-				<summary>{x.pays.self.summary}</summary>
-				<p>{x.pays.self.intro}</p>
-				<ul>
-					<li><strong>{x.pays.self.walletStrong}</strong>{x.pays.self.wallet(step.aleph ?? 2)}</li>
-					<li><strong>{x.pays.self.appStrong}</strong>{x.pays.self.app}</li>
-				</ul>
-				<p>{x.pays.self.after(step.backups)}</p>
-			</details>
-		{/if}
-		{#if profile.leSpacePays}
-			<p class="hint" data-testid="lespace-pays">{x.pays.lespaceHint}{profile.vmOwner ? x.pays.vmAccount : ''}{#if profile.vmOwner}<code>{profile.vmOwner}</code>{/if}</p>
-		{:else if profile.appPays}
-			<p>{x.pays.appAddress}<code data-testid="app-payer">{pwaAddress}</code>
-				<br /><small class="money">{x.pays.appMoney(Boolean(CREDITS_URL))}</small></p>
-			<p class="hint">{x.pays.walletOnlyForBackups(CREDITS_URL ? step.backups : null)}</p>
-		{/if}
-		{#if profile.payer}
-			<p>{profile.appPays ? x.pays.walletForBackups : x.pays.connected}: <code data-testid="payer">{profile.payer}</code>
-				<br /><small class="money">{profile.appPays ? x.pays.fundsBackups(backupCoins) : x.pays.fundsAll(backupCoins)}{x.pays.keyOnlyWallet}</small></p>
-		{/if}
-		{@render feedback('pays')}
-		<button onclick={connect} disabled={busy === 'wallet'}>{profile.payer ? x.pays.connectOther : profile.appPays ? x.pays.connectForBackups : x.pays.connect}</button>
+		<details class="step" id="setup-pays" data-testid="step-pays" bind:open={opened.pays}>
+			<summary><h3>{x.pays.title(step.pays)}</h3></summary>
+			<fieldset class="payer-choice" disabled={busy === 'pays'}>
+				{#if CREDITS_URL}<label><input type="radio" name="pays" checked={Boolean(profile.leSpacePays)} onchange={() => setPays('lespace')} data-testid="pays-lespace" /> {x.pays.lespace}</label>{/if}
+				<label><input type="radio" name="pays" checked={!profile.appPays && !profile.leSpacePays} onchange={() => setPays('wallet')} data-testid="pays-wallet" /> {x.pays.wallet}</label>
+				<label><input type="radio" name="pays" checked={Boolean(profile.appPays) && !profile.leSpacePays} onchange={() => setPays('app')} data-testid="pays-app" /> {x.pays.app}</label>
+			</fieldset>
+			{#if CREDITS_URL}
+				<details class="self-pay" data-testid="self-pay">
+					<summary>{x.pays.self.summary}</summary>
+					<p>{x.pays.self.intro}</p>
+					<ul>
+						<li><strong>{x.pays.self.walletStrong}</strong>{x.pays.self.wallet(step.aleph ?? 2)}</li>
+						<li><strong>{x.pays.self.appStrong}</strong>{x.pays.self.app}</li>
+					</ul>
+					<p>{x.pays.self.after(step.backups)}</p>
+				</details>
+			{/if}
+			{#if profile.leSpacePays}
+				<p class="hint" data-testid="lespace-pays">{x.pays.lespaceHint}{profile.vmOwner ? x.pays.vmAccount : ''}{#if profile.vmOwner}<Addr value={profile.vmOwner} />{/if}</p>
+			{:else if profile.appPays}
+				<p>{x.pays.appAddress}<Addr value={pwaAddress} testid="app-payer" />
+					<br /><small class="money">{x.pays.appMoney(Boolean(CREDITS_URL))}</small></p>
+				<p class="hint">{x.pays.walletOnlyForBackups(CREDITS_URL ? step.backups : null)}</p>
+			{/if}
+			{#if profile.payer}
+				<p>{profile.appPays ? x.pays.walletForBackups : x.pays.connected}: <Addr value={profile.payer} testid="payer" />
+					<br /><small class="money">{profile.appPays ? x.pays.fundsBackups(backupCoins) : x.pays.fundsAll(backupCoins)}{x.pays.keyOnlyWallet}</small></p>
+			{/if}
+			{@render feedback('pays')}
+			<button onclick={connect} disabled={busy === 'wallet'}>{profile.payer ? x.pays.connectOther : profile.appPays ? x.pays.connectForBackups : x.pays.connect}</button>
+		</details>
 
 		{#if showAleph}
-			<h3>{x.aleph.title(step.aleph)}</h3>
-			<p>{x.aleph.appKey}<code>{pwaAddress}</code>
-				<br /><small class="nomoney">{x.aleph.noFunds}</small></p>
-			<p data-testid="aleph-status">{alephOk ? x.aleph.granted : x.aleph.notGranted}</p>
-			{#if alephOk}
-				<button onclick={() => authorize(true)} disabled={busy === 'wallet'}>{x.aleph.revoke}</button>
-			{:else}
-				<button onclick={() => authorize()} disabled={busy === 'wallet'}>{x.aleph.grant}</button>
-			{/if}
+			<details class="step" id="setup-aleph" data-testid="step-aleph" bind:open={opened.aleph}>
+				<summary><h3>{x.aleph.title(step.aleph)}</h3></summary>
+				<p>{x.aleph.appKey}<Addr value={pwaAddress} />
+					<br /><small class="nomoney">{x.aleph.noFunds}</small></p>
+				<p data-testid="aleph-status">{alephOk ? x.aleph.granted : x.aleph.notGranted}</p>
+				{#if alephOk}
+					<button onclick={() => authorize(true)} disabled={busy === 'wallet'}>{x.aleph.revoke}</button>
+				{:else}
+					<button onclick={() => authorize()} disabled={busy === 'wallet'}>{x.aleph.grant}</button>
+				{/if}
+			</details>
 		{/if}
 
 		{#if showFilecoin}
-			<h3>{x.filecoin.title(step.filecoin)}</h3>
-			<p>{x.filecoin.sessionKey}<code>{sessionAddress}</code>
-				<br /><small class="nomoney">{x.filecoin.noFunds}</small></p>
-			<p data-testid="session-status">{until(sessionUntil) ? x.filecoin.validUntil(until(sessionUntil)) : x.filecoin.notGranted}</p>
-			{@render feedback('wallet')}
-			<button onclick={() => session()} disabled={busy === 'wallet'}>{until(sessionUntil) ? x.filecoin.extend : x.filecoin.grant}</button>
-			{#if until(sessionUntil)}<button onclick={() => session(true)} disabled={busy === 'wallet'}>{x.filecoin.revoke}</button>{/if}
+			<details class="step" id="setup-filecoin" data-testid="step-filecoin" bind:open={opened.filecoin}>
+				<summary><h3>{x.filecoin.title(step.filecoin)}</h3></summary>
+				<p>{x.filecoin.sessionKey}<Addr value={sessionAddress} />
+					<br /><small class="nomoney">{x.filecoin.noFunds}</small></p>
+				<p data-testid="session-status">{until(sessionUntil) ? x.filecoin.validUntil(until(sessionUntil)) : x.filecoin.notGranted}</p>
+				{@render feedback('wallet')}
+				<button onclick={() => session()} disabled={busy === 'wallet'}>{until(sessionUntil) ? x.filecoin.extend : x.filecoin.grant}</button>
+				{#if until(sessionUntil)}<button onclick={() => session(true)} disabled={busy === 'wallet'}>{x.filecoin.revoke}</button>{/if}
+			</details>
 		{/if}
 
-		<h3>{x.relay.title(step.relay)}</h3>
-		<p class="hint">{x.relay.hint}</p>
-		<p data-testid="relays-found">{x.relay.found}{#if foundRelays === null}…{:else if foundRelays.length}{#each foundRelays as relay, i (relay)}{i ? ', ' : ''}<code>{relay}</code>{/each}{:else}{x.relay.none}{/if}</p>
-		<label>{x.relay.own.before}<code>wss://…/attest</code>{x.relay.own.or}<code>/dns4/…/p2p/…</code>{x.relay.own.after}
-			<textarea bind:value={relayInput} rows="3" autocomplete="off" spellcheck="false" placeholder={x.relay.placeholder} data-testid="relays"></textarea></label>
-		<button onclick={saveRelay} disabled={busy === 'relay'}>{relayInput.trim() || !profile.attestRelay ? x.relay.save : x.relay.remove}</button>
-		{@render feedback('relay')}
+		{#if !devSteps}{@render relayAndBackups()}{/if}
 
-		<h3>{x.backups.title(step.backups)}</h3>
-		{#if CREDITS_URL}
-			<fieldset class="payer-choice" disabled={busy === 'bycredits'} data-testid="backups-paid-by">
-				<label><input type="radio" name="bypay" checked={!profile.backupsByCredits} onchange={() => setBackupsByCredits(false)} data-testid="backups-wallet" /> {x.backups.byWallet(showFilecoin ? step.filecoin : null)}</label>
-				<label><input type="radio" name="bypay" checked={Boolean(profile.backupsByCredits)} onchange={() => setBackupsByCredits(true)} data-testid="backups-credits" /> {x.backups.byCredits}</label>
-			</fieldset>
-			{#if profile.backupsByCredits}
-				<p>{x.backups.vmKey}<code data-testid="backup-key">{backupKey}</code>
-					<br /><small class="nomoney">{x.backups.vmKeyHint}</small></p>
-				<p data-testid="credits-backup-state">{#if backupState === undefined}…{:else if !backupState}{x.backups.notPaying}{:else}{fundedUntil(backupState.fundedUntil) ? x.backups.paidUntil(fundedUntil(backupState.fundedUntil)) : x.backups.notPaid} · {x.backups.dataSets(backupState.dataSets.length)} · {x.backups.vmKeyState(Boolean(profile.backupSigner?.payer))}{/if}</p>
-				<button onclick={payBackups} disabled={busy === 'bycredits'} data-testid="pay-backups">{x.backups.payMonth}</button>
-				<br /><small class="hint" data-testid="pay-backups-hint">{x.backups.payHint}</small>
-				{#if !profile.backupSigner?.payer}<button onclick={authorizeBackupKey} disabled={busy === 'bycredits'} data-testid="authorize-backup-key">{x.backups.authorizeKey}</button>{/if}
-				{@render feedback('bycredits')}
+		<details class="step" id="setup-image" data-testid="step-image" bind:open={opened.image}>
+			<summary><h3>{x.image.title(step.image)}</h3></summary>
+			{#if BUILDER}
+				<fieldset class="image-choice" data-testid="image-choice">
+					<legend>{$t.ownImage.choice.legend}</legend>
+					<label><input type="radio" bind:group={imageKind} value="public" onchange={() => ((imageKindPicked = true), choosePublic())} data-testid="image-public" /> {$t.ownImage.choice.public}<br /><small>{$t.ownImage.choice.publicHint}</small></label>
+					<label><input type="radio" bind:group={imageKind} value="own" onchange={() => (imageKindPicked = true)} data-testid="image-own" /> {$t.ownImage.choice.own}<br /><small>{$t.ownImage.choice.ownHint}</small></label>
+				</fieldset>
 			{/if}
-		{/if}
-		<label>{x.backups.owner}<input bind:value={ownerInput} placeholder={x.backups.ownerPlaceholder(profile.payer ? profile.payer.slice(0, 10) : null)} /></label>
-		<button onclick={saveOwner} disabled={busy === 'owner'}>{x.backups.saveOwner}</button>
-		{@render feedback('owner')}
-		<p>{x.backups.ageIntro}</p>
-		<p data-testid="age-status">{!profile.ageIdentity ? x.backups.age.none : profile.ageIdentity === vaultAge ? x.backups.age.vault : x.backups.age.pasted}</p>
-		{#if recipient}<p><small>{x.backups.recipient}<code data-testid="age-recipient">{recipient}</code></small></p>{/if}
-		{#if profile.ageIdentity !== vaultAge}<button onclick={useVaultAge} disabled={busy === 'age'}>{x.backups.useVault}</button>{/if}
-		<details>
-			<summary>{x.backups.paste}</summary>
-			<textarea bind:value={ageInput} rows="2" autocomplete="off" spellcheck="false" placeholder="AGE-SECRET-KEY-1…"></textarea>
-			<button onclick={saveAge} disabled={busy === 'age' || !ageInput.trim()}>{x.backups.seal}</button>
+			{#if publicImage}
+				<label>{x.image.hash}<input bind:value={imageInput} placeholder={x.image.hashPlaceholder} data-testid="image-hash" /></label>
+			{/if}
+			<label>{x.image.node}<input bind:value={crnInput} placeholder={x.image.nodePlaceholder} /></label>
+			{#if publicImage}
+				<label>{x.image.pass}<input bind:value={passInput} type="password" autocomplete="off" data-testid="image-passphrase" placeholder={profile.luksPassphrase && !ownBuilt ? x.image.passKept(profile.luksPassphrase.length) : x.image.pass} /></label>
+			{/if}
+			<button onclick={saveImage} disabled={busy === 'image'}>{publicImage ? x.image.saveBoth : x.image.saveNode}</button>
+			{@render feedback('image')}
+			{#if BUILDER && !publicImage}
+				<div class="own-image" data-testid="own-image">
+					{#if !ownBuilt && buildsImageFirst(profile, BUILDER)}<p class="hint" data-testid="own-image-at-start">{$t.ownImage.choice.builtAtStart}</p>
+					{:else if !ownBuilt}<p class="warn" data-testid="own-image-not-built">{$t.ownImage.choice.notBuilt}</p>{/if}
+					<details class="more"><summary>{x.more}</summary><p class="hint">{$t.ownImage.intro.before}<Addr value={pwaAddress} />{$t.ownImage.intro.after}</p></details>
+					<details class="sources" data-testid="own-image-sources">
+						<summary>{$t.ownImage.sourcesFold}</summary>
+						<p class="hint">{$t.ownImage.sourcesHint}</p>
+						<dl>
+							{#each sources(BUILDER, $t.ownImage.sources) as row}
+								<dt>{row.label}</dt>
+								<dd>{#if row.href}<a href={row.href} target="_blank" rel="noreferrer"><code>{row.value}</code></a>{:else}<code>{row.value}</code>{/if}</dd>
+							{/each}
+						</dl>
+					</details>
+					{#if ownBuilt}<p class="saved" data-testid="own-image-have">{$t.ownImage.have(format.date(profile.ownImage.builtAt, undefined, $lang))}</p>{/if}
+					{#if affordable === null}<p class="hint" data-testid="own-image-checking">{$t.ownImage.choice.checking}</p>
+					{:else if affordable.ok === false && affordable.reason}<p class="error alert" role="alert" data-testid="own-image-package-no">{affordable.reason}{#if affordable.short} <a href="#paket">{$t.ownImage.choice.toTopUp}</a>{/if} <button class="link" onclick={() => refreshBalances()} data-testid="own-image-recheck">{$t.ownImage.choice.recheck}</button></p>
+					{:else if affordable.ok === false}<p class="error alert" role="alert" data-testid="own-image-needs-credits">{$t.ownImage.choice.needsCredits(format.number(affordable.need ?? 0, undefined, $lang), format.number(affordable.have ?? 0, undefined, $lang))} <button class="link" onclick={() => refreshBalances()} data-testid="own-image-recheck">{$t.ownImage.choice.recheck}</button></p>
+					{:else}{#if affordable.included}<p class="hint" data-testid="own-image-price">{$t.ownImage.choice.included}</p>{:else if affordable.price != null}<p class="hint" data-testid="own-image-price">{$t.ownImage.choice.price(format.euro(affordable.price, $lang))}</p>{/if}<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{ownBuilt ? $t.ownImage.rebuild : $t.ownImage.build}</button>{/if}
+					{#if profile.running}<p class="hint">{$t.ownImage.whileRunning}</p>{/if}
+					{#if busy === 'own-image' && ownStep}<p class="hint" role="status" data-testid="own-image-step">{ownStep} …</p>{/if}
+					{@render feedback('own-image')}
+				</div>
+			{/if}
 		</details>
-		{@render feedback('age')}
-		<label class="check">
-			<input type="checkbox" data-testid="backups-on" checked={!!profile.backupConfig} disabled={busy === 'backups' || (!profile.backupConfig && profile.network === 'mainnet' && profile.role !== 'primary')}
-				onchange={(e) => toggleBackups(e.currentTarget.checked)} />
-			<span>{x.backups.on.before(profile.network === 'mainnet')}<code>{BACKUP_LABEL[profile.network === 'mainnet' ? 'mainnet' : 'calibration']}</code>{x.backups.on.after}</span>
-		</label>
-		{#if profile.backupConfig}
-			<BackupPlaces network={profile.network} payer={profile.backupOwner || (profile.backupsByCredits ? '' : profile.payer)} config={profile.backupConfig} busy={busy === 'places'} onsave={savePlaces} />
-		{/if}
-		{@render feedback('backups')}{@render feedback('places')}
-		{#if profile.network === 'mainnet' && profile.role !== 'primary'}<p class="hint" data-testid="mainnet-backup-hint">{x.backups.mainnetHint}</p>
-		{:else if profile.backupConfig && profile.backupsByCredits && (!profile.backupSigner?.payer || (backupState && !fundedUntil(backupState.fundedUntil)))}<p class="hint" data-testid="credits-backup-hint">{x.backups.creditsHint}</p>
-		{:else if profile.backupConfig && !profile.backupsByCredits && !until(sessionUntil)}<p class="hint">{x.backups.sessionHint(step.filecoin)}</p>{/if}
 
-		<h3>{x.image.title(step.image)}</h3>
-		{#if BUILDER}
-			<fieldset class="image-choice" data-testid="image-choice">
-				<legend>{$t.ownImage.choice.legend}</legend>
-				<label><input type="radio" bind:group={imageKind} value="public" onchange={() => ((imageKindPicked = true), choosePublic())} data-testid="image-public" /> {$t.ownImage.choice.public}<br /><small>{$t.ownImage.choice.publicHint}</small></label>
-				<label><input type="radio" bind:group={imageKind} value="own" onchange={() => (imageKindPicked = true)} data-testid="image-own" /> {$t.ownImage.choice.own}<br /><small>{$t.ownImage.choice.ownHint}</small></label>
-			</fieldset>
+		<details class="step" id="setup-address" data-testid="step-address" bind:open={opened.address}>
+			<summary><h3>{x.address.title(step.address)}</h3></summary>
+			<p class="hint">{x.address.hint.before(FIXED_HOST_DOMAIN.split('.').slice(-2).join('.'))}<code>{fixedHostLabel(master)}.{FIXED_HOST_DOMAIN}</code>{x.address.hint.between}<code>*.2n6.me</code>{x.address.hint.after}</p>
+			<label>{x.address.token}<input bind:value={dnsInput} type="password" autocomplete="off" data-testid="dns-token" placeholder={profile.dnsToken ? x.address.tokenKept : x.address.token} /></label>
+			<button onclick={saveDns} disabled={busy === 'dns'}>{profile.dnsToken && !dnsInput.trim() ? x.address.remove : x.address.save}</button>
+			{@render feedback('dns')}
+		</details>
+		{#if devSteps}
+			<!-- Le Space pays: network, role, relay and backup details stay reachable, folded. -->
+			<details class="dev" data-testid="dev-fold" bind:open={devOpen}>
+				<summary>{x.devFold(profile.network === 'mainnet' ? x.network.main : x.network.test)}</summary>
+				{@render networkRole()}
+				{@render relayAndBackups()}
+			</details>
 		{/if}
-		{#if publicImage}
-			<label>{x.image.hash}<input bind:value={imageInput} placeholder={x.image.hashPlaceholder} data-testid="image-hash" /></label>
-		{/if}
-		<label>{x.image.node}<input bind:value={crnInput} placeholder={x.image.nodePlaceholder} /></label>
-		{#if publicImage}
-			<label>{x.image.pass}<input bind:value={passInput} type="password" autocomplete="off" data-testid="image-passphrase" placeholder={profile.luksPassphrase && !ownBuilt ? x.image.passKept(profile.luksPassphrase.length) : x.image.pass} /></label>
-		{/if}
-		<button onclick={saveImage} disabled={busy === 'image'}>{publicImage ? x.image.saveBoth : x.image.saveNode}</button>
-		{@render feedback('image')}
-		{#if BUILDER && !publicImage}
-			<div class="own-image" data-testid="own-image">
-				{#if !ownBuilt && buildsImageFirst(profile, BUILDER)}<p class="hint" data-testid="own-image-at-start">{$t.ownImage.choice.builtAtStart}</p>
-				{:else if !ownBuilt}<p class="warn" data-testid="own-image-not-built">{$t.ownImage.choice.notBuilt}</p>{/if}
-				<p class="hint">{$t.ownImage.intro.before}<code>{pwaAddress}</code>{$t.ownImage.intro.after}</p>
-				<details class="sources" data-testid="own-image-sources">
-					<summary>{$t.ownImage.sourcesFold}</summary>
-					<p class="hint">{$t.ownImage.sourcesHint}</p>
-					<dl>
-						{#each sources(BUILDER, $t.ownImage.sources) as row}
-							<dt>{row.label}</dt>
-							<dd>{#if row.href}<a href={row.href} target="_blank" rel="noreferrer"><code>{row.value}</code></a>{:else}<code>{row.value}</code>{/if}</dd>
-						{/each}
-					</dl>
-				</details>
-				{#if ownBuilt}<p class="saved" data-testid="own-image-have">{$t.ownImage.have(format.date(profile.ownImage.builtAt, undefined, $lang))}</p>{/if}
-				{#if affordable === null}<p class="hint" data-testid="own-image-checking">{$t.ownImage.choice.checking}</p>
-				{:else if affordable.ok === false && affordable.reason}<p class="error alert" role="alert" data-testid="own-image-package-no">{affordable.reason}{#if affordable.short} <a href="#paket">{$t.ownImage.choice.toTopUp}</a>{/if} <button class="link" onclick={() => refreshBalances()} data-testid="own-image-recheck">{$t.ownImage.choice.recheck}</button></p>
-				{:else if affordable.ok === false}<p class="error alert" role="alert" data-testid="own-image-needs-credits">{$t.ownImage.choice.needsCredits(format.number(affordable.need ?? 0, undefined, $lang), format.number(affordable.have ?? 0, undefined, $lang))} <button class="link" onclick={() => refreshBalances()} data-testid="own-image-recheck">{$t.ownImage.choice.recheck}</button></p>
-				{:else}{#if affordable.included}<p class="hint" data-testid="own-image-price">{$t.ownImage.choice.included}</p>{:else if affordable.price != null}<p class="hint" data-testid="own-image-price">{$t.ownImage.choice.price(format.euro(affordable.price, $lang))}</p>{/if}<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{ownBuilt ? $t.ownImage.rebuild : $t.ownImage.build}</button>{/if}
-				{#if profile.running}<p class="hint">{$t.ownImage.whileRunning}</p>{/if}
-				{#if busy === 'own-image' && ownStep}<p class="hint" role="status" data-testid="own-image-step">{ownStep} …</p>{/if}
-				{@render feedback('own-image')}
-			</div>
-		{/if}
-
-		<h3>{x.address.title(step.address)}</h3>
-		<p class="hint">{x.address.hint.before(FIXED_HOST_DOMAIN.split('.').slice(-2).join('.'))}<code>{fixedHostLabel(master)}.{FIXED_HOST_DOMAIN}</code>{x.address.hint.between}<code>*.2n6.me</code>{x.address.hint.after}</p>
-		<label>{x.address.token}<input bind:value={dnsInput} type="password" autocomplete="off" data-testid="dns-token" placeholder={profile.dnsToken ? x.address.tokenKept : x.address.token} /></label>
-		<button onclick={saveDns} disabled={busy === 'dns'}>{profile.dnsToken && !dnsInput.trim() ? x.address.remove : x.address.save}</button>
-		{@render feedback('dns')}
 	{/if}
 	{#if error && !errorKey}<p class="error" role="alert">{error}</p>{/if}
 </section>
+
+{#snippet relayAndBackups()}
+	<details class="step" id="setup-relay" data-testid="step-relay" bind:open={opened.relay}>
+		<summary><h3>{titled(x.relay.title, step.relay)}</h3></summary>
+	<details class="more"><summary>{x.more}</summary><p class="hint">{x.relay.hint}</p></details>
+	<p data-testid="relays-found">{x.relay.found}{#if foundRelays === null}…{:else if foundRelays.length}{#each foundRelays as relay, i (relay)}{i ? ', ' : ''}<code>{relay}</code>{/each}{:else}{x.relay.none}{/if}</p>
+	<label>{x.relay.own.before}<code>wss://…/attest</code>{x.relay.own.or}<code>/dns4/…/p2p/…</code>{x.relay.own.after}
+		<textarea bind:value={relayInput} rows="3" autocomplete="off" spellcheck="false" placeholder={x.relay.placeholder} data-testid="relays"></textarea></label>
+	<button onclick={saveRelay} disabled={busy === 'relay'}>{relayInput.trim() || !profile.attestRelay ? x.relay.save : x.relay.remove}</button>
+	{@render feedback('relay')}
+	</details>
+	<details class="step" id="setup-backups" data-testid="step-backups" bind:open={opened.backups}>
+		<summary><h3>{titled(x.backups.title, step.backups)}</h3></summary>
+	{#if CREDITS_URL}
+		<fieldset class="payer-choice" disabled={busy === 'bycredits'} data-testid="backups-paid-by">
+			<label><input type="radio" name="bypay" checked={!profile.backupsByCredits} onchange={() => setBackupsByCredits(false)} data-testid="backups-wallet" /> {x.backups.byWallet(showFilecoin ? step.filecoin : null)}</label>
+			<label><input type="radio" name="bypay" checked={Boolean(profile.backupsByCredits)} onchange={() => setBackupsByCredits(true)} data-testid="backups-credits" /> {x.backups.byCredits}</label>
+		</fieldset>
+		{#if profile.backupsByCredits}
+			<p>{x.backups.vmKey}<Addr value={backupKey} testid="backup-key" />
+				<br /><small class="nomoney">{x.backups.vmKeyHint}</small></p>
+			<p data-testid="credits-backup-state">{#if backupState === undefined}…{:else if !backupState}{x.backups.notPaying}{:else}{fundedUntil(backupState.fundedUntil) ? x.backups.paidUntil(fundedUntil(backupState.fundedUntil)) : x.backups.notPaid} · {x.backups.dataSets(backupState.dataSets.length)} · {x.backups.vmKeyState(Boolean(profile.backupSigner?.payer))}{/if}</p>
+			<button onclick={payBackups} disabled={busy === 'bycredits'} data-testid="pay-backups">{x.backups.payMonth}</button>
+			<br /><small class="hint" data-testid="pay-backups-hint">{x.backups.payHint}</small>
+			{#if !profile.backupSigner?.payer}<button onclick={authorizeBackupKey} disabled={busy === 'bycredits'} data-testid="authorize-backup-key">{x.backups.authorizeKey}</button>{/if}
+			{@render feedback('bycredits')}
+		{/if}
+	{/if}
+	<label>{x.backups.owner}<input bind:value={ownerInput} placeholder={x.backups.ownerPlaceholder(profile.payer ? profile.payer.slice(0, 10) : null)} /></label>
+	<button onclick={saveOwner} disabled={busy === 'owner'}>{x.backups.saveOwner}</button>
+	{@render feedback('owner')}
+	<details class="more"><summary>{x.more}</summary><p>{x.backups.ageIntro}</p></details>
+	<p data-testid="age-status">{!profile.ageIdentity ? x.backups.age.none : profile.ageIdentity === vaultAge ? x.backups.age.vault : x.backups.age.pasted}</p>
+	{#if recipient}<p><small>{x.backups.recipient}<Addr value={recipient} testid="age-recipient" /></small></p>{/if}
+	{#if profile.ageIdentity !== vaultAge}<button onclick={useVaultAge} disabled={busy === 'age'}>{x.backups.useVault}</button>{/if}
+	<details>
+		<summary>{x.backups.paste}</summary>
+		<textarea bind:value={ageInput} rows="2" autocomplete="off" spellcheck="false" placeholder="AGE-SECRET-KEY-1…"></textarea>
+		<button onclick={saveAge} disabled={busy === 'age' || !ageInput.trim()}>{x.backups.seal}</button>
+	</details>
+	{@render feedback('age')}
+	<label class="check">
+		<input type="checkbox" data-testid="backups-on" checked={!!profile.backupConfig} disabled={busy === 'backups' || (!profile.backupConfig && profile.network === 'mainnet' && profile.role !== 'primary')}
+			onchange={(e) => toggleBackups(e.currentTarget.checked)} />
+		<span>{x.backups.on.before(profile.network === 'mainnet')}<code>{BACKUP_LABEL[profile.network === 'mainnet' ? 'mainnet' : 'calibration']}</code>{x.backups.on.after}</span>
+	</label>
+	{#if profile.backupConfig}
+		<BackupPlaces network={profile.network} payer={profile.backupOwner || (profile.backupsByCredits ? '' : profile.payer)} config={profile.backupConfig} busy={busy === 'places'} onsave={savePlaces} />
+	{/if}
+	{@render feedback('backups')}{@render feedback('places')}
+	{#if profile.network === 'mainnet' && profile.role !== 'primary'}<p class="hint" data-testid="mainnet-backup-hint">{x.backups.mainnetHint}</p>
+	{:else if profile.backupConfig && profile.backupsByCredits && (!profile.backupSigner?.payer || (backupState && !fundedUntil(backupState.fundedUntil)))}<p class="hint" data-testid="credits-backup-hint">{x.backups.creditsHint}</p>
+	{:else if profile.backupConfig && !profile.backupsByCredits && !until(sessionUntil)}<p class="hint">{x.backups.sessionHint(step.filecoin)}</p>{/if}
+	</details>
+{/snippet}
 
 {#snippet networkRole()}
 	<label>
@@ -618,5 +696,21 @@
 	.error { color: var(--danger); }
 	/* A message that must not go unseen: framed, tinted, like a callout. */
 	.alert { border: 1px solid var(--danger); border-left-width: 4px; border-radius: var(--radius-sm, 6px); padding: 0.6rem 0.8rem; background: color-mix(in srgb, var(--danger) 8%, transparent); }
+	.overview { margin: 0.5rem 0 1rem; padding: 0.6rem 0.8rem; border: 1px solid var(--line); border-radius: var(--radius-sm, 6px); }
+	.overview h4 { margin: 0 0 0.4rem; font-size: 0.95rem; }
+	.overview ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; }
+	.overview li { display: grid; grid-template-columns: 1.2rem minmax(7rem, auto) 1fr auto; gap: 0.5rem; align-items: baseline; font-size: 0.92rem; }
+	.overview .mark { color: var(--ok); }
+	.overview li.todo .mark, .overview li.todo .value { color: var(--warn); }
+	.overview .what { color: var(--text-2); }
+	.overview .link { font-size: 0.85rem; color: var(--text-2); }
+	@media (max-width: 480px) { .overview li { grid-template-columns: 1.2rem 1fr auto; } .overview .value { grid-column: 2 / 3; } }
+	.step { border-top: 1px solid var(--line); padding: 0.25rem 0 0.5rem; }
+	.step > summary { cursor: pointer; }
+	.step > summary h3 { display: inline; margin: 0; font-size: 1rem; }
+	.step[open] > summary { margin-bottom: 0.5rem; }
+	.step > summary { padding: 0.6rem 0; }
+	.more { margin: 0.25rem 0 0.5rem; font-size: 0.9rem; color: var(--text-2); }
+	.more summary { cursor: pointer; }
 	.link { background: none; border: none; color: inherit; text-decoration: underline; padding: 0; font: inherit; cursor: pointer; }
 </style>

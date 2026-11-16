@@ -130,15 +130,18 @@ test('after a voucher a new Paperless is set up by itself: Le Space pays, backup
 	await expect(page.getByTestId('pays-lespace')).toBeChecked();
 	await expect(page.getByTestId('backups-credits')).toBeChecked();
 	await expect(page.getByTestId('backups-on')).toBeChecked();
-	// Network and role are folded away for a customer, set to what the service backs up on.
-	await expect(page.getByTestId('dev-fold').locator('summary')).toHaveText('Netz und Rolle: Produktiv (Mainnet) (für Entwickler)');
+	// A customer sees three steps; network, role, relay and backup details are folded away,
+	// set to what the service backs up on.
+	await expect(setup.locator('h3:visible')).toHaveText(['1. Wer zahlt die VM?', '2. Paperless-anywhere-Image und Knoten', '3. Feste Adresse (optional)']);
+	await expect(page.getByTestId('overview-backups')).toContainText('Sicherungen');
+	await expect(page.getByTestId('dev-fold').locator('> summary')).toHaveText('Für Entwickler: Netz (Produktiv (Mainnet)), Rolle, Relay, Sicherungs-Details');
 	await expect(page.getByTestId('role-warning')).toBeHidden();
-	await page.getByTestId('dev-fold').locator('summary').click();
+	await page.getByTestId('dev-fold').locator('> summary').click();
 	await expect(page.getByTestId('role-primary')).toBeChecked();
+	await shot(page, 'voucher-defaults', setup);
 	// Nothing is missing: the first start builds the own image, and says so.
 	await expect(page.getByTestId('lifecycle')).not.toContainText('Es fehlt noch');
 	await page.getByTestId('tab-simple').click();
 	await expect(page.getByTestId('start')).toBeVisible();
 	await expect(page.getByTestId('first-build')).toHaveText('Beim ersten Start wird zuerst dein eigenes Image gebaut: etwa 15 Minuten länger, und das Fenster muss so lange offen bleiben.');
-	await shot(page, 'voucher-defaults', setup);
 });
