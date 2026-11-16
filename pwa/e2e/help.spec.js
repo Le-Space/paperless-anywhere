@@ -15,6 +15,7 @@ test('the landing page says how to reach Le Space, what it never asks for, and h
 	await expect(help.locator('summary')).toHaveText('Hilfe & Support');
 	await expect(help.getByTestId('help-mail')).toHaveAttribute('href', /^mailto:paperless@le-space\.de\?subject=/);
 	await expect(help.getByTestId('help-payment-mail')).toHaveAttribute('href', 'mailto:support@le-space.de');
+	await expect(help.getByTestId('help-legal-mail')).toHaveAttribute('href', 'mailto:contact@le-space.de');
 	await expect(help.getByTestId('help-never')).toContainText('Wer danach fragt, ist nicht Le Space.');
 	// The landing page has no diagnosis of its own; it points to the app's button.
 	await expect(help.getByTestId('help-diagnosis')).toHaveCount(0);

@@ -74,7 +74,7 @@
 	{#if note}<p class="hint" role="status" data-testid="cancel-note">{note}</p>{/if}
 	{#if error}<p class="warn" role="alert" data-testid="cancel-error">{error}</p>{/if}
 	<p class="small"><button type="button" class="link" onclick={onportal} disabled={busy} data-testid="cancel-portal">Zahlungsdaten und Rechnungen</button></p>
-	<p class="small hint">Fristlos aus wichtigem Grund: per E-Mail an <a href="mailto:info@le-space.de">info@le-space.de</a></p>
+	<p class="small hint">Fristlos aus wichtigem Grund: per E-Mail an <a href="mailto:contact@le-space.de">contact@le-space.de</a></p>
 </div>
 
 <style>

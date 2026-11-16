@@ -41,6 +41,7 @@
 	<summary><strong>{t.title}</strong></summary>
 	<p>{t.lead} <a href={mailto} data-testid="help-mail">{t.mail}</a></p>
 	<p class="hint">{t.payment} <a href={`mailto:${t.paymentMail}`} data-testid="help-payment-mail">{t.paymentMail}</a></p>
+	<p class="hint">{t.legal} <a href={`mailto:${t.legalMail}`} data-testid="help-legal-mail">{t.legalMail}</a></p>
 
 	<div class="never" role="note" data-testid="help-never">
 		<strong>{t.neverTitle}</strong>

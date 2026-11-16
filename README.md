@@ -71,7 +71,7 @@ Which tests run on every pull request, and which live tests on Aleph and Filecoi
 
 ## Help and security reports
 
-Help and support: paperless@le-space.de; about payment, invoices, vouchers and withdrawal also support@le-space.de. Le Space never asks for your 24 words, a passphrase, your passkey, a recovery code or a DNS token.
+Help and support: paperless@le-space.de; payment, invoices, vouchers and credits: support@le-space.de; legal matters (withdrawal, cancellation, provider): contact@le-space.de, as in the imprint. Le Space never asks for your 24 words, a passphrase, your passkey, a recovery code or a DNS token.
 
 A security issue: please report it privately, never as a public issue: [SECURITY.md](SECURITY.md).
 
