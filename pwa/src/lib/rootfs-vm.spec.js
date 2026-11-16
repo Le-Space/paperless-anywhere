@@ -1,6 +1,7 @@
 // Small parts of the VM's scripts (rootfs/files), run here: which hosts a
 // restore downloads from, when sshd may start, what the public status page
 // says, and that a failed step of the fixed address does not end in "ready".
+// Each case starts sh and python3 anew, which takes a while under a full run.
 import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -11,7 +12,7 @@ const files = new URL("../../../rootfs/files/", import.meta.url).pathname;
 const source = (name) => readFileSync(join(files, name), "utf8");
 const temp = (prefix) => mkdtempSync(join(tmpdir(), prefix));
 
-describe("paperless-public-url", () => {
+describe("paperless-public-url", { timeout: 30_000 }, () => {
   const check = (url) =>
     spawnSync("python3", ["-I", join(files, "paperless-public-url"), url], {
       encoding: "utf8",
@@ -51,7 +52,7 @@ describe("paperless-public-url", () => {
   });
 });
 
-describe("paperless-restore's downloads", () => {
+describe("paperless-restore's downloads", { timeout: 30_000 }, () => {
   const restore = source("paperless-restore");
   const downloadFn = /\ndownload\(\) \{\n[\s\S]*?\n\}\n/.exec(restore)?.[0];
 
@@ -131,7 +132,7 @@ describe("paperless-restore's downloads", () => {
   });
 });
 
-describe("paperless-ssh-allowed", () => {
+describe("paperless-ssh-allowed", { timeout: 30_000 }, () => {
   function run({ key, role, debug } = {}) {
     const dir = temp("ssh-");
     const keys = join(dir, "authorized_keys");
@@ -163,7 +164,7 @@ describe("paperless-ssh-allowed", () => {
   });
 });
 
-describe("the public status page", () => {
+describe("the public status page", { timeout: 30_000 }, () => {
   it("says only the phase without a status token", () => {
     const py = /<<'PY' && mv[^\n]*\n([\s\S]*?)\nPY\n/.exec(
       source("paperless-status"),
@@ -198,7 +199,7 @@ describe("the public status page", () => {
   });
 });
 
-describe("paperless-fixed-address", () => {
+describe("paperless-fixed-address", { timeout: 30_000 }, () => {
   it("runs each try with set -e in force", () => {
     const code = source("paperless-fixed-address")
       .split("\n")
