@@ -27,13 +27,13 @@ them, and what it does not prove.
 The app reads the state of each copy from the chain itself, without asking
 the provider:
 
-- **Übersicht / Overview:** "Was die Chain sagt" / "What the chain says",
+- **Overview:** "What the chain says",
   folded under the status card once the list of backups is read; it shows the
   backup chosen for the start, else the vault's newest.
-- **Erweitert / Advanced:** the same in "Beim Start", under the chosen backup.
+- **Advanced:** the same in "At the start", under the chosen backup.
 
-One line per copy, "Kopie bei Anbieter N (place) · Datensatz M", with
-**Jetzt prüfen / Check now**: whether the data set is active and still holds
+One line per copy, "Copy at provider N (place) · data set M", with
+**Check now**: whether the data set is active and still holds
 this backup's pieces, the last proof, the next challenge, missed proofs over
 the last 30 completed proving periods (about 30 days on mainnet), and until
 when the copy is paid. The proving period is read from the warm storage
@@ -128,9 +128,10 @@ day on mainnet:
 A copy that is gone shows at the next proof. A small damage takes longer to
 show, which is one reason for several copies with different providers.
 
-## Words used (German and English)
+## Words used (English and German)
 
-The landing page, this page and the app use the same words:
+The landing page, this page and the app use the same words; the German ones
+are what the German app and landing page say:
 
 | English | Deutsch | What it is |
 |---|---|---|

@@ -111,7 +111,7 @@ sequenceDiagram
     participant Auth as Authenticator
     participant Aleph
 
-    You->>PWA: Mit Passkey öffnen
+    You->>PWA: Unlock with passkey
     PWA->>Auth: PRF with the fixed input (this browser's credential, or any of yours on a new device)
     Auth-->>PWA: PRF answer
     alt box P is in this browser
@@ -135,7 +135,7 @@ sequenceDiagram
     participant PWA
     participant Aleph
 
-    You->>PWA: Mit Wiederherstellungsphrase öffnen (24 words)
+    You->>PWA: Unlock with the recovery phrase (24 words)
     PWA->>PWA: check the BIP39 checksum, seed from the words
     alt box W is in this browser
         PWA->>PWA: take it from localStorage
@@ -157,7 +157,7 @@ sequenceDiagram
     participant Aleph
 
     Note over PWA: the vault is open (master secret in memory)
-    You->>PWA: Weiteren Passkey hinzufügen
+    You->>PWA: Add another passkey
     PWA->>Auth: create a passkey for this address, then its PRF answer
     Auth-->>PWA: credential id, PRF answer
     PWA->>PWA: seal the master as a new box P'
@@ -221,14 +221,14 @@ The **app key** and the **session key** are delegates:
 - **Aleph:** your wallet authorizes the app key once (setup, step 2) to start and delete VMs and to set their port forwards **on behalf of your wallet**. The VMs are paid from your wallet's credits. Measured: the owner pays, the delegate holds nothing.
 - **Filecoin:** your wallet authorizes the session key for 30 days (step 3) to create data sets and add backups. Storage is paid from your wallet.
 
-Both rights can be taken back from your wallet at any time: "Freigabe zurücknehmen" (step 2) and "Zurücknehmen" (step 3). After that the keys can do nothing, whoever has them.
+Both rights can be taken back from your wallet at any time: "Withdraw the permission" (step 2) and "Withdraw" (step 3). After that the keys can do nothing, whoever has them.
 
 ## Passkeys and addresses
 
 A passkey is bound to the address of the app that created it: one made on `http://localhost:5180` does not open the app on `https://paperless.example`. One vault can have several passkeys:
 
 1. Open the app on the new address (or the second device) with the **24 words**.
-2. "Weiteren Passkey hinzufügen" → "Passkey für … anlegen".
+2. "Add another passkey" → "Create a passkey for …".
 3. From then on that browser opens with the new passkey. The old ones keep working where they were made.
 
 Each passkey's sealed copy of the master secret lives on Aleph under an address that only that passkey leads to, so any of them finds the vault on a new device.
@@ -245,9 +245,9 @@ They do **not** give access to your money: that is your wallet's own seed.
 
 ## The backup key
 
-Backups are encrypted with age before they leave the VM. By default the app uses **the vault's own key**, derived from the master secret: the setup shows "der Schlüssel des Tresors".
+Backups are encrypted with age before they leave the VM. By default the app uses **the vault's own key**, derived from the master secret: the setup shows "the vault’s key".
 
-An existing key can be pasted instead, for example the one the Mac's backups were made with. The app then says "eingefügt": that key is **not** in the 24 words and must be kept separately, or the backups made with it are lost with it.
+An existing key can be pasted instead, for example the one the Mac's backups were made with. The app then says "pasted": that key is **not** in the 24 words and must be kept separately, or the backups made with it are lost with it.
 
 A backup can also be fetched and decrypted without a VM: [fetching a backup yourself](restore-yourself.md).
 
