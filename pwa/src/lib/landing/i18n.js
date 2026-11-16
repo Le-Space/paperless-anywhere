@@ -223,7 +223,7 @@ export const texts = {
 			],
 			gapsTitle: 'Noch nicht bestätigt',
 			gaps: [
-				'Der Inhalt des Images wird nicht mitgemessen. Dass in der VM das veröffentlichte Image läuft, stützt sich darauf, dass sich seine Platte nur mit der Image-Passphrase öffnet, nicht auf einen Messwert der Hardware. Mit deinem eigenen Image kennt diese Passphrase nur dein Tresor; eine andere Platte geht dann nicht auf, auch keine von Le Space.',
+				'Der Inhalt des Images wird nicht mitgemessen. Dass in der VM das veröffentlichte Image läuft, stützt sich darauf, dass sich seine Platte nur mit der Image-Passphrase öffnet, nicht auf einen Messwert der Hardware. Mit deinem eigenen Image kennt diese Passphrase nur dein Tresor: Le Space hat keinen Schlüssel, der deine Platte öffnet – und kann dir auch keine andere unterschieben.',
 				'Die Passphrase des öffentlichen Images ist für alle VMs dieser Version gleich, und Le Space kennt sie. Darum liegt alles, was deine VM schreibt, im eigenen Datenbereich. Mit deinem eigenen Image kennt sie nur dein Tresor.',
 				'Der Bau ist nicht Bit für Bit wiederholbar, weil Debian-Pakete beim Bau geladen werden. Nachlesen lässt sich, was hineinkommt.',
 				'Der Relay, über den die App die VM erreicht, läuft in einer gewöhnlichen VM und wird nicht attestiert. Lesen oder unbemerkt ändern kann er nichts; er kann aber Verbindungen verzögern oder verweigern, und er sieht, von welcher IP-Adresse wann welche VM angesprochen wird.',
@@ -546,7 +546,7 @@ export const texts = {
 			],
 			gapsTitle: 'Not confirmed yet',
 			gaps: [
-				'The image’s content is not measured. That the VM runs the published image rests on its disk opening only with the image passphrase, not on a measurement by the hardware. With your own image only your vault knows that passphrase; any other disk then does not open, not even one from Le Space.',
+				'The image’s content is not measured. That the VM runs the published image rests on its disk opening only with the image passphrase, not on a measurement by the hardware. With your own image only your vault knows that passphrase: Le Space holds no key that opens your disk – and cannot slip you a different one either.',
 				'The public image’s passphrase is the same for every VM of that version, and Le Space knows it. That is why everything your VM writes goes into its own data area. With your own image only your vault knows it.',
 				'The build cannot be repeated bit for bit, because Debian packages are fetched while it runs. What goes in can be read.',
 				'The relay through which the app reaches the VM runs in an ordinary VM and is not attested. It can read nothing and change nothing unnoticed; it can delay or refuse connections, though, and it sees from which IP address which VM is called and when.',
