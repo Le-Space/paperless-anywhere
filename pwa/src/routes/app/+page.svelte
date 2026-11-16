@@ -23,6 +23,8 @@
 	import Package from '$lib/Package.svelte';
 	import { CREDITS_URL } from '$lib/credits.js';
 	import BuildInfo from '$lib/BuildInfo.svelte';
+	import Help from '$lib/Help.svelte';
+	import { diagnosisText, noteError } from '$lib/diagnosis.js';
 	import Logo from '$lib/Logo.svelte';
 	import NgxText from '$lib/NgxText.svelte';
 	import { texts } from '$lib/landing/i18n.js';
@@ -36,12 +38,25 @@
 	let vault = $state(shared || inFrame ? null : loadVault());
 	/** @type {Uint8Array | null} the master secret, in memory only */
 	let master = $state(null);
+	/* global __BUILD__ */
+	// "Diagnose kopieren": this build, its CID (as BuildInfo reads it), and what
+	// the Paperless card noted; the vault's state only while it is open.
+	async function diagnose() {
+		const cid = await fetch(location.href, { method: 'HEAD', cache: 'no-store' })
+			.then((res) => res.headers.get('x-ipfs-roots')?.split(',')[0]?.trim() ?? '')
+			.catch(() => '');
+		return diagnosisText({ build: __BUILD__, cid, unlocked: Boolean(master), lang: $lang });
+	}
 	let phrase = $state('');
 	let shownPhrase = $state('');
 	let name = $state('Paperless anywhere');
 	// The key-loss notice must be ticked before a vault is created.
 	let understood = $state(false);
 	let error = $state('');
+	// The page's own errors (unlock, passkey) go into the diagnosis too.
+	$effect(() => {
+		if (error) noteError({ action: 'app', message: error });
+	});
 	let busy = $state(false);
 	let profileVersion = $state(0);
 	// After the phrase is shown, three of its words are asked back.
@@ -365,6 +380,8 @@
 	{/if}
 
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
+	<!-- Reachable in both views and with the vault locked; the footer links here. -->
+	<Help t={$t.help} lang={$lang} faq={$lang === 'en' ? '/en/#faq' : '/#faq'} diagnosis={diagnose} />
 	<BuildInfo />
 </main>
 

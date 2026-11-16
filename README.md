@@ -69,6 +69,12 @@ Which tests run on every pull request, and which live tests on Aleph and Filecoi
 - Losing every passkey and the 24 words: the backups made with the vault's key are lost (your money is not; it stays in your wallet).
 - Someone with your unlocked device while a session is open.
 
+## Help and security reports
+
+Help and support: paperless@le-space.de; about payment, invoices, vouchers and withdrawal also support@le-space.de. Le Space never asks for your 24 words, a passphrase, your passkey, a recovery code or a DNS token.
+
+A security issue: please report it privately, never as a public issue: [SECURITY.md](SECURITY.md).
+
 ## Related
 
 - [paperless-backup-filecoin](https://github.com/Le-Space/paperless-backup-filecoin) — the encrypted backup this restores from
