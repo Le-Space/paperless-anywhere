@@ -158,6 +158,66 @@ export const backup = {
 				place: (/** @type {string} */ a, /** @type {string} */ b, /** @type {string} */ place) => `${a} und ${b} stehen am selben Ort (${place}).`
 			}
 		},
+		chain: {
+			title: 'Was die Chain sagt',
+			intro: 'Für jede Kopie liest die App selbst aus den Filecoin-Verträgen (PDPVerifier, Filecoin Warm Storage, Filecoin Pay), ob sie noch da ist. Den Anbieter fragt sie dafür nicht. Sie liest über einen öffentlichen Filecoin-Knoten (Glif) und vertraut dessen Antworten; die Beweise selbst rechnet sie nicht nach.',
+			check: 'Jetzt prüfen',
+			checking: 'Lese die Chain …',
+			checkedAt: (/** @type {string} */ when, /** @type {string} */ epoch) => `Gelesen ${when}, bei Epoche ${epoch}.`,
+			unreadable: (/** @type {string} */ reason) => `Die Chain ließ sich für diese Kopie nicht lesen: ${reason}`,
+			copy: (provider, place, dataSet) => `Kopie bei Anbieter ${provider}${place ? ` (${place})` : ''} · Datensatz ${dataSet}`,
+			copyState: { app: 'alles in Ordnung', failed: 'Problem', off: 'nicht vollständig gelesen' },
+			noDataSets: 'Für diese Sicherung nennt die Liste keinen Datensatz; die App kann ihre Kopien nicht auf der Chain prüfen.',
+			states: { app: 'von der App geprüft', reported: 'vom Anbieter gemeldet', failed: 'Problem', off: 'keine Angabe', run: 'wird gelesen' },
+			lights: { dataSet: 'Datensatz aktiv', lastProof: 'Letzter Beweis', nextChallenge: 'Nächste Stichprobe', faults: 'Verpasste Beweise', paid: 'Bezahlt bis', sample: 'Probeabruf beim Anbieter' },
+			notes: {
+				dataSet: {
+					live: (/** @type {number} */ n) => (n === 1 ? 'ja, mit dem Stück dieser Sicherung' : `ja, mit den ${n} Stücken dieser Sicherung`),
+					liveSet: 'ja',
+					notLive: 'nein: Der PDPVerifier führt den Datensatz nicht mehr.',
+					piecesGone: (/** @type {number} */ n, /** @type {number} */ of) => `${n} von ${of} Stücken dieser Sicherung sind nicht mehr im Datensatz.`,
+					ending: (/** @type {string} */ when) => `Der Dienst für diesen Datensatz ist gekündigt; er endet ${when}.`,
+					unread: 'nicht gelesen'
+				},
+				lastProof: {
+					recent: (/** @type {string} */ when, /** @type {string} */ epoch) => `${when} (Epoche ${epoch})`,
+					old: (/** @type {string} */ when, /** @type {string} */ epoch) => `${when} (Epoche ${epoch}), länger als zwei Beweisperioden her`,
+					none: 'noch keiner',
+					unread: 'nicht gelesen'
+				},
+				nextChallenge: {
+					scheduled: (/** @type {string} */ when, /** @type {string} */ epoch) => `${when} (Epoche ${epoch})`,
+					due: (/** @type {string} */ when, /** @type {string} */ epoch) => `fällig seit ${when} (Epoche ${epoch}); der Beweis läuft`,
+					overdue: (/** @type {string} */ when, /** @type {string} */ epoch) => `Frist ${when} (Epoche ${epoch}) ohne Beweis verstrichen`,
+					none: 'keine geplant',
+					unread: 'nicht gelesen'
+				},
+				faults: {
+					none: (/** @type {number} */ n) => `keine in den letzten ${n} Beweisperioden`,
+					missed: (/** @type {number} */ n, /** @type {number} */ of) => `${n} von ${of} Beweisperioden ohne Beweis (Fehler)`,
+					noneEnded: 'noch keine Beweisperiode abgelaufen',
+					notStarted: 'Beweise haben noch nicht begonnen',
+					unread: 'nicht gelesen'
+				},
+				paid: {
+					until: (/** @type {string} */ when, /** @type {number} */ days) => `${when}; danach hält die Rücklage die Zahlung noch ${days} Tage`,
+					runOut: 'Das zahlende Konto deckt die Speicherung nicht mehr.',
+					railEnded: (/** @type {string} */ when) => `Die Zahlung ist beendet; sie endet ${when}.`,
+					noRate: 'gedeckt, ohne absehbares Ende',
+					noRail: 'Kein Zahlungsweg für diesen Datensatz.',
+					unread: 'nicht gelesen'
+				},
+				sample: {
+					answers: (/** @type {number} */ bytes) => `Der Anbieter liefert die ersten ${bytes} Bytes aus. Gegen die Piece-CID prüfen lässt sich nur das ganze Stück, darum nur gemeldet.`,
+					status: (/** @type {number} */ status) => `Der Anbieter antwortet mit Fehler ${status}.`,
+					silent: 'Der Anbieter war aus dem Browser nicht abzufragen.'
+				}
+			},
+			more: 'Wie ein Anbieter beweist, dass er die Sicherung noch hat',
+			explorer: 'im PDP Explorer',
+			pieces: (/** @type {number} */ n) => (n === 1 ? 'Stück dieser Sicherung im PDP Explorer:' : `Die ${n} Stücke dieser Sicherung im PDP Explorer:`),
+			legend: 'Grün: von der App selbst auf der Chain gelesen. Blau: nur vom Anbieter gemeldet. Rot: ein Problem. Grau: keine Angabe.'
+		},
 		health: {
 			title: 'Speicheranbieter jetzt',
 			again: 'neu prüfen',
@@ -333,6 +393,66 @@ export const backup = {
 				operator: (/** @type {string} */ a, /** @type {string} */ b, /** @type {string} */ operator) => `${a} and ${b} belong to the same operator (${operator}).`,
 				place: (/** @type {string} */ a, /** @type {string} */ b, /** @type {string} */ place) => `${a} and ${b} are in the same place (${place}).`
 			}
+		},
+		chain: {
+			title: 'What the chain says',
+			intro: 'For each copy the app itself reads from the Filecoin contracts (PDPVerifier, Filecoin Warm Storage, Filecoin Pay) whether it is still there. It does not ask the provider for this. It reads through a public Filecoin node (Glif) and trusts its answers; it does not recompute the proofs itself.',
+			check: 'Check now',
+			checking: 'Reading the chain …',
+			checkedAt: (/** @type {string} */ when, /** @type {string} */ epoch) => `Read ${when}, at epoch ${epoch}.`,
+			unreadable: (/** @type {string} */ reason) => `The chain could not be read for this copy: ${reason}`,
+			copy: (provider, place, dataSet) => `Copy at provider ${provider}${place ? ` (${place})` : ''} · data set ${dataSet}`,
+			copyState: { app: 'all well', failed: 'problem', off: 'not fully read' },
+			noDataSets: 'The list names no data set for this backup; the app cannot check its copies on the chain.',
+			states: { app: 'checked by the app', reported: 'reported by the provider', failed: 'problem', off: 'no answer', run: 'reading' },
+			lights: { dataSet: 'Data set active', lastProof: 'Last proof', nextChallenge: 'Next challenge', faults: 'Missed proofs', paid: 'Paid until', sample: 'Test fetch from the provider' },
+			notes: {
+				dataSet: {
+					live: (/** @type {number} */ n) => (n === 1 ? 'yes, with the piece of this backup' : `yes, with the ${n} pieces of this backup`),
+					liveSet: 'yes',
+					notLive: 'no: the PDPVerifier no longer has the data set.',
+					piecesGone: (/** @type {number} */ n, /** @type {number} */ of) => `${n} of ${of} pieces of this backup are no longer in the data set.`,
+					ending: (/** @type {string} */ when) => `The service for this data set was terminated; it ends ${when}.`,
+					unread: 'not read'
+				},
+				lastProof: {
+					recent: (/** @type {string} */ when, /** @type {string} */ epoch) => `${when} (epoch ${epoch})`,
+					old: (/** @type {string} */ when, /** @type {string} */ epoch) => `${when} (epoch ${epoch}), more than two proving periods ago`,
+					none: 'none yet',
+					unread: 'not read'
+				},
+				nextChallenge: {
+					scheduled: (/** @type {string} */ when, /** @type {string} */ epoch) => `${when} (epoch ${epoch})`,
+					due: (/** @type {string} */ when, /** @type {string} */ epoch) => `due since ${when} (epoch ${epoch}); the proof is under way`,
+					overdue: (/** @type {string} */ when, /** @type {string} */ epoch) => `deadline ${when} (epoch ${epoch}) passed without a proof`,
+					none: 'none scheduled',
+					unread: 'not read'
+				},
+				faults: {
+					none: (/** @type {number} */ n) => `none in the last ${n} proving periods`,
+					missed: (/** @type {number} */ n, /** @type {number} */ of) => `${n} of ${of} proving periods without a proof (faults)`,
+					noneEnded: 'no proving period has ended yet',
+					notStarted: 'proving has not started yet',
+					unread: 'not read'
+				},
+				paid: {
+					until: (/** @type {string} */ when, /** @type {number} */ days) => `${when}; after that the lockup keeps paying for ${days} more days`,
+					runOut: 'The paying account no longer covers the storage.',
+					railEnded: (/** @type {string} */ when) => `The payment was terminated; it ends ${when}.`,
+					noRate: 'covered, with no end in sight',
+					noRail: 'No payment rail for this data set.',
+					unread: 'not read'
+				},
+				sample: {
+					answers: (/** @type {number} */ bytes) => `The provider serves the first ${bytes} bytes. Only the whole piece can be checked against the piece CID, so this is only reported.`,
+					status: (/** @type {number} */ status) => `The provider answers with error ${status}.`,
+					silent: 'The provider could not be asked from the browser.'
+				}
+			},
+			more: 'How a provider proves it still has the backup',
+			explorer: 'in the PDP Explorer',
+			pieces: (/** @type {number} */ n) => (n === 1 ? 'The piece of this backup in the PDP Explorer:' : `The ${n} pieces of this backup in the PDP Explorer:`),
+			legend: 'Green: read from the chain by the app itself. Blue: only reported by the provider. Red: a problem. Grey: no answer.'
 		},
 		health: {
 			title: 'Storage providers now',

@@ -26,6 +26,7 @@
 	import BackupNow from '$lib/BackupNow.svelte';
 	import TrialRestore from '$lib/TrialRestore.svelte';
 	import ProviderHealth from '$lib/ProviderHealth.svelte';
+	import BackupChain from '$lib/BackupChain.svelte';
 	import { providerIdsIn } from '$lib/providers.js';
 	import Evidence from '$lib/Evidence.svelte';
 	import { evidenceRows } from '$lib/evidence.js';
@@ -253,6 +254,8 @@
 	const production = $derived(profile.role === 'primary' && profile.network === 'mainnet');
 	const defaultChoice = (list) => (production && list.length ? 'latest' : splitOwn(list, profile.ownBackups ?? []).own.length ? 'own' : 'empty');
 	const chosenBackup = $derived(choice === 'latest' ? pick(backups ?? []) : choice === 'own' ? pick(split.own) : choice === 'any' ? pick(split.other) : null);
+	// The backup whose copies the chain check shows: the one chosen, else this vault's newest, else the newest.
+	const chainBackup = $derived(chosenBackup ?? pick(split.own) ?? pick(backups ?? []) ?? null);
 	// The chain's answer against what the sealed profile knows: a start that
 	// would go back behind the last known backup (the list lacks it, or the
 	// choice is older) waits for the person to say so.
@@ -895,6 +898,7 @@
 		<!-- A stop's or an erase's panel stays once it is over, with where the backup went. -->
 		{#if stopShown && !busy}<StartPanel rows={panel} t={panelShownT} times={panelTook} total={panelTotal} testid="stop-panel" />{/if}
 		{#if stopEvidence.length}<Evidence rows={stopEvidence} t={{ ...evidenceT, title: evidenceT.stopTitle }} />{/if}
+		{#if chainBackup}<BackupChain network={profile.network ?? 'calibration'} backup={chainBackup} />{/if}
 		{#if phase !== 'running' && profile.trial}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
@@ -958,6 +962,7 @@
 				</fieldset>
 				{@render gapWarning()}
 				{#if chosenBackup}<BackupExport backup={chosenBackup} identity={profile.ageIdentity} />{/if}
+				{#if chainBackup}<BackupChain network={profile.network ?? 'calibration'} backup={chainBackup} />{/if}
 			{/if}
 			{#if profile.starting && !busy}
 				<div class="interrupted" data-testid="start-interrupted">

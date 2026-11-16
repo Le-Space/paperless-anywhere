@@ -211,6 +211,15 @@ describe('backups in parts (above 1 GB)', async () => {
 		expect(small).toEqual({ pieceCid: 's4', size: 300_000_000, copies: [1, 2].map((id) => ({ providerId: String(id), retrievalUrl: `https://sp${id}.example.com/piece/s4`, place: `Land ${id}` })), complete: true, order: 7 });
 	});
 
+	it('a copy names its data set and the ids of its pieces there, for the chain check', () => {
+		const sets = [
+			{ providerId: 1, dataSetId: 11n, pieces: [piece('F1', 2), piece('F2', 3), piece('s3', 4)] },
+			{ providerId: 2, dataSetId: 12n, pieces: [piece('F1', 8), piece('F2', 9), piece('s3', 10)] }
+		];
+		const [big] = backupsFromPieces(sets, { urlOf, sizeOf });
+		expect(big.copies.map((c) => [c.dataSetId, c.pieceIds])).toEqual([['11', ['2', '3', '4']], ['12', ['8', '9', '10']]]);
+	});
+
 	it('a data set that lacks a part holds no copy of it, and its rest is no backup of its own', () => {
 		const sets = [
 			{ providerId: 1, pieces: [piece('F1', 2), piece('F2', 3), piece('s3', 4)] },
