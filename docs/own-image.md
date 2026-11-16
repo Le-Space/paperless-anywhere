@@ -320,6 +320,11 @@ credits it says so instead.
 The volumes (workload, plain image, their hash trees) stay published: they
 are what the measurement belongs to. Deleting a V-PROGRAM forgets the
 message only; the workflow's action **delete** with **forget_volumes** also
-forgets the volumes of a builder that is not the fixed one. A build takes
+forgets the volumes of a builder that is not the fixed one. It forgets only
+the STOREs that V-PROGRAM names, of the same account, smaller than any image
+(600 MiB), and not named in `own-image.js` or a release; one refusal forgets
+none of them (`pwa/src/lib/forget-guard.js`). There is no way to forget a
+hand-written list of STOREs: on 14 Nov 2026 such a list also forgot older
+Paperless images, one of which a vault still started from. A build takes
 about 15 minutes and roughly 0.03 USD of builder time, plus the upload.
 - The landing page and the security model say so once all of this is true.
