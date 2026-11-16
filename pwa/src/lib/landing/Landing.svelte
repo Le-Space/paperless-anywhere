@@ -7,6 +7,7 @@
 	import NgxText, { NGX_URL } from '$lib/NgxText.svelte';
 	import TeeNodes from '$lib/landing/TeeNodes.svelte';
 	import StorageProviders from '$lib/landing/StorageProviders.svelte';
+	import BackupProof from '$lib/landing/BackupProof.svelte';
 	import OwnImage from '$lib/landing/OwnImage.svelte';
 	import { LANGS, ORGANIZATION, TERMS_URL, texts } from '$lib/landing/i18n.js';
 	import { BACKUP_YEAR_CENTS, CREDITS_URL, PLANS, creditsCatalog } from '$lib/credits.js';
@@ -177,6 +178,7 @@
 		<p class="lead">{t.storage.lead}</p>
 		<p>{t.storage.choose}</p>
 		<StorageProviders t={t.storage} {lang} />
+		<BackupProof t={t.storage.proof} {lang} />
 	</section>
 
 	<section id="trust">
