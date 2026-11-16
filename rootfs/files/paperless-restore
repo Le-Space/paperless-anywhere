@@ -76,6 +76,8 @@ cleanup() {
 # paperless-restore (run): the same if not done yet, then the import.
 cmd="${1:-run}"
 case "$cmd" in fetch|run) ;; *) echo "usage: paperless-restore [fetch|run]" >&2; exit 2 ;; esac
+# A backup is decrypted and unpacked only onto the sealed data area.
+/usr/local/sbin/paperless-require-sealed paperless-restore || exit 1
 exec 8>"$state_dir/restore.lock"
 flock 8
 entry_env="$state_dir/restore-entry.env"   # name, provider, times: no secrets

@@ -17,8 +17,10 @@
 # to are bind-mounted from there. Docker and the stack call it
 # before they start (the first one does the work); Caddy reads its data dir
 # after paperless-https restarts it, which comes later. If any step
-# fails, data-disk.json says so (status page) and the stack does not start
-# (paperless-stack-up): Paperless never writes to the shared-key rootfs.
+# fails, data-disk.json says so (status page), this script exits non-zero
+# (so Docker and the stack do not start), and every script that writes
+# secrets, a restored backup or certificates stops (paperless-require-sealed):
+# none of it is written to the shared-key rootfs.
 set -u
 # No udev in the guest: device-mapper makes its own nodes.
 export DM_DISABLE_UDEV=1
@@ -26,7 +28,11 @@ state=/run/paperless-anywhere
 mkdir -p "$state"
 exec 9>"$state/data-disk.lock"
 flock 9
-[ -s "$state/data-disk.json" ] && exit 0
+# Done before: fine only if the area is there; else every caller stops.
+if [ -s "$state/data-disk.json" ]; then
+  grep -q '"status":"encrypted"' "$state/data-disk.json" && exit 0
+  exit 1
+fi
 
 img=/srv/sealed.img
 mnt=/srv/sealed
@@ -75,7 +81,7 @@ report() {
 plain() {
   echo "paperless-data-disk: $1; the stack will not start on the shared-key rootfs" >&2
   report plain "$1"
-  exit 0
+  exit 1
 }
 
 command -v cryptsetup >/dev/null 2>&1 || plain "no cryptsetup"
@@ -131,11 +137,14 @@ mkfs.ext4 -q -F -E lazy_itable_init=1,lazy_journal_init=1 -m 0 /dev/mapper/seale
 mkdir -p "$mnt" && mount /dev/mapper/sealed "$mnt" \
   || { cryptsetup close sealed; [ -n "$img" ] && { dmsetup remove sealed-area; drop_file; }; plain "mount failed"; }
 
-# Move what the image brings (if anything) and bind every path over.
+# Move what the image brings (if anything) and bind every path over: moved,
+# not copied, so nothing of it stays readable on the rootfs.
 for path in /srv/paperless /var/lib/docker /var/lib/caddy /root/.local/share/caddy /etc/paperless-anywhere /var/lib/paperless-anywhere /var/log/paperless-anywhere /opt/backup-filecoin; do
   target="$mnt$path"
   mkdir -p "$target" "$path"
-  if [ -n "$(ls -A "$path" 2>/dev/null)" ]; then cp -a "$path/." "$target/" || plain "copying $path failed"; fi
+  if [ -n "$(ls -A "$path" 2>/dev/null)" ]; then
+    find "$path" -mindepth 1 -maxdepth 1 -exec mv -t "$target/" {} + || plain "moving $path failed"
+  fi
   chmod --reference="$path" "$target" 2>/dev/null
   chown --reference="$path" "$target" 2>/dev/null
   mount --bind "$target" "$path" || plain "bind mount of $path failed"

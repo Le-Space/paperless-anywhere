@@ -32,8 +32,8 @@ ipv4="$(head -c 15 "$s/https_ipv4" | tr -d '\r\n')"
 port="$(head -c 5 "$s/https_port" | tr -d '\r\n')"
 case "$host" in *[!a-z0-9.-]*|"") echo "paperless-fixed-address: not a hostname" >&2; exit 1 ;; esac
 case "$port" in *[!0-9]*|"") echo "paperless-fixed-address: not a port" >&2; exit 1 ;; esac
-# The certificate goes into the sealed area: set it up first (it runs once).
-/usr/local/sbin/paperless-data-disk
+# The certificate and the ACME account go into the sealed area only.
+/usr/local/sbin/paperless-require-sealed paperless-fixed-address || exit 1
 started=$(date +%s)
 report() {
   printf '{"status":"%s","host":"%s","port":%s,"seconds":%s%s}\n' "$1" "$host" "$port" "$(( $(date +%s) - started ))" "${2:-}" > "$state/fixed-address.json.tmp" \

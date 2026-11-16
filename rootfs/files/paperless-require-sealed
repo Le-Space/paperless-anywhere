@@ -1,0 +1,13 @@
+#!/bin/sh
+# paperless-require-sealed <who>: go on only on the sealed data area.
+# Secrets, a restored backup, certificates and keys go nowhere but the area
+# paperless-data-disk seals with a key that never leaves this VM. Every
+# script that writes such things calls this first; if the area is not there,
+# it stops, and the status page says why (data-disk.json).
+set -u
+state="${PAPERLESS_STATE:-/run/paperless-anywhere}"
+"${PAPERLESS_DATA_DISK:-/usr/local/sbin/paperless-data-disk}" >/dev/null 2>&1
+if ! grep -q '"status":"encrypted"' "$state/data-disk.json" 2>/dev/null; then
+  echo "${1:-paperless}: no sealed data area; nothing is written" >&2
+  exit 1
+fi
