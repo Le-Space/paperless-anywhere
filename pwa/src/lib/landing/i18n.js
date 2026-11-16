@@ -321,7 +321,7 @@ export const texts = {
 						'Den Schlüssel dazu hat nur dein Tresor; die 24 Wörter genügen, um ihn zurückzubekommen.',
 						'Nach dem Ende eines Pakets bleiben die Sicherungen noch mindestens 30 Tage abrufbar.'
 					],
-					links: [{ text: 'Sicherung selbst holen: die Anleitung', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/restore-yourself.md' }]
+					links: [{ text: 'Sicherung selbst holen: die Anleitung', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/restore-yourself.de.md' }]
 				},
 			]
 		},
