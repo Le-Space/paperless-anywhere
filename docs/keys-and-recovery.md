@@ -165,7 +165,7 @@ sequenceDiagram
     PWA->>PWA: this browser opens with the new passkey from now on
 ```
 
-**Lock** wipes the master secret from memory. **Diesen Browser vergessen** also removes the boxes from this browser; those on Aleph stay, so the passkey or the words still open the vault elsewhere.
+**Lock** wipes the master secret from memory. **Forget this browser** also removes the boxes from this browser; those on Aleph stay, so the passkey or the words still open the vault elsewhere.
 
 ### Getting back in
 
