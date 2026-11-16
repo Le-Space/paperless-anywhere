@@ -182,6 +182,45 @@ test.describe('German', () => {
 		await expect(page.getByTestId('stop-partial-keep')).toBeEnabled();
 	});
 
+	test('erasing after a partial stop shows one panel: each copy, the FORGET, then the evidence', async ({ page }) => {
+		test.setTimeout(60_000);
+		const at = new Date().toISOString();
+		// Made up: no real piece CID or data set.
+		const cid = 'bafkzcibmadeuppiece';
+		const partial = { status: 'partial', at, reason: 'only 1 of 2 copies reached the providers', log: [`${at.replace(/\.\d+Z$/, 'Z')} upload with primary 2 failed: made up`], backup: { name: 'paperless-made-up', date: at, pieceCid: cid, size: 52_000_000, requestedCopies: 2, complete: false, copies: [{ providerId: '1', dataSetId: '11', pieceId: '7', location: 'DE', retrievalUrl: `https://sp1.example/piece/${cid}` }] } };
+		const { phrase } = await setUp(page, {
+			v: 2,
+			phase: 'stop-partial',
+			paperless: false,
+			backup: partial,
+			lastBackup: partial,
+			backupSchedule: { nextCheck: new Date(Date.now() + 3600_000).toISOString(), everySeconds: 7200 },
+			backupRequest: null,
+			stop: { status: 'partial', request: '1', at, backup: partial }
+		});
+		await open(page, phrase);
+		await page.getByTestId('stop-partial-erase').click();
+		const panel = page.getByTestId('stop-panel');
+		await expect(panel).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByTestId('light-forgot')).toHaveAttribute('data-state', 'app', { timeout: 30_000 });
+		await expect(page.getByTestId('light-copy-1')).toHaveAttribute('data-state', 'reported');
+		await expect(page.getByTestId('light-copy-1')).toContainText('Datensatz 11');
+		await expect(page.getByTestId('light-copy-2')).toHaveAttribute('data-state', 'failed');
+		await expect(page.getByTestId('light-confirmed')).toContainText('1 von 2');
+		await expect(page.getByTestId('light-listed')).toHaveAttribute('data-state', 'app');
+		// No node answered (none in the mock): said as later, never as checked.
+		await expect(page.getByTestId('light-node')).toContainText('(später)');
+		// No second list of steps.
+		await expect(page.getByTestId('progress-steps')).toHaveCount(0);
+		await expect(panel).toHaveCount(1);
+		const evidence = page.getByTestId('evidence');
+		await expect(evidence).toContainText('Nachweis: Sicherung und Löschen');
+		await evidence.locator('summary').click();
+		await expect(evidence).toContainText(cid);
+		await expect(evidence.getByRole('link', { name: 'Beim Anbieter abrufen (nur Chiffrat)' })).toHaveAttribute('href', `https://sp1.example/piece/${cid}`);
+		await expect(evidence.getByRole('link', { name: 'FORGET-Nachricht' })).toBeVisible();
+	});
+
 	test('an older image: no backup details, no button', async ({ page }) => {
 		test.setTimeout(60_000);
 		const install = alephMock();

@@ -13,7 +13,7 @@
  *   open      nothing confirms it yet
  * @typedef {'app' | 'reported' | 'open'} Mark
  */
-/** @typedef {{ id: string, mark: Mark, note?: string, values: { k: string, v: string, mono?: boolean }[], links: { k: string, href: string }[] }} Row */
+/** @typedef {{ id: string, kind?: string, mark: Mark, note?: string, values: { k: string, v: string, mono?: boolean }[], links: { k: string, href: string }[] }} Row */
 
 const REPO = 'https://github.com/Le-Space/paperless-anywhere';
 const HASH = /^[0-9a-f]{64}$/;
@@ -144,3 +144,68 @@ export function evidenceRows({ running, rootfsItemHash = null, runtime, alephApi
 
 /** How many rows carry each mark. @param {Row[]} rows @returns {Record<Mark, number>} */
 export const tally = (rows) => rows.reduce((n, r) => ({ ...n, [r.mark]: n[r.mark] + 1 }), { app: 0, reported: 0, open: 0 });
+
+/**
+ * The evidence of a stop or an erase, once it is over: where the backup
+ * went (piece CID, each copy with its provider and data set, as the VM
+ * reported them) and the FORGET that removed the VM. Only what was reported
+ * or signed: the VM's status page names no transactions, so none are linked.
+ * @param {{
+ *   status: any,
+ *   erase?: { node?: string | null, forgot?: string, revoke?: string } | null,
+ *   instanceHash?: string,
+ *   alephApi: string,
+ *   links?: boolean
+ * }} a `status`: the VM's status page at the end of the stop (null for an erase without backup)
+ * @returns {Row[]}
+ */
+export function stopEvidenceRows({ status, erase = null, instanceHash = '', alephApi, links = true }) {
+	const message = (/** @type {string | null | undefined} */ hash) => (links && hash && HASH.test(hash) ? [{ k: 'message', href: `${alephApi}/api/v0/messages/${hash}` }] : []);
+	const b = status?.stop?.backup ?? status?.backup ?? null;
+	const entry = b?.backup?.pieceCid ? b.backup : null;
+	/** @type {Row[]} */
+	const rows = [];
+	if (entry) {
+		const parts = Array.isArray(entry.parts) && entry.parts.length > 1 ? entry.parts : [];
+		rows.push({
+			id: 'stopPiece',
+			mark: 'reported',
+			note: 'encrypted',
+			values: [
+				{ k: 'piece', v: String(entry.pieceCid), mono: true },
+				...(entry.date ? [{ k: 'at', v: String(entry.date) }] : []),
+				...(typeof entry.size === 'number' ? [{ k: 'size', v: `${(entry.size / 1e6).toFixed(1)} MB` }] : []),
+				...parts.slice(1).map((/** @type {any} */ p, /** @type {number} */ i) => ({ k: 'part', v: `${i + 2}/${parts.length} ${p.pieceCid}`, mono: true })),
+				...(entry.requestedCopies ? [{ k: 'copies', v: `${entry.copies?.length ?? 0}/${entry.requestedCopies}` }] : [])
+			],
+			links: [{ k: 'model', href: `${REPO}/blob/main/docs/security-model.md#backups` }]
+		});
+		for (const c of Array.isArray(entry.copies) ? entry.copies : []) {
+			rows.push({
+				id: `copy-${c.providerId}-${c.dataSetId}`,
+				kind: 'stopCopy',
+				mark: 'reported',
+				values: [
+					{ k: 'provider', v: String(c.providerId ?? '') },
+					...(c.location ? [{ k: 'place', v: String(c.location) }] : []),
+					{ k: 'dataSet', v: String(c.dataSetId ?? ''), mono: true },
+					...(c.pieceId != null ? [{ k: 'pieceId', v: String(c.pieceId), mono: true }] : [])
+				],
+				// The provider's own address for the piece: what it serves is ciphertext.
+				links: links && /^https:\/\//.test(String(c.retrievalUrl ?? '')) ? [{ k: 'retrieval', href: String(c.retrievalUrl) }] : []
+			});
+		}
+	}
+	if (erase?.forgot !== undefined) {
+		rows.push({
+			id: 'stopForget',
+			mark: erase.forgot ? 'app' : 'open',
+			values: [
+				...(instanceHash ? [{ k: 'instanceHash', v: instanceHash, mono: true }] : []),
+				...(erase.forgot ? [{ k: 'forget', v: erase.forgot, mono: true }] : [])
+			],
+			links: [...message(instanceHash), ...message(erase.forgot).map((l) => ({ ...l, k: 'forgetMessage' }))]
+		});
+	}
+	return rows;
+}

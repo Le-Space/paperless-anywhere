@@ -37,8 +37,8 @@
 	<ol class="rows">
 		{#each rows as row (row.id)}
 			<li class="row {row.mark}" data-testid="evidence-{row.id}" data-mark={row.mark}>
-				<p class="head"><span class="sign" aria-hidden="true">{SIGN[row.mark]}</span><strong>{t.rows[row.id].t}</strong><span class="mark">{t.marks[row.mark]}</span></p>
-				<p class="d">{t.rows[row.id].d}</p>
+				<p class="head"><span class="sign" aria-hidden="true">{SIGN[row.mark]}</span><strong>{t.rows[row.kind ?? row.id].t}</strong><span class="mark">{t.marks[row.mark]}</span></p>
+				<p class="d">{t.rows[row.kind ?? row.id].d}</p>
 				{#if row.note}<p class="note">{t.notes[row.note]}</p>{/if}
 				{#if row.values.length}
 					<dl>

@@ -1,18 +1,24 @@
 <script>
-	// The start of a VM as a panel of lights (start-panel.js): one row per
+	// The start of a VM, and its stop or erase (stop-panel.js), as a panel of lights (start-panel.js): one row per
 	// step, one light per fact. The lights are decoration for the eye only;
 	// every fact is also written out with its state in words, and one polite
 	// line says the row under way. Nothing blinks under reduced motion. No
 	// image, font or script from anywhere: CSS only.
 	import { currentRow } from '$lib/start-panel.js';
 
-	/** @type {{ rows: import('$lib/start-panel.js').PanelRow[], t: typeof import('$lib/evidence-i18n.js').panelTexts.de, times?: Record<string, string>, total?: string }} times: per row, what it took and usually takes; total: the whole start */
-	let { rows, t, times = {}, total = '' } = $props();
+	/** @typedef {{ id: string, state: import('$lib/start-panel.js').LightState, key?: string, args?: (string | number)[], say?: string }} AnyLight */
+	/** @type {{ rows: { id: string, state: string, lights: AnyLight[] }[], t: { title: string, rows: Record<string, string>, lights: Record<string, string | ((...a: any[]) => string)>, states: Record<string, string>, rowStates: Record<string, string>, live: (row: string, state: string) => string, legend: string, after: string }, times?: Record<string, string>, total?: string, testid?: string }} times: per row, what it took and usually takes; total: the whole action */
+	let { rows, t, times = {}, total = '', testid = 'start-panel' } = $props();
+	/** A light's words: its own text, or the one its key names, with what it names. @param {AnyLight} l */
+	const said = (l) => {
+		const x = t.lights[l.key ?? l.id];
+		return typeof x === 'function' ? x(...(l.args ?? [])) : (x ?? l.id);
+	};
 	const SIGN = { off: '·', run: '▶', app: '✓', reported: '•', skipped: '–', failed: '✗' };
-	const cur = $derived(currentRow(rows));
+	const cur = $derived(currentRow(/** @type {any} */ (rows)));
 </script>
 
-<section class="panel" aria-label={t.title} data-testid="start-panel">
+<section class="panel" aria-label={t.title} data-testid={testid}>
 	<ol>
 		{#each rows as row, i (row.id)}
 			<li class="row is-{row.state}" data-testid="panel-{row.id}" data-state={row.state}>
@@ -20,7 +26,7 @@
 				<span class="leds" aria-hidden="true">{#each row.lights as l (l.id)}<i class="led {l.state}"></i>{/each}</span>
 				<ul class="facts">
 					{#each row.lights as l (l.id)}
-						<li class={l.state} data-testid="light-{l.id}" data-state={l.state}><span class="sign" aria-hidden="true">{SIGN[l.state]}</span>{t.lights[l.id]} <span class="state">({t.states[l.state]})</span></li>
+						<li class={l.state} data-testid="light-{l.id}" data-state={l.state}><span class="sign" aria-hidden="true">{SIGN[l.state]}</span>{said(l)} <span class="state">({t.states[l.say ?? l.state]})</span></li>
 					{/each}
 				</ul>
 			</li>
