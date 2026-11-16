@@ -79,3 +79,16 @@ export function startPanel({ step, libPhase = '', unlock = null, status = null, 
 
 /** The row under way, for the one line a screen reader hears. @param {PanelRow[]} rows */
 export const currentRow = (rows) => rows.find((r) => r.state === 'failed') ?? rows.find((r) => r.state === 'run') ?? null;
+
+/**
+ * What each row of the panel took and usually takes, from the same steps
+ * the start reports (Lifecycle.svelte's `times`): the attestation and the
+ * unlock are one step of the start, so their time stands at the unlock.
+ * @param {{ step: string, typical: number }[]} steps the start's steps, with their usual seconds
+ * @param {Record<string, { from: number, to?: number }>} times when each step began and ended
+ * @param {number} now
+ * @returns {Record<string, { ms: number | null, typical: number }>}
+ */
+export function panelTimes(steps, times, now) {
+	return Object.fromEntries(steps.map((s) => [s.step, { ms: times[s.step] ? (times[s.step].to ?? now) - times[s.step].from : null, typical: s.typical }]));
+}

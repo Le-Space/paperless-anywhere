@@ -32,7 +32,7 @@
 	import { evidenceTexts, panelTexts } from '$lib/evidence-i18n.js';
 	import { format, lang as appLanguage, t as i18n, tr } from '$lib/i18n/index.js';
 	import StartPanel from '$lib/StartPanel.svelte';
-	import { startPanel } from '$lib/start-panel.js';
+	import { panelTimes, startPanel } from '$lib/start-panel.js';
 	import { RUNTIME } from '$lib/runtime-pin.js';
 	import { ALEPH_API } from '$lib/aleph.js';
 	import { isNetworkError, preloadAttestWasm } from '$lib/attest-wasm-load.js';
@@ -697,6 +697,15 @@
 	const CHIPS = $derived(/** @type {Record<string, string>} */ (c.chips));
 	const TITLES = $derived(/** @type {Record<string, string>} */ (c.titles));
 	const backupsPending = $derived(Boolean(profile.ageIdentity && backupListing(profile) && backups === null));
+	// The panel's times: the same steps and stamps as the start's progress, one display.
+	const panelTook = $derived.by(() => {
+		if (!startShown) return {};
+		const took = panelTimes(STEPS.start.map((s) => ({ step: s.step, typical: typicalOf(s) })), times, now);
+		return Object.fromEntries(Object.entries(took).map(([id, x]) => [id, `${x.ms != null ? `${seconds(x.ms)} ` : ''}${c.advanced.usual(minutes(x.typical))}`]));
+	});
+	const panelTotal = $derived(
+		startShown ? c.advanced.total(seconds((busy ? now : Object.values(times).reduce((m, t) => Math.max(m, t.to ?? 0), startedAt)) - startedAt), minutes(STEPS.start.reduce((a, s) => a + typicalOf(s), 0))) : ''
+	);
 	const typicalTotal = $derived(action ? STEPS[action].reduce((a, s) => a + typicalOf(s), 0) : 0);
 	const elapsed = $derived(Math.max(0, (now - startedAt) / 1000));
 	const share = $derived(typicalTotal ? Math.min(0.95, elapsed / typicalTotal) : 0);
@@ -804,7 +813,7 @@
 		{#if phase === 'starting' || phase === 'stopping' || phase === 'discarding'}
 			<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(share * 100)} aria-label={TITLES[phase]}><span style="width: {Math.round(share * 100)}%"></span></div>
 			<p class="calm" data-testid="simple-progress">{c.simple.left(stepLabel, leftMinutes)}</p>
-			{#if startShown}<StartPanel rows={panel} t={panelT} />{/if}
+			{#if startShown}<StartPanel rows={panel} t={panelT} times={panelTook} total={panelTotal} />{/if}
 		{:else if phase === 'running'}
 			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="simple-open">{c.simple.open}</a>
 			{#if profile.running.restore?.status === 'failed'}<p class="error">{c.simple.restoreFailed}</p>{/if}
@@ -918,8 +927,9 @@
 			{/if}
 			{#if BUILDER && hasOwnImage(profile, BUILDER.plain.sha256)}<button class="quiet" onclick={showCertificate} data-testid="open-certificate">{$i18n.first.cert.open}</button>{/if}
 		{/if}
-		{#if startShown}<StartPanel rows={panel} t={panelT} />{/if}
-		{#if action && (busy || Object.keys(times).length)}
+		{#if startShown}<StartPanel rows={panel} t={panelT} times={panelTook} total={panelTotal} />{/if}
+		<!-- A start shows the panel only; a stop or an erase shows its steps with their times. -->
+		{#if action && action !== 'start' && (busy || Object.keys(times).length)}
 			<ol class="steps" data-testid="progress-steps">
 				{#each STEPS[action] as s (s.step)}
 					{@const t = times[s.step]}

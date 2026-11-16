@@ -6,8 +6,8 @@
 	// image, font or script from anywhere: CSS only.
 	import { currentRow } from '$lib/start-panel.js';
 
-	/** @type {{ rows: import('$lib/start-panel.js').PanelRow[], t: typeof import('$lib/evidence-i18n.js').panelTexts.de }} */
-	let { rows, t } = $props();
+	/** @type {{ rows: import('$lib/start-panel.js').PanelRow[], t: typeof import('$lib/evidence-i18n.js').panelTexts.de, times?: Record<string, string>, total?: string }} times: per row, what it took and usually takes; total: the whole start */
+	let { rows, t, times = {}, total = '' } = $props();
 	const SIGN = { off: '·', run: '▶', app: '✓', reported: '•', skipped: '–', failed: '✗' };
 	const cur = $derived(currentRow(rows));
 </script>
@@ -16,7 +16,7 @@
 	<ol>
 		{#each rows as row, i (row.id)}
 			<li class="row is-{row.state}" data-testid="panel-{row.id}" data-state={row.state}>
-				<span class="name"><span class="no" aria-hidden="true">{i + 1}</span>{t.rows[row.id]}<span class="sr">: {t.rowStates[row.state]}</span></span>
+				<span class="name"><span class="no" aria-hidden="true">{i + 1}</span>{t.rows[row.id]}<span class="sr">: {t.rowStates[row.state]}</span>{#if times[row.id]}<small class="took" data-testid="took-{row.id}">{times[row.id]}</small>{/if}</span>
 				<span class="leds" aria-hidden="true">{#each row.lights as l (l.id)}<i class="led {l.state}"></i>{/each}</span>
 				<ul class="facts">
 					{#each row.lights as l (l.id)}
@@ -27,6 +27,7 @@
 		{/each}
 	</ol>
 	<p class="sr" role="status" aria-live="polite" data-testid="panel-live">{cur ? t.live(t.rows[cur.id], t.rowStates[cur.state]) : ''}</p>
+	{#if total}<p class="total" data-testid="panel-total">{total}</p>{/if}
 	<p class="legend">{t.legend} {t.after}</p>
 </section>
 
@@ -44,6 +45,8 @@
 	.row { display: grid; grid-template-columns: 9.5rem 5rem minmax(0, 1fr); gap: 0.25rem 0.75rem; align-items: start; padding: 0.5rem 0; border-top: 1px solid var(--rule); }
 	.row:first-child { border-top: 0; }
 	.name { font-family: var(--mono); font-weight: 600; }
+	.took { display: block; font-weight: 400; color: var(--dim); padding-left: 1.3rem; }
+	.total { margin: 0.5rem 0 0; color: var(--dim); }
 	.no { display: inline-block; width: 1.3rem; color: var(--dim); }
 	.is-off .name { color: var(--dim); }
 	.leds { display: flex; gap: 0.4rem; padding-top: 0.3rem; }
