@@ -240,13 +240,17 @@
 		const identity = profile.ageIdentity || vaultAge;
 		await save(on ? { ageIdentity: identity, backupConfig: backupConfigFor(profile.network, ageRecipient(identity)) } : { backupConfig: null });
 	});
+	// Saved while Paperless runs: the next step is handing them to the VM, offered at once.
+	let placesPending = $state(false);
 	const savePlaces = (places) => run('places', async () => {
 		await save({ backupConfig: backupConfigFor(profile.network, ageRecipient(profile.ageIdentity || vaultAge), places) });
+		if (profile.running) placesPending = true;
 	});
 	// A VM that runs reads its backup places at every backup: changed places
 	// reach it only when handed over (pushBackupPlaces, over the attested channel).
 	const pushPlaces = () => run('places-push', async () => {
 		await pushBackupPlaces(master, profile);
+		placesPending = false;
 	});
 	const recipient = $derived.by(() => {
 		try {
@@ -643,7 +647,13 @@
 	</label>
 	{#if profile.backupConfig}
 		<BackupPlaces network={profile.network} payer={profile.backupOwner || (profile.backupsByCredits ? '' : profile.payer)} config={profile.backupConfig} busy={busy === 'places'} onsave={savePlaces} />
-		{#if profile.running}<p class="hint">{$t.backup.places.pushHint} <button class="link" onclick={pushPlaces} disabled={busy === 'places-push'} data-testid="places-push">{$t.backup.places.push}</button></p>{@render feedback('places-push')}{/if}
+		{#if profile.running}
+			<div class="push-places" class:pending={placesPending} data-testid="places-push-box">
+				<p>{placesPending ? $t.backup.places.pushPending : $t.backup.places.pushHint}</p>
+				<button onclick={pushPlaces} disabled={busy === 'places-push'} data-testid="places-push">{$t.backup.places.push}</button>
+			</div>
+			{@render feedback('places-push')}
+		{/if}
 	{/if}
 	{@render feedback('backups')}{@render feedback('places')}
 	{#if profile.network === 'mainnet' && profile.role !== 'primary'}<p class="hint" data-testid="mainnet-backup-hint">{x.backups.mainnetHint}</p>
@@ -734,5 +744,9 @@
 	.more summary { cursor: pointer; }
 	.tip { margin: 0 0 0.75rem; padding: 0.5rem 0.75rem; border-left: 3px solid var(--ok); background: color-mix(in srgb, var(--ok) 8%, transparent); border-radius: var(--radius-sm, 6px); font-size: 0.92rem; }
 	.warn-line { color: var(--warn); font-size: 0.9rem; margin: 0 0 0.75rem; }
+	.push-places { margin: 0.5rem 0; }
+	.push-places p { margin: 0.25rem 0; font-size: 0.9rem; color: var(--text-2); }
+	.push-places.pending { padding: 0.6rem 0.8rem; border: 1px solid var(--accent, var(--ok)); border-left-width: 4px; border-radius: var(--radius-sm, 6px); background: var(--warn-bg); }
+	.push-places.pending p { color: var(--text); font-weight: 600; }
 	.link { background: none; border: none; color: inherit; text-decoration: underline; padding: 0; font: inherit; cursor: pointer; }
 </style>

@@ -143,6 +143,7 @@ export const backup = {
 		},
 		places: {
 			push: 'An die laufende VM übergeben',
+			pushPending: 'Orte geändert – jetzt an die laufende VM übergeben? Erst dann sichert sie dorthin.',
 			pushHint: 'Paperless läuft: Geänderte Sicherungsorte gelten für die laufende VM erst, wenn du sie übergibst.',
 			regions: { EUROPE: 'Europa (EWR, Großbritannien, Schweiz)', EU: 'EU', EEA: 'EWR', US: 'USA', anywhere: 'überall' },
 			listUnreadable: 'Die Anbieterliste ließ sich gerade nicht lesen.',
@@ -413,6 +414,7 @@ export const backup = {
 		},
 		places: {
 			push: 'Hand over to the running VM',
+			pushPending: 'Places changed – hand them to the running VM now? Only then does it back up there.',
 			pushHint: 'Paperless is running: changed backup places apply to the running VM only once you hand them over.',
 			regions: { EUROPE: 'Europe (EEA, United Kingdom, Switzerland)', EU: 'EU', EEA: 'EEA', US: 'USA', anywhere: 'anywhere' },
 			listUnreadable: 'The list of providers could not be read right now.',
