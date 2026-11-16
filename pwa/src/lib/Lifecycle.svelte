@@ -6,13 +6,13 @@
 	import RefreshBalances from '$lib/RefreshBalances.svelte';
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
 	import { noteError, noteState } from '$lib/diagnosis.js';
-	import { AlephShortError, BackupPartialError, StartGoneError, pushBackupPlaces, attestRunning, confirmPeriodEndBackup, confirmStopBackup, eraseStopped, syncPeriodEnd, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
+	import { AlephShortError, BackupPartialError, NodeRefusedError, StartGoneError, startElsewhere, pushBackupPlaces, attestRunning, confirmPeriodEndBackup, confirmStopBackup, eraseStopped, syncPeriodEnd, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
 	import { buildImageForVault } from '$lib/own-image-build.js';
 	import { BUILDER, hasOwnImage, imageStatus } from '$lib/own-image.js';
 	import FirstStart from '$lib/FirstStart.svelte';
 	import { onImageBuild } from '$lib/image-build-request.js';
 	import { fetchPercent, stationOfBuildStep } from '$lib/first-start.js';
-	import { vmStatus } from '$lib/vm.js';
+	import { forgetInstance, vmStatus } from '$lib/vm.js';
 	import { stoppedAtPeriodEnd } from '$lib/period-end.js';
 	import Storage from '$lib/Storage.svelte';
 	import { statusToken } from '$lib/keys/derive.js';
@@ -29,6 +29,7 @@
 	import { listProviders } from '$lib/providers.js';
 	import { replacementPlan } from '$lib/places-replace.js';
 	import { blockedAmong, blockedReason } from '$lib/blocked-providers.js';
+	import { avoidedNodes, nodeBlockedReason, noteProven, noteUnsuitable, provenNodes } from '$lib/blocked-nodes.js';
 	import { backupSize, knownBackup, listBackups, newerBackup, pieceCidOfStop, place, restoreEntry, restoreGap, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
@@ -159,6 +160,8 @@
 	let error = $state('');
 	// An interrupted start Aleph no longer had: dropped, and why (not an error).
 	let goneNote = $state('');
+	// A node refused the VM and the start moved on to another one: said plainly.
+	let nodeNote = $state('');
 	// A broken connection: a plain sentence above, the browser's own words
 	// under "Details", and what "Noch einmal" does (null: nothing to repeat).
 	let errorRaw = $state('');
@@ -417,6 +420,7 @@
 		error = '';
 		errorRaw = '';
 		goneNote = '';
+		nodeNote = '';
 		again = null;
 		errorLog = [];
 		short = null;
@@ -594,11 +598,17 @@
 			if (!(await buildWithJourney(false))) return;
 			if (ceremony) ceremony = { ...ceremony, station: 'paperless', since: Date.now(), fetchPct: null };
 		}
-		// No node fixed in the setup: one with room now.
-		if (!profile.crnHash) progress = tr().card.progress.pickNode;
-		const crnHash = profile.crnHash || (await pickNode());
-		const forStart = { ...$state.snapshot(profile), crnHash, restoreEntry: chosen ? { ...restoreEntry(chosen), ...(unmarked ? { unmarked: true } : {}) } : null };
-		startRestores = Boolean(forStart.restoreEntry);
+		// No node fixed in the setup (or the fixed one is blocked): one with room
+		// now, nodes where a start was attested first. A node that refuses the VM
+		// (it cannot run SEV-SNP after all) is forgotten, noted and replaced;
+		// the image is not built again.
+		const fixed = profile.crnHash && !nodeBlockedReason(profile.crnHash) ? profile.crnHash : null;
+		const restore = chosen ? { ...restoreEntry(chosen), ...(unmarked ? { unmarked: true } : {}) } : null;
+		startRestores = Boolean(restore);
+		const pick = () => {
+			progress = tr().card.progress[nodeNote ? 'otherNode' : 'pickNode'];
+			return pickNode({ avoid: avoidedNodes(profile), proven: provenNodes(profile, { builder: BUILDER }) });
+		};
 		// Once Aleph has the VM, the profile knows it: a reload carries on from there.
 		const onRequested = async (starting) => {
 			profile = await updateProfile(master, (now) => ({ ...now, starting }));
@@ -615,7 +625,18 @@
 			if (p.attestation?.measurement) facts.vmMeasurement = p.attestation.measurement;
 			ceremony = { ...ceremony, facts };
 		};
-		await finishStart(() => startPaperless(master, forStart, step, { onRequested }));
+		await finishStart(() =>
+			startElsewhere({
+				fixed,
+				pick,
+				start: (crnHash) => startPaperless(master, { ...$state.snapshot(profile), crnHash, restoreEntry: restore }, step, { onRequested }),
+				onRefused: async (e) => {
+					nodeNote = tr().card.nodeRefused[e.kind];
+					await dropRefused(e);
+					if (fixed) throw new Error(tr().card.errors.fixedNodeRefused);
+				}
+			})
+		);
 		if (ceremony) ceremony = { ...ceremony, done: true, minimized: false };
 	}
 	// Buy hours from Le Space Credits: the service grants them (with Aleph's
@@ -662,8 +683,32 @@
 			await startNow();
 		});
 	};
+	/**
+	 * A node refused the VM: its INSTANCE is forgotten (it never ran; what
+	 * fails here is left in the list of VMs to remove), the interrupted start
+	 * dropped and the node noted in the profile, with the time.
+	 * @param {{ crnHash: string, instanceHash: string, payer?: string, kind: 'noSevSnp' | 'refused' }} e
+	 */
+	async function dropRefused(e) {
+		const app = privateKeyToAccount(alephPrivateKey(master));
+		const payer = e.payer ?? profile.starting?.payer;
+		if (payer) await forgetInstance(app, payer, e.instanceHash, 'paperless-anywhere: the node refused the VM').catch(() => null);
+		profile = await updateProfile(master, ({ starting, ...rest }) => noteUnsuitable(starting && starting.instanceHash !== e.instanceHash ? { ...rest, starting } : rest, e.crnHash, e.kind));
+		onchange();
+	}
 	const resume = () => run(async () => {
 		await reload();
+		// Interrupted on a node that is blocked, or that this vault saw refuse a
+		// start: that VM never runs. Forgotten, and the start asks another node.
+		const on = profile.starting;
+		if (on?.crnHash && (nodeBlockedReason(on.crnHash) || avoidedNodes(profile).has(String(on.crnHash).toLowerCase()))) {
+			const known = (profile.unsuitableNodes ?? []).find((n) => String(n?.hash).toLowerCase() === String(on.crnHash).toLowerCase());
+			const kind = nodeBlockedReason(on.crnHash) ? 'noSevSnp' : (known?.reason ?? 'refused');
+			nodeNote = tr().card.nodeRefused[kind];
+			await dropRefused({ crnHash: on.crnHash, instanceHash: on.instanceHash, payer: on.payer, kind });
+			await startNow();
+			return;
+		}
 		// The VM may have made backups since this start was requested (it ran on
 		// while this page was closed). What it restores now is the newest one, not
 		// the one chosen then; if the backups cannot be read, the start waits.
@@ -691,7 +736,11 @@
 		try {
 			const running = await bringUp();
 			// Which image this VM runs, so it is never forgotten under it (old-image.js).
-			profile = await updateProfile(master, ({ starting, ...rest }) => ({ ...rest, running: { ...running, rootfsItemHash: rest.rootfsItemHash } }));
+			// An attested start marks its node as proven (pickNode prefers it next time).
+			profile = await updateProfile(master, ({ starting, ...rest }) => {
+				const now = { ...rest, running: { ...running, rootfsItemHash: rest.rootfsItemHash } };
+				return running.attestation ? noteProven(now, running.crnHash) : now;
+			});
 			// The new own image started well: the one before it is no longer the way back.
 			if (startWentWell(running)) {
 				const release = releasePrevious(profile);
@@ -1182,6 +1231,7 @@
 		{#if phase !== 'running' && profile.trial}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
+		{#if nodeNote}<p class="hint" role="status" data-testid="node-refused">{nodeNote}</p>{/if}
 		{#if periodEnded}<p class="hint" role="status" data-testid="period-end-stopped">{c.periodEnd.stopped}</p>{/if}
 		{@render placesBox()}
 		{#if error}{@render errorBox()}{/if}
@@ -1274,6 +1324,7 @@
 		{#if progress}<p data-testid="progress">{progress} …</p>{/if}
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
+		{#if nodeNote}<p class="hint" role="status" data-testid="node-refused">{nodeNote}</p>{/if}
 		{#if periodEnded}<p class="hint" role="status" data-testid="period-end-stopped">{c.periodEnd.stopped}</p>{/if}
 		{@render placesBox()}
 		{#if error}{@render errorBox()}{/if}
