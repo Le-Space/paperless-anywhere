@@ -24,6 +24,7 @@
 		<a href="https://le-space.de/#impressum">{$t.app.footer.imprint}</a>
 		<a href="https://credits.le-space.de/datenschutz">{$t.app.footer.privacy}</a>
 		<a href="/lizenzen/">{$t.app.footer.licences}</a>
+		<a href="https://github.com/Le-Space/paperless-anywhere" rel="noopener" data-testid="footer-source">{$t.app.footer.source}</a>
 		<a href={$lang === 'en' ? '#help' : '#hilfe'} data-testid="footer-help">{$t.help.title}</a>
 		<!-- Reachable at any time, also with the vault locked or lost (§ 312k BGB):
 		     with an open vault the package card cancels in place and at once. -->

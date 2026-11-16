@@ -36,7 +36,7 @@ export const texts = {
 		description: 'Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt: Paperless-ngx in einer vertraulichen VM, auf Knoten mehrerer Betreiber, im Monatspaket rund um die Uhr oder auf Abruf.',
 		// For search engines: the words people search for, within about 60 and 155 characters.
 		seoTitle: 'Paperless-ngx vertraulich gehostet – Paperless anywhere',
-		seoDescription: 'Paperless-ngx in einer vertraulichen VM: ausfallsicher, verschlüsselt gesichert, rund um die Uhr oder auf Abruf. Ohne Konto – ein Passkey genügt.',
+		seoDescription: 'Paperless-ngx in einer vertraulichen VM: dein papierloses Büro mit Dokumentenmanagement, ausfallsicher, verschlüsselt gesichert. Ohne Konto, mit Passkey.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx in vertraulichen VMs, ein Angebot von Le Space: Ausfallsicher. Vertraulich. Nach deinem Takt.',
 		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Ausfallsicher', storage: 'Sicherungen', trust: 'Nachprüfbar', prices: 'Preise', faq: 'FAQ' },
 		tagline: 'Paperless-ngx in vertraulichen VMs · ein Angebot von Le Space',
@@ -50,7 +50,7 @@ export const texts = {
 			before: 'Paperless anywhere läuft',
 			words: ['ausfallsicher.', 'vertraulich.', 'nach deinem Takt.'],
 			full: 'Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt.',
-			lead: 'Darin läuft Paperless-ngx, auf vertraulichen Knoten mehrerer Betreiber und mit Sicherungen bei mehreren unabhängigen Speicheranbietern: kein einzelnes Rechenzentrum. Die VM ist vertraulich (AMD SEV-SNP); bei jedem Start bestätigt der Prozessor Firmware, Kernel und Initrd, und die App prüft das, bevor sie einen Schlüssel herausgibt. Du wählst, wie es läuft: im Dauerbetrieb rund um die Uhr oder auf Abruf, wenn du es brauchst, etwa für die Buchhaltung.'
+			lead: 'Dein papierloses Büro: Paperless-ngx, das beliebte Open-Source-Programm für Dokumente, liest deine Scans und PDFs, ordnet sie und findet jedes in Sekunden. Paperless anywhere betreibt es für dich, auf vertraulichen Knoten mehrerer Betreiber und mit Sicherungen bei mehreren unabhängigen Speicheranbietern: kein einzelnes Rechenzentrum. Du wählst, wie es läuft: im Dauerbetrieb rund um die Uhr oder auf Abruf, wenn du es brauchst, etwa für die Buchhaltung.'
 		},
 		points: [
 			{ t: 'Ausfallsicher', d: 'Kein einzelnes Rechenzentrum: Gerechnet wird auf Knoten mehrerer Betreiber, gesichert bei mehreren unabhängigen Speicheranbietern. Fällt ein Knoten aus, startest du auf einem anderen.' },
@@ -58,6 +58,21 @@ export const texts = {
 			{ t: 'Rund um die Uhr oder nach Gebrauch', d: 'Ein Monatspaket, das zu deinem Betrieb passt: Dauerbetrieb rund um die Uhr, oder ein Stundenpaket zum Starten, Arbeiten und Stoppen.' }
 		],
 		trustHint: 'Vertrauen ist gut, nachprüfen ist besser: wer welchen Schlüssel hat, was die Hardware bestätigt und was nicht',
+		// What Paperless-ngx is, for people who do not know it, from its own
+		// feature list (docs.paperless-ngx.com). The OCR languages are those the
+		// image sets (rootfs/files/compose.yml); stars as on GitHub, 2026-11-17.
+		ngx: {
+			title: 'Was ist Paperless-ngx?',
+			lead: 'Paperless-ngx ist ein freies Dokumentenmanagement: Es macht aus Papier, PDFs und Fotos ein durchsuchbares Archiv. Ein Open-Source-Projekt mit über 48.000 Sternen auf GitHub, entwickelt von einer offenen Gemeinschaft.',
+			items: [
+				{ t: 'Hineingeben', d: 'Scans, Fotos, PDFs und Office-Dateien hochladen, einfach per Ziehen und Ablegen. Die Texterkennung (OCR) macht auch reine Bild-Scans durchsuchbar, hier auf Deutsch, Englisch, Spanisch, Russisch und Türkisch.' },
+				{ t: 'Ordnet von selbst', d: 'Paperless lernt aus deinen Zuordnungen und vergibt bei neuen Dokumenten Absender, Dokumenttyp und Schlagwörter automatisch.' },
+				{ t: 'Findet in Sekunden', d: 'Volltextsuche über alle Dokumente, mit Vorschlägen beim Tippen und markierten Fundstellen. Abgelegt wird als PDF/A für die lange Aufbewahrung, neben dem unveränderten Original.' },
+				{ t: 'Holt Post aus dem Postfach', d: 'Anhänge und Mails aus einem oder mehreren E-Mail-Konten übernehmen, nach deinen Regeln, solange deine Paperless läuft.' }
+			],
+			after: 'Paperless anywhere betreibt diese Software; entwickelt wird sie vom Projekt Paperless-ngx.',
+			links: { project: 'Paperless-ngx auf GitHub', docs: 'Alle Funktionen in der Dokumentation' }
+		},
 		audience: {
 			title: 'Für wen?',
 			lead: 'Für alle, die ihr Dokumentenarchiv nicht einem einzelnen Rechenzentrum anvertrauen wollen:',
@@ -400,13 +415,13 @@ export const texts = {
 			back: 'Zur Startseite'
 		},
 		cta: { title: 'Bereit?', lead: 'Den Tresor anzulegen dauert eine Minute. Kein Konto, kein Passwort.' },
-		footer: { build: { label: 'Stand dieser Seite:', release: 'Dieses Release bei GitHub, mit seiner IPFS-CID', commit: 'Der Quelltext-Stand dieses Builds bei GitHub', built: 'Wann diese Seite gebaut wurde (UTC)' }, by: 'Ein Projekt von Le Space', belege: 'Le Space Belege', imprint: 'Impressum', imprintUrl: 'https://le-space.de/#impressum', privacy: 'Datenschutz', privacyUrl: 'https://credits.le-space.de/datenschutz', built: 'Paperless anywhere rechnet auf vertraulichen Knoten von Aleph Cloud und sichert auf Filecoin.', ngxLink: 'Paperless-ngx auf GitHub', terms: 'AGB', withdrawal: 'Widerrufsbelehrung' }
+		footer: { source: 'Quelltext von Paperless anywhere auf GitHub', sourceShort: 'Quelltext auf GitHub', build: { label: 'Stand dieser Seite:', release: 'Dieses Release bei GitHub, mit seiner IPFS-CID', commit: 'Der Quelltext-Stand dieses Builds bei GitHub', built: 'Wann diese Seite gebaut wurde (UTC)' }, by: 'Ein Projekt von Le Space', belege: 'Le Space Belege', imprint: 'Impressum', imprintUrl: 'https://le-space.de/#impressum', privacy: 'Datenschutz', privacyUrl: 'https://credits.le-space.de/datenschutz', built: 'Paperless anywhere rechnet auf vertraulichen Knoten von Aleph Cloud und sichert auf Filecoin.', ngxLink: 'Paperless-ngx auf GitHub', terms: 'AGB', withdrawal: 'Widerrufsbelehrung' }
 	},
 	en: {
 		title: 'Paperless anywhere – resilient, confidential, on your schedule',
 		description: 'Paperless anywhere runs resilient, confidential and on your schedule: Paperless-ngx in a confidential VM, on nodes of several operators, in a monthly package around the clock or on demand.',
 		seoTitle: 'Confidential Paperless-ngx hosting – Paperless anywhere',
-		seoDescription: 'Paperless-ngx in a confidential VM: resilient, with encrypted backups, around the clock or on demand. No account – a passkey is all you need.',
+		seoDescription: 'Paperless-ngx in a confidential VM: document management for your paperless office, resilient, with encrypted backups. No account, just a passkey.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx in confidential VMs, offered by Le Space: Resilient. Confidential. On your schedule.',
 		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Resilient', storage: 'Backups', trust: 'Verify', prices: 'Prices', faq: 'FAQ' },
 		tagline: 'Paperless-ngx in confidential VMs · offered by Le Space',
@@ -418,7 +433,7 @@ export const texts = {
 			before: 'Paperless anywhere runs',
 			words: ['resilient.', 'confidential.', 'on your schedule.'],
 			full: 'Paperless anywhere runs resilient, confidential and on your schedule.',
-			lead: 'Inside it runs Paperless-ngx, on confidential nodes of several operators and with backups at several independent storage providers: no single data centre. The VM is confidential (AMD SEV-SNP); at every start the processor confirms firmware, kernel and initrd, and the app checks that before it hands over a key. You choose how it runs: always on, around the clock, or on demand when you need it, for the bookkeeping, say.'
+			lead: 'Your paperless office: Paperless-ngx, the popular open source program for documents, reads your scans and PDFs, sorts them and finds any of them in seconds. Paperless anywhere runs it for you, on confidential nodes of several operators and with backups at several independent storage providers: no single data centre. You choose how it runs: always on, around the clock, or on demand when you need it, for the bookkeeping, say.'
 		},
 		points: [
 			{ t: 'Resilient', d: 'No single data centre: it computes on nodes of several operators and backs up to several independent storage providers. If a node fails, you start on another.' },
@@ -426,6 +441,18 @@ export const texts = {
 			{ t: 'Around the clock or pay as you use', d: 'A monthly package that fits how you work: always on, around the clock, or a package of hours to start, work and stop.' }
 		],
 		trustHint: 'Don’t trust, verify: who holds which key, what the hardware confirms and what it does not',
+		ngx: {
+			title: 'What is Paperless-ngx?',
+			lead: 'Paperless-ngx is free document management: it turns paper, PDFs and photos into a searchable archive. An open source project with more than 48,000 stars on GitHub, developed by an open community.',
+			items: [
+				{ t: 'Put things in', d: 'Upload scans, photos, PDFs and office files, simply by drag and drop. Text recognition (OCR) makes even image-only scans searchable, here in German, English, Spanish, Russian and Turkish.' },
+				{ t: 'Sorts by itself', d: 'Paperless learns from how you file documents and assigns correspondent, document type and tags to new ones automatically.' },
+				{ t: 'Finds in seconds', d: 'Full text search across all documents, with suggestions as you type and highlighted matches. Documents are stored as PDF/A for long-term keeping, next to the unaltered original.' },
+				{ t: 'Fetches mail', d: 'Takes attachments and mails from one or more e-mail accounts, by your rules, while your Paperless runs.' }
+			],
+			after: 'Paperless anywhere runs this software; it is developed by the Paperless-ngx project.',
+			links: { project: 'Paperless-ngx on GitHub', docs: 'All features in the documentation' }
+		},
 		audience: {
 			title: 'Who is it for?',
 			lead: 'For everyone who does not want to entrust their document archive to a single data centre:',
@@ -768,6 +795,6 @@ export const texts = {
 			back: 'Back to the start page'
 		},
 		cta: { title: 'Ready?', lead: 'Creating a vault takes a minute. No account, no password.' },
-		footer: { build: { label: 'This page’s build:', release: 'This release on GitHub, with its IPFS CID', commit: 'The source commit of this build on GitHub', built: 'When this page was built (UTC)' }, by: 'A Le Space project', belege: 'Le Space Belege', imprint: 'Imprint', imprintUrl: 'https://le-space.de/#imprint', privacy: 'Privacy', privacyUrl: 'https://credits.le-space.de/datenschutz', built: 'Paperless anywhere computes on confidential nodes of Aleph Cloud and backs up to Filecoin.', ngxLink: 'Paperless-ngx on GitHub', terms: 'Terms', withdrawal: 'Withdrawal' }
+		footer: { source: 'Paperless anywhere’s source code on GitHub', sourceShort: 'Source code on GitHub', build: { label: 'This page’s build:', release: 'This release on GitHub, with its IPFS CID', commit: 'The source commit of this build on GitHub', built: 'When this page was built (UTC)' }, by: 'A Le Space project', belege: 'Le Space Belege', imprint: 'Imprint', imprintUrl: 'https://le-space.de/#imprint', privacy: 'Privacy', privacyUrl: 'https://credits.le-space.de/datenschutz', built: 'Paperless anywhere computes on confidential nodes of Aleph Cloud and backs up to Filecoin.', ngxLink: 'Paperless-ngx on GitHub', terms: 'Terms', withdrawal: 'Withdrawal' }
 	}
 };

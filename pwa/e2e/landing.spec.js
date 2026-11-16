@@ -495,3 +495,20 @@ test('the FAQ says what happens when a voucher or package ends, in both language
 	await en.locator('summary').click();
 	await expect(en.getByRole('link', { name: 'Fetch and decrypt a backup yourself' })).toHaveAttribute('href', /restore-yourself\.md$/);
 });
+
+test('the landing page says what Paperless-ngx is, and links its own source in the header and the footer', async ({ page }) => {
+	await page.context().route(/crns-list\.aleph\.sh|filecoin|glif|chain\.love/, (route) => route.abort());
+	await page.goto('/');
+	await expect(page.locator('.hero .lead')).toContainText('Dein papierloses Büro: Paperless-ngx');
+	await expect(page.locator('#paperless-ngx h2')).toHaveText('Was ist Paperless-ngx?');
+	await expect(page.getByTestId('ngx-features').locator('h3')).toHaveText(['Hineingeben', 'Ordnet von selbst', 'Findet in Sekunden', 'Holt Post aus dem Postfach']);
+	await expect(page.locator('#paperless-ngx').getByRole('link', { name: 'Paperless-ngx auf GitHub' })).toHaveAttribute('href', 'https://github.com/paperless-ngx/paperless-ngx');
+	await expect(page.getByTestId('header-source')).toHaveAttribute('href', 'https://github.com/Le-Space/paperless-anywhere');
+	await expect(page.getByTestId('header-source')).toHaveAccessibleName('Quelltext von Paperless anywhere auf GitHub');
+	await expect(page.getByTestId('footer-source')).toHaveText('Quelltext von Paperless anywhere auf GitHub');
+	await page.goto('/en/');
+	await expect(page.locator('#paperless-ngx h2')).toHaveText('What is Paperless-ngx?');
+	await expect(page.getByTestId('footer-source')).toHaveText('Paperless anywhere’s source code on GitHub');
+	await page.goto('/app/');
+	await expect(page.getByTestId('footer-source')).toHaveAttribute('href', 'https://github.com/Le-Space/paperless-anywhere');
+});
