@@ -31,9 +31,14 @@ services:
     <<: *host
     # docker.io/valkey/valkey:9-alpine, flattened to one layer (rootfs/images.txt, flat-images.yml)
     image: ghcr.io/le-space/paperless-anywhere/valkey@sha256:9b6765ede311e2bec2959bae9fed2be242807412e2a842a8c5f62b6c371abcfd
-    command: ["valkey-server", "--bind", "127.0.0.1", "--protected-mode", "yes"]
+    # Every container shares the host network, Tika and Gotenberg (which read
+    # foreign attachments) included, so Valkey asks for a password. It is
+    # made on this VM (paperless-secrets) and stands in this file only, not
+    # in a command line; Paperless gets it in PAPERLESS_REDIS (paperless.env).
+    command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
     volumes:
       - /srv/paperless/valkey:/data
+      - /etc/paperless-anywhere/valkey.conf:/usr/local/etc/valkey/valkey.conf:ro
 
   gotenberg:
     <<: *host
@@ -77,8 +82,9 @@ services:
     healthcheck:
       disable: true
     env_file: /etc/paperless-anywhere/paperless.env
+    # PAPERLESS_REDIS, with Valkey's password, comes from paperless.env: a
+    # value here would win over the file.
     environment:
-      PAPERLESS_REDIS: redis://127.0.0.1:6379
       PAPERLESS_DBHOST: 127.0.0.1
       PAPERLESS_TIKA_ENABLED: "1"
       PAPERLESS_TIKA_ENDPOINT: http://127.0.0.1:9998
