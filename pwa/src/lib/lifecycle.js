@@ -16,7 +16,7 @@ import { alephPrivateKey, backupPrivateKey, filecoinSessionPrivateKey, fixedHost
 import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
 import { relayTransports } from './attest-p2p.js';
-import { backupFacts, vmBackupSecrets } from './backups.js';
+import { backupFacts, pieceCidOfStop, vmBackupSecrets } from './backups.js';
 import { attestRelaysFor, relayUsed } from './relays.js';
 import { updateProfile, vmPayer } from './profile.js';
 import { ALEPH_API, readFetch } from './aleph.js';
@@ -87,10 +87,47 @@ export class BackupPartialError extends Error {
 		this.requested = want;
 		this.log = b?.log ?? [];
 		this.facts = [];
+		/** @type {string[] | null} the backups the chain listed before the stop */
+		this.before = null;
+	}
+}
+
+/** The backup a stop reports could not be found on the chain: the VM is kept. */
+export class BackupUnconfirmedError extends Error {
+	/** @param {any} status the VM's status page at the end of the stop */
+	constructor(status) {
+		super(tr().life.errors.backupUnconfirmed);
+		this.name = 'BackupUnconfirmedError';
+		this.status = status;
 	}
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Before a VM is erased after a stop: the backup the stop reports must be on
+ * the chain, read by the app itself, and must be new: not one of `before`,
+ * the backups the chain listed before the stop was asked for (or, when that
+ * list could not be read, not one of `known`, this vault's own). A stop that
+ * reports no new piece ("unchanged": a backup ran just before it) counts only
+ * when the chain lists a backup that was not there before the stop. What the
+ * VM's status page says alone is never enough. Throws BackupUnconfirmedError.
+ * @param {any} status the VM's status page at the end of the stop
+ * @param {{ onChain: () => Promise<string[]>, before?: string[] | null, known?: string[], tries?: number, delayMs?: number }} o
+ *   `onChain`: the piece CIDs of the backups the chain lists now
+ * @returns {Promise<string>} the confirmed piece CID
+ */
+export async function confirmStopBackup(status, { onChain, before = null, known = [], tries = 12, delayMs = 10_000 }) {
+	const piece = pieceCidOfStop(status);
+	if (piece ? (before ?? known).includes(piece) : !before) throw new BackupUnconfirmedError(status);
+	for (let i = 0; i < tries; i++) {
+		const listed = await onChain().catch(() => null);
+		const found = !listed ? null : piece ? (listed.includes(piece) ? piece : null) : (listed.find((p) => !before?.includes(p)) ?? null);
+		if (found) return found;
+		if (i + 1 < tries) await sleep(delayMs);
+	}
+	throw new BackupUnconfirmedError(status);
+}
 
 // Loaded once per page, again on a broken connection (attest-wasm-load.js).
 const loadWasm = () => loadAttestWasm();
@@ -604,11 +641,17 @@ export async function requestBackup(master, profile, onProgress, { send = sendTo
  * @param {Uint8Array} master
  * @param {Record<string, any>} profile with `running` from startPaperless
  * @param {(p: { step: string, detail?: string }) => void} onProgress
+ * @param {{ send?: typeof sendToGuest, status?: typeof vmStatus, delayMs?: number, tries?: number, erase?: typeof eraseStopped, onChain?: (() => Promise<string[]>) | null, confirmTries?: number }} [deps]
+ *   `onChain`: with backups on, the piece CIDs the chain lists; the VM is
+ *   erased only once the stop's backup is among them (confirmStopBackup)
  */
-export async function stopPaperless(master, profile, onProgress, { send = sendToGuest, status: read = vmStatus, delayMs = 10_000, tries = 180, erase = eraseStopped } = {}) {
+export async function stopPaperless(master, profile, onProgress, { send = sendToGuest, status: read = vmStatus, delayMs = 10_000, tries = 180, erase = eraseStopped, onChain = null, confirmTries = 12 } = {}) {
 	const run = profile.running;
 	if (!run?.instanceHash) throw new Error(tr().life.errors.noVm);
 	const token = statusToken(master);
+	// With backups on: what the chain lists before the stop, so that only a
+	// backup made by this stop counts (null when it could not be read).
+	const before = onChain ? await onChain().catch(() => null) : null;
 
 	onProgress({ step: 'stop', detail: tr().life.progress.stop });
 	// Only the answer to this request counts: the status page may still show an
@@ -628,10 +671,14 @@ export async function stopPaperless(master, profile, onProgress, { send = sendTo
 		onProgress({ step: 'stop', ...(line ? { detail: line.replace(/^\S+Z /, '') } : {}), status: s });
 		return ['stopped', 'stop-failed', 'stop-partial'].includes(s.phase) ? s : null;
 	}, { tries, delayMs });
-	if (status.phase === 'stop-partial') throw new BackupPartialError(status);
+	if (status.phase === 'stop-partial') throw Object.assign(new BackupPartialError(status), { before });
 	if (status.phase !== 'stopped') {
 		const b = status.stop?.backup ?? status.backup;
 		throw new BackupFailedError(b?.reason ?? tr().life.errors.noReason, b?.log ?? [], backupFacts(b));
+	}
+	if (onChain) {
+		onProgress({ step: 'stop', detail: tr().life.progress.confirmBackup });
+		await confirmStopBackup(status, { onChain, before, known: profile.ownBackups ?? [], tries: confirmTries, delayMs });
 	}
 	return erase(master, profile, status, onProgress);
 }

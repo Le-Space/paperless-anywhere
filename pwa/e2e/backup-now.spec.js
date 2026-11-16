@@ -12,6 +12,9 @@ import { seedIndexAccount, VAULT_KEY } from '../src/lib/keys/index-keys.js';
 import { PROFILE_KEY } from '../src/lib/profile.js';
 import { ageIdentityFromMaster, ageRecipient } from '../src/lib/keys/age.js';
 import { Encrypter } from 'age-encryption';
+import { calibration } from '@filoz/synapse-core/chains';
+import { calculate } from '@filoz/synapse-core/piece';
+import { answers, PAYER, rpc } from './chain-mock.js';
 
 const HOST = 'vm.example.test:24000';
 
@@ -189,8 +192,9 @@ test.describe('German', () => {
 	test('erasing after a partial stop shows one panel: each copy, the FORGET, then the evidence', async ({ page }) => {
 		test.setTimeout(60_000);
 		const at = new Date().toISOString();
-		// Made up: no real piece CID or data set.
-		const cid = 'bafkzcibmadeuppiece';
+		// Made up: the piece CID of 4 KiB of nines, in the mocked chain's data sets.
+		const chainPiece = await calculate(new Uint8Array(4096).fill(9));
+		const cid = chainPiece.toString();
 		const partial = { status: 'partial', at, reason: 'only 1 of 2 copies reached the providers', log: [`${at.replace(/\.\d+Z$/, 'Z')} upload with primary 2 failed: made up`], backup: { name: 'paperless-made-up', date: at, pieceCid: cid, size: 52_000_000, requestedCopies: 2, complete: false, copies: [{ providerId: '1', dataSetId: '11', pieceId: '7', location: 'DE', retrievalUrl: `https://sp1.example/piece/${cid}` }] } };
 		const { master, phrase } = await setUp(page, {
 			v: 2,
@@ -201,7 +205,9 @@ test.describe('German', () => {
 			backupSchedule: { nextCheck: new Date(Date.now() + 3600_000).toISOString(), everySeconds: 7200 },
 			backupRequest: null,
 			stop: { status: 'partial', request: '1', at, backup: partial }
-		}, { ageIdentity: 'vault' });
+		}, { ageIdentity: 'vault', payer: PAYER });
+		// Before the VM goes, the app finds the backup on the chain itself.
+		await page.context().route(calibration.rpcUrls.default.http[0], rpc(answers(chainPiece)));
 		// The provider serves a backup sealed with age to the vault's backup key (made up, made here).
 		const e = new Encrypter();
 		e.addRecipient(ageRecipient(ageIdentityFromMaster(master)));

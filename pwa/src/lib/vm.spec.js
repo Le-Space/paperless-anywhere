@@ -94,4 +94,36 @@ describe('vmStatus', () => {
 			globalThis.fetch = orig;
 		}
 	});
+	it('takes a fixed address with its port', async () => {
+		const { validHost } = await import('./vm.js');
+		expect(validHost('abcdefghijklmnop.vm.le-space.de:24000')).toBe(true);
+		expect(validHost('abc.2n6.me')).toBe(true);
+	});
+});
+
+describe('host names', () => {
+	it('takes only one label under 2n6.me from 2n6', async () => {
+		const { twoN6Host } = await import('./vm.js');
+		expect(twoN6Host('abc123')).toBe('abc123.2n6.me');
+		expect(twoN6Host('https://abc123.2n6.me/')).toBe('abc123.2n6.me');
+		for (const bad of ['', 'abc.2n6.me.example.com', 'example.com', 'a_b', '-a', 'abc.2n6.me/x', 'abc.2n6.me:8443', 'http://abc.2n6.me', 'user@abc.2n6.me']) expect(twoN6Host(bad)).toBeNull();
+	});
+	it('reads no status page, and sends no token, to anything but a plain name', async () => {
+		const { vmStatus } = await import('./vm.js');
+		const seen = [];
+		const orig = globalThis.fetch;
+		globalThis.fetch = async (url) => (seen.push(String(url)), new Response('{}'));
+		try {
+			for (const bad of ['h.example/x', 'h.example:0', 'h.example:70000', 'h.example:', 'user@h.example', '1.2.3.4', '1.2.3.4:443', 'localhost', ''])
+				await expect(vmStatus(bad, 'a'.repeat(32))).rejects.toThrow(/not a host name/);
+			expect(seen).toEqual([]);
+		} finally {
+			globalThis.fetch = orig;
+		}
+	});
+	it('takes a fixed address with its port', async () => {
+		const { validHost } = await import('./vm.js');
+		expect(validHost('abcdefghijklmnop.vm.le-space.de:24000')).toBe(true);
+		expect(validHost('abc.2n6.me')).toBe(true);
+	});
 });

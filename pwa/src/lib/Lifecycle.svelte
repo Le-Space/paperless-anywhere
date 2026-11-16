@@ -2,7 +2,7 @@
 	import { balancesRound, onceThisRound } from '$lib/balance-refresh.js';
 	import RefreshBalances from '$lib/RefreshBalances.svelte';
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
-	import { AlephShortError, BackupPartialError, StartGoneError, attestRunning, eraseStopped, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
+	import { AlephShortError, BackupPartialError, StartGoneError, attestRunning, confirmStopBackup, eraseStopped, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
 	import { buildImageForVault } from '$lib/own-image-build.js';
 	import { BUILDER, hasOwnImage, imageStatus } from '$lib/own-image.js';
 	import FirstStart from '$lib/FirstStart.svelte';
@@ -629,9 +629,19 @@
 		profile = await updateProfile(master, ({ starting, ...rest }) => rest);
 		onchange();
 	});
+	// With backups on: the piece CIDs the chain lists for this vault, read by the
+	// app itself. A stop erases the VM only once its backup is among them.
+	const backupsOnChain = () =>
+		profile.backupConfig
+			? async () => {
+					const listing = await listingNow();
+					if (!listing) throw new Error(tr().card.backupsUnreadable);
+					return (await listBackups({ network: profile.network ?? 'calibration', ...listing })).filter((b) => b.copies.length > 0).map((b) => b.pieceCid);
+				}
+			: null;
 	const stop = () => run(async () => {
 		await reload();
-		await finishStop(await stopPaperless(master, $state.snapshot(profile), track('stop')));
+		await finishStop(await stopPaperless(master, $state.snapshot(profile), track('stop'), { onChain: backupsOnChain() }));
 	}, () => stop());
 	// A VM whose restore failed runs an empty Paperless and makes no backup
 	// (paperless-backup refuses): it is deleted without one, never stopped
@@ -667,6 +677,9 @@
 		// The stop's backup, as the VM reported it before it asked.
 		stopSent = true;
 		vmPage = p.status;
+		// Even a partial backup must be on the chain, and new, before the VM goes.
+		const onChain = backupsOnChain();
+		if (onChain) await confirmStopBackup(p.status, { onChain, before: p.before, known: profile.ownBackups ?? [] });
 		await finishStop(await eraseStopped(master, $state.snapshot(profile), p.status, on));
 	});
 	const keepVm = () => answer(async () => {

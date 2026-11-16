@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BackupFailedError, BackupPartialError, passphraseFitsImage, requestBackup, resumeAfterPartial, startRequirements, stopPaperless, debugKeysFor } from './lifecycle.js';
+import { BackupFailedError, BackupPartialError, BackupUnconfirmedError, confirmStopBackup, passphraseFitsImage, requestBackup, resumeAfterPartial, startRequirements, stopPaperless, debugKeysFor } from './lifecycle.js';
 import { newMasterSecret, statusToken } from './keys/derive.js';
 
 const master = newMasterSecret();
@@ -109,6 +109,91 @@ describe('stopPaperless', () => {
 		const send = async (_m, _p, secrets) => void (request = secrets.stop_request);
 		const status = async () => ({ ...base, phase: 'stop-failed', stop: { status: 'failed', request, at: 't1', backup: { status: 'failed', reason: 'made up' } } });
 		await expect(stopPaperless(master, profile, () => {}, { ...fast, send, status, erase })).rejects.toBeInstanceOf(BackupFailedError);
+	});
+});
+
+describe('stopPaperless with backups on', () => {
+	const erase = async (_m, _p, status) => ({ erased: true, status });
+	// The page answers the request it was sent, with a backup of `piece`.
+	const stopped = (piece) => {
+		let request = '';
+		return {
+			send: async (_m, _p, secrets) => void (request = secrets.stop_request),
+			status: async () => ({ ...base, phase: 'stopped', stop: { status: 'ready', request, at: 't1', backup: { status: 'done', backup: { pieceCid: piece, copies: [{ providerId: 1 }] } } } })
+		};
+	};
+
+	it('erases once the new backup is on the chain', async () => {
+		const lists = [['bafkold'], ['bafkold'], ['bafkold', 'bafknew']];
+		const onChain = async () => (lists.length > 1 ? lists.shift() : lists[0]);
+		const out = await stopPaperless(master, profile, () => {}, { ...fast, ...stopped('bafknew'), erase, onChain, confirmTries: 5 });
+		expect(out.erased).toBe(true);
+	});
+
+	it('keeps the VM when the backup never shows on the chain', async () => {
+		let erased = false;
+		const error = await stopPaperless(master, profile, () => {}, { ...fast, ...stopped('bafknew'), erase: async () => void (erased = true), onChain: async () => ['bafkold'], confirmTries: 3 }).catch((e) => e);
+		expect(error).toBeInstanceOf(BackupUnconfirmedError);
+		expect(erased).toBe(false);
+	});
+
+	it('keeps the VM when the reported backup was there before the stop', async () => {
+		let erased = false;
+		const error = await stopPaperless(master, profile, () => {}, { ...fast, ...stopped('bafkold'), erase: async () => void (erased = true), onChain: async () => ['bafkold'], confirmTries: 3 }).catch((e) => e);
+		expect(error).toBeInstanceOf(BackupUnconfirmedError);
+		expect(erased).toBe(false);
+	});
+
+	// "unchanged": a backup ran just before the stop, which made none of its own.
+	const unchanged = () => {
+		let request = '';
+		return {
+			send: async (_m, _p, secrets) => void (request = secrets.stop_request),
+			status: async () => ({ ...base, phase: 'stopped', stop: { status: 'ready', request, at: 't1', backup: { status: 'unchanged' } } })
+		};
+	};
+
+	it('a stop without a piece of its own erases once a new backup is on the chain', async () => {
+		const lists = [['bafkold'], ['bafkold', 'bafkjustbefore']];
+		const onChain = async () => (lists.length > 1 ? lists.shift() : lists[0]);
+		const out = await stopPaperless(master, profile, () => {}, { ...fast, ...unchanged(), erase, onChain, confirmTries: 3 });
+		expect(out.erased).toBe(true);
+	});
+
+	it('a stop without a piece of its own keeps the VM when nothing new is on the chain', async () => {
+		await expect(stopPaperless(master, profile, () => {}, { ...fast, ...unchanged(), erase, onChain: async () => ['bafkold'], confirmTries: 2 })).rejects.toBeInstanceOf(BackupUnconfirmedError);
+	});
+
+	it('a stop without a piece of its own keeps the VM when the list before could not be read', async () => {
+		let reads = 0;
+		const onChain = async () => (reads++ === 0 ? Promise.reject(new Error('down')) : ['bafkold', 'bafknew']);
+		await expect(stopPaperless(master, profile, () => {}, { ...fast, ...unchanged(), erase, onChain, confirmTries: 2 })).rejects.toBeInstanceOf(BackupUnconfirmedError);
+	});
+
+	it('without the list before, a reported piece must not be one this vault knows', async () => {
+		let reads = 0;
+		const onChain = async () => (reads++ === 0 ? Promise.reject(new Error('down')) : ['bafkold']);
+		const known = { ...profile, ownBackups: ['bafkold'] };
+		await expect(stopPaperless(master, known, () => {}, { ...fast, ...stopped('bafkold'), erase, onChain, confirmTries: 2 })).rejects.toBeInstanceOf(BackupUnconfirmedError);
+	});
+
+	it('a partial stop carries the list from before, for the later check', async () => {
+		let request = '';
+		const send = async (_m, _p, secrets) => void (request = secrets.stop_request);
+		const status = async () => ({ ...base, phase: 'stop-partial', stop: { status: 'partial', request, at: 't1', backup: { status: 'partial', backup: entry(1, 2) } } });
+		const error = await stopPaperless(master, profile, () => {}, { ...fast, send, status, erase, onChain: async () => ['bafkold'] }).catch((e) => e);
+		expect(error).toBeInstanceOf(BackupPartialError);
+		expect(error.before).toEqual(['bafkold']);
+	});
+});
+
+describe('confirmStopBackup', () => {
+	const page = (piece) => ({ stop: { backup: { backup: { pieceCid: piece } } } });
+	it('returns the piece once listed', async () => {
+		expect(await confirmStopBackup(page('bafknew'), { onChain: async () => ['bafknew'], before: [], tries: 1, delayMs: 1 })).toBe('bafknew');
+	});
+	it('a chain that does not answer is no confirmation', async () => {
+		await expect(confirmStopBackup(page('bafknew'), { onChain: async () => { throw new Error('down'); }, tries: 2, delayMs: 1 })).rejects.toBeInstanceOf(BackupUnconfirmedError);
 	});
 });
 
