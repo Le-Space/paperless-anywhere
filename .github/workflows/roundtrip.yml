@@ -168,6 +168,9 @@ jobs:
           printf '%s' "$WALLET" | tr -d '\r\n' > "$RUNNER_TEMP/wallet.key"
           ssh-keygen -q -t ed25519 -N '' -C paperless-roundtrip -f "$RUNNER_TEMP/rt_ed25519"
           age-keygen -o "$RUNNER_TEMP/age.txt" 2>/dev/null
+          # The vault's key that binds backups to it (backup_mark_key): made for
+          # this run, the same for both VMs, as the app derives it from the vault.
+          head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$RUNNER_TEMP/mark.key"
           recipient="$(age-keygen -y "$RUNNER_TEMP/age.txt")"
           payer="$(cd "$RUNNER_TEMP/tool" && node -e 'const { privateKeyToAccount } = require("viem/accounts"); const k = require("fs").readFileSync(process.argv[1], "utf8").trim(); console.log(privateKeyToAccount(k.startsWith("0x") ? k : "0x" + k).address)' "$RUNNER_TEMP/wallet.key")"
           jq -n --arg r "$recipient" --arg p "$payer" \
@@ -239,6 +242,7 @@ jobs:
           umask 077
           printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=test" \
             --secret "backup_config=$(cat "$RUNNER_TEMP/backup_config.json")" --secret "backup_session_key=$(cat "$RUNNER_TEMP/session.key")" \
+            --secret "backup_mark_key=$(cat "$RUNNER_TEMP/mark.key")" \
             > "$RUNNER_TEMP/secrets1.args"
           . "$RUNNER_TEMP/fixed.sh"; fixed_args "$hash" "$RUNNER_TEMP/fixed1.args"; cat "$RUNNER_TEMP/fixed1.args" >> "$RUNNER_TEMP/secrets1.args"
           ok=""
@@ -326,6 +330,7 @@ jobs:
           umask 077
           printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=test" \
             --secret "restore_ledger_entry=$(jq -c . "$RUNNER_TEMP/entry.json")" --secret "age_identity=$(cat "$RUNNER_TEMP/age.txt")" \
+            --secret "backup_mark_key=$(cat "$RUNNER_TEMP/mark.key")" \
             > "$RUNNER_TEMP/secrets2.args"
           . "$RUNNER_TEMP/fixed.sh"; fixed_args "$hash" "$RUNNER_TEMP/fixed2.args"; cat "$RUNNER_TEMP/fixed2.args" >> "$RUNNER_TEMP/secrets2.args"
           ok=""

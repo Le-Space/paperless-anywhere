@@ -38,7 +38,7 @@ import {
 	CREDITS_PRODUCT,
 	fundBackups
 } from '../src/lib/credits.js';
-import { backupPrivateKey } from '../src/lib/keys/derive.js';
+import { backupMarkKey, backupPrivateKey } from '../src/lib/keys/derive.js';
 import { ageIdentityFromMaster, ageRecipient } from '../src/lib/keys/age.js';
 import { backupConfigFor, vmBackupSecrets } from '../src/lib/backups.js';
 
@@ -188,6 +188,8 @@ async function prepare(/** @type {string} */ dir) {
 	writeFileSync(join(dir, 'backup_config.json'), secrets.backup_config, { mode: 0o600 });
 	writeFileSync(join(dir, 'backup_key'), secrets.backup_key, { mode: 0o600 });
 	writeFileSync(join(dir, 'age_identity'), `${identity}\n`, { mode: 0o600 });
+	// The key that binds backups to the vault, as the start sends it to an own image (lifecycle.js).
+	writeFileSync(join(dir, 'backup_mark_key'), backupMarkKey(m), { mode: 0o600 });
 	const c = JSON.parse(secrets.backup_config);
 	say(`vm config: network ${c.network}, providers [${c.providerIds.join(', ')}], copies ${c.copies}, label ${c.datasetMetadata.app}, customer ${c.datasetMetadata.customer}, remoteSigner ${c.remoteSigner.creditsUrl} (${c.remoteSigner.product})`);
 	output('network', network);
