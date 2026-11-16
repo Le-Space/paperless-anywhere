@@ -68,13 +68,16 @@ passphrase, so it may pass through a relay and lie on public storage.
 In the setup, the image step asks which image (once a builder is fixed in
 the app):
 
-- **The public image from Le Space**: one passphrase per image version,
-  entered with the image's hash. Le Space knows it, and everyone using that
-  version.
-- **My own image**: **Build my image** (`pwa/src/lib/own-image.js`).
-  Nobody but your vault knows the passphrase. Until it is built, the VM
-  starts from the public image, and the step says so. Going back to the
-  public image asks for its hash and passphrase anew.
+- **My own encrypted image (recommended)**: **Build my image**
+  (`pwa/src/lib/own-image.js`). Its passphrase comes from your vault; Le
+  Space does not know it. Only a VM on it gets the keys for backups, a
+  restore and the fixed address (`pwa/src/lib/own-image-check.js`), and a
+  production instance (role primary) needs it: the next start builds it.
+- **Public image, for trying out**: it starts empty, without backups and
+  without the fixed address. The reason, plainly: one passphrase holds for
+  everyone using that image version, and the disk's content is not measured
+  at the start. A test instance whose own image is not built yet starts from
+  it. Going back to it asks for its hash and passphrase anew.
 
 For the own image, the app
 
@@ -306,14 +309,15 @@ second V-PROGRAM on a published builder's volumes showed the first one's
 measurement and sealed the real image
 ([#202](https://github.com/Le-Space/paperless-anywhere/issues/202)).
 
-**Who pays.** With a Le Space package, the Le Space Credits balance
-does (model A): each build is charged to it, separately from the plan
-price, and needs a running plan. In a voucher period, builds are
-included until one succeeds (up to 3 tries); the setup then says so
-instead of a price. The app always reports a build's end
-(`/v1/image/build/done`), also after a failure or a closed window. The setup shows the price of one build first, the
-builder's runtime taken from the Credits balance, and asks. The service
-then charges it and grants the customer's Le Space sub-account what
+**Who pays.** With a running Le Space package or a voucher, the build is
+included (model A): until one succeeds (at most 3 tries), and again for
+each new image version. The app names the version it builds (the plain
+image's SHA-256), and Le Space Credits includes only versions listed at
+`/own-image.json` (live since 2026-11-16). For any other version, or
+without a running plan, the setup shows the price of one build first, the
+builder's runtime taken from the Credits balance, and asks. The app always
+reports a build's end (`/v1/image/build/done`), also after a failure or a
+closed window. The service grants the customer's Le Space sub-account what
 Aleph's one-day check needs. The app's key, allowed by the sub-account to
 send `V-PROGRAM`, `STORE` and `FORGET` for it, starts the builder and
 stores the image there. After the builder's FORGET it tells the service

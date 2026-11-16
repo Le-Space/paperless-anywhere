@@ -41,7 +41,7 @@ test('the overview says which image Paperless starts from, and offers a newer ve
 
 test('the overview names the public image when no own one is built or planned', async ({ page }) => {
 	await vaultWith(page, { rootfsItemHash: IMAGE, luksPassphrase: 'made-up passphrase' });
-	await expect(page.getByTestId('image-line')).toHaveText('Öffentliches Image von Le Space.');
+	await expect(page.getByTestId('image-line')).toHaveText('Öffentliches Image, zum Ausprobieren.');
 	await expect(page.getByTestId('image-rebuild')).toHaveCount(0);
 });
 

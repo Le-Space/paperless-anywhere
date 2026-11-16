@@ -36,6 +36,7 @@ export const credits = {
 		imageBuild: {
 			NO_PLAN: 'Ein eigenes Image über das Paket braucht ein laufendes Paket.',
 			BUILD_RUNNING: 'Für dieses Konto läuft schon ein Bau. Bitte warten, bis er fertig ist (spätestens zwei Stunden).',
+			BUILD_LIMIT: 'Heute sind für dieses Konto schon genug Bauten gelaufen. Bitte morgen noch einmal versuchen.',
 			NO_IMAGES: 'Der Credits-Dienst baut für dieses Produkt keine eigenen Images.',
 			SUBS_OFF: 'Der Credits-Dienst nimmt gerade keine Bauaufträge an.',
 			BUILD: 'Der Credits-Dienst kennt diesen Bau nicht.'
@@ -129,6 +130,7 @@ export const credits = {
 		imageBuild: {
 			NO_PLAN: 'An image of your own through the package needs a running package.',
 			BUILD_RUNNING: 'A build is already running for this account. Please wait until it is done (two hours at most).',
+			BUILD_LIMIT: 'This account has had enough builds today. Please try again tomorrow.',
 			NO_IMAGES: 'The credits service builds no images of their own for this product.',
 			SUBS_OFF: 'The credits service takes no builds right now.',
 			BUILD: 'The credits service does not know this build.'

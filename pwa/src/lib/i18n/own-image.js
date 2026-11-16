@@ -8,7 +8,7 @@ export const ownImage = {
 	de: {
 		intro: {
 			before: 'Ein Image nur für diesen Tresor: Ein geprüfter Build-Dienst versiegelt das öffentliche Image mit einer Passphrase, die aus deinem Tresor abgeleitet wird. Die App prüft den Hardware-Nachweis des Dienstes, bevor sie die Passphrase schickt, holt das versiegelte Image in Stücken über ebenso geprüfte Verbindungen zurück und lädt es selbst zu Aleph hoch (knapp 900 MiB; das dauert und braucht eine stabile Verbindung). Das Image liegt danach bei Aleph auf der Adresse dieser App (',
-			after: '), die auch den Speicher bezahlt. Mit einem Le-Space-Paket liegt es stattdessen auf deinem Aleph-Konto bei Le Space: Jeder Bau wird von deinem Le-Space-Guthaben abgebucht, den Preis siehst du vorher (mit einem Gutschein ist er enthalten, bis ein Bau gelingt, bis zu 3 Versuche); der Speicher des Images ist im Paket enthalten.'
+			after: '), die auch den Speicher bezahlt. Mit einem Le-Space-Paket oder Gutschein liegt es stattdessen auf deinem Aleph-Konto bei Le Space, und der Bau ist enthalten: bis einer gelingt (höchstens 3 Versuche), und wieder bei jeder neuen Image-Version. Der Speicher des Images ist ebenfalls enthalten. Nur wenn der Dienst einen Bau nicht einschließt, siehst du vorher seinen Preis.'
 		},
 		overview: {
 			buildsAtStart: 'Eigenes Image: wird beim ersten Start gebaut (etwa 15 Minuten).',
@@ -16,7 +16,7 @@ export const ownImage = {
 			newer: 'Eine neuere Image-Version ist da.',
 			rebuild: 'Jetzt neu bauen',
 			rebuildStopped: 'Neu bauen geht, wenn Paperless gestoppt ist.',
-			publicImage: 'Öffentliches Image von Le Space.'
+			publicImage: 'Öffentliches Image, zum Ausprobieren.'
 		},
 		sourcesFold: 'Woraus und womit wird gebaut?',
 		sourcesHint: 'Diese Werte sind in der App festgelegt und für alle gleich. Das öffentliche Image kann jeder laden und den Hash vergleichen; den Messwert bestätigt die Hardware, bevor die App die Passphrase schickt.',
@@ -28,20 +28,21 @@ export const ownImage = {
 			measurement: 'Messwert des Build-Dienstes'
 		},
 		have: (/** @type {string} */ date) => `Geschafft: Dein Image ist nur für deinen Tresor versiegelt (gebaut am ${date}).`,
-		tip: 'Tipp: Mit einem eigenen Image kennt niemand außer dir die Passphrase – auch Le Space nicht. Bau in etwa 15 Minuten.',
+		tip: 'Tipp: Mit einem eigenen Image kennt niemand außer dir die Passphrase – auch Le Space nicht. Bau in etwa 15 Minuten; mit Paket oder Gutschein enthalten.',
 		build: 'Mein Image bauen',
 		rebuild: 'Mein Image neu bauen',
 		whileRunning: 'Erst möglich, wenn Paperless gestoppt ist. Der Umzug einer laufenden Paperless: „Sichern und beenden“, hier bauen, neu starten; der Start stellt die neueste Sicherung wieder her. Scheitert das, legt die neue VM keine Sicherung an: Lösche sie ohne Sicherung, die letzte Sicherung bleibt die neueste.',
 		choice: {
 			legend: 'Welches Image?',
-			public: 'Das öffentliche Image von Le Space',
-			publicHint: 'Eine Passphrase je Image-Version: Le Space kennt sie, und alle, die diese Version nutzen.',
-			own: 'Mein eigenes Image',
-			ownHint: 'Eine Passphrase nur für diesen Tresor: Niemand sonst kennt sie, auch Le Space nicht.',
-			notBuilt: 'Noch nicht gebaut: Bis dahin startet die VM vom öffentlichen Image.',
+			public: 'Öffentliches Image, zum Ausprobieren',
+			publicHint: 'Startet leer, ohne Sicherungen und ohne feste Adresse.',
+			publicWhy: 'Warum: Eine Passphrase gilt für alle, die diese Image-Version nutzen, und der Inhalt der Platte wird beim Start nicht gemessen. Darum bekommt eine VM darauf keine Schlüssel für Sicherungen, Wiederherstellung oder die feste Adresse.',
+			own: 'Mein eigenes, verschlüsseltes Image (empfohlen)',
+			ownHint: 'Seine Passphrase entsteht in deinem Tresor; Le Space kennt sie nicht. Damit gibt es Sicherungen, Wiederherstellung und die feste Adresse.',
+			notBuilt: 'Noch nicht gebaut: Bau es hier mit „Mein Image bauen“. Bis dahin startet eine Test-Instanz vom öffentlichen Image.',
 			toTopUp: 'Zum Guthaben',
 			primaryNeedsOwn: 'Im Echtbetrieb ist das eigene Image Pflicht: Der nächste Start baut es zuerst.',
-			publicLimits: 'Mit dem öffentlichen Image startet Paperless ohne Sicherungen, ohne Wiederherstellung und ohne feste Adresse: Deren Schlüssel gehen nur an dein eigenes Image.',
+			publicLimits: 'Zum Ausprobieren: Paperless startet leer, ohne Sicherungen und ohne feste Adresse. Für deine Dokumente nimm dein eigenes Image.',
 			recheck: 'Ich habe aufgeladen – neu prüfen',
 			packageShort: (/** @type {string | null} */ price, /** @type {string | null} */ missing) =>
 				`${price ? `Ein Bau kostet ${price} aus deinem Le-Space-Guthaben. ` : ''}Dein Guthaben reicht dafür nicht${missing ? `: Es fehlen ${missing}` : ''}. Lade es bei deinem Paket auf dieser Seite auf. Einen Gutschein kannst du nicht einlösen, solange dein Paket läuft.`,
@@ -53,7 +54,7 @@ export const ownImage = {
 			included: 'Dieser Bau ist enthalten, bis einer gelingt (höchstens 3 Versuche); der Speicher des Images auch.',
 			confirmIncluded: 'Eigenes Image bauen? Dieser Bau ist enthalten, es wird nichts abgebucht.',
 			serviceOld: 'Der Credits-Dienst erlaubt der App das noch nicht (V-PROGRAM und STORE). Bitte später noch einmal versuchen.',
-			needsCredits: (/** @type {string} */ need, /** @type {string} */ have) => `Ein eigenes Image braucht derzeit Aleph-Guthaben auf der Adresse dieser App: Aleph startet den Build-Dienst nur, wenn es für einen Tag seiner Laufzeit, den Speicher des Images und alles, was die Adresse schon bezahlt, reicht (etwa ${need} Credits; vorhanden: ${have}). Mit einem Le-Space-Paket nutzt du vorerst das öffentliche Image.`
+			needsCredits: (/** @type {string} */ need, /** @type {string} */ have) => `Ein eigenes Image braucht derzeit Aleph-Guthaben auf der Adresse dieser App: Aleph startet den Build-Dienst nur, wenn es für einen Tag seiner Laufzeit, den Speicher des Images und alles, was die Adresse schon bezahlt, reicht (etwa ${need} Credits; vorhanden: ${have}). Mit einem Le-Space-Paket oder Gutschein ist der Bau enthalten.`
 		},
 		step: {
 			start: 'Build-Dienst starten (einige Minuten)',
@@ -97,7 +98,7 @@ export const ownImage = {
 	en: {
 		intro: {
 			before: 'An image for this vault only: a verified build service seals the public image with a passphrase derived from your vault. The app checks the service\'s hardware attestation before it sends the passphrase, fetches the sealed image back in pieces over connections verified the same way, and uploads it to Aleph itself (just under 900 MiB; this takes a while and needs a stable connection). The image then lies on Aleph under this app\'s address (',
-			after: '), which also pays for the storage. With a Le Space package it lies on your Aleph account at Le Space instead: each build is charged to your Le Space balance, and you see the price first (with a voucher it is included until a build succeeds, up to 3 tries); storing the image is included in your package.'
+			after: '), which also pays for the storage. With a Le Space package or a voucher it lies on your Aleph account at Le Space instead, and the build is included: until one succeeds (at most 3 tries), and again for each new image version. Storing the image is included too. Only when the service does not include a build do you see its price first.'
 		},
 		overview: {
 			buildsAtStart: 'Image of your own: built at the first start (about 15 minutes).',
@@ -105,7 +106,7 @@ export const ownImage = {
 			newer: 'A newer image version is available.',
 			rebuild: 'Build it again now',
 			rebuildStopped: 'Building again works once Paperless is stopped.',
-			publicImage: 'Public image from Le Space.'
+			publicImage: 'Public image, for trying out.'
 		},
 		sourcesFold: 'What is it built from, and by what?',
 		sourcesHint: 'These values are fixed in the app and the same for everyone. Anyone can download the public image and compare the hash; the hardware confirms the measurement before the app sends the passphrase.',
@@ -117,20 +118,21 @@ export const ownImage = {
 			measurement: 'Measurement of the build service'
 		},
 		have: (/** @type {string} */ date) => `Done: your image is sealed for your vault only (built on ${date}).`,
-		tip: 'Tip: with an image of your own, nobody but you knows the passphrase – Le Space neither. Built in about 15 minutes.',
+		tip: 'Tip: with an image of your own, nobody but you knows the passphrase – Le Space neither. Built in about 15 minutes; included with a package or a voucher.',
 		build: 'Build my image',
 		rebuild: 'Build my image again',
 		whileRunning: 'Possible once Paperless is stopped. To move a running Paperless: “Back up and stop”, build here, start again; the start restores the newest backup. If that fails, the new VM makes no backup: delete it without a backup, and the last backup stays the newest.',
 		choice: {
 			legend: 'Which image?',
-			public: 'The public image from Le Space',
-			publicHint: 'One passphrase per image version: Le Space knows it, and everyone using that version.',
-			own: 'My own image',
-			ownHint: 'A passphrase for this vault only: nobody else knows it, Le Space neither.',
-			notBuilt: 'Not built yet: until then the VM starts from the public image.',
+			public: 'Public image, for trying out',
+			publicHint: 'Starts empty, without backups and without the fixed address.',
+			publicWhy: 'Why: one passphrase holds for everyone using that image version, and the disk’s content is not measured at the start. So a VM on it gets no keys for backups, a restore or the fixed address.',
+			own: 'My own encrypted image (recommended)',
+			ownHint: 'Its passphrase comes from your vault; Le Space does not know it. It brings backups, restores and the fixed address.',
+			notBuilt: 'Not built yet: build it here with “Build my image”. Until then a test instance starts from the public image.',
 			toTopUp: 'To the balance',
 			primaryNeedsOwn: 'In production the own image is required: the next start builds it first.',
-			publicLimits: 'With the public image, Paperless starts without backups, without a restore and without the fixed address: their keys go only to your own image.',
+			publicLimits: 'For trying out: Paperless starts empty, without backups and without the fixed address. For your documents, use your own image.',
 			recheck: 'I topped it up – check again',
 			packageShort: (/** @type {string | null} */ price, /** @type {string | null} */ missing) =>
 				`${price ? `A build costs ${price} from your Le Space balance. ` : ''}Your balance does not cover it${missing ? `: ${missing} missing` : ''}. Top it up with your package on this page. A voucher cannot be redeemed while your package runs.`,
@@ -142,7 +144,7 @@ export const ownImage = {
 			included: 'This build is included until one succeeds (at most 3 tries); so is storing the image.',
 			confirmIncluded: 'Build an image of your own? This build is included; nothing is charged.',
 			serviceOld: 'The credits service does not allow the app this yet (V-PROGRAM and STORE). Please try again later.',
-			needsCredits: (/** @type {string} */ need, /** @type {string} */ have) => `An image of your own needs Aleph credits on this app\'s address for now: Aleph starts the build service only when they cover a day of its runtime, the image\'s storage and everything the address already pays for (about ${need} credits; there are ${have}). With a Le Space package, use the public image for now.`
+			needsCredits: (/** @type {string} */ need, /** @type {string} */ have) => `An image of your own needs Aleph credits on this app\'s address for now: Aleph starts the build service only when they cover a day of its runtime, the image\'s storage and everything the address already pays for (about ${need} credits; there are ${have}). With a Le Space package or a voucher, the build is included.`
 		},
 		step: {
 			start: 'Starting the build service (a few minutes)',
