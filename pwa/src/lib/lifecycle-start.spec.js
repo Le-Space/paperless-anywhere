@@ -98,3 +98,22 @@ describe('resumeStart and a start Aleph no longer has', () => {
 		expect(e).toBeInstanceOf(StartGoneError);
 	});
 });
+
+describe('a start that restores, when no copy delivers', () => {
+	it('asks for no VM and says to try again later', async () => {
+		const { ownImagePatch } = await import('./own-image-check.js');
+		const { imagePassphrase } = await import('./keys/derive.js');
+		let sent = false;
+		send.impl = async () => {
+			sent = true;
+		};
+		const plain = 'ef'.repeat(32);
+		const own = { ...profile, luksPassphrase: imagePassphrase(master, plain), ownImage: { plainSha256: plain, rootfsItemHash: profile.rootfsItemHash }, restoreEntry: { pieceCid: 'x', copies: [{ retrievalUrl: 'https://a.example/piece/x' }, { retrievalUrl: 'https://b.example/piece/x' }] } };
+		expect(ownImagePatch(master, own)).toBeNull();
+		const e = await startPaperless(master, own, () => {}, { reach: async () => ({ answering: 0, total: 2 }) }).catch((x) => x);
+		expect(e.message).toMatch(/keine der 2 Kopien/);
+		expect(e.retryable).toBe(true);
+		expect(sent).toBe(false);
+	});
+});
+

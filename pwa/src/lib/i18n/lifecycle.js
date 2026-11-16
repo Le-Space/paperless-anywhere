@@ -14,6 +14,7 @@ export const life = {
 			payerAccount: { lespace: 'dem Konto, mit dem Le Space deine VM bezahlt', app: 'der Adresse der App', wallet: 'deiner Wallet' },
 			noInterruptedStart: 'Es gibt keinen unterbrochenen Start.',
 			vmGone: (/** @type {string} */ hash, /** @type {string | number} */ status) => `Die VM ${hash} gibt es bei Aleph nicht mehr (${status}).`,
+			copiesUnreachable: (/** @type {number} */ n) => `Gerade liefert keine der ${n} Kopien deiner Sicherung aus (ihre Anbieter antworten nicht). Darum wird keine VM angefordert: Sie würde leer starten und kosten. Deine Sicherung ist dadurch nicht verloren. Bitte später noch einmal versuchen.`,
 			restoreNeedsOwnImage: 'Eine Sicherung wird nur in dein eigenes Image wiederhergestellt. Baue zuerst dein eigenes Image (Einrichtung, Schritt Image) oder starte ohne Sicherung.',
 			startGone: (/** @type {string} */ status, /** @type {string[]} */ missing) =>
 				`Der unterbrochene Start ist bei Aleph ${status === 'rejected' ? 'abgelehnt worden' : 'nicht mehr da'}${missing.length ? ` (Aleph kennt ${missing.length === 1 ? 'dieses Image' : 'diese Teile'} nicht mehr: ${missing.join(', ')})` : ''}. Er ist verworfen; du kannst neu starten.`,
@@ -39,6 +40,7 @@ export const life = {
 			primaryForMainnet: 'Rolle „Produktiv“ für Sicherungen auf Mainnet (oder Sicherungen aus)'
 		},
 		progress: {
+			checkCopies: 'Prüfe, ob die Kopien deiner Sicherung ausliefern',
 			publicNoFixed: 'Öffentliches Image: ohne feste Adresse (das DNS-Token geht nur an dein eigenes Image)',
 			publicNoBackups: 'Öffentliches Image: ohne Sicherungen (deren Schlüssel gehen nur an dein eigenes Image)',
 			revokeLater: (/** @type {string} */ reason) => `VM gelöscht; den Schlüssel der VM für die Sicherungen nimmt die App beim nächsten Öffnen zurück (${reason})`,
@@ -127,6 +129,7 @@ export const life = {
 			payerAccount: { lespace: 'the account Le Space pays your VM with', app: 'the app’s address', wallet: 'your wallet' },
 			noInterruptedStart: 'There is no interrupted start.',
 			vmGone: (/** @type {string} */ hash, /** @type {string | number} */ status) => `The VM ${hash} no longer exists on Aleph (${status}).`,
+			copiesUnreachable: (/** @type {number} */ n) => `None of the ${n} copies of your backup delivers right now (their providers do not answer). So no VM is requested: it would start empty and cost. Your backup is not lost by this. Please try again later.`,
 			restoreNeedsOwnImage: 'A backup is restored only into your own image. Build your own image first (setup, image step) or start without a backup.',
 			startGone: (/** @type {string} */ status, /** @type {string[]} */ missing) =>
 				`Aleph ${status === 'rejected' ? 'rejected' : 'no longer has'} the interrupted start${missing.length ? ` (Aleph no longer knows ${missing.length === 1 ? 'this image' : 'these parts'}: ${missing.join(', ')})` : ''}. It was dropped; you can start again.`,
@@ -152,6 +155,7 @@ export const life = {
 			primaryForMainnet: 'role “Productive” for backups on mainnet (or backups off)'
 		},
 		progress: {
+			checkCopies: 'Checking that the copies of your backup deliver',
 			publicNoFixed: 'Public image: without the fixed address (the DNS token goes only to your own image)',
 			publicNoBackups: 'Public image: without backups (their keys go only to your own image)',
 			revokeLater: (/** @type {string} */ reason) => `VM deleted; the app takes back the VM’s key for the backups the next time it is opened (${reason})`,

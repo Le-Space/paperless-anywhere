@@ -391,7 +391,7 @@
 				errorRaw = error;
 				error = tr().net.broken;
 				again = retry;
-			}
+			} else if (/** @type {any} */ (e)?.retryable) again = retry;
 			errorLog = [.../** @type {any} */ ((e)?.facts ?? []), .../** @type {any} */ ((e)?.log ?? [])];
 			// For "Diagnose kopieren": the browser's own words where there are any, and the step.
 			noteError({ action, step: progress, message: errorRaw || error });
