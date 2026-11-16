@@ -5,6 +5,7 @@
 	/* global __BUILD__ */
 	import { CREDITS_URL, cancelMailto } from '$lib/credits.js';
 	import { format, lang, t } from '$lib/i18n/index.js';
+	import GitHubMark from '$lib/GitHubMark.svelte';
 
 	const build = __BUILD__;
 	const time = $derived(format.dateTime(build.time, { dateStyle: 'medium', timeStyle: 'short' }, $lang));
@@ -19,12 +20,12 @@
 </script>
 
 <footer data-testid="build-info">
+	<p class="source"><a href="https://github.com/Le-Space/paperless-anywhere" rel="noopener" data-testid="footer-source"><GitHubMark />{$t.app.footer.source}</a></p>
 	<nav class="legal" aria-label={$t.app.footer.legal}>
 		<a href={home}>{$t.app.footer.about}</a>
 		<a href="https://le-space.de/#impressum">{$t.app.footer.imprint}</a>
 		<a href="https://credits.le-space.de/datenschutz">{$t.app.footer.privacy}</a>
 		<a href="/lizenzen/">{$t.app.footer.licences}</a>
-		<a href="https://github.com/Le-Space/paperless-anywhere" rel="noopener" data-testid="footer-source">{$t.app.footer.source}</a>
 		<a href={$lang === 'en' ? '#help' : '#hilfe'} data-testid="footer-help">{$t.help.title}</a>
 		<!-- Reachable at any time, also with the vault locked or lost (§ 312k BGB):
 		     with an open vault the package card cancels in place and at once. -->
@@ -41,4 +42,6 @@
 	code { word-break: break-all; }
 	.legal { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; margin-bottom: 0.5rem; }
 	.legal a { color: var(--text-2); }
+	.source { margin: 0 0 0.6rem; }
+	.source a { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--text); font-weight: 600; font-size: 0.9rem; }
 </style>
