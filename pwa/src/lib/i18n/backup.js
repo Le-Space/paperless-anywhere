@@ -142,6 +142,8 @@ export const backup = {
 			noKey: 'Der Sicherungsschlüssel dieses Tresors ist hier nicht hinterlegt.'
 		},
 		places: {
+			push: 'An die laufende VM übergeben',
+			pushHint: 'Paperless läuft: Geänderte Sicherungsorte gelten für die laufende VM erst, wenn du sie übergibst.',
 			regions: { EUROPE: 'Europa (EWR, Großbritannien, Schweiz)', EU: 'EU', EEA: 'EWR', US: 'USA', anywhere: 'überall' },
 			listUnreadable: 'Die Anbieterliste ließ sich gerade nicht lesen.',
 			legend: 'Wohin die Sicherungen gehen',
@@ -410,6 +412,8 @@ export const backup = {
 			noKey: 'This vault’s backup key is not stored here.'
 		},
 		places: {
+			push: 'Hand over to the running VM',
+			pushHint: 'Paperless is running: changed backup places apply to the running VM only once you hand them over.',
 			regions: { EUROPE: 'Europe (EEA, United Kingdom, Switzerland)', EU: 'EU', EEA: 'EEA', US: 'USA', anywhere: 'anywhere' },
 			listUnreadable: 'The list of providers could not be read right now.',
 			legend: 'Where the backups go',

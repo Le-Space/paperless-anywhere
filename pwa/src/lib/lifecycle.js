@@ -553,6 +553,27 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 }
 
 /**
+ * Hand the profile's backup places to the running VM, as the start does
+ * (the VM reads them at every backup): the config, and the key or signer
+ * that pays and signs. Only to a VM on this vault's own image.
+ * @param {Uint8Array} master @param {Record<string, any>} profile with `running` and `backupConfig`
+ * @param {{ send?: typeof sendToGuest }} [deps]
+ */
+export async function pushBackupPlaces(master, profile, { send = sendToGuest } = {}) {
+	if (!profile.running?.instanceHash) throw new Error(tr().life.errors.noVm);
+	if (!profile.backupConfig) throw new Error(tr().life.errors.noBackupConfig);
+	if (!ownImageVerified(master, profile)) throw new Error(tr().life.errors.placesNeedOwnImage);
+	const signer = profile.backupsByCredits ? await refreshBackupSigner(master, profile) : null;
+	const secrets = vmBackupSecrets(profile, {
+		...(profile.backupsByCredits
+			? { backupKey: backupPrivateKey(master), signer, creditsUrl: CREDITS_URL, product: CREDITS_PRODUCT, account: creditsAccount(master).address }
+			: { sessionKey: filecoinSessionPrivateKey(master) })
+	});
+	await send(master, profile, secrets);
+	return Object.keys(secrets);
+}
+
+/**
  * A request to the running VM, the way the unlock reaches it: attest the
  * guest against the pins of this start, then hand over `secrets` over the
  * attested channel, signed by the app's key (the guest's agent accepts only

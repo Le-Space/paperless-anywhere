@@ -57,6 +57,18 @@ export const card = {
 			later: 'Wenn du das nicht erwartest, versuche es später noch einmal.',
 			accept: 'Trotzdem so starten'
 		},
+		places: {
+			down: (/** @type {string} */ names) => `Diese Speicheranbieter antworten gerade nicht: ${names}. Eine Sicherung dorthin würde scheitern; es wird noch nichts exportiert.`,
+			instead: (/** @type {string} */ from, /** @type {string} */ to) => `statt ${from}: ${to} (anderer Betreiber, antwortet)`,
+			none: (/** @type {string} */ from) => `für ${from} gibt es gerade keinen Ersatz bei einem anderen Betreiber; diese Kopie entfällt`,
+			hint: 'Übernommen gehen die neuen Orte gleich an die laufende VM, dann startet die Sicherung. Die alten Sicherungen bleiben, wo sie sind.',
+			noReplacement: 'Einen Ersatz bei einem anderen Betreiber, der gerade antwortet, gibt es nicht.',
+			accept: 'Übernehmen und sichern',
+			goOn: 'Ohne Änderung weiter',
+			tryAnyway: 'Trotzdem versuchen',
+			cancel: 'Abbrechen',
+			pushing: 'Neue Sicherungsorte gehen an die VM'
+		},
 		simple: {
 			startTakes: (/** @type {string} */ time) => `Der Start dauert etwa ${time}.`,
 			keepOpenStart: 'Lass dieses Fenster offen, bis Paperless-ngx bereit ist.',
@@ -195,6 +207,18 @@ export const card = {
 			older: (/** @type {string} */ known) => `The chosen backup is older than the last one this app knows (${known}). What came after it is missing after the start.`,
 			later: 'If you do not expect this, try again later.',
 			accept: 'Start like this anyway'
+		},
+		places: {
+			down: (/** @type {string} */ names) => `These storage providers do not answer right now: ${names}. A backup there would fail; nothing is exported yet.`,
+			instead: (/** @type {string} */ from, /** @type {string} */ to) => `instead of ${from}: ${to} (another operator, answering)`,
+			none: (/** @type {string} */ from) => `for ${from} there is no replacement at another operator right now; this copy is left out`,
+			hint: 'Once accepted, the new places go to the running VM at once, then the backup starts. The old backups stay where they are.',
+			noReplacement: 'There is no replacement at another operator that answers right now.',
+			accept: 'Accept and back up',
+			goOn: 'Go on unchanged',
+			tryAnyway: 'Try anyway',
+			cancel: 'Cancel',
+			pushing: 'The new backup places go to the VM'
 		},
 		simple: {
 			startTakes: (/** @type {string} */ time) => `A start takes about ${time}.`,
