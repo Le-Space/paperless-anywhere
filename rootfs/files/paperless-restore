@@ -154,6 +154,27 @@ PY
 )" || fail "unusable restore_ledger_entry"
 eval "$vars"
 
+# download <url> <file>: https only, from public hosts only (at the address
+# paperless-public-url checked), at most one part's size (1,000,000,000
+# bytes), and a redirect is followed only after the same check, three at most.
+download() {
+  fu="$1"; hops=0
+  while :; do
+    pin="$(/usr/local/sbin/paperless-public-url "$fu" 2>>"$log")" || return 1
+    # shellcheck disable=SC2086
+    res="$(curl -fsS --proto =https --proto-redir =https --max-filesize 1000000000 --retry 2 --max-time 1800 \
+      ${pin:+--resolve "$pin"} -o "$2" -w '%{http_code} %{redirect_url}' "$fu" 2>>"$log")" || return 1
+    case "$res" in
+      2[0-9][0-9]\ *) return 0 ;;
+      30[12378]\ https://*)
+        hops=$((hops + 1))
+        [ "$hops" -le 3 ] || return 1
+        fu="${res#* }" ;;
+      *) return 1 ;;
+    esac
+  done
+}
+
 rm -rf "$work" && mkdir -p "$work" && chmod 700 "$work"
 t1=$(date +%s); got=""
 if [ "$nparts" -gt 1 ]; then
@@ -163,7 +184,7 @@ if [ "$nparts" -gt 1 ]; then
   while read -r pcid psha psize purls; do
     i=$((i + 1)); pgot=""
     for u in $purls; do
-      if curl -fsSL --retry 2 --max-time 1800 -o "$work/part.age" "$u"; then pgot="${u#https://}"; pgot="${pgot%%/*}"; break; fi
+      if download "$u" "$work/part.age"; then pgot="${u#https://}"; pgot="${pgot%%/*}"; break; fi
     done
     [ -n "$pgot" ] || fail "no provider delivered part $i of $nparts"
     [ -n "$got" ] || got="$pgot"
@@ -186,7 +207,7 @@ PLAN
   fi
 else
   for u in $urls; do
-    if curl -fsSL --retry 2 --max-time 1800 -o "$work/sealed.age" "$u"; then got="${u#https://}"; got="${got%%/*}"; break; fi
+    if download "$u" "$work/sealed.age"; then got="${u#https://}"; got="${got%%/*}"; break; fi
   done
   [ -n "$got" ] || fail "no provider delivered the piece"
   if [ -n "$sha" ]; then

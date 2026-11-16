@@ -1,8 +1,10 @@
 #!/bin/sh
 # paperless-status: every five seconds, what the app that started this VM may
-# know, in /run/paperless-anywhere/public/status.json (Caddy serves it at
-# /anywhere/status.json): whether Paperless answers, and the outcome of the
-# restore, the backups and a stop request. No secrets, no document names.
+# know: whether Paperless answers, and the outcome of the restore, the
+# backups and a stop request. No secrets, no document names. The public page,
+# /run/paperless-anywhere/public/status.json (Caddy serves it at
+# /anywhere/status.json), says only the phase; the details are at a path
+# derived from the status_token secret, and without that token nowhere.
 set -u
 dir=/run/paperless-anywhere
 pub="$dir/public"
@@ -149,9 +151,9 @@ if re.fullmatch(r"[0-9a-f]{32}", token):
     os.replace(tmp, os.path.join(sdir, token + ".json"))
     print(json.dumps({"v": 2, "phase": phase, "paperless": up, "at": now}))
 else:
-    # Without a token (an app from before the private page): the backup
-    # details of this image stay off the public page.
-    print(json.dumps({k: v for k, v in full.items() if k not in ("lastBackup", "backupSchedule", "backupRequest", "storage")}))
+    # Without a token there is no private page, and the public one still says
+    # no more than the phase: the details stay on the VM.
+    print(json.dumps({"v": 2, "phase": phase, "paperless": up, "at": now}))
 PY
   chmod 644 "$pub/status.json" 2>/dev/null
   sleep 5

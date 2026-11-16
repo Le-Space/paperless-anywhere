@@ -81,9 +81,16 @@ paperless-https --early "$host"
 report ready ",\"notAfter\":\"$(openssl x509 -noout -enddate -in "$crt" 2>/dev/null | sed 's/^notAfter=//')\""
 }
 # A few tries, a minute apart: Let's Encrypt refuses a name for an hour after
-# five failed validations, so it does not keep trying.
+# five failed validations, so it does not keep trying. Each try runs in a
+# subshell of its own with `set -e`: called as `attempt && …` the shell would
+# ignore `set -e` inside it, and a failed step would still end in "ready".
+# (The subshell does not inherit the EXIT trap; the token stays for the next try.)
 for i in 1 2 3 4; do
-  attempt && exit 0
+  set +e
+  (set -e; attempt)
+  ok=$?
+  set -e
+  [ "$ok" = 0 ] && exit 0
   sleep 60
 done
 exit 1
