@@ -7,6 +7,7 @@
 // What a running VM needs to be stopped from another device goes into the
 // sealed profile.
 import { loadTeeNodes } from './landing/tee-nodes.js';
+import { noteProven, rankNodes } from './blocked-nodes.js';
 import { privateKeyToAccount } from 'viem/accounts';
 import { unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
 import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
@@ -245,17 +246,77 @@ export const passphraseFitsImage = (profile) => !profile?.luksFor || profile.luk
 
 /**
  * A confidential node with room for a Paperless VM, for a start without a
- * node fixed in the setup: the best-scored one of Aleph's live list that
- * reports enough free CPU, memory and disk (the list the landing page shows).
+ * node fixed in the setup: one of Aleph's live list that reports enough free
+ * CPU, memory and disk (the list the landing page shows). Nodes Le Space
+ * blocked and those this profile saw refuse a start are left out; a node
+ * where a start was attested already (`proven`, blocked-nodes.js) comes
+ * before a new one, then the best score.
  * Not kept in the profile: the next start asks again.
- * @param {{ load?: () => Promise<import('./landing/tee-nodes.js').TeeNode[]> }} [deps]
+ * @param {{ load?: () => Promise<import('./landing/tee-nodes.js').TeeNode[]>, avoid?: Set<string>, proven?: Set<string> }} [deps]
  * @returns {Promise<string>}
  */
-export async function pickNode({ load = () => loadTeeNodes() } = {}) {
+export async function pickNode({ load = () => loadTeeNodes(), avoid = new Set(), proven = new Set() } = {}) {
 	const nodes = await load().catch(() => []);
-	const node = nodes.find((n) => n.fits && /^[0-9a-f]{64}$/.test(n.hash));
+	const node = rankNodes(nodes.filter((n) => n.fits && /^[0-9a-f]{64}$/.test(n.hash)), { avoid, proven })[0];
 	if (!node) throw new Error(tr().card.errors.noNode);
 	return node.hash;
+}
+
+/**
+ * The node took the INSTANCE but refused to run it: it cannot run SEV-SNP
+ * (`kind` "noSevSnp") or refused the allocation otherwise ("refused"). The VM
+ * never ran; the start forgets it and asks another node (startElsewhere).
+ */
+export class NodeRefusedError extends Error {
+	/** @param {{ crnHash: string, instanceHash: string, payer: string, kind: 'noSevSnp' | 'refused', reason: string }} a */
+	constructor({ crnHash, instanceHash, payer, kind, reason }) {
+		super(`the node did not take the instance: ${reason}`);
+		this.name = 'NodeRefusedError';
+		this.crnHash = crnHash;
+		this.instanceHash = instanceHash;
+		this.payer = payer;
+		this.kind = kind;
+		this.reason = reason;
+	}
+}
+
+/**
+ * Whether a node's answer to the allocation is a refusal to run the VM at
+ * all, and which: "noSevSnp" when it says it cannot run SEV-SNP (whatever the
+ * node list claims), "refused" when it answered the allocation with an HTTP
+ * error after the retries; null for anything else (no answer, a timeout),
+ * which is not retried elsewhere.
+ * @param {unknown} reason the error or its message
+ * @returns {'noSevSnp' | 'refused' | null}
+ */
+export function nodeRefusal(reason) {
+	const text = String(/** @type {any} */ (reason)?.message ?? reason ?? '');
+	if (/does not support SEV-?SNP|SEV-?SNP (is )?not supported/i.test(text)) return 'noSevSnp';
+	if (/did not take the instance/i.test(text) && /allocation notify returned [45]\d\d/i.test(text)) return 'refused';
+	return null;
+}
+
+/**
+ * A start that moves on when a node refuses the VM: `start(crnHash)` runs on
+ * the node given (fixed in the setup, or picked); when it throws
+ * NodeRefusedError, `onRefused` forgets that INSTANCE and notes the node, and
+ * a node is picked anew, at most `tries` times. A node fixed in the setup is
+ * not replaced: its refusal is passed on. No image is built again.
+ * @template T
+ * @param {{ fixed?: string | null, pick: () => Promise<string>, start: (crnHash: string) => Promise<T>, onRefused: (e: NodeRefusedError) => Promise<void> | void, tries?: number }} a
+ * @returns {Promise<T>}
+ */
+export async function startElsewhere({ fixed = null, pick, start, onRefused, tries = 3 }) {
+	for (let i = 0; ; i++) {
+		const crnHash = fixed || (await pick());
+		try {
+			return await start(crnHash);
+		} catch (e) {
+			if (!(e instanceof NodeRefusedError)) throw e;
+			await onRefused(e);
+			if (fixed || i >= tries - 1) throw e;
+		}
+	}
 }
 
 /**
@@ -361,7 +422,15 @@ export async function startPaperless(master, profile, onProgress, { onRequested,
 	}
 	const instanceHash = starting.instanceHash;
 	await onRequested?.(starting);
-	await notifyNode(await crnAddress(profile.crnHash), instanceHash);
+	try {
+		await notifyNode(await crnAddress(profile.crnHash), instanceHash);
+	} catch (e) {
+		// The node refused the VM (it cannot run SEV-SNP, or would not allocate
+		// it): said as such, so the start forgets it and tries another node.
+		const kind = nodeRefusal(e);
+		if (kind) throw new NodeRefusedError({ crnHash: profile.crnHash, instanceHash, payer, kind, reason: String(/** @type {any} */ (e)?.message ?? e).replace(/^the node did not take the instance: /, '') });
+		throw e;
+	}
 	return bringUp(master, profile, starting, wasm, onProgress);
 }
 
@@ -682,7 +751,8 @@ export async function attestRunning(master, profile, { attest = attestRunningGue
 	}
 	if (!attestation) throw new Error(tr().life.errors.noAttestation);
 	// Only for the VM that was checked: it may have been stopped meanwhile.
-	await update(master, (now) => (now.running?.instanceHash === instanceHash ? { ...now, running: { ...now.running, attestation } } : now));
+	// …and its node noted as one where a start was attested (preferred by pickNode).
+	await update(master, (now) => (now.running?.instanceHash === instanceHash ? noteProven({ ...now, running: { ...now.running, attestation } }, now.running.crnHash) : now));
 	return attestation;
 }
 
