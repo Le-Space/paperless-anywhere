@@ -24,7 +24,7 @@
 		runtime: [`https://api2.aleph.im/api/v0/messages/${RUNTIME_ITEM_HASH}`],
 		vm: ['https://explorer.aleph.im/'],
 		amd: ['https://www.amd.com/en/developer/sev.html'],
-		image: [`${REPO}/blob/main/rootfs/build-image.sh`, `${REPO}/blob/main/.github/workflows/rootfs.yml`, `${REPO}/actions/workflows/rootfs.yml`],
+		image: [`${REPO}/blob/main/rootfs/build-image.sh`, `${REPO}/blob/main/.github/workflows/rootfs.yml`, `${REPO}/actions/workflows/rootfs.yml`, `${REPO}/tree/main/builder`, DOC('own-image.md')],
 		data: [`${REPO}/blob/main/rootfs/files/paperless-data-disk`],
 		backups: ['https://filfox.info/'],
 		relay: ['https://github.com/NiKrause/relay-button/tree/main/packages/attest-relay', 'https://github.com/NiKrause/orbitdb-relay/blob/main/src/services/attest-bridge-service.ts', `${DOC('security-model.md')}#the-relay`],
