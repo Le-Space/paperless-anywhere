@@ -23,7 +23,7 @@ A manual run without `link_domain` only publishes, for a look by CID.
 
 A passkey belongs to the address it was made on. A vault set up on `localhost` is not
 seen on `paperless.le-space.de`: open the app there with the 24 words, then add a passkey
-for it (**Weiteren Passkey hinzufügen**). Every passkey opens the same vault.
+for it (**Add another passkey**). Every passkey opens the same vault.
 
 **Not from a path-style gateway** (`https://<gateway>/ipfs/<cid>/`): there the origin is
 the gateway's, shared by every CID it serves, storage and passkeys included. Under

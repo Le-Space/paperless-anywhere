@@ -193,7 +193,7 @@ What helps, in this order:
    a tablet.
 3. The 24 words on paper, entered nowhere but in the app at
    `paperless.le-space.de`. Look at the address before you do.
-4. Lock the vault when done ("Lock", in German "Sperren": the app drops the master secret) and
+4. Lock the vault when done ("Lock": the app drops the master secret) and
    lock the device.
 
 ## Money
