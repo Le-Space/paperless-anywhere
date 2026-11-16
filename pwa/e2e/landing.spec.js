@@ -185,6 +185,11 @@ test('the landing page shows who holds which key, what is attested and where to 
 	await expect(page.getByTestId('trust-diagram').getByRole('img')).toHaveCount(1);
 	await expect(page.getByTestId('trust-diagram').locator('svg:visible')).toHaveAttribute('class', /trust-wide/);
 	await expect(page.getByTestId('trust-diagram').locator('svg:visible text').getByText('Image (LUKS): nicht gemessen')).toBeVisible();
+	// The own image's way: built, sealed by the attested builder, stored by the browser; the public image only as a note.
+	await expect(page.getByTestId('trust-diagram').locator('svg:visible text').getByText('2 · Versiegelt')).toBeVisible();
+	await expect(page.getByTestId('trust-diagram').locator('svg:visible text').getByText('Image-Passphrase: nur deine')).toBeVisible();
+	await expect(page.getByTestId('trust-diagram-note')).toContainText('Zum reinen Ausprobieren gibt es das öffentliche Image');
+	await expect(page.getByTestId('trust-diagram-note').getByRole('link')).toHaveAttribute('href', /docs\/backup-proofs\.md$/);
 	// What the hardware confirms and what it does not yet are open without a click.
 	await expect(page.getByTestId('trust-gaps')).toBeVisible();
 	await expect(page.getByTestId('trust-gaps')).toContainText('Der Inhalt des Images wird nicht mitgemessen.');

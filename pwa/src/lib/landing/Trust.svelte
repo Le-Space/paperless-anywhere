@@ -35,33 +35,36 @@
 	// Two drawings of the same thing: a wide one, and a tall one for a phone.
 	const WIDE = {
 		w: 960,
-		h: 465,
-		build: { x: 10, y: 40, w: 190, h: 150 },
+		h: 480,
+		build: { x: 10, y: 20, w: 190, h: 115 },
+		seal: { x: 10, y: 160, w: 190, h: 150 },
 		store: { x: 225, y: 40, w: 190, h: 150 },
-		vm: { x: 440, y: 20, w: 300, h: 290 },
+		vm: { x: 440, y: 20, w: 300, h: 300 },
 		measured: { x: 455, y: 98, w: 270, h: 52 },
 		image: { x: 455, y: 158, w: 270, h: 70 },
-		data: { x: 455, y: 236, w: 270, h: 62 },
+		data: { x: 455, y: 236, w: 270, h: 70 },
 		backup: { x: 765, y: 40, w: 185, h: 150 },
-		you: { x: 440, y: 350, w: 300, h: 105 },
-		legend: { x: 10, y: 350, w: 405, h: 105 },
-		arrows: ['M200 115H221', 'M415 115H436', 'M740 115H761'],
-		link: 'M590 314V346'
+		you: { x: 440, y: 350, w: 300, h: 120 },
+		legend: { x: 10, y: 350, w: 405, h: 120 },
+		arrows: ['M105 135V156', 'M200 185H212V115H221', 'M415 115H436', 'M740 115H761'],
+		// From "you" to the VM, and to the builder, which it checks first.
+		links: ['M590 324V346', 'M436 420H425V270H204']
 	};
 	const TALL = {
 		w: 360,
-		h: 985,
-		build: { x: 10, y: 10, w: 320, h: 115 },
-		store: { x: 10, y: 150, w: 320, h: 115 },
-		vm: { x: 10, y: 290, w: 320, h: 290 },
-		measured: { x: 25, y: 368, w: 290, h: 52 },
-		image: { x: 25, y: 428, w: 290, h: 70 },
-		data: { x: 25, y: 506, w: 290, h: 62 },
-		backup: { x: 10, y: 605, w: 320, h: 115 },
-		you: { x: 10, y: 745, w: 320, h: 105 },
-		legend: { x: 10, y: 870, w: 320, h: 105 },
-		arrows: ['M170 125V146', 'M170 265V286', 'M170 580V601'],
-		link: 'M334 797H350V435H334'
+		h: 1165,
+		build: { x: 10, y: 10, w: 320, h: 100 },
+		seal: { x: 10, y: 135, w: 320, h: 115 },
+		store: { x: 10, y: 275, w: 320, h: 130 },
+		vm: { x: 10, y: 430, w: 320, h: 300 },
+		measured: { x: 25, y: 508, w: 290, h: 52 },
+		image: { x: 25, y: 568, w: 290, h: 70 },
+		data: { x: 25, y: 646, w: 290, h: 70 },
+		backup: { x: 10, y: 755, w: 320, h: 130 },
+		you: { x: 10, y: 910, w: 320, h: 120 },
+		legend: { x: 10, y: 1050, w: 320, h: 105 },
+		arrows: ['M170 110V131', 'M170 250V271', 'M170 405V426', 'M170 730V751'],
+		links: ['M334 970H350V603H334', 'M10 970H3V192H6']
 	};
 	const KEYS = /** @type {const} */ (['image', 'data', 'vault']);
 
@@ -90,8 +93,9 @@
 				<path d="M0 0L10 5L0 10z" class="head" />
 			</marker>
 		</defs>
-		<TrustBox {...L.build} {...d.build} key="image" />
-		<TrustBox {...L.store} {...d.store} />
+		<TrustBox {...L.build} {...d.build} />
+		<TrustBox {...L.seal} {...d.seal} key="image" />
+		<TrustBox {...L.store} {...d.store} key="image" />
 		<TrustBox {...L.vm} {...d.vm} tone="outer" />
 		<TrustBox {...L.measured} {...d.measured} tone="ok" />
 		<TrustBox {...L.image} {...d.image} tone="warn" key="image" />
@@ -99,7 +103,7 @@
 		<TrustBox {...L.backup} {...d.backup} key="vault" />
 		<TrustBox {...L.you} {...d.you} key="vault" />
 		{#each L.arrows as a}<path class="arrow" d={a} marker-end="url(#{id}-arrow)" />{/each}
-		<path class="arrow link" d={L.link} marker-start="url(#{id}-arrow)" marker-end="url(#{id}-arrow)" />
+		{#each L.links as l}<path class="arrow link" d={l} marker-start="url(#{id}-arrow)" marker-end="url(#{id}-arrow)" />{/each}
 		<g class="legend">
 			<rect x={L.legend.x} y={L.legend.y} width={L.legend.w} height={L.legend.h} rx="12" />
 			<text class="lt" x={L.legend.x + 14} y={L.legend.y + 22}>{d.legend}</text>
@@ -114,6 +118,7 @@
 <figure class="figure" data-testid="trust-diagram">
 	{@render drawing(WIDE, 'trust-wide')}
 	{@render drawing(TALL, 'trust-tall')}
+	<figcaption data-testid="trust-diagram-note">{d.note} <a href={DOC('backup-proofs.md')}>{d.proofs}</a></figcaption>
 </figure>
 
 <div class="attest">
@@ -166,6 +171,7 @@
 <style>
 	.figure { margin: 1.5rem 0 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem; box-shadow: var(--shadow); }
 	.diagram { display: block; width: 100%; height: auto; }
+	figcaption { margin: 0.75rem 0.25rem 0; color: var(--text-2); font-size: 0.85rem; line-height: 1.5; }
 	.diagram.trust-tall { display: none; max-width: 420px; margin: 0 auto; }
 	@media (max-width: 700px) {
 		.figure { padding: 0.5rem; }
