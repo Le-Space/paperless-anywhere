@@ -51,6 +51,7 @@ export function backupFacts(lines) {
  *   lines?: string[],
  *   erase?: { node?: string | null, forgot?: string | null, revoke?: string | null } | null,
  *   listed?: boolean | null,
+ *   header?: 'checking' | 'opens' | 'refused' | 'unreachable' | null,
  *   busy?: boolean,
  *   finished?: boolean,
  *   failed?: boolean
@@ -59,11 +60,13 @@ export function backupFacts(lines) {
  * node ('erased', 'missing', or anything else for no answer), Aleph (the
  * FORGET's item hash) and Le Space's service ('revoked', 'pending', 'skipped')
  * said; `listed`: the backup is in the app's list (false: nothing new to list);
+ * `header`: the app's own check that the backup's age header opens with this
+ * vault's backup key (backup-header.js);
  * `busy`: the action still runs (only then does a light run); `failed`: it
  * ended in an error (the row under way failed).
  * @returns {StopRow[]}
  */
-export function stopPanel({ kind, sent = false, status = null, lines = [], erase = null, listed = null, busy = false, finished = false, failed = false }) {
+export function stopPanel({ kind, sent = false, status = null, lines = [], erase = null, listed = null, header = null, busy = false, finished = false, failed = false }) {
 	const stop = status?.stop ?? null;
 	// The backup of this stop: the outcome in stop.json, else the one running.
 	const b = stop?.backup ?? (stop ? status?.backup : null) ?? null;
@@ -95,7 +98,14 @@ export function stopPanel({ kind, sent = false, status = null, lines = [], erase
 					{ id: 'exported', state: none ? 'skipped' : lit(f.files != null || f.bytes != null || entry), ...(f.files != null ? { key: 'exportedFiles', args: [f.files] } : {}) }
 				]
 			],
-			['sealed', [{ id: 'sealed', state: none ? 'skipped' : lit(bytes != null), ...(bytes != null ? { key: parts && parts > 1 ? 'sealedParts' : 'sealedSize', args: [bytes, parts ?? 1] } : {}) }]],
+			[
+				'sealed',
+				[
+					{ id: 'sealed', state: none ? 'skipped' : lit(bytes != null), ...(bytes != null ? { key: parts && parts > 1 ? 'sealedParts' : 'sealedSize', args: [bytes, parts ?? 1] } : {}) },
+					// Checked by the app itself, after the stop: green only when the header opened.
+					...(header ? [/** @type {StopLight} */ ({ id: 'header', state: header === 'opens' ? 'app' : header === 'refused' ? 'failed' : header === 'checking' ? 'run' : 'skipped', ...(header === 'unreachable' ? { key: 'headerUnreachable' } : header === 'refused' ? { key: 'headerRefused' } : {}) })] : [])
+				]
+			],
 			[
 				'upload',
 				ids.length

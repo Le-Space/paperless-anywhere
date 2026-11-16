@@ -35,6 +35,8 @@
 	import { panelTimes, startPanel } from '$lib/start-panel.js';
 	import { stopPanel } from '$lib/stop-panel.js';
 	import { stopEvidenceRows } from '$lib/evidence.js';
+	import { checkBackupHeader } from '$lib/backup-header.js';
+	import { ageIdentityFromMaster, ageRecipient } from '$lib/keys/age.js';
 	import { RUNTIME } from '$lib/runtime-pin.js';
 	import { ALEPH_API } from '$lib/aleph.js';
 	import { isNetworkError, preloadAttestWasm } from '$lib/attest-wasm-load.js';
@@ -98,7 +100,9 @@
 	let eraseSeen = $state(null);
 	/** @type {boolean | null} */
 	let listedSeen = $state(null);
-	/** @type {{ status: any, erase: typeof eraseSeen, instanceHash: string } | null} the last stop's facts, for its evidence */
+	/** @type {'checking' | 'opens' | 'refused' | 'unreachable' | null} the app's check of the backup's age header */
+	let headerSeen = $state(null);
+	/** @type {{ status: any, erase: typeof eraseSeen, instanceHash: string, recipient: string | null, fromVault: boolean } | null} the last stop's facts, for its evidence */
 	let stopDone = $state(null);
 	let now = $state(Date.now());
 	let ticker = 0;
@@ -113,6 +117,7 @@
 		vmLines = [];
 		eraseSeen = null;
 		listedSeen = null;
+		headerSeen = null;
 		stopDone = null;
 		startedAt = Date.now();
 		clearInterval(ticker);
@@ -198,14 +203,14 @@
 	// Both follow the language switch in the header.
 	const evidenceT = $derived(evidenceTexts[$appLanguage]);
 	const evidence = $derived(
-		profile.running ? evidenceRows({ running: profile.running, rootfsItemHash: profile.rootfsItemHash, runtime: RUNTIME, alephApi: ALEPH_API, lastGood, backupsOn: Boolean(profile.backupConfig) }) : []
+		profile.running ? evidenceRows({ running: profile.running, rootfsItemHash: profile.rootfsItemHash, runtime: RUNTIME, alephApi: ALEPH_API, lastGood, backupsOn: Boolean(profile.backupConfig), ownImage: Boolean(BUILDER && hasOwnImage(profile, BUILDER.plain.sha256)) }) : []
 	);
 	const panelT = $derived(panelTexts[$appLanguage]);
 	const startShown = $derived(action === 'start' && (busy || Object.keys(times).length > 0));
 	const stopShown = $derived((action === 'stop' || action === 'discard') && (busy || Object.keys(times).length > 0));
 	const panel = $derived(
 		startShown ? startPanel({ step: current, libPhase, unlock: unlockSeen, status: vmPage, restore: startRestores, finished: !busy && Boolean(profile.running), failed: !busy && !profile.running && Boolean(error) })
-		: stopShown ? stopPanel({ kind: action === 'discard' ? 'discard' : 'stop', sent: stopSent, status: vmPage, lines: vmLines, erase: eraseSeen, listed: listedSeen, busy, finished: !busy && !profile.running && !error, failed: !busy && Boolean(error) })
+		: stopShown ? stopPanel({ kind: action === 'discard' ? 'discard' : 'stop', sent: stopSent, status: vmPage, lines: vmLines, erase: eraseSeen, listed: listedSeen, header: headerSeen, busy, finished: !busy && !profile.running && !error, failed: !busy && Boolean(error) })
 		: []
 	);
 	// The stop's texts: the start's states and legend, its own rows and lights.
@@ -213,7 +218,7 @@
 		stopShown ? { ...panelT, ...panelT.stop, ...(action === 'discard' ? { title: panelT.stop.titleDiscard, after: panelT.stop.afterDiscard } : {}) } : panelT
 	);
 	// After a stop: where the backup went and how the VM was forgotten.
-	const stopEvidence = $derived(stopDone && !busy ? stopEvidenceRows({ ...stopDone, alephApi: ALEPH_API }) : []);
+	const stopEvidence = $derived(stopDone && !busy ? stopEvidenceRows({ ...stopDone, header: headerSeen, alephApi: ALEPH_API }) : []);
 	const checkAgain = async () => {
 		await attestRunning(master, $state.snapshot(profile));
 		profile = await loadProfile(master);
@@ -682,7 +687,15 @@
 				: rest
 		);
 		listedSeen = Boolean(made);
-		stopDone = { status, erase: eraseSeen, instanceHash: String(was?.instanceHash ?? '') };
+		// Public only: the recipient, and whether the key is the vault's own. The
+		// identity goes to the header check (age) and nowhere else.
+		const identity = profile.ageIdentity ? String(profile.ageIdentity) : '';
+		const recipient = identity ? (() => { try { return ageRecipient(identity); } catch { return null; } })() : null;
+		stopDone = { status, erase: eraseSeen, instanceHash: String(was?.instanceHash ?? ''), recipient, fromVault: Boolean(identity) && identity === ageIdentityFromMaster(master) };
+		if (made && identity && result) {
+			headerSeen = 'checking';
+			checkBackupHeader({ backup: result, identity }).then((r) => (headerSeen = r), () => (headerSeen = 'unreachable'));
+		}
 		onchange();
 	}
 	// In the language shown: what a start still needs is named in words.

@@ -13,9 +13,11 @@
  *   open      nothing confirms it yet
  * @typedef {'app' | 'reported' | 'open'} Mark
  */
-/** @typedef {{ id: string, kind?: string, mark: Mark, note?: string, values: { k: string, v: string, mono?: boolean }[], links: { k: string, href: string }[] }} Row */
+/** @typedef {{ id: string, kind?: string, mark: Mark, note?: string, values: { k: string, v: string, mono?: boolean, copy?: boolean, say?: boolean }[], links: { k: string, href: string }[] }} Row */
 
 const REPO = 'https://github.com/Le-Space/paperless-anywhere';
+/** The backups' encryption, as the backup tool does it (age-encryption, one X25519 recipient). */
+export const AGE_METHOD = 'age v1 · X25519 · HKDF-SHA-256 · ChaCha20-Poly1305 (64 KiB)';
 const HASH = /^[0-9a-f]{64}$/;
 
 /** The launch measurements an INSTANCE names. @param {any} tee */
@@ -33,11 +35,13 @@ export const tcbLine = (tcb) =>
  *   alephApi: string,
  *   lastGood?: { at: string, copies?: number | null, pieceCid?: string | null } | null,
  *   backupsOn?: boolean,
+ *   ownImage?: boolean,
  *   links?: boolean
  * }} a `links: false` for made-up values: no link is built from a hash that names nothing.
+ * `ownImage`: the image is this vault's own, encrypted by builder/encrypt-image.sh.
  * @returns {Row[]}
  */
-export function evidenceRows({ running, rootfsItemHash = null, runtime, alephApi, lastGood = null, backupsOn = false, links = true }) {
+export function evidenceRows({ running, rootfsItemHash = null, runtime, alephApi, lastGood = null, backupsOn = false, ownImage = false, links = true }) {
 	const message = (/** @type {string | null | undefined} */ hash) => (links && hash && HASH.test(hash) ? [{ k: 'message', href: `${alephApi}/api/v0/messages/${hash}` }] : []);
 	const launches = launchesOf(running.trustedExecution);
 	/** @type {Attestation | null} */
@@ -111,12 +115,15 @@ export function evidenceRows({ running, rootfsItemHash = null, runtime, alephApi
 				{ k: 'relayP2p', href: 'https://github.com/NiKrause/orbitdb-relay/blob/main/src/services/attest-bridge-service.ts' }
 			]
 		},
+		// An own image's disk: LUKS2, aes-xts-plain64, a 512-bit key, as
+		// builder/encrypt-image.sh sets it. Its key derivation is cryptsetup's
+		// default (not set there), so it is not named. Never the passphrase.
 		{
 			id: 'image',
 			mark: 'open',
 			note: 'notMeasured',
-			values: rootfsItemHash ? [{ k: 'store', v: rootfsItemHash, mono: true }] : [],
-			links: [...message(rootfsItemHash), { k: 'build', href: `${REPO}/blob/main/rootfs/build-image.sh` }]
+			values: [...(rootfsItemHash ? [{ k: 'store', v: rootfsItemHash, mono: true }] : []), ...(ownImage ? [{ k: 'luks', v: 'luks', say: true }] : [])],
+			links: [...message(rootfsItemHash), { k: 'build', href: `${REPO}/blob/main/rootfs/build-image.sh` }, ...(ownImage ? [{ k: 'encryptImage', href: `${REPO}/blob/main/builder/encrypt-image.sh` }] : [])]
 		},
 		{
 			id: 'data',
@@ -154,12 +161,18 @@ export const tally = (rows) => rows.reduce((n, r) => ({ ...n, [r.mark]: n[r.mark
  *   status: any,
  *   erase?: { node?: string | null, forgot?: string, revoke?: string } | null,
  *   instanceHash?: string,
+ *   recipient?: string | null,
+ *   fromVault?: boolean,
+ *   header?: string | null,
  *   alephApi: string,
  *   links?: boolean
- * }} a `status`: the VM's status page at the end of the stop (null for an erase without backup)
+ * }} a `status`: the VM's status page at the end of the stop (null for an erase without backup);
+ * `recipient`: the public age key the app gave the VM (backupConfig.ageRecipient);
+ * `fromVault`: its identity is the one derived from the vault; `header`: the
+ * app's check of the backup's age header (backup-header.js)
  * @returns {Row[]}
  */
-export function stopEvidenceRows({ status, erase = null, instanceHash = '', alephApi, links = true }) {
+export function stopEvidenceRows({ status, erase = null, instanceHash = '', recipient = null, fromVault = false, header = null, alephApi, links = true }) {
 	const message = (/** @type {string | null | undefined} */ hash) => (links && hash && HASH.test(hash) ? [{ k: 'message', href: `${alephApi}/api/v0/messages/${hash}` }] : []);
 	const b = status?.stop?.backup ?? status?.backup ?? null;
 	const entry = b?.backup?.pieceCid ? b.backup : null;
@@ -179,6 +192,23 @@ export function stopEvidenceRows({ status, erase = null, instanceHash = '', alep
 				...(entry.requestedCopies ? [{ k: 'copies', v: `${entry.copies?.length ?? 0}/${entry.requestedCopies}` }] : [])
 			],
 			links: [{ k: 'model', href: `${REPO}/blob/main/docs/security-model.md#backups` }]
+		});
+		// How it was encrypted: what paperless-backup-filecoin does (age-encryption's
+		// Encrypter with one X25519 recipient, config.ageRecipient). Green only
+		// when the app opened the header with this vault's key itself.
+		rows.push({
+			id: 'stopSealed',
+			mark: header === 'opens' ? 'app' : 'reported',
+			note: header === 'opens' ? 'headerOpens' : header === 'refused' ? 'headerRefused' : 'headerUnchecked',
+			values: [
+				{ k: 'method', v: AGE_METHOD },
+				...(recipient ? [{ k: 'recipient', v: recipient, mono: true, copy: true }] : []),
+				...(recipient ? [{ k: 'keyFrom', v: fromVault ? 'vault' : 'profile', say: true }] : [])
+			],
+			links: [
+				{ k: 'ageSpec', href: 'https://age-encryption.org/v1' },
+				{ k: 'selfCheck', href: `${REPO}/blob/main/docs/restore-yourself.md` }
+			]
 		});
 		for (const c of Array.isArray(entry.copies) ? entry.copies : []) {
 			rows.push({
