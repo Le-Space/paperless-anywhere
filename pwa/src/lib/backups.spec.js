@@ -13,7 +13,7 @@ describe('backupConfigFor', () => {
 	const recipient = 'age1' + 'q'.repeat(58);
 	it('backs up to the test data sets on Calibration', () => {
 		expect(backupConfigFor('calibration', recipient)).toEqual({
-			copies: 2, providerIds: [9, 2], regions: [], datasetMetadata: { app: 'paperless-backup-test' }, keepWeeks: 1, ageRecipient: recipient
+			copies: 2, providerIds: [9, 2], regions: [], datasetMetadata: { app: 'paperless-backup-test' }, keepWeeks: 1, retention: { keepLast: 2, keepDays: 2, keepWeeks: 1, keepMonths: 0 }, ageRecipient: recipient
 		});
 	});
 	it('writes mainnet backups to the data sets of the Mac', () => {
@@ -399,5 +399,35 @@ describe('fetching a backup without a VM', () => {
 		const key = `AGE-SECRET-KEY-1${'Q'.repeat(58)}`;
 		expect(ageSecretKey(` ${key}\n`)).toBe(key);
 		for (const no of [null, undefined, '', 'age1example', key.slice(0, 40), `${key}X`, key.toLowerCase()]) expect(ageSecretKey(no)).toBeNull();
+	});
+});
+
+describe('retention', () => {
+	const recipient = 'age1' + 'q'.repeat(58);
+	it('puts the network defaults into a new config and keeps what the person set', async () => {
+		const { backupConfigFor, DEFAULT_RETENTION } = await import('./backups.js');
+		expect(backupConfigFor('mainnet', recipient).retention).toEqual(DEFAULT_RETENTION.mainnet);
+		expect(backupConfigFor('calibration', recipient, { retention: { keepLast: 5, keepMonths: 2 } }).retention).toEqual({ ...DEFAULT_RETENTION.calibration, keepLast: 5, keepMonths: 2 });
+		expect(() => backupConfigFor('mainnet', recipient, { retention: { keepLast: 0 } })).toThrow(/keepLast/);
+		expect(() => backupConfigFor('mainnet', recipient, { retention: { keepDays: 1.5 } })).toThrow(/keepDays/);
+	});
+	it('protects every part of the backup a VM is restored from', async () => {
+		const { protectedPieces } = await import('./backups.js');
+		const a = 'bafkzcib' + 'a'.repeat(30);
+		const b = 'bafkzcib' + 'b'.repeat(30);
+		expect(protectedPieces(null)).toEqual([]);
+		expect(protectedPieces({ pieceCid: a })).toEqual([a]);
+		expect(protectedPieces({ pieceCid: a, parts: [{ pieceCid: a }, { pieceCid: b }, { pieceCid: 'nonsense' }] })).toEqual([a, b]);
+	});
+	it('sends retention with the VM config: within the quota with Le Space Credits, plan only with a wallet', async () => {
+		const { vmBackupSecrets, CREDITS_QUOTA_BYTES } = await import('./backups.js');
+		const a = 'bafkzcib' + 'a'.repeat(30);
+		const backupConfig = { copies: 2, providerIds: [9, 2], datasetMetadata: { app: 'paperless-backup-test' }, ageRecipient: recipient };
+		const wallet = vmBackupSecrets({ payer: '0x' + '1'.repeat(40), network: 'calibration', backupConfig, restoreEntry: { pieceCid: a } }, { sessionKey: '0x' + '2'.repeat(64) });
+		expect(JSON.parse(wallet.backup_config).retention).toMatchObject({ keepLast: 2, protect: [a] });
+		expect(JSON.parse(wallet.backup_config).retention.maxBytes).toBeUndefined();
+		const signer = { payer: '0x' + '3'.repeat(40), signer: '0x' + '4'.repeat(40), tag: 'f'.repeat(32), label: 'paperless-backup-test', network: 'calibration' };
+		const credits = vmBackupSecrets({ network: 'calibration', backupConfig, backupsByCredits: true }, { backupKey: '0x' + '5'.repeat(64), signer, creditsUrl: 'https://credits.example', product: 'paperless', account: '0x' + '6'.repeat(40) });
+		expect(JSON.parse(credits.backup_config).retention).toMatchObject({ maxBytes: CREDITS_QUOTA_BYTES, protect: [] });
 	});
 });

@@ -7,7 +7,8 @@
 	import { vmStatus } from '$lib/vm.js';
 	import { statusToken } from '$lib/keys/derive.js';
 	import { BackupFailedError, requestBackup } from '$lib/lifecycle.js';
-	import { BACKUP_TEXTS, backupOverview, when } from '$lib/backup-overview.js';
+	import { BACKUP_TEXTS, backupOverview, retentionView, when } from '$lib/backup-overview.js';
+	import { backupSize } from '$lib/backups.js';
 	import { lang as appLang } from '$lib/i18n/index.js';
 
 	/** @type {{ master: Uint8Array, profile: Record<string, any>, known?: { at: string, copies?: number | null } | null, disabled?: boolean, onbusy?: (busy: boolean) => void, ongood?: (good: { at: string, copies: number, requested: number }) => void }} */
@@ -29,6 +30,8 @@
 	/** @type {string[]} */
 	let details = $state([]);
 	const view = $derived(backupOverview(status));
+	const kept = $derived(retentionView(status));
+	const rt = $derived(t.retention);
 	// No backup in this VM yet: the last one the app knows (an earlier VM's, or
 	// the backup this one was restored from), said as such, so the overview's
 	// first line and this box never disagree.
@@ -110,6 +113,27 @@
 		{#if busy || view.running}
 			<p class="progress" role="status" data-testid="backup-progress">{stage === 'sending' ? t.sending : t.running}{view.log ? ` ${view.log}` : ''}</p>
 		{/if}
+		{#if kept}
+			<details class="retention" data-testid="backup-retention">
+				<summary>{rt.title}{kept.failed ? '' : `: ${rt.summary(kept.keep, kept.remove)}`}</summary>
+				{#if kept.failed}<p class="warn">{rt.failed}</p>
+				{:else}
+					{#if kept.policy}<p class="hint">{rt.policy(kept.policy)}</p>{/if}
+					<ul>
+						{#each kept.rows as r (r.pieceCid)}
+							<li class:gone={!r.keep && kept.sent} data-testid={r.keep ? 'retention-keep' : 'retention-remove'}>
+								<span>{r.at ? when(r.at, lang) : rt.undated}</span>
+								{#if r.size != null}<span class="quiet"> · {backupSize(r.size)}</span>{/if}
+								{#if !r.complete}<span class="warn"> · {rt.partial}</span>{/if}
+								<span> · {r.keep ? `${rt.keep} (${r.reasons.map((x) => rt.reasons[x]).join(', ')})` : kept.sent ? rt.remove : rt.toRemove}</span>
+							</li>
+						{/each}
+					</ul>
+					{#if kept.remove}<p class="hint" data-testid="retention-note">{kept.sent ? rt.queued : kept.needsWallet ? rt.needsWallet : rt.planned}</p>{/if}
+					{#if kept.overBudget}<p class="warn">{rt.overBudget}</p>{/if}
+				{/if}
+			</details>
+		{/if}
 		<button type="button" class="small" onclick={backUpNow} disabled={disabled || busy || view.running} data-testid="backup-now">{t.now}</button>
 	{:else if answered}
 		<p class="hint" data-testid="backup-unreachable">{t.unreachable}</p>
@@ -131,4 +155,7 @@
 	.progress { color: var(--text-2); font-size: 0.9rem; word-break: break-word; }
 	.small { margin-top: 0.6rem; padding: 0.35rem 0.85rem; font-size: 0.875rem; background: var(--surface); color: var(--text); border-color: var(--line); }
 	.log pre { white-space: pre-wrap; font-size: 0.8rem; }
+	.retention { margin-top: 0.5rem; font-size: 0.9rem; }
+	.retention ul { margin: 0.35rem 0; padding-left: 1.1rem; }
+	.retention li.gone { color: var(--text-2); text-decoration: line-through; }
 </style>

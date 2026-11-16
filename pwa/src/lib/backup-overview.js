@@ -70,6 +70,65 @@ export function backupOverview(status) {
 	};
 }
 
+/**
+ * @typedef {{
+ *   failed: boolean,
+ *   at: Date | null,
+ *   sent: boolean,
+ *   needsWallet: boolean,
+ *   policy: { keepLast: number, keepDays: number, keepWeeks: number, keepMonths: number } | null,
+ *   rows: Array<{ pieceCid: string, at: Date | null, size: number | null, complete: boolean, keep: boolean, reasons: string[] }>,
+ *   keep: number,
+ *   remove: number,
+ *   overBudget: boolean
+ * }} RetentionView
+ */
+
+const REASONS = ['newest', 'restored', 'place', 'last', 'undated', 'day', 'week', 'month'];
+const POLICY_KEYS = ['keepLast', 'keepDays', 'keepWeeks', 'keepMonths'];
+
+/**
+ * The backup tool's last retention plan from the VM's status page
+ * (paperless-backup's retention.json): which backups stay and why, which it
+ * scheduled for removal (`sent`) or would remove. Newest first. Null when the
+ * image reports none.
+ * @param {any} status
+ * @returns {RetentionView | null}
+ */
+export function retentionView(status) {
+	const r = status?.retention;
+	if (!r || typeof r !== 'object') return null;
+	if (r.failed) return { failed: true, at: date(r.at), sent: false, needsWallet: false, policy: null, rows: [], keep: 0, remove: 0, overBudget: false };
+	const row = (/** @type {any} */ b, /** @type {boolean} */ keep) =>
+		b && typeof b.pieceCid === 'string'
+			? {
+					pieceCid: b.pieceCid,
+					at: date(b.date),
+					size: typeof b.size === 'number' ? b.size : null,
+					complete: b.complete === true,
+					keep,
+					reasons: keep && Array.isArray(b.reasons) ? b.reasons.filter((/** @type {string} */ x) => REASONS.includes(x)) : []
+				}
+			: null;
+	const keep = (Array.isArray(r.keep) ? r.keep : []).map((b) => row(b, true)).filter((x) => x !== null);
+	const remove = (Array.isArray(r.remove) ? r.remove : []).map((b) => row(b, false)).filter((x) => x !== null);
+	const t = (/** @type {{ at: Date | null }} */ x) => x.at?.getTime() ?? -Infinity;
+	const p = r.policy;
+	const policy = p && POLICY_KEYS.every((k) => Number.isInteger(p[k])) ? { keepLast: p.keepLast, keepDays: p.keepDays, keepWeeks: p.keepWeeks, keepMonths: p.keepMonths } : null;
+	return {
+		failed: false,
+		at: date(r.at),
+		sent: r.sent === true,
+		needsWallet: r.needsWallet === true,
+		policy,
+		// Undated ones last: the tool lists them as older than every dated one.
+		rows: [...keep, ...remove].sort((a, b) => t(b) - t(a)),
+		keep: keep.length,
+		remove: remove.length,
+		overBudget: r.overBudget === true
+	};
+}
+
 /** A time, with the day when it is not today. @param {Date} d @param {'de' | 'en'} lang @param {Date} [now] */
 export function when(d, lang, now = new Date()) {
 	const locale = localeOf(lang);

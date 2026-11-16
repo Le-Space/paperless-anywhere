@@ -307,7 +307,51 @@ export function backupConfigFor(network, recipient, places = defaultPlaces(netwo
 	const ids = [...(providerIds ?? [])].map(Number);
 	if (!ids.length && !(copies >= 1 && copies <= 3)) throw new Error(tr().backup.config.copiesRange);
 	if (ids.length > 3) throw new Error(tr().backup.config.maxProviders);
-	return { copies: ids.length || copies, providerIds: ids, regions: [...(regions ?? [])], datasetMetadata: { app: BACKUP_LABEL[network] }, keepWeeks: network === 'mainnet' ? 12 : 1, ageRecipient: recipient };
+	const retention = retentionFor(network, places?.retention);
+	return { copies: ids.length || copies, providerIds: ids, regions: [...(regions ?? [])], datasetMetadata: { app: BACKUP_LABEL[network] }, keepWeeks: network === 'mainnet' ? 12 : 1, retention, ageRecipient: recipient };
+}
+
+/**
+ * What the backup tool keeps (its `retain`, after each complete backup; it
+ * removes when Le Space Credits sign, and with a wallet's session key it only
+ * plans): the last `keepLast` backups and the newest of each day, ISO week and month of the
+ * last `keepDays` days, `keepWeeks` weeks and `keepMonths` months. Never the
+ * newest complete backup, never the one the VM was restored from, never the
+ * newest of a data set, never one whose date is unknown.
+ */
+export const DEFAULT_RETENTION = Object.freeze({
+	mainnet: Object.freeze({ keepLast: 3, keepDays: 7, keepWeeks: 4, keepMonths: 6 }),
+	calibration: Object.freeze({ keepLast: 2, keepDays: 2, keepWeeks: 1, keepMonths: 0 })
+});
+
+/** Le Space Credits' backup quota per data set (products.js, quotaBytes). */
+export const CREDITS_QUOTA_BYTES = 32 * 2 ** 30;
+
+/**
+ * The retention of a backup config: the network's defaults, with what the
+ * person set (whole numbers, keepLast at least 1). Throws on a bad value.
+ * @param {string} network @param {Record<string, any> | null | undefined} set
+ */
+export function retentionFor(network, set) {
+	const r = { ...DEFAULT_RETENTION[network === 'mainnet' ? 'mainnet' : 'calibration'] };
+	for (const k of /** @type {const} */ (['keepLast', 'keepDays', 'keepWeeks', 'keepMonths'])) {
+		if (set?.[k] == null) continue;
+		const n = Number(set[k]);
+		if (!Number.isInteger(n) || n < (k === 'keepLast' ? 1 : 0) || n > 1000) throw new Error(tr().backup.config.retentionRange(k));
+		r[k] = n;
+	}
+	return r;
+}
+
+/**
+ * The piece CIDs of every part of the backup a VM is restored from: the tool
+ * never removes it (retention.protect).
+ * @param {any} entry the restore entry (restoreEntry())
+ * @returns {string[]}
+ */
+export function protectedPieces(entry) {
+	if (!entry?.pieceCid) return [];
+	return [...new Set([String(entry.pieceCid), ...(Array.isArray(entry.parts) ? entry.parts.map((p) => String(p?.pieceCid ?? '')) : [])])].filter((c) => /^(baga|bafk)[a-z2-7]{20,}$/.test(c));
 }
 
 /**
@@ -329,8 +373,10 @@ export function vmBackupSecrets(profile, { sessionKey, backupKey, signer, credit
 	if (!profile.backupConfig) return {};
 	const network = profile.network === 'mainnet' ? 'mainnet' : 'calibration';
 	if (!profile.backupsByCredits) {
+		// The tool plans retention here and reports it; only the wallet removes.
+		const retention = { ...retentionFor(network, profile.backupConfig.retention), protect: protectedPieces(profile.restoreEntry) };
 		return {
-			backup_config: JSON.stringify({ ...profile.backupConfig, payer: profile.payer, network }),
+			backup_config: JSON.stringify({ ...profile.backupConfig, retention, payer: profile.payer, network }),
 			backup_session_key: String(sessionKey)
 		};
 	}
@@ -338,9 +384,17 @@ export function vmBackupSecrets(profile, { sessionKey, backupKey, signer, credit
 	if (signer.network !== network) throw new Error(tr().backup.config.signerNetwork(signer.network, network));
 	if (!creditsUrl || !account || !product || !backupKey) throw new Error(tr().backup.config.signerIncomplete);
 	const { payer, tag, label } = signer;
+	// Retention runs on the VM only here (the service signs removals): within
+	// the quota, never the backup this VM is restored from.
+	const retention = {
+		...retentionFor(network, profile.backupConfig.retention),
+		maxBytes: CREDITS_QUOTA_BYTES,
+		protect: protectedPieces(profile.restoreEntry)
+	};
 	return {
 		backup_config: JSON.stringify({
 			...profile.backupConfig,
+			retention,
 			datasetMetadata: { ...(profile.backupConfig.datasetMetadata ?? {}), app: label, customer: tag },
 			payer,
 			network,

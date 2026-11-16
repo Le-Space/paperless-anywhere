@@ -52,6 +52,9 @@ def read(name):
         return None
 restore, backup, stop, data_disk, fixed = read("restore.json"), read("backup.json"), read("stop.json"), read("data-disk.json"), read("fixed-address.json")
 net = read("net-hardening.json")
+# The backup tool's last retention plan (paperless-backup): which backups stay
+# and why, which it scheduled for removal. Piece CIDs, dates, sizes; private page only.
+retention = read("retention.json")
 schedule, request = read("backup-schedule.json"), read("backup-request.json")
 # The last backup that ran (done, partial or failed): backup.json says "unchanged"
 # after every check that found nothing new, so the last real outcome is kept
@@ -136,7 +139,7 @@ elif up:
     phase = "ready"
 else:
     phase = "starting"
-full = {"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "lastBackup": last, "backupSchedule": schedule, "backupRequest": request, "backupMarks": marks, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "netHardening": net, "disks": disks, "memory": memory(), "storage": storage(), "at": now}
+full = {"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "lastBackup": last, "backupSchedule": schedule, "backupRequest": request, "backupMarks": marks, "retention": retention, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "netHardening": net, "disks": disks, "memory": memory(), "storage": storage(), "at": now}
 # The details only at a path the app that started this VM derives from its
 # vault (the status_token secret); the public page says no more than the phase.
 token = ""
