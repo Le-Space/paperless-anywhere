@@ -6,11 +6,15 @@ import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
+import { signClaim } from './claim.mjs';
 
 // Half noise, half zeros, as a filesystem image is.
 const plain = Buffer.concat([randomBytes(4 * 1024 * 1024), Buffer.alloc(4 * 1024 * 1024)]);
 const sha256 = createHash('sha256').update(plain).digest('hex');
 const passphrase = randomBytes(32).toString('base64');
+// The app's key, and another one: the first signed request claims the builder.
+const vault = randomBytes(32);
+const request = (sha, key = vault) => ({ method: 'POST', body: JSON.stringify({ sha256: sha, passphrase, ...signClaim(sha, key) }) });
 mkdirSync('/tmp/plain', { recursive: true });
 writeFileSync('/tmp/plain/paperless-plain.ext4.gz', gzipSync(plain));
 
@@ -27,16 +31,20 @@ const check = (ok, what) => {
 try {
 	await new Promise((resolve) => setTimeout(resolve, 1500));
 	check((await call('/')).plain === null, 'says who it is');
-	const wrong = await call('/build', { method: 'POST', body: JSON.stringify({ sha256: '00'.repeat(32), passphrase }) });
+	check((await call('/build', { method: 'POST', body: JSON.stringify({ sha256, passphrase, address: signClaim(sha256).address }) })).status === 401, 'an unsigned build is refused');
+	const wrong = await call('/build', request('00'.repeat(32)));
 	check(wrong.status === 202, 'a build for another image is accepted …');
 	// … and fails, because the image on the volume is not that one.
 	await new Promise((resolve) => setTimeout(resolve, 3000));
 	check((await call(`/job/${wrong.job}`)).state === 'failed', '… and fails: the image on the volume is not that one');
-	const { job, status } = await call('/build', { method: 'POST', body: JSON.stringify({ sha256, passphrase }) });
+	check((await call('/build', request(sha256, randomBytes(32)))).status === 403, 'another address cannot use the claimed builder');
+	const { job, status } = await call('/build', request(sha256));
 	check(status === 202 && job, 'the build is accepted (the failed one before does not block it)');
-	check((await call('/build', { method: 'POST', body: JSON.stringify({ sha256, passphrase }) })).status === 503, 'a second build has to wait');
+	const second = await call('/build', request(sha256));
+	check(second.status === 202 && (await call(`/job/${second.job}`)).state === 'queued', 'a second build waits for its turn');
+	check((await call(`/job/${second.job}`, { method: 'DELETE' })).removed === true, 'and can be taken back while it waits');
 	let state;
-	for (let i = 0; i < 120 && (state = await call(`/job/${job}`)).state === 'building'; i++) await new Promise((resolve) => setTimeout(resolve, 1000));
+	for (let i = 0; i < 120 && ['queued', 'building'].includes((state = await call(`/job/${job}`)).state); i++) await new Promise((resolve) => setTimeout(resolve, 1000));
 	check(state.state === 'built' && state.size === plain.length + 32 * 1048576, `built: ${state.state}, ${state.size} bytes${state.error ? `, ${state.error}` : ''}`);
 	check((await call('/')).plain?.sha256 === sha256, 'knows which plain image it holds');
 

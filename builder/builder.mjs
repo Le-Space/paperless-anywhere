@@ -14,21 +14,32 @@
 //   pieces, and the caller stores it on Aleph itself.
 //
 //   GET    /                    → {service, plain: {sha256, size} | null}
-//   POST   /build               {sha256, passphrase} → 202 {job}
+//   POST   /build               {sha256, passphrase, address, signature} → 202 {job}
 //   GET    /job/<job>           → {state, cid?, size?, error?}
 //   GET    /job/<job>/image     the sealed image; `Range: bytes=a-b` for a piece
 //   DELETE /job/<job>           removes it
 //
-// The builder keeps nothing: one job at a time, the passphrase goes to
-// cryptsetup's stdin and nowhere else, and a job's image is removed when the
-// caller says so or when nobody touched it for a while.
+// The first signed build request claims the builder for its address
+// (claim.mjs); jobs from any other address are refused (403).
+//
+// The builder keeps nothing: a few jobs at most (MAX_JOBS), built one after
+// the other, the passphrase goes to cryptsetup's stdin and nowhere else, and
+// a job's image is removed when the caller says so, when nobody fetched it
+// within minutes of being built, or when nobody touched it for a while.
 import { randomBytes } from 'node:crypto';
+import { ADDRESS, claimText, signerOf } from './claim.mjs';
 
 const HEX64 = /^[0-9a-f]{64}$/;
 export const MAX_IMAGE_BYTES = 1024 * 1024 * 1024 - 32 * 1024 * 1024; // Aleph takes 1 GiB in one upload
+// A built image nobody has fetched a piece of is removed after this long:
+// the app asks every few seconds and starts fetching at once.
+export const UNFETCHED_TTL_MS = 5 * 60 * 1000;
 // Counted from the last time the caller touched the job: fetching a whole
-// image through a relay takes a while.
-export const JOB_TTL_MS = 30 * 60 * 1000;
+// image through a relay takes a while, but every piece touches it.
+export const JOB_TTL_MS = 10 * 60 * 1000;
+// Jobs held at once, the one building included; further requests wait for
+// one to end. Each holds up to one image on the builder's disk.
+export const MAX_JOBS = 3;
 export const MAX_PIECE_BYTES = 16 * 1024 * 1024;
 const MAX_BODY = 16 * 1024;
 
@@ -53,12 +64,15 @@ export function explain(error) {
 /** What a build request must look like. */
 export function checkBuildRequest(body) {
 	if (!body || typeof body !== 'object') throw new Refused(400, 'expected a JSON object');
-	const { sha256, passphrase } = body;
+	const { sha256, passphrase, address, signature } = body;
 	if (!HEX64.test(sha256 ?? '')) throw new Refused(400, 'sha256: the SHA-256 of the plain image (64 hex)');
 	if (typeof passphrase !== 'string' || passphrase.length < 32 || passphrase.length > 256 || /[\r\n\0]/.test(passphrase)) {
 		throw new Refused(400, 'passphrase: 32 to 256 characters, one line');
 	}
-	return { sha256, passphrase };
+	if (typeof address !== 'string' || !ADDRESS.test(address)) throw new Refused(400, 'address: the signing address (0x + 40 hex)');
+	const signer = typeof signature === 'string' ? signerOf(claimText(sha256, address), signature) : null;
+	if (!signer || signer !== address.toLowerCase()) throw new Refused(401, 'signature: a personal_sign of the build claim by address');
+	return { sha256, passphrase, address: signer };
 }
 
 /**
@@ -92,27 +106,39 @@ export function pieceOf(header, size) {
  */
 export function createBuilder(deps) {
 	const now = deps.now ?? Date.now;
-	/** @type {null | { id: string, state: string, path: string, touched: number, cid?: string, size?: number, error?: string }} */
-	let job = null;
+	/** @type {Map<string, { id: string, state: string, path: string, touched: number, built?: number, fetched?: boolean, cid?: string, size?: number, error?: string }>} */
+	const jobs = new Map();
 	/** What the plain image on the volume is, known after the first build. @type {null | { sha256: string, size: number }} */
 	let plain = null;
+	/** The builds, one after the other. */
+	let line = Promise.resolve();
+	/** The address the first signed request came from; null until then. @type {string | null} */
+	let owner = null;
 
-	const drop = async () => {
-		const old = job;
-		job = null;
-		if (old) await deps.remove(old.path).catch(() => {});
+	const drop = async (j) => {
+		if (jobs.get(j.id) !== j) return;
+		jobs.delete(j.id);
+		j.state = 'removed';
+		await deps.remove(j.path).catch(() => {});
 	};
+	const stale = (j, t) =>
+		(j.state === 'built' && !j.fetched && t - /** @type {number} */ (j.built) > UNFETCHED_TTL_MS) ||
+		((j.state === 'built' || j.state === 'failed') && t - j.touched > JOB_TTL_MS);
 	const expire = async () => {
-		if (job && job.state !== 'building' && now() - job.touched > JOB_TTL_MS) await drop();
+		const t = now();
+		for (const j of [...jobs.values()]) if (stale(j, t)) await drop(j);
 	};
 	const view = (j) => ({ state: j.state, ...(j.cid ? { cid: j.cid, size: j.size } : {}), ...(j.error ? { error: j.error } : {}) });
 	const mine = (id) => {
-		if (!job || job.id !== id) throw new Refused(404, 'no such job');
-		job.touched = now();
-		return job;
+		const j = jobs.get(id);
+		if (!j) throw new Refused(404, 'no such job');
+		j.touched = now();
+		return j;
 	};
 
 	async function run(j, sha256, passphrase) {
+		if (j.state !== 'queued') return; // forgotten while it waited
+		j.state = 'building';
 		try {
 			const got = await deps.unpack(deps.plainPath, j.path, MAX_IMAGE_BYTES);
 			plain = got;
@@ -122,6 +148,7 @@ export function createBuilder(deps) {
 			j.cid = await deps.cidOf(j.path);
 			j.size = await deps.sizeOf(j.path);
 			j.state = 'built';
+			j.built = now();
 		} catch (error) {
 			j.error = explain(error);
 			j.state = 'failed';
@@ -136,12 +163,16 @@ export function createBuilder(deps) {
 		},
 		async build(body) {
 			await expire();
-			if (job && job.state !== 'failed') throw new Refused(503, 'busy with another image; try again in a few minutes');
-			await drop();
-			const { sha256, passphrase } = checkBuildRequest(body);
+			const { sha256, passphrase, address } = checkBuildRequest(body);
+			if (owner && owner !== address) throw new Refused(403, 'claimed by another address; start another builder');
+			owner = address;
+			// A failed job holds no image: it makes room first.
+			if (jobs.size >= MAX_JOBS) for (const j of [...jobs.values()]) if (j.state === 'failed' && jobs.size >= MAX_JOBS) await drop(j);
+			if (jobs.size >= MAX_JOBS) throw new Refused(503, 'busy with other images; try again in a few minutes');
 			const id = randomBytes(24).toString('hex');
-			job = { id, state: 'building', path: deps.pathFor(id), touched: now() };
-			const done = run(job, sha256, passphrase);
+			const j = { id, state: 'queued', path: deps.pathFor(id), touched: now() };
+			jobs.set(id, j);
+			const done = (line = line.then(() => run(j, sha256, passphrase)));
 			return { job: id, done };
 		},
 		async status(id) {
@@ -153,13 +184,15 @@ export function createBuilder(deps) {
 			await expire();
 			const j = mine(id);
 			if (j.state !== 'built') throw new Refused(409, `the image is ${j.state}`);
-			return { path: j.path, size: /** @type {number} */ (j.size), ...pieceOf(range, /** @type {number} */ (j.size)) };
+			const at = pieceOf(range, /** @type {number} */ (j.size));
+			j.fetched = true;
+			return { path: j.path, size: /** @type {number} */ (j.size), ...at };
 		},
 		async forget(id) {
 			await expire();
 			const j = mine(id);
 			if (j.state === 'building') throw new Refused(409, 'the image is being built');
-			await drop();
+			await drop(j);
 			return { removed: true };
 		}
 	};

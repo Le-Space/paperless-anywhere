@@ -217,13 +217,16 @@ only way in and forwards from the attested TLS port.
 | Call | Does |
 |---|---|
 | `GET /` | Says what it is and, after the first build, the SHA-256 and size of the plain image it holds. |
-| `POST /build` `{sha256, passphrase}` | Unpacks the plain image from its volume, refuses unless its SHA-256 is `sha256`, encrypts it. Answers `{job}` at once. |
-| `GET /job/<job>` | `{state}`: `building`, `built` (with the content address and size), `failed` (with the reason). |
+| `POST /build` `{sha256, passphrase, address, signature}` | Checks that `address` signed the build claim (`personal_sign`, `builder/claim.mjs`; the passphrase is not part of it). The first signed request claims the builder for its address, others get 403. Then it unpacks the plain image from its volume, refuses unless its SHA-256 is `sha256`, encrypts it. Answers `{job}` at once. |
+| `GET /job/<job>` | `{state}`: `queued`, `building`, `built` (with the content address and size), `failed` (with the reason). |
 | `GET /job/<job>/image` | The sealed image; with `Range: bytes=a-b` one piece of at most 16 MiB. |
 | `DELETE /job/<job>` | Removes the image. |
 
-It builds one image at a time, reaches nothing outside itself, holds no key
-of its own, and removes an image nobody touched for 30 minutes.
+It works for the address that signed its first build request (the app's
+key; the app starts another builder if it was claimed by someone else),
+builds one image at a time and holds at most three jobs, reaches nothing
+outside itself, holds no key of its own, and removes an image nobody fetched
+within five minutes of building it, or nobody touched for ten.
 
 ## What it costs
 

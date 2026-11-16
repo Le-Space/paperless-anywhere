@@ -6,6 +6,6 @@ RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends cryptse
 WORKDIR /opt/builder
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund --loglevel=error
-COPY builder.mjs server.mjs encrypt-image.sh ./
+COPY builder.mjs claim.mjs server.mjs encrypt-image.sh ./
 ENV BUILDER_WORK=/work
 CMD ["node", "server.mjs"]
