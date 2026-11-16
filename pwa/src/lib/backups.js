@@ -85,24 +85,27 @@ export async function dataSetsByClientIds(readPage, ids, { maxPages = MAX_DATA_S
  * parts; any other piece is a backup of its own.
  * @param {Array<{ cid: any, id: any }>} pieces
  * @param {(cid: string) => number | null} [sizeOf] a piece's payload size (from its CID)
- * @returns {Array<{ parts: Array<{ pieceCid: string, size: number | null }>, order: number }>}
+ * @returns {Array<{ parts: Array<{ pieceCid: string, size: number | null }>, order: number, pieceIds: string[] }>}
  */
 export function groupPieces(pieces, sizeOf = pieceSize) {
 	const sorted = [...pieces].sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0));
 	const groups = [];
 	let run = [];
+	let ids = [];
 	let order = 0;
 	for (const p of sorted) {
 		const pieceCid = cidText(p.cid);
 		const size = sizeOf(pieceCid);
 		run.push({ pieceCid, size });
+		ids.push(String(p.id));
 		order = Number(p.id);
 		if (size !== PART_BYTES) {
-			groups.push({ parts: run, order });
+			groups.push({ parts: run, order, pieceIds: ids });
 			run = [];
+			ids = [];
 		}
 	}
-	if (run.length) groups.push({ parts: run, order });
+	if (run.length) groups.push({ parts: run, order, pieceIds: ids });
 	return groups;
 }
 
@@ -111,8 +114,10 @@ export function groupPieces(pieces, sizeOf = pieceSize) {
  * one backup, whose size is the sum of its parts, and a data set holds a copy
  * of it only with every part. A data set that holds just some of a backup's
  * parts (one an older tool pruned, or a provider lost) holds no copy of it.
- * Newest first; complete when every data set holds it.
- * @param {Array<{ providerId: any, pieces: Array<{ cid: any, id: any }> }>} sets
+ * Newest first; complete when every data set holds it. A copy names its
+ * data set and the ids of its pieces there when the set says which it is
+ * (what backup-chain.js reads the proofs of).
+ * @param {Array<{ providerId: any, dataSetId?: any, pieces: Array<{ cid: any, id: any }> }>} sets
  * @param {{ urlOf: (providerId: any) => string | undefined, placeOf?: (providerId: any) => string, sizeOf?: (cid: string) => number | null }} where
  */
 export function backupsFromPieces(sets, { urlOf, placeOf = () => '', sizeOf = pieceSize }) {
@@ -122,7 +127,7 @@ export function backupsFromPieces(sets, { urlOf, placeOf = () => '', sizeOf = pi
 			const key = g.parts.map((p) => p.pieceCid).join(' ');
 			const entry = byKey.get(key) ?? { parts: g.parts, order: 0, holders: [] };
 			entry.order = Math.max(entry.order, g.order);
-			entry.holders.push(ds.providerId);
+			entry.holders.push({ providerId: ds.providerId, dataSetId: ds.dataSetId, pieceIds: g.pieceIds });
 			byKey.set(key, entry);
 		}
 	}
@@ -136,11 +141,19 @@ export function backupsFromPieces(sets, { urlOf, placeOf = () => '', sizeOf = pi
 	return all
 		.filter((_, i) => !fragment(i))
 		.map((b) => {
-			const copies = b.holders.flatMap((providerId) => {
+			const copies = b.holders.flatMap(({ providerId, dataSetId, pieceIds }) => {
 				const base = urlOf(providerId);
 				if (!base) return [];
 				const urls = b.parts.map((p) => `${base}/piece/${p.pieceCid}`);
-				return [{ providerId: String(providerId), retrievalUrl: urls[0], ...(b.parts.length > 1 ? { retrievalUrls: urls } : {}), place: placeOf(providerId) }];
+				return [
+					{
+						providerId: String(providerId),
+						retrievalUrl: urls[0],
+						...(b.parts.length > 1 ? { retrievalUrls: urls } : {}),
+						place: placeOf(providerId),
+						...(dataSetId != null ? { dataSetId: String(dataSetId), pieceIds } : {})
+					}
+				];
 			});
 			const sizes = b.parts.map((p) => p.size);
 			return {
@@ -162,7 +175,7 @@ export function backupsFromPieces(sets, { urlOf, placeOf = () => '', sizeOf = pi
  * `dataSetIds`: the client data set ids Le Space Credits list for this
  * account; the data sets are picked by them, then checked by label and tag.
  * @param {{ network: string, owner: string, label?: string, customer?: string | null, dataSetIds?: string[] | null }} a
- * @returns {Promise<Array<{ pieceCid: string, parts?: Array<{ pieceCid: string, size: number | null }>, size: number | null, copies: Array<{ providerId: string, retrievalUrl: string, retrievalUrls?: string[], place: string }>, complete: boolean, order: number }>>}
+ * @returns {Promise<Array<{ pieceCid: string, parts?: Array<{ pieceCid: string, size: number | null }>, size: number | null, copies: Array<{ providerId: string, retrievalUrl: string, retrievalUrls?: string[], place: string, dataSetId?: string, pieceIds?: string[] }>, complete: boolean, order: number }>>}
  */
 export async function listBackups({ network, owner, label, customer = null, dataSetIds = null }) {
 	const want = label ?? BACKUP_LABEL[network === 'mainnet' ? 'mainnet' : 'calibration'];
@@ -187,8 +200,9 @@ export async function listBackups({ network, owner, label, customer = null, data
 	const byId = (id) => providers.find((p) => String(p.id) === String(id));
 	const withPieces = [];
 	for (const ds of sets) {
-		const { items: pieces } = await getActivePiecesByCursor(client, { dataSetId: BigInt(ds.dataSetId ?? ds.id) });
-		withPieces.push({ providerId: ds.providerId, pieces });
+		const dataSetId = BigInt(ds.dataSetId ?? ds.id);
+		const { items: pieces } = await getActivePiecesByCursor(client, { dataSetId });
+		withPieces.push({ providerId: ds.providerId, dataSetId, pieces });
 	}
 	return backupsFromPieces(withPieces, {
 		urlOf: (id) => byId(id)?.pdp?.serviceURL?.replace(/\/+$/, ''),
