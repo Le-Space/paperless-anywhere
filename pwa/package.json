@@ -5,6 +5,7 @@
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
+		"check": "svelte-kit sync && svelte-check --threshold error",
 		"dev": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
@@ -41,6 +42,8 @@
 		"ipfs-unixfs-importer": "17.1.1",
 		"mmdb-lib": "3.0.3",
 		"svelte": "5.37.2",
+		"svelte-check": "4.3.4",
+		"typescript": "5.9.3",
 		"vite": "7.0.6",
 		"vite-node": "3.2.4",
 		"vitest": "3.2.4"

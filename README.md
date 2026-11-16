@@ -61,6 +61,8 @@ In preparation, an image sealed with a passphrase only your vault knows, made by
 
 The variants of confidential VMs we know, what each measures and who holds which key: [docs/confidential-vm-variants.md](docs/confidential-vm-variants.md).
 
+Which tests run on every pull request, and which live tests on Aleph and Filecoin are started by hand: [docs/testing.md](docs/testing.md).
+
 ## What this does not protect against
 
 - A bug in the CPU's SEV-SNP or in the hypervisor that breaks confidentiality.
