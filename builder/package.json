@@ -7,8 +7,12 @@
 		"start": "node server.mjs",
 		"test": "node --test"
 	},
-	"engines": { "node": ">=22" },
+	"engines": {
+		"node": ">=22"
+	},
 	"dependencies": {
+		"@noble/curves": "1.9.1",
+		"@noble/hashes": "1.8.0",
 		"ipfs-unixfs-importer": "17.1.1"
 	}
 }

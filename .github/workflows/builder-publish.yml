@@ -360,9 +360,14 @@ jobs:
           call() { aleph vprogram call "$HASH" "$@" 2>> "$RUNNER_TEMP/trial.log"; }
           pass="$(openssl rand -base64 32 | tr -d '\r\n')"
           echo "::add-mask::$pass"
+          # The first signed request claims the builder (builder/claim.mjs):
+          # here with a key made for the run and thrown away.
+          (cd builder && npm ci --ignore-scripts --omit=dev --no-audit --no-fund --loglevel=error)
+          claim="$(node --input-type=module -e "import { signClaim } from './builder/claim.mjs'; console.log(JSON.stringify(signClaim(process.argv[1])))" "$PLAIN_SHA256")"
+          body="$(jq -cn --arg sha "$PLAIN_SHA256" --arg pass "$pass" --argjson claim "$claim" '{sha256: $sha, passphrase: $pass} + $claim')"
           started=$(date +%s)
-          job="$(call /build -X POST -H 'Content-Type: application/json' -d "{\"sha256\":\"$PLAIN_SHA256\",\"passphrase\":\"$pass\"}" | jq -r '.job // empty')"
-          unset pass
+          job="$(call /build -X POST -H 'Content-Type: application/json' -d "$body" | jq -r '.job // empty')"
+          unset pass body
           [[ "$job" =~ ^[0-9a-f]{48}$ ]] || { tail -5 "$RUNNER_TEMP/trial.log"; echo "::error::the builder did not accept the build"; exit 1; }
           state=building
           for try in $(seq 1 60); do
@@ -370,7 +375,7 @@ jobs:
             answer="$(call "/job/$job" || true)"
             state="$(jq -r '.state // empty' <<<"$answer")"
             echo "[$try] ${answer:-no answer}"
-            [ "$state" = building ] || [ -z "$state" ] || break
+            [ "$state" = building ] || [ "$state" = queued ] || [ -z "$state" ] || break
           done
           built_after=$(( $(date +%s) - started ))
           [ "$state" = built ] || { echo "::error::the build ended as \"${state:-unknown}\": $(jq -r '.error // empty' <<<"$answer")"; call "/job/$job" -X DELETE >/dev/null || true; exit 1; }

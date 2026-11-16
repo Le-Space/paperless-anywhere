@@ -108,6 +108,14 @@ export const BUILDER = {
 };
 
 const HEX64 = /^[0-9a-f]{64}$/;
+
+/**
+ * What the app signs (personal_sign) with a build request: the first signed
+ * request claims the builder for its address (builder/claim.mjs, claimText:
+ * the two must stay the same). Never the passphrase.
+ * @param {string} sha256 @param {string} address
+ */
+export const buildClaimText = (sha256, address) => `paperless-anywhere image build\nsha256: ${sha256}\naddress: ${address.toLowerCase()}`;
 const CID = /^[A-Za-z0-9]{40,64}$/;
 const decoder = new TextDecoder();
 
@@ -457,8 +465,11 @@ export async function buildOwnImage({ master, app, payer = app.address, builder,
 		try {
 			onProgress({ step: 'build', detail: tr().ownImage.step.build, data: { plainSha256: plain.sha256 } });
 			// Sent once, over the channel that was just attested, and never again.
-			const started = await call(channel, 'POST', '/build', { sha256: plain.sha256, passphrase });
+			// Signed by the app's key: the first signed request claims the builder.
+			const signature = await app.signMessage({ message: buildClaimText(plain.sha256, app.address) });
+			const started = await call(channel, 'POST', '/build', { sha256: plain.sha256, passphrase, address: app.address, signature });
 			if (started.status === 503 && /busy/i.test(String(started.answer?.error ?? ''))) throw new BuilderError(tr().ownImage.error.busy);
+			if (started.status === 403 && /claimed/i.test(String(started.answer?.error ?? ''))) throw new BuilderError(tr().ownImage.error.claimed, 'claimed');
 			job = started.answer?.job ?? '';
 			if (started.status !== 202 || !/^[0-9a-f]{48}$/.test(job)) throw refused('notAccepted', started);
 
@@ -676,7 +687,20 @@ export async function forgetBuilder(app, vprogram, { post = send, sleep = (ms) =
  *   upTries?: number, upMs?: number
  * }} a
  */
-export async function buildOnOwnBuilder({ builder, opener, onStarted = () => {}, onForgotten = () => {}, post = send, upTries = 40, upMs = 15_000, ...rest }) {
+export async function buildOnOwnBuilder(a) {
+	// Another address claimed the builder first: it is forgotten (below), and
+	// one more is started, which nobody else knows of yet.
+	for (let attempt = 0; ; attempt++) {
+		try {
+			return await buildOnOneBuilder(a);
+		} catch (error) {
+			if (!(error instanceof BuilderError && error.code === 'claimed') || attempt >= 1) throw error;
+		}
+	}
+}
+
+/** One builder, started, used and forgotten. @param {Parameters<typeof buildOnOwnBuilder>[0]} a */
+async function buildOnOneBuilder({ builder, opener, onStarted = () => {}, onForgotten = () => {}, post = send, upTries = 40, upMs = 15_000, ...rest }) {
 	const { master, app, payer = app.address, onProgress = () => {}, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), kept = fetched } = rest;
 	checkBuilder(builder);
 	const key = `${app.address.toLowerCase()}/${builder.plain.sha256}`;

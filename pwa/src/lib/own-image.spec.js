@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { recoverMessageAddress } from 'viem';
 import { imagePassphrase } from './keys/derive.js';
-import { BUILDER, BUILDER_CREDITS_PER_HOUR, BuilderError, IMAGE_STORE_CREDITS_PER_HOUR, LANES, PIECE_BYTES, RUN_BYTES, buildAffordable, imageStatus, relayHost, settleLeftBuild, buildOnOwnBuilder, buildPaidByPackage, buildOwnImage, builderMessage, builderOpener, checkBuilder, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources, storeMessage } from './own-image.js';
+import { BUILDER, BUILDER_CREDITS_PER_HOUR, BuilderError, IMAGE_STORE_CREDITS_PER_HOUR, LANES, PIECE_BYTES, RUN_BYTES, buildAffordable, imageStatus, relayHost, settleLeftBuild, buildOnOwnBuilder, buildPaidByPackage, buildOwnImage, buildClaimText, builderMessage, builderOpener, checkBuilder, forgetLeftBuilder, hasOwnImage, imageFields, imageKindOf, sources, storeMessage } from './own-image.js';
 import { sha256Hex } from './vm.js';
 
 const master = new Uint8Array(32).fill(7);
@@ -105,7 +105,14 @@ describe('an image of one\'s own', () => {
 		const steps = [];
 		const result = await buildOwnImage({ master, app, builder, open, store, onProgress: (p) => steps.push(p.step), ...quick() });
 		expect([...new Set(steps)]).toEqual(['attest', 'build', 'fetch', 'sign', 'upload', 'confirm']);
-		expect(seen.calls[0]).toEqual({ method: 'POST', path: '/build', body: { sha256: builder.plain.sha256, passphrase: imagePassphrase(master, builder.plain.sha256) } });
+		const { signature, ...sentBody } = seen.calls[0].body;
+		expect(seen.calls[0]).toMatchObject({ method: 'POST', path: '/build' });
+		expect(sentBody).toEqual({ sha256: builder.plain.sha256, passphrase: imagePassphrase(master, builder.plain.sha256), address: app.address });
+		// Signed by the app's key; the signed text holds no passphrase.
+		const claim = buildClaimText(builder.plain.sha256, app.address);
+		expect(claim).toBe(`paperless-anywhere image build\nsha256: ${builder.plain.sha256}\naddress: ${app.address.toLowerCase()}`);
+		expect(claim).not.toContain(imagePassphrase(master, builder.plain.sha256));
+		expect(await recoverMessageAddress({ message: claim, signature })).toBe(app.address);
 		expect(seen.calls.filter((c) => c.range).map((c) => c.range)).toEqual(['bytes=0-999', 'bytes=1000-1999', 'bytes=2000-2499']);
 		// What goes to Aleph is exactly what the builder handed back, beside a STORE for its content address.
 		expect(got.bytes).toEqual(image);
@@ -565,6 +572,30 @@ describe('a builder started for each build', () => {
 		const { open } = fakeBuilder({ 'POST /build': () => ({ status: 503, body: new TextEncoder().encode('{"error":"busy with another image; try again in a few minutes"}') }) });
 		const { post } = fakeAleph();
 		await expect(buildOnOwnBuilder({ master, app, builder: template, post, ...quick(), opener: () => open })).rejects.toThrow('baut gerade ein anderes Image');
+	});
+
+	it('starts one more builder when another address claimed the first', async () => {
+		let builds = 0;
+		const { open } = fakeBuilder({
+			'POST /build': () =>
+				++builds === 1
+					? { status: 403, body: new TextEncoder().encode('{"error":"claimed by another address; start another builder"}') }
+					: { status: 202, body: new TextEncoder().encode(JSON.stringify({ job })) }
+		});
+		const { store } = fakeStore();
+		const { sent, post } = fakeAleph();
+		const result = await buildOnOwnBuilder({ master, app, builder: template, store, post, ...quick(), opener: () => open });
+		expect(builds).toBe(2);
+		expect(sent.map((m) => m.type)).toEqual(['V-PROGRAM', 'FORGET', 'V-PROGRAM', 'FORGET']);
+		expect(sent[0].hash).not.toBe(sent[2].hash);
+		expect(result.rootfsItemHash).toMatch(/^[0-9a-f]{64}$/);
+	});
+
+	it('gives up when the second builder is claimed too', async () => {
+		const { open } = fakeBuilder({ 'POST /build': () => ({ status: 403, body: new TextEncoder().encode('{"error":"claimed by another address; start another builder"}') }) });
+		const { sent, post } = fakeAleph();
+		await expect(buildOnOwnBuilder({ master, app, builder: template, post, ...quick(), opener: () => open })).rejects.toThrow('schon vergeben');
+		expect(sent.map((m) => m.type)).toEqual(['V-PROGRAM', 'FORGET', 'V-PROGRAM', 'FORGET']);
 	});
 
 	it('forgets it also when the build fails', async () => {

@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { claimText, signClaim } from './claim.mjs';
 import { checkBuildRequest, createBuilder, explain, JOB_TTL_MS, MAX_JOBS, MAX_PIECE_BYTES, pieceOf, Refused, UNFETCHED_TTL_MS } from './builder.mjs';
 
 const sha256 = 'cd'.repeat(32);
 const passphrase = 'x'.repeat(44);
 const cid = 'QmExampleExampleExampleExampleExampleExample12';
+const vault = new Uint8Array(32).fill(7);
+const other = new Uint8Array(32).fill(9);
+/** A build request signed by `key`, as the app sends it. */
+const req = (key = vault, sha = sha256) => ({ sha256: sha, passphrase, ...signClaim(sha, key) });
 
 function setup(over = {}) {
 	const seen = { unpacked: [], encrypted: [], removed: [] };
@@ -25,17 +30,48 @@ function setup(over = {}) {
 
 const refusal = (status) => (error) => error instanceof Refused && error.status === status;
 
-test('a build request needs the image\'s hash and a long one-line passphrase', () => {
-	assert.deepEqual(checkBuildRequest({ sha256, passphrase }), { sha256, passphrase });
-	for (const bad of [null, { passphrase }, { sha256: 'xyz', passphrase }, { sha256, passphrase: 'short' }, { sha256, passphrase: `${passphrase}\n` }]) {
+test('a build request needs the image\'s hash, a long one-line passphrase and a signed claim', () => {
+	const ok = req();
+	assert.deepEqual(checkBuildRequest(ok), { sha256, passphrase, address: ok.address.toLowerCase() });
+	const forOther = req(vault, 'ab'.repeat(32));
+	for (const bad of [
+		null,
+		{ ...ok, sha256: undefined },
+		{ ...ok, sha256: 'xyz' },
+		{ ...ok, passphrase: 'short' },
+		{ ...ok, passphrase: `${passphrase}\n` },
+		{ ...ok, address: 'nope' }
+	]) {
 		assert.throws(() => checkBuildRequest(bad), refusal(400));
 	}
+	for (const bad of [
+		{ ...ok, signature: undefined },
+		{ ...ok, signature: '0x' + '00'.repeat(65) },
+		{ ...ok, signature: forOther.signature },
+		{ ...ok, address: req(other).address }
+	]) {
+		assert.throws(() => checkBuildRequest(bad), refusal(401));
+	}
+});
+
+test('the claim the app signs: the same text as buildClaimText in pwa/src/lib/own-image.js', () => {
+	assert.equal(claimText(sha256, '0xAbC0000000000000000000000000000000000001'), `paperless-anywhere image build\nsha256: ${sha256}\naddress: 0xabc0000000000000000000000000000000000001`);
+});
+
+test('the first signed request claims the builder; other addresses are refused', async () => {
+	const { builder } = setup();
+	const { done } = await builder.build(req(vault));
+	await assert.rejects(builder.build(req(other)), refusal(403));
+	await done;
+	const again = await builder.build(req(vault));
+	await again.done;
+	assert.equal((await builder.status(again.job)).state, 'built');
 });
 
 test('seals the image from the volume and hands it back in pieces', async () => {
 	const { builder, seen } = setup();
 	assert.deepEqual(builder.info(), { service: 'paperless-anywhere image builder', plain: null });
-	const { job, done } = await builder.build({ sha256, passphrase });
+	const { job, done } = await builder.build(req());
 	await assert.rejects(builder.piece(job, undefined), refusal(409));
 	await done;
 	assert.deepEqual(await builder.status(job), { state: 'built', cid, size: 8192 });
@@ -58,7 +94,7 @@ test('a piece is a plain byte range inside the image, of bounded size', () => {
 
 test('never answers with the passphrase', async () => {
 	const { builder } = setup();
-	const { job, done } = await builder.build({ sha256, passphrase });
+	const { job, done } = await builder.build(req());
 	await done;
 	const said = JSON.stringify([builder.info(), await builder.status(job), await builder.piece(job, 'bytes=0-1'), await builder.forget(job)]);
 	assert.ok(!said.includes(passphrase));
@@ -66,7 +102,7 @@ test('never answers with the passphrase', async () => {
 
 test('seals nothing but the image that was asked for', async () => {
 	const { builder, seen } = setup({ unpack: async () => ({ sha256: '00'.repeat(32), size: 4096 }) });
-	const { job, done } = await builder.build({ sha256, passphrase });
+	const { job, done } = await builder.build(req());
 	await done;
 	assert.deepEqual(await builder.status(job), { state: 'failed', error: 'the plain image here is not the one asked for' });
 	assert.equal(seen.encrypted.length, 0);
@@ -86,11 +122,11 @@ test('builds one image at a time, holds a few jobs, and a job is known by its ow
 			return { sha256, size: 4096 };
 		}
 	});
-	const first = await builder.build({ sha256, passphrase });
+	const first = await builder.build(req());
 	const more = [];
-	for (let i = 1; i < MAX_JOBS; i++) more.push(await builder.build({ sha256, passphrase }));
+	for (let i = 1; i < MAX_JOBS; i++) more.push(await builder.build(req()));
 	// While they wait: no further job, the building one cannot be removed, a waiting one can.
-	await assert.rejects(builder.build({ sha256, passphrase }), refusal(503));
+	await assert.rejects(builder.build(req()), refusal(503));
 	await assert.rejects(builder.forget(first.job), refusal(409));
 	assert.equal((await builder.status(more[0].job)).state, 'queued');
 	await builder.forget(more[0].job);
@@ -106,9 +142,9 @@ test('builds one image at a time, holds a few jobs, and a job is known by its ow
 test('an image nobody fetches is removed within minutes', async () => {
 	const { builder, seen, later } = setup();
 	const jobs = [];
-	for (let i = 0; i < MAX_JOBS; i++) jobs.push(await builder.build({ sha256, passphrase }));
+	for (let i = 0; i < MAX_JOBS; i++) jobs.push(await builder.build(req()));
 	await Promise.all(jobs.map((j) => j.done));
-	await assert.rejects(builder.build({ sha256, passphrase }), refusal(503));
+	await assert.rejects(builder.build(req()), refusal(503));
 	// Asking for its state does not keep it: only fetching does.
 	later(UNFETCHED_TTL_MS - 1);
 	assert.equal((await builder.status(jobs[0].job)).state, 'built');
@@ -117,12 +153,12 @@ test('an image nobody fetches is removed within minutes', async () => {
 	assert.equal((await builder.status(jobs[0].job)).state, 'built');
 	await assert.rejects(builder.status(jobs[1].job), refusal(404));
 	assert.equal(seen.removed.length, MAX_JOBS - 1);
-	await builder.build({ sha256, passphrase });
+	await builder.build(req());
 });
 
 test('an image being fetched stays while it is touched, and goes when it is not', async () => {
 	const { builder, seen, later } = setup();
-	const { job, done } = await builder.build({ sha256, passphrase });
+	const { job, done } = await builder.build(req());
 	await done;
 	await builder.piece(job, 'bytes=0-1');
 	later(JOB_TTL_MS - 1);
@@ -137,9 +173,9 @@ test('an image being fetched stays while it is touched, and goes when it is not'
 test('failed jobs make room for new ones', async () => {
 	const { builder } = setup({ unpack: async () => ({ sha256: '00'.repeat(32), size: 4096 }) });
 	const jobs = [];
-	for (let i = 0; i < MAX_JOBS; i++) jobs.push(await builder.build({ sha256, passphrase }));
+	for (let i = 0; i < MAX_JOBS; i++) jobs.push(await builder.build(req()));
 	await Promise.all(jobs.map((j) => j.done));
-	const next = await builder.build({ sha256, passphrase });
+	const next = await builder.build(req());
 	await next.done;
 	assert.equal((await builder.status(next.job)).state, 'failed');
 });
@@ -148,9 +184,9 @@ test('a failed step says what lies behind it', async () => {
 	const failed = new Error('unpack failed', { cause: Object.assign(new Error('no such file'), { code: 'ENOENT' }) });
 	assert.equal(explain(failed), 'unpack failed: ENOENT no such file');
 	const { builder } = setup({ unpack: async () => { throw failed; } });
-	const { job, done } = await builder.build({ sha256, passphrase });
+	const { job, done } = await builder.build(req());
 	await done;
 	assert.deepEqual(await builder.status(job), { state: 'failed', error: 'unpack failed: ENOENT no such file' });
 	// A failed job does not block the next one.
-	await builder.build({ sha256, passphrase });
+	await builder.build(req());
 });

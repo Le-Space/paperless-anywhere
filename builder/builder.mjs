@@ -14,16 +14,20 @@
 //   pieces, and the caller stores it on Aleph itself.
 //
 //   GET    /                    → {service, plain: {sha256, size} | null}
-//   POST   /build               {sha256, passphrase} → 202 {job}
+//   POST   /build               {sha256, passphrase, address, signature} → 202 {job}
 //   GET    /job/<job>           → {state, cid?, size?, error?}
 //   GET    /job/<job>/image     the sealed image; `Range: bytes=a-b` for a piece
 //   DELETE /job/<job>           removes it
+//
+// The first signed build request claims the builder for its address
+// (claim.mjs); jobs from any other address are refused (403).
 //
 // The builder keeps nothing: a few jobs at most (MAX_JOBS), built one after
 // the other, the passphrase goes to cryptsetup's stdin and nowhere else, and
 // a job's image is removed when the caller says so, when nobody fetched it
 // within minutes of being built, or when nobody touched it for a while.
 import { randomBytes } from 'node:crypto';
+import { ADDRESS, claimText, signerOf } from './claim.mjs';
 
 const HEX64 = /^[0-9a-f]{64}$/;
 export const MAX_IMAGE_BYTES = 1024 * 1024 * 1024 - 32 * 1024 * 1024; // Aleph takes 1 GiB in one upload
@@ -60,12 +64,15 @@ export function explain(error) {
 /** What a build request must look like. */
 export function checkBuildRequest(body) {
 	if (!body || typeof body !== 'object') throw new Refused(400, 'expected a JSON object');
-	const { sha256, passphrase } = body;
+	const { sha256, passphrase, address, signature } = body;
 	if (!HEX64.test(sha256 ?? '')) throw new Refused(400, 'sha256: the SHA-256 of the plain image (64 hex)');
 	if (typeof passphrase !== 'string' || passphrase.length < 32 || passphrase.length > 256 || /[\r\n\0]/.test(passphrase)) {
 		throw new Refused(400, 'passphrase: 32 to 256 characters, one line');
 	}
-	return { sha256, passphrase };
+	if (typeof address !== 'string' || !ADDRESS.test(address)) throw new Refused(400, 'address: the signing address (0x + 40 hex)');
+	const signer = typeof signature === 'string' ? signerOf(claimText(sha256, address), signature) : null;
+	if (!signer || signer !== address.toLowerCase()) throw new Refused(401, 'signature: a personal_sign of the build claim by address');
+	return { sha256, passphrase, address: signer };
 }
 
 /**
@@ -105,6 +112,8 @@ export function createBuilder(deps) {
 	let plain = null;
 	/** The builds, one after the other. */
 	let line = Promise.resolve();
+	/** The address the first signed request came from; null until then. @type {string | null} */
+	let owner = null;
 
 	const drop = async (j) => {
 		if (jobs.get(j.id) !== j) return;
@@ -154,7 +163,9 @@ export function createBuilder(deps) {
 		},
 		async build(body) {
 			await expire();
-			const { sha256, passphrase } = checkBuildRequest(body);
+			const { sha256, passphrase, address } = checkBuildRequest(body);
+			if (owner && owner !== address) throw new Refused(403, 'claimed by another address; start another builder');
+			owner = address;
 			// A failed job holds no image: it makes room first.
 			if (jobs.size >= MAX_JOBS) for (const j of [...jobs.values()]) if (j.state === 'failed' && jobs.size >= MAX_JOBS) await drop(j);
 			if (jobs.size >= MAX_JOBS) throw new Refused(503, 'busy with other images; try again in a few minutes');
