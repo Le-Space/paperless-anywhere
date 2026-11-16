@@ -71,7 +71,7 @@ describe('resumeStart', () => {
 		vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ status: 'forgotten' })));
 		const steps = [];
 		const starting = { instanceHash: 'c'.repeat(64), crnHash: 'd'.repeat(64), payer: app, trustedExecution: {}, restoreEntry: null, at: 0 };
-		await expect(resumeStart(master, { starting }, (p) => steps.push(p.step))).rejects.toThrow('gibt es bei Aleph nicht mehr (forgotten)');
+		await expect(resumeStart(master, { starting }, (p) => steps.push(p.step))).rejects.toThrow('Der unterbrochene Start ist bei Aleph nicht mehr da');
 		expect(steps).toEqual(['instance']);
 	});
 });

@@ -66,3 +66,35 @@ describe('startPaperless and a broken connection', () => {
 		expect(onRequested).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe('resumeStart and a start Aleph no longer has', () => {
+	const hash = 'cd'.repeat(32);
+	const image = 'ef'.repeat(32);
+	const starting = { instanceHash: hash, crnHash: 'c'.repeat(64), payer: '0x' + '1'.repeat(40), trustedExecution: {}, restoreEntry: null, at: 0 };
+	const answer = (status, body) => vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify(body), { status }));
+
+	it('a rejected INSTANCE is a StartGoneError naming the missing image', async () => {
+		const { resumeStart, StartGoneError } = await import('./lifecycle.js');
+		const f = answer(200, { status: 'rejected', error_code: 301, details: { errors: [image] } });
+		const e = await resumeStart(master, { ...profile, starting }, () => {}).catch((x) => x);
+		f.mockRestore();
+		expect(e).toBeInstanceOf(StartGoneError);
+		expect(e.missing).toEqual([image]);
+		expect(e.message).toContain('abgelehnt');
+		expect(e.message).toContain(image.slice(0, 12));
+	});
+	it('a forgotten INSTANCE is gone too', async () => {
+		const { resumeStart, StartGoneError } = await import('./lifecycle.js');
+		const f = answer(200, { status: 'forgotten' });
+		const e = await resumeStart(master, { ...profile, starting }, () => {}).catch((x) => x);
+		f.mockRestore();
+		expect(e).toBeInstanceOf(StartGoneError);
+	});
+	it('one Aleph never got is gone once the wait is over', async () => {
+		const { resumeStart, StartGoneError } = await import('./lifecycle.js');
+		const f = answer(404, {});
+		const e = await resumeStart(master, { ...profile, starting }, () => {}, { lookUpTries: 2, lookUpPauseMs: 1 }).catch((x) => x);
+		f.mockRestore();
+		expect(e).toBeInstanceOf(StartGoneError);
+	});
+});

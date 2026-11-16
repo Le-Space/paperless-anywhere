@@ -14,6 +14,8 @@ export const life = {
 			payerAccount: { lespace: 'dem Konto, mit dem Le Space deine VM bezahlt', app: 'der Adresse der App', wallet: 'deiner Wallet' },
 			noInterruptedStart: 'Es gibt keinen unterbrochenen Start.',
 			vmGone: (/** @type {string} */ hash, /** @type {string | number} */ status) => `Die VM ${hash} gibt es bei Aleph nicht mehr (${status}).`,
+			startGone: (/** @type {string} */ status, /** @type {string[]} */ missing) =>
+				`Der unterbrochene Start ist bei Aleph ${status === 'rejected' ? 'abgelehnt worden' : 'nicht mehr da'}${missing.length ? ` (Aleph kennt ${missing.length === 1 ? 'dieses Image' : 'diese Teile'} nicht mehr: ${missing.join(', ')})` : ''}. Er ist verworfen; du kannst neu starten.`,
 			dataDiskFailed: (/** @type {string} */ reason) => `Die VM konnte ihre verschlüsselte Datenplatte nicht anlegen (${reason}); Paperless startet darauf nicht. Die VM unter „Meine VMs“ löschen und neu starten.`,
 			noReason: 'ohne Angabe',
 			noVm: 'Es läuft keine VM.',
@@ -120,6 +122,8 @@ export const life = {
 			payerAccount: { lespace: 'the account Le Space pays your VM with', app: 'the app’s address', wallet: 'your wallet' },
 			noInterruptedStart: 'There is no interrupted start.',
 			vmGone: (/** @type {string} */ hash, /** @type {string | number} */ status) => `The VM ${hash} no longer exists on Aleph (${status}).`,
+			startGone: (/** @type {string} */ status, /** @type {string[]} */ missing) =>
+				`Aleph ${status === 'rejected' ? 'rejected' : 'no longer has'} the interrupted start${missing.length ? ` (Aleph no longer knows ${missing.length === 1 ? 'this image' : 'these parts'}: ${missing.join(', ')})` : ''}. It was dropped; you can start again.`,
 			dataDiskFailed: (/** @type {string} */ reason) => `The VM could not create its encrypted data disk (${reason}); Paperless does not start on that. Delete the VM under “My VMs” and start again.`,
 			noReason: 'no reason given',
 			noVm: 'No VM is running.',
