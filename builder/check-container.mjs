@@ -31,7 +31,7 @@ const check = (ok, what) => {
 try {
 	await new Promise((resolve) => setTimeout(resolve, 1500));
 	check((await call('/')).plain === null, 'says who it is');
-	check((await call('/build', { method: 'POST', body: JSON.stringify({ sha256, passphrase }) })).status === 401, 'an unsigned build is refused');
+	check((await call('/build', { method: 'POST', body: JSON.stringify({ sha256, passphrase, address: signClaim(sha256).address }) })).status === 401, 'an unsigned build is refused');
 	const wrong = await call('/build', request('00'.repeat(32)));
 	check(wrong.status === 202, 'a build for another image is accepted …');
 	// … and fails, because the image on the volume is not that one.
