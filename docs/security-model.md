@@ -100,7 +100,10 @@ database, so only inside that person's running VM and their encrypted backups.
   Valkey ask for passwords the VM makes; the containers' logs stay in
   Docker's log store on the sealed data area.
 - A stop backs up first and erases the VM only when every requested copy has
-  arrived.
+  arrived. The app does not take the status page's word for that alone: it
+  erases only once it has itself read the new backup on the chain.
+- The app reads a VM's status page only at a plain DNS name (with a port for
+  the fixed address), and takes from 2n6 only a single name under 2n6.me.
 
 ## The relay
 

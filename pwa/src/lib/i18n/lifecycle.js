@@ -24,6 +24,7 @@ export const life = {
 			noBackupNow: 'Diese VM kennt „Jetzt sichern“ noch nicht (älteres Image).',
 			backupModes: { interrupted: 'unterbrochen', stopping: 'Paperless wird gerade gesichert und beendet' },
 			noPendingAnswer: 'Die VM wartet auf keine Antwort mehr; bitte die Seite neu laden.',
+			backupUnconfirmed: 'Die Sicherung, die die VM meldet, ist auf der Blockchain nicht als neue Sicherung zu finden. Die VM wird deshalb nicht gelöscht. Später noch einmal versuchen.',
 			noBackupKey: 'Ohne den Schlüssel der Sicherungen lässt sich keine Sicherung prüfen.'
 		},
 		missing: {
@@ -54,6 +55,7 @@ export const life = {
 			passphraseAgain: 'Noch keine Antwort der VM: Passphrase erneut übergeben',
 			passphraseAgainFailed: (/** @type {string} */ reason) => `Erneute Übergabe fehlgeschlagen: ${reason}`,
 			stop: 'Stopp anfordern (letzte Sicherung)',
+			confirmBackup: 'Neue Sicherung auf der Blockchain prüfen',
 			forget: 'VM löschen'
 		},
 		vm: {
@@ -135,6 +137,7 @@ export const life = {
 			noBackupNow: 'This VM does not know “Back up now” yet (an older image).',
 			backupModes: { interrupted: 'interrupted', stopping: 'Paperless is being backed up and stopped right now' },
 			noPendingAnswer: 'The VM is no longer waiting for an answer; please reload the page.',
+			backupUnconfirmed: 'The backup the VM reports cannot be found on the blockchain as a new backup. So the VM is not deleted. Try again later.',
 			noBackupKey: 'Without the backups’ key no backup can be checked.'
 		},
 		missing: {
@@ -165,6 +168,7 @@ export const life = {
 			passphraseAgain: 'No answer from the VM yet: handing over the passphrase again',
 			passphraseAgainFailed: (/** @type {string} */ reason) => `Handing it over again failed: ${reason}`,
 			stop: 'Requesting the stop (last backup)',
+			confirmBackup: 'Checking the new backup on the blockchain',
 			forget: 'Deleting the VM'
 		},
 		vm: {

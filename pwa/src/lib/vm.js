@@ -165,12 +165,37 @@ export async function publicAddress(crnUrl, itemHash) {
  */
 export const FIXED_HOST_DOMAIN = 'vm.le-space.de';
 
+// One DNS label: letters, digits and inner hyphens, at most 63 characters.
+const LABEL = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
+const TWO_N6 = new RegExp(`^${LABEL}\\.2n6\\.me$`);
+const DNS_NAME = new RegExp(`^(?:${LABEL}\\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$`);
+
+/**
+ * Whether `host` is a plain DNS name, with a port at most (the fixed address
+ * is reached at the node's mapped port): no path, user or IP literal.
+ * @param {unknown} host
+ */
+export function validHost(host) {
+	if (typeof host !== 'string') return false;
+	const [, name, port] = /^([^:]*)(?::(\d{1,5}))?$/.exec(host) ?? [];
+	return Boolean(name) && name.length <= 253 && DNS_NAME.test(name) && (port === undefined || (Number(port) > 0 && Number(port) < 65536));
+}
+
+/**
+ * The 2n6 name in what 2n6's API answers: one label under 2n6.me, or null
+ * for anything else.
+ * @param {unknown} raw a bare label, a host or an https URL
+ */
+export function twoN6Host(raw) {
+	const host = String(raw ?? '').trim().toLowerCase().replace(/^https:\/\//, '').replace(/\/$/, '');
+	const name = host.includes('.') ? host : `${host}.2n6.me`;
+	return TWO_N6.test(name) ? name : null;
+}
+
 /** The instance's 2n6 hostname, once 2n6 knows it. */
 export async function hostname(itemHash) {
 	const access = await fetch2n6WebAccessUrl(itemHash, { fetch: (u, i) => fetch(u, i) }).catch(() => null);
-	const raw = access?.subdomain ?? access?.url ?? '';
-	const host = String(raw).replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-	return host ? (host.includes('.') ? host : `${host}.2n6.me`) : null;
+	return twoN6Host(access?.subdomain ?? access?.url ?? '');
 }
 
 /**
@@ -180,6 +205,8 @@ export async function hostname(itemHash) {
  * @param {string} host @param {string} [token] statusToken(master)
  */
 export async function vmStatus(host, token) {
+	// Nothing, the token least of all, goes to a host that is not a plain DNS name.
+	if (!validHost(host)) throw new Error(`not a host name: ${String(host).slice(0, 80)}`);
 	if (token) {
 		const res = await fetch(`https://${host}/anywhere/s/${token}.json`, { cache: 'no-store' }).catch(() => null);
 		if (res?.ok) return res.json();

@@ -148,10 +148,13 @@ sequenceDiagram
     loop every 10 s
         PWA->>Guest: status.json (backup log, then phase stopped)
     end
+    PWA->>Filecoin: the reported backup is listed on chain and is new
     PWA->>CRN: erase the instance (signed by the app key)
     PWA->>Aleph: FORGET the INSTANCE, address = wallet, signed by the app key
     PWA->>Aleph: AGGREGATE profile (sealed): running removed, own backup noted
 ```
+
+Before it erases anything, the app checks the status page's word against the chain: it lists the backups on chain before it sends the stop, and afterwards waits (up to two minutes) until the backup the stop reports is listed there and was not listed before. A stop that made no piece of its own, because a backup finished just before it, counts only when the chain lists a backup that was not there before the stop. If not, the VM stays, with a message, and the stop can be tried again. "Delete the VM anyway" after a partial backup makes the same check.
 
 Without a backup choice, the stop is ready at once. "My VMs" erases a VM without the last backup. A backup that already runs when the stop comes (a check, or "Back up now") finishes first (up to 30 minutes); the stop's own backup is then a check that uploads only what changed since.
 
