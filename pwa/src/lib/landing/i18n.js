@@ -94,7 +94,7 @@ export const texts = {
 				{ t: 'Ein Schlüssel nur für dich', d: 'Beim öffentlichen Image teilen sich alle Nutzer einer Version eine Passphrase, die Le Space kennt. Dein eigenes Image hat seine eigene – kein gemeinsames Geheimnis mehr.' },
 				{ t: 'Nachgeprüft statt vertraut', d: 'Bevor die Passphrase dein Gerät verlässt, bestätigt der AMD-Prozessor (SEV-SNP), dass genau der veröffentlichte Build-Dienst läuft. Geprüft wird in deinem Browser – du musst Le Space nicht glauben.' },
 				{ t: 'In etwa 15 Minuten fertig', d: 'Mit Gutschein ist der Bau enthalten, bis er gelingt (bis zu 3 Versuche). Mit Paket nennt die App den Preis vorher und bucht ihn von deinem Le-Space-Guthaben ab; die Ablage des Images ist enthalten.' },
-				{ t: 'Erprobt', d: 'Ein ganzer Durchlauf lief bei Aleph aus einem Browser heraus: Image bauen, VM starten, sichern, auf einer zweiten VM wiederherstellen.' }
+				{ t: 'Erprobt', d: 'Ein ganzer Durchlauf lief bei Aleph aus einem Browser heraus: Image bauen, VM starten, sichern, auf einer zweiten VM wiederherstellen. Und im Betrieb: Eine Sicherung aus dem öffentlichen Image kam im eigenen Image vollständig zurück.' }
 			],
 			cta: { label: 'Paperless anywhere starten', hint: 'In der App unter Erweitert → Einrichtung: „Mein eigenes Image“. Mit Paket oder Gutschein baut es der erste Start von selbst.' },
 			howTitle: 'Wie funktioniert das?',
@@ -417,7 +417,7 @@ export const texts = {
 				{ t: 'A key just for you', d: 'With the public image, everyone using a version shares one passphrase, and Le Space knows it. Your own image has its own – no shared secret any more.' },
 				{ t: 'Checked, not trusted', d: 'Before the passphrase leaves your device, the AMD processor (SEV-SNP) confirms that exactly the published builder is running. The check runs in your browser – you do not have to take Le Space’s word for it.' },
 				{ t: 'Ready in about 15 minutes', d: 'With a voucher the build is included until it succeeds (up to 3 tries). With a package the app shows the price first and charges it to your Le Space balance; storing the image is included.' },
-				{ t: 'Tried and tested', d: 'A whole round ran on Aleph from a browser: building the image, starting a VM, backing up, restoring on a second VM.' }
+				{ t: 'Tried and tested', d: 'A whole round ran on Aleph from a browser: building the image, starting a VM, backing up, restoring on a second VM. And in real use: a backup made with the public image came back in full in an own image.' }
 			],
 			cta: { label: 'Start Paperless anywhere', hint: 'In the app under Advanced → Setup: “My own image”. With a package or a voucher the first start builds it by itself.' },
 			howTitle: 'How does it work?',
