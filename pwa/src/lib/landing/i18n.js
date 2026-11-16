@@ -328,7 +328,7 @@ export const texts = {
 				{ q: 'Was kostet es, wenn Paperless anywhere nicht läuft?', a: 'Stunden verbraucht nur eine laufende Instanz. Dein Monatspaket läuft aber weiter und wird jeden Monat berechnet, bis du kündigst. Die Sicherung ist im Paket enthalten und läuft mit ihm weiter. Nach dem Ende des bezahlten Zeitraums entstehen keine neuen Sicherungen; die vorhandenen bleiben noch mindestens 30 Tage abrufbar.' },
 				{
 					q: 'Was passiert, wenn mein Gutschein oder Paket endet?',
-					a: 'Ein Monatspaket verlängert sich jeden Monat, bis du kündigst. Ein Gutschein endet nach seiner Laufzeit oder wenn seine Stunden verbraucht sind. Drei Tage vor einem Ende, das nicht verlängert wird, zeigt die App eine Warnung mit dem genauen Zeitpunkt, am letzten Tag noch deutlicher.',
+					a: 'Ein Monatspaket verlängert sich jeden Monat, bis du kündigst. Ein Gutschein endet nach seiner Laufzeit oder wenn seine Stunden verbraucht sind. Drei Tage vor einem Ende, das nicht verlängert wird, zeigt die App eine Warnung mit dem genauen Zeitpunkt, am letzten Tag noch deutlicher. Endet ein bezahltes Paket, schreiben wir dir außerdem drei Tage und einen Tag vorher, nach Möglichkeit an die Adresse, die du beim Bezahlen angegeben hast.',
 					tips: [
 						'Vor dem Ende: Stoppe Paperless mit „Sichern und beenden“. Dann sind deine Dokumente vollständig in der Sicherung, und die VM ist gelöscht.',
 						'Nach dem Ende bleibt nur eine kleine Reserve. Drei Tage danach holt Le Space das restliche Guthaben zurück, und die App startet keine VM mehr. Verlass dich nicht darauf, dass eine VM über das Ende hinaus weiterläuft.',
@@ -692,7 +692,7 @@ export const texts = {
 				{ q: 'What does it cost while Paperless anywhere is not running?', a: 'Only a running instance uses hours. Your monthly package runs on, though, and is billed every month until you cancel. The backup is included in the package and runs on with it. After the end of the paid period no new backups are made; the existing ones stay retrievable for at least 30 more days.' },
 				{
 					q: 'What happens when my voucher or package ends?',
-					a: 'A monthly package renews every month until you cancel it. A voucher ends after its term or when its hours are used up. Three days before an end that is not renewed, the app shows a warning with the exact time, and more clearly on the last day.',
+					a: 'A monthly package renews every month until you cancel it. A voucher ends after its term or when its hours are used up. Three days before an end that is not renewed, the app shows a warning with the exact time, and more clearly on the last day. If a paid package ends, we also write to you three days and one day before, where possible to the address you gave when paying.',
 					tips: [
 						'Before the end: stop Paperless with “Back up and stop”. Then your documents are complete in the backup, and the VM is deleted.',
 						'After the end only a small reserve is left. Three days later Le Space takes back the remaining credit, and the app starts no VM any more. Do not rely on a VM running on past the end.',
