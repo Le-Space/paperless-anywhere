@@ -82,6 +82,13 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.getByTestId('own-image-status')).toHaveText('In der App');
 	await expect(page.locator('#image')).not.toContainText('In Vorbereitung');
 	expect(await page.evaluate(() => document.querySelector('#trust').compareDocumentPosition(document.querySelector('#image')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
+	// Sold first: what it gives, and the way into the app; how it works in a fold.
+	await expect(page.getByTestId('own-image-benefits').locator('h3')).toHaveText(['Ein Schlüssel nur für dich', 'Nachgeprüft statt vertraut', 'In etwa 15 Minuten fertig', 'Erprobt']);
+	await expect(page.getByTestId('own-image-cta')).toHaveAttribute('href', '/app/');
+	await expect(page.getByTestId('own-image-tech')).toBeHidden();
+	await page.getByTestId('own-image-how').locator('summary').click();
+	await expect(page.getByTestId('own-image-tech')).toContainText('LUKS2');
+	await expect(page.getByTestId('own-image-honest')).toContainText('derzeit auf einem einzigen Knoten');
 	await expect(page.getByTestId('own-image-flow').getByRole('listitem')).toHaveCount(4);
 	await expect(page.getByTestId('own-image-knows').getByRole('listitem')).toHaveText([/Dein Tresor: ja/, /Der Build-Dienst: nur kurz/, /Deine VM: nur kurz/, /Le Space: nein/, /Der Betreiber des Knotens: nein/, /GitHub: nein/]);
 
