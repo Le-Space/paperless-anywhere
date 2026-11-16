@@ -402,7 +402,7 @@ test('the FAQ says how a voucher is redeemed and how the documents come out with
 	const out = page.locator('#faq details', { hasText: 'Komme ich auch ohne Le Space an meine Dokumente?' });
 	await out.locator('summary').click();
 	await expect(out).toContainText('„Sicherung selbst holen“');
-	await expect(out.getByRole('link', { name: 'Sicherung selbst holen: die Anleitung' })).toHaveAttribute('href', /docs\/restore-yourself\.md$/);
+	await expect(out.getByRole('link', { name: 'Sicherung selbst holen: die Anleitung' })).toHaveAttribute('href', /docs\/restore-yourself\.de\.md$/);
 	await page.goto('/en/');
 	await expect(page.locator('#faq details', { hasText: 'I have a voucher. How do I redeem it?' })).toHaveCount(1);
 	await expect(page.locator('#faq details', { hasText: 'Can I get at my documents without Le Space?' })).toHaveCount(1);
