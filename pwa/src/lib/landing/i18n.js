@@ -91,7 +91,7 @@ export const texts = {
 			title: 'Ein Image nur für dich',
 			lead: 'Jede Paperless kann ihr eigenes Image bekommen – verschlüsselt nur für deinen Tresor. Die App baut es für dich, beim ersten Start oder mit einem Klick. Die Passphrase leitet sich aus deinem Tresor ab, und sonst kennt sie niemand: nicht Le Space, nicht der Knoten, nicht GitHub.',
 			benefits: [
-				{ t: 'Ein Schlüssel nur für dich', d: 'Beim öffentlichen Image teilen sich alle Nutzer einer Version eine Passphrase, die Le Space kennt. Dein eigenes Image hat seine eigene – kein gemeinsames Geheimnis mehr.' },
+				{ t: 'Ein Schlüssel nur für dich', d: 'Deine Paperless läuft mit deinem eigenen, verschlüsselten Image. Seine Passphrase entsteht in deinem Tresor und geht nur an den geprüften Build-Dienst und deine VM; Le Space kennt sie nicht. Mit Paket oder Gutschein ist der Bau enthalten.' },
 				{ t: 'Nachgeprüft statt vertraut', d: 'Bevor die Passphrase dein Gerät verlässt, bestätigt der AMD-Prozessor (SEV-SNP), dass genau der veröffentlichte Build-Dienst läuft. Geprüft wird in deinem Browser – du musst Le Space nicht glauben.' },
 				{ t: 'In etwa 15 Minuten fertig', d: 'Mit Paket oder Gutschein ist der Bau enthalten, bis er gelingt (bis zu 3 Versuche), und für jede neue Image-Version wieder. Die Ablage des Images ist auch enthalten.' },
 				{ t: 'Erprobt', d: 'Ein ganzer Durchlauf lief bei Aleph aus einem Browser heraus: Image bauen, VM starten, sichern, auf einer zweiten VM wiederherstellen. Und im Betrieb: Eine Sicherung aus dem öffentlichen Image kam im eigenen Image vollständig zurück.' }
@@ -209,7 +209,7 @@ export const texts = {
 			secretsTitle: 'Wer welches Geheimnis kennt',
 			cols: { what: 'Geheimnis', has: 'Wer es kennt', not: 'Wer nicht' },
 			secrets: [
-				{ key: 'image', what: 'Image-Passphrase', d: 'öffnet die LUKS-Platte des Images. Beim öffentlichen Image für alle VMs dieser Version gleich; das Image enthält nichts Persönliches.', has: 'Beim öffentlichen Image Le Space: Ein Release-Image bekommt beim Bau auf einem von GitHub gehosteten Runner eine zufällige Passphrase, die der Lauf nur verschlüsselt (age) an Le Space ausgibt. Dazu deine App (versiegelt in deinem Profil) und die VM beim Start. Beim eigenen Image nur dein Tresor, der Build-Dienst während des Baus und die VM beim Start.', not: 'der Betreiber des Knotens' },
+				{ key: 'image', what: 'Image-Passphrase', d: 'öffnet die LUKS-Platte deines Images; das Image enthält nichts Persönliches.', has: 'nur dein Tresor, der geprüfte Build-Dienst während des Baus und deine VM beim Start. (Das öffentliche Image zum Ausprobieren hat eine gemeinsame Passphrase je Version.)', not: 'Le Space, Aleph Cloud, der Betreiber des Knotens' },
 				{ key: 'data', what: 'Schlüssel des Datenbereichs', d: 'versiegelt alles, was die VM schreibt: Dokumente, Datenbank, Zertifikat.', has: 'nur die VM, nur im Speicher, bei jedem Start neu und zufällig. Nach dem Stopp gibt es ihn nicht mehr.', not: 'du, die App, Le Space, der Knoten' },
 				{ key: 'vault', what: 'Hauptgeheimnis des Tresors', d: '32 zufällige Bytes; alle Schlüssel darunter werden daraus abgeleitet.', has: 'du: versiegelt mit deinem Passkey (PRF) und mit den 24 Wörtern, offen nur im Speicher deines Browsers.', not: 'Le Space, Aleph (dort liegt es nur versiegelt), die VM' },
 				{ key: 'vault', what: 'Paperless-Passwörter, Sitzungsschlüssel', d: 'aus dem Tresor abgeleitet.', has: 'dein Browser; die VM bekommt sie nach der Prüfung, für diesen Start.', not: 'Le Space, der Knoten' },
@@ -225,7 +225,7 @@ export const texts = {
 			gapsTitle: 'Was die Hardware nicht prüft',
 			gaps: [
 				'Der Inhalt des Images wird nicht mitgemessen. Dass in der VM das veröffentlichte Image läuft, stützt sich darauf, dass sich seine Platte nur mit der Image-Passphrase öffnet, nicht auf einen Messwert der Hardware. Mit deinem eigenen Image kennt diese Passphrase nur dein Tresor: Weder Le Space noch Aleph Cloud haben einen Schlüssel, der deine Platte öffnet – und sie können dir auch keine andere unterschieben.',
-				'Die Passphrase des öffentlichen Images ist für alle VMs dieser Version gleich, und Le Space kennt sie. Darum liegt alles, was deine VM schreibt, im eigenen Datenbereich. Mit deinem eigenen Image kennt sie nur dein Tresor.',
+				'Das öffentliche Image zum Ausprobieren hat eine Passphrase je Version, die alle Nutzer dieser Version teilen. Darum bekommt eine VM darauf keine Sicherungsschlüssel und keine feste Adresse und startet leer. Für den Echtbetrieb baut die App immer dein eigenes Image.',
 				'Der Bau ist nicht Bit für Bit wiederholbar, weil Debian-Pakete beim Bau geladen werden. Nachlesen lässt sich, was hineinkommt.',
 				'Der Relay, über den die App die VM erreicht, läuft in einer gewöhnlichen VM und wird nicht attestiert. Lesen oder unbemerkt ändern kann er nichts; er kann aber Verbindungen verzögern oder verweigern, und er sieht, von welcher IP-Adresse wann welche VM angesprochen wird.',
 				'Neben der Hardware läuft ein Sicherheits-Audit des Codes; noch sind nicht alle seine Punkte abgeschlossen.'
@@ -264,7 +264,7 @@ export const texts = {
 			items: [
 				{ q: 'Gehört Paperless anywhere zum Projekt Paperless-ngx?', a: DISCLAIMER.de },
 				{ q: 'Was ist Paperless-ngx?', a: 'Paperless-ngx ist die Open-Source-Software, die in deiner VM läuft: Sie liest Dokumente ein, erkennt den Text und macht sie durchsuchbar. Mit Paperless anywhere läuft sie in deiner eigenen vertraulichen VM, rund um die Uhr oder auf Abruf, und wird gesichert.' },
-				{ q: 'Bekommen alle dieselbe Software?', a: 'Ja. Das System ist für alle gleich. Beim öffentlichen Image öffnet eine Passphrase je Version die Platte; alle VMs dieser Version teilen sie, und Le Space kennt sie. Was deine VM schreibt, liegt deshalb in einem Datenbereich mit einem Schlüssel, den nur sie hat. Wählst du in der Einrichtung dein eigenes Image, versiegelt ein geprüfter Build-Dienst dasselbe System für dich, mit einer Passphrase aus deinem Tresor. Wie man Image und Dienst nachprüft, beschreibt die Dokumentation.' },
+				{ q: 'Bekommen alle dieselbe Software?', a: 'Ja, das System ist für alle gleich – verschlüsselt aber für jede Instanz eigens. Deine Paperless läuft immer mit deinem eigenen Image: Ein geprüfter Build-Dienst versiegelt das System mit einer Passphrase aus deinem Tresor, die Le Space nicht kennt. Mit Paket oder Gutschein ist der Bau enthalten; läuft eine Paperless noch auf dem öffentlichen Image, bekommt sie ihr eigenes beim nächsten Start. Zum reinen Ausprobieren gibt es das öffentliche Image: Es startet leer, ohne Sicherungen und ohne feste Adresse. Wie man Image und Dienst nachprüft, beschreibt die Dokumentation.' },
 				{ q: 'Brauche ich ein Konto?', a: 'Für den Tresor nicht. Ein Passkey auf deinem Gerät öffnet ihn; die 24 Wörter sind der Weg zurück, falls das Gerät fehlt. Le Space kann den Tresor weder öffnen noch wiederherstellen. Beim Kauf eines Pakets fragt der Zahlungsdienst Stripe nach einer E-Mail-Adresse, für Beleg und Abo.' },
 				{
 					q: 'Kann ich die Anbieter auch selbst bezahlen?',
@@ -415,7 +415,7 @@ export const texts = {
 			title: 'An image just for you',
 			lead: 'Every Paperless can have an image of its own – encrypted for your vault alone. The app builds it for you, at the first start or with one click. The passphrase is derived from your vault, and nobody else knows it: not Le Space, not the node, not GitHub.',
 			benefits: [
-				{ t: 'A key just for you', d: 'With the public image, everyone using a version shares one passphrase, and Le Space knows it. Your own image has its own – no shared secret any more.' },
+				{ t: 'A key just for you', d: 'Your Paperless runs on your own encrypted image. Its passphrase comes from your vault and goes only to the attested builder and your VM; Le Space does not know it. With a package or a voucher, the build is included.' },
 				{ t: 'Checked, not trusted', d: 'Before the passphrase leaves your device, the AMD processor (SEV-SNP) confirms that exactly the published builder is running. The check runs in your browser – you do not have to take Le Space’s word for it.' },
 				{ t: 'Ready in about 15 minutes', d: 'With a package or a voucher the build is included until it succeeds (up to 3 tries), and again for every new image version. Storing the image is included too.' },
 				{ t: 'Tried and tested', d: 'A whole round ran on Aleph from a browser: building the image, starting a VM, backing up, restoring on a second VM. And in real use: a backup made with the public image came back in full in an own image.' }
@@ -533,7 +533,7 @@ export const texts = {
 			secretsTitle: 'Who knows which secret',
 			cols: { what: 'Secret', has: 'Who knows it', not: 'Who does not' },
 			secrets: [
-				{ key: 'image', what: 'Image passphrase', d: 'opens the image’s LUKS disk. With the public image the same for every VM of that version; the image holds nothing personal.', has: 'With the public image, Le Space: a release image gets a random passphrase while it is built on a GitHub-hosted runner, and the run puts it out only encrypted (age) to Le Space. Also your app (sealed in your profile) and the VM at its start. With your own image, only your vault, the builder during the build and the VM at its start.', not: 'the node’s operator' },
+				{ key: 'image', what: 'Image passphrase', d: 'opens your image’s LUKS disk; the image holds nothing personal.', has: 'only your vault, the attested builder during the build and your VM at its start. (The public image for trying out has one shared passphrase per version.)', not: 'Le Space, Aleph Cloud, the node’s operator' },
 				{ key: 'data', what: 'Data area key', d: 'seals everything the VM writes: documents, database, certificate.', has: 'the VM only, in memory only, new and random at every start. After the stop it no longer exists.', not: 'you, the app, Le Space, the node' },
 				{ key: 'vault', what: 'Vault master secret', d: '32 random bytes; every key below is derived from it.', has: 'you: sealed by your passkey (PRF) and by the 24 words, open only in your browser’s memory.', not: 'Le Space, Aleph (it holds it sealed only), the VM' },
 				{ key: 'vault', what: 'Paperless passwords, session keys', d: 'derived from the vault.', has: 'your browser; the VM gets them after the check, for this start.', not: 'Le Space, the node' },
@@ -549,7 +549,7 @@ export const texts = {
 			gapsTitle: 'What the hardware does not check',
 			gaps: [
 				'The image’s content is not measured. That the VM runs the published image rests on its disk opening only with the image passphrase, not on a measurement by the hardware. With your own image only your vault knows that passphrase: Neither Le Space nor Aleph Cloud holds a key that opens your disk – and they cannot slip you a different one either.',
-				'The public image’s passphrase is the same for every VM of that version, and Le Space knows it. That is why everything your VM writes goes into its own data area. With your own image only your vault knows it.',
+				'The public image for trying out has one passphrase per version, shared by everyone using that version. That is why a VM on it gets no backup keys and no fixed address, and starts empty. For real use the app always builds your own image.',
 				'The build cannot be repeated bit for bit, because Debian packages are fetched while it runs. What goes in can be read.',
 				'The relay through which the app reaches the VM runs in an ordinary VM and is not attested. It can read nothing and change nothing unnoticed; it can delay or refuse connections, though, and it sees from which IP address which VM is called and when.',
 				'Besides the hardware, the code is under a security audit; not all of its points are closed yet.'
@@ -588,7 +588,7 @@ export const texts = {
 			items: [
 				{ q: 'Is Paperless anywhere part of the Paperless-ngx project?', a: DISCLAIMER.en },
 				{ q: 'What is Paperless-ngx?', a: 'Paperless-ngx is the open source software that runs in your VM: it takes in documents, recognises their text and makes them searchable. With Paperless anywhere it runs in a confidential VM of your own, around the clock or on demand, and is backed up.' },
-				{ q: 'Does everyone get the same software?', a: 'Yes. The system is the same for everyone. With the public image, one passphrase per version opens the disk; every VM of that version shares it, and Le Space knows it. That is why what your VM writes goes into a data area with a key only the VM has. If you choose your own image in the setup, an attested builder seals the same system for you, with a passphrase from your vault. The documentation says how image and builder can be checked.' },
+				{ q: 'Does everyone get the same software?', a: 'Yes, the system is the same for everyone – but encrypted for each instance on its own. Your Paperless always runs on your own image: an attested builder seals the system with a passphrase from your vault that Le Space does not know. With a package or a voucher, the build is included; a Paperless that still runs on the public image gets its own at its next start. For simply trying it out there is the public image: it starts empty, without backups and without a fixed address. The documentation says how image and builder can be checked.' },
 				{ q: 'Do I need an account?', a: 'Not for the vault. A passkey on your device opens it; the 24 words are the way back in if the device is missing. Le Space can neither open nor recover the vault. When you buy a package, the payment service Stripe asks for an e-mail address, for the receipt and the subscription.' },
 				{
 					q: 'Can I pay the providers myself?',
