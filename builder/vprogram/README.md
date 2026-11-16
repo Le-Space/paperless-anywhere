@@ -20,9 +20,13 @@ Aleph as a measured, confidential VM that anyone can attest.
 | Way out | none: the guest's firewall accepts only the attested port and drops the replies to outbound connections. The sealed image leaves through the attested channel, fetched by the caller |
 | Scratch | none on disk: the image being built lies in memory (`/work`, a tmpfs of 1.2 GiB) |
 
-A V-PROGRAM has no owner and takes no secret at start: what the builder
-knows is what is in this repository, and the plain image. The passphrase of
-a build arrives over the attested channel and is gone when the build ends.
+A V-PROGRAM has no owner and takes no secret at start (Aleph refuses
+`variables` for it: they would reach the guest unmeasured): what the builder
+knows is what is in this repository, and the plain image. So the first
+signed build request claims it for the address that signed it
+(`builder/claim.mjs`); requests from other addresses are refused. The
+passphrase of a build arrives over the attested channel and is gone when
+the build ends.
 
 Which image a builder seals is fixed when it is published, and is part of
 its measurement. A new plain image needs a new builder.
