@@ -893,11 +893,14 @@ export const payUrl = (baseUrl, { clientSecret, origin }) => `${baseUrl}/pay#${n
 /**
  * What a message from the /pay page says: 'ready', 'paid' or 'failed', or
  * null for anything not from the service. A hint only; the signed balance is
- * the truth.
- * @param {MessageEvent} event @param {string} baseUrl
+ * the truth. With `frame` (the window of the iframe that shows the /pay page),
+ * only a message from that very frame counts, so a payment in one dialog
+ * never reaches another one listening at the same time.
+ * @param {MessageEvent} event @param {string} baseUrl @param {MessageEventSource | null} [frame]
  */
-export function payMessage(event, baseUrl) {
+export function payMessage(event, baseUrl, frame) {
 	if (!baseUrl || event.origin !== new URL(baseUrl).origin) return null;
+	if (frame !== undefined && (!frame || event.source !== frame)) return null;
 	const type = event.data?.type;
 	return type === 'ls-credits:ready' ? 'ready' : type === 'ls-credits:paid' ? 'paid' : type === 'ls-credits:failed' ? 'failed' : null;
 }

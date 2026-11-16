@@ -14,6 +14,8 @@
 	let frame = $state(null);
 	/** @type {((outcome: 'paid' | 'failed' | 'closed') => void) | null} */
 	let settle = null;
+	/** @type {HTMLIFrameElement | undefined} */
+	let iframe = $state();
 
 	/** @param {string} clientSecret @returns {Promise<'paid' | 'failed' | 'closed'>} */
 	export function pay(clientSecret) {
@@ -30,7 +32,7 @@
 	$effect(() => {
 		/** @param {MessageEvent} event */
 		const listen = (event) => {
-			const what = payMessage(event, CREDITS_URL);
+			const what = payMessage(event, CREDITS_URL, iframe?.contentWindow ?? null);
 			if (what === 'paid') done('paid');
 			else if (what === 'failed') done('failed');
 		};
@@ -42,7 +44,7 @@
 <dialog bind:this={dialog} onclose={() => settle && done('closed')} aria-label={title}>
 	<button class="quiet close" onclick={() => done('closed')} aria-label={$t.pkg.close}>✕</button>
 	{#if summary && frame}<p class="summary" data-testid="checkout-summary">{summary}</p>{/if}
-	{#if frame}<iframe src={frame} title={title} allow="payment"></iframe>{/if}
+	{#if frame}<iframe bind:this={iframe} src={frame} title={title} allow="payment"></iframe>{/if}
 </dialog>
 
 <style>

@@ -18,6 +18,13 @@
  */
 /** @typedef {{ id: string, kind?: string, mark: Mark, note?: string, values: { k: string, v: string, mono?: boolean, copy?: boolean, say?: boolean }[], links: { k: string, href: string }[] }} Row */
 
+/**
+ * A link reported by the VM or a provider, only if it is an https URL;
+ * anything else (another scheme, garbage) gives ''.
+ * @param {unknown} url
+ */
+export const httpsUrl = (url) => (/^https:\/\//.test(String(url ?? '')) ? String(url) : '');
+
 const REPO = 'https://github.com/Le-Space/paperless-anywhere';
 /** The backups' encryption, as the backup tool does it (age-encryption, one X25519 recipient). */
 export const AGE_METHOD = 'age v1 · X25519 · HKDF-SHA-256 · ChaCha20-Poly1305 (64 KiB)';
@@ -228,7 +235,7 @@ export function stopEvidenceRows({ status, erase = null, instanceHash = '', reci
 					...(c.pieceId != null ? [{ k: 'pieceId', v: String(c.pieceId), mono: true }] : [])
 				],
 				// The provider's own address for the piece: what it serves is ciphertext.
-				links: links && /^https:\/\//.test(String(c.retrievalUrl ?? '')) ? [{ k: 'retrieval', href: String(c.retrievalUrl) }] : []
+				links: links && httpsUrl(c.retrievalUrl) ? [{ k: 'retrieval', href: httpsUrl(c.retrievalUrl) }] : []
 			});
 		}
 	}

@@ -29,6 +29,8 @@
 	let busy = $state(false);
 	/** @type {HTMLDialogElement | undefined} */
 	let dialog = $state();
+	/** @type {HTMLIFrameElement | undefined} */
+	let iframe = $state();
 
 	async function buy(/** @type {string} */ packageId) {
 		busy = true;
@@ -63,7 +65,7 @@
 	$effect(() => {
 		/** @param {MessageEvent} event */
 		const listen = (event) => {
-			const what = payMessage(event, CREDITS_URL);
+			const what = payMessage(event, CREDITS_URL, iframe?.contentWindow ?? null);
 			if (what === 'paid') paid();
 			else if (what === 'failed') {
 				close();
@@ -91,7 +93,7 @@
 
 <dialog bind:this={dialog} onclose={() => (frame = null)} aria-label={$t.buy.topup.dialog}>
 	<button class="quiet close" onclick={close} aria-label={$t.buy.topup.close}>✕</button>
-	{#if frame}<iframe src={frame} title={$t.buy.topup.frame} allow="payment"></iframe>{/if}
+	{#if frame}<iframe bind:this={iframe} src={frame} title={$t.buy.topup.frame} allow="payment"></iframe>{/if}
 </dialog>
 
 <style>
