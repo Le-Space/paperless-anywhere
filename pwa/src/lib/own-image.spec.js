@@ -114,7 +114,7 @@ describe('an image of one\'s own', () => {
 			rootfsItemHash: got.message.item_hash,
 			luksPassphrase: imagePassphrase(master, builder.plain.sha256),
 			luksFor: got.message.item_hash,
-			ownImage: { plainSha256: builder.plain.sha256, cid, builtAt: '2027-01-15T08:00:00.000Z' }
+			ownImage: { plainSha256: builder.plain.sha256, rootfsItemHash: got.message.item_hash, cid, builtAt: '2027-01-15T08:00:00.000Z' }
 		});
 		// The builder is told to drop the image, and the channel is closed.
 		expect(seen.calls.at(-1)).toMatchObject({ method: 'DELETE', path: `/job/${job}` });
@@ -455,7 +455,7 @@ describe('the choice of image in the setup', () => {
 	const own = 'aa'.repeat(32);
 	const pub = 'bb'.repeat(32);
 	const crn = 'cc'.repeat(32);
-	const built = { rootfsItemHash: own, luksPassphrase: 'derived', luksFor: own, ownImage: { plainSha256: builder.plain.sha256, builtAt: '2026-11-14T00:00:00Z' } };
+	const built = { rootfsItemHash: own, luksPassphrase: 'derived', luksFor: own, ownImage: { plainSha256: builder.plain.sha256, rootfsItemHash: own, builtAt: '2026-11-14T00:00:00Z' } };
 
 	it('shows the own image as chosen once one is built for the builder, else the public one', () => {
 		expect(imageKindOf(built, builder)).toBe('own');
@@ -726,7 +726,7 @@ describe('a build paid by the package', () => {
 });
 
 describe('what the overview says about the image', () => {
-	const own = { rootfsItemHash: 'aa'.repeat(32), luksFor: 'aa'.repeat(32), ownImage: { plainSha256: builder.plain.sha256, builtAt: '2026-11-15T08:00:00Z' } };
+	const own = { rootfsItemHash: 'aa'.repeat(32), luksFor: 'aa'.repeat(32), ownImage: { plainSha256: builder.plain.sha256, rootfsItemHash: 'aa'.repeat(32), builtAt: '2026-11-15T08:00:00Z' } };
 	it('an own image, when it was built, and whether the builder holds a newer plain image', () => {
 		expect(imageStatus(own, builder)).toEqual({ own: true, builtAt: '2026-11-15T08:00:00Z', buildsAtStart: false, newer: false });
 		expect(imageStatus({ ...own, ownImage: { ...own.ownImage, plainSha256: '00'.repeat(32) } }, builder).newer).toBe(true);

@@ -30,7 +30,7 @@ async function vaultWith(page, extra) {
 	await page.locator('textarea').first().fill(phrase);
 	await page.getByTestId('open-phrase').click();
 }
-const ownImage = (plainSha256) => ({ rootfsItemHash: IMAGE, luksPassphrase: 'made-up passphrase', luksFor: IMAGE, ownImage: { plainSha256, cid: 'bafybeiexample', builtAt: '2026-11-15T07:30:00.000Z', builder: { vprogram: 'f'.repeat(64), measurement: 'ab'.repeat(24) } } });
+const ownImage = (plainSha256) => ({ rootfsItemHash: IMAGE, luksPassphrase: 'made-up passphrase', luksFor: IMAGE, ownImage: { plainSha256, rootfsItemHash: IMAGE, cid: 'bafybeiexample', builtAt: '2026-11-15T07:30:00.000Z', builder: { vprogram: 'f'.repeat(64), measurement: 'ab'.repeat(24) } } });
 
 test('the overview says which image Paperless starts from, and offers a newer version while it is off', async ({ page }) => {
 	await vaultWith(page, ownImage('0'.repeat(64)));
@@ -59,7 +59,7 @@ test('the certificate of the own image opens under "Erweitert", with its evidenc
 		luksPassphrase: 'made-up passphrase',
 		luksFor: IMAGE,
 		crnHash: 'd'.repeat(64),
-		ownImage: { plainSha256: BUILDER?.plain.sha256, cid: 'bafybeiexample', builtAt: '2026-11-15T07:30:00.000Z', builder: { vprogram: 'f'.repeat(64), measurement: 'ab'.repeat(24) } }
+		ownImage: { plainSha256: BUILDER?.plain.sha256, rootfsItemHash: IMAGE, cid: 'bafybeiexample', builtAt: '2026-11-15T07:30:00.000Z', builder: { vprogram: 'f'.repeat(64), measurement: 'ab'.repeat(24) } }
 	};
 	const sealed = await seal(new TextEncoder().encode(JSON.stringify(profile)), deriveBytes(master, LABELS.profileKey), 'profile');
 	aggregates.set(privateKeyToAccount(alephPrivateKey(master)).address, { [PROFILE_KEY]: { v: 1, box: sealed } });
