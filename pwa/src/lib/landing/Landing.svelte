@@ -14,6 +14,7 @@
 	import Trust from '$lib/landing/Trust.svelte';
 	import BuildLine from '$lib/landing/BuildLine.svelte';
 	import Help from '$lib/Help.svelte';
+	import GitHubMark from '$lib/GitHubMark.svelte';
 	import { help } from '$lib/i18n/help.js';
 
 	const APP = '/app/';
@@ -102,8 +103,6 @@
 	{@html `<script type="application/ld+json">${structured}</script>`}
 </svelte:head>
 
-{#snippet ghMark(/** @type {number} */ size)}<svg viewBox="0 0 16 16" width={size} height={size} aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" /></svg>{/snippet}
-
 <header class="top">
 	<!-- Not a link: this is the home page, and the line below links to Paperless-ngx,
 	     its first mention on the page. -->
@@ -121,7 +120,7 @@
 	</nav>
 	<!-- Our own source, next to the languages; Paperless-ngx stays linked under the logo. -->
 	<a class="gh" href={REPO} rel="noopener" aria-label={t.footer.source} title={t.footer.source} data-testid="header-source">
-		{@render ghMark(20)}
+		<GitHubMark size={20} />
 	</a>
 	<div class="langs" role="group" aria-label="Language">
 		<!-- Real links: each language has its own address. -->
@@ -268,7 +267,7 @@
 <footer>
 	<p class="built">{t.footer.built}</p>
 	<p class="built" data-testid="footer-disclaimer">{t.disclaimer} <a href={NGX_URL}>{t.footer.ngxLink}</a></p>
-	<a class="source" href={REPO} rel="noopener" data-testid="footer-source">{@render ghMark(16)}{t.footer.source}</a>
+	<a class="source" href={REPO} rel="noopener" data-testid="footer-source"><GitHubMark />{t.footer.source}</a>
 	<span>{t.footer.by}</span>
 	<a href="https://www.belege.le-space.de">{t.footer.belege}</a>
 	<a href="https://le-space.de/">le-space.de</a>

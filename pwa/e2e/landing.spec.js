@@ -511,4 +511,7 @@ test('the landing page says what Paperless-ngx is, and links its own source in t
 	await expect(page.getByTestId('footer-source')).toHaveText('Paperless anywhere’s source code on GitHub');
 	await page.goto('/app/');
 	await expect(page.getByTestId('footer-source')).toHaveAttribute('href', 'https://github.com/Le-Space/paperless-anywhere');
+	await expect(page.getByTestId('footer-source')).toBeVisible();
+	await expect(page.getByTestId('header-source')).toHaveAttribute('target', '_blank');
+	await expect(page.getByTestId('header-source')).toHaveAccessibleName(/Paperless anywhere/);
 });

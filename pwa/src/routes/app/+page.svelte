@@ -26,6 +26,7 @@
 	import Help from '$lib/Help.svelte';
 	import { diagnosisText, noteError } from '$lib/diagnosis.js';
 	import Logo from '$lib/Logo.svelte';
+	import GitHubMark from '$lib/GitHubMark.svelte';
 	import NgxText from '$lib/NgxText.svelte';
 	import { texts } from '$lib/landing/i18n.js';
 	import { LANGS, format, lang, setLang, t, tr } from '$lib/i18n/index.js';
@@ -258,6 +259,7 @@
 	<div class="bar">
 		<Logo href={LANDING} label={state === 'unlocked' ? $t.app.homeLocks : $t.app.home} onnavigate={leave}>{#snippet sub()}<NgxText text={texts[$lang].tagline} link />{/snippet}</Logo>
 		<div class="tools">
+			<a class="gh" href="https://github.com/Le-Space/paperless-anywhere" target="_blank" rel="noopener" aria-label={$t.app.footer.source} title={$t.app.footer.source} data-testid="header-source"><GitHubMark size={20} /></a>
 			<!-- Changes the language at once; nothing reloads, so the vault stays open. -->
 			<div class="langs" role="group" aria-label={$t.app.langLabel}>
 				{#each LANGS as l}
@@ -428,6 +430,8 @@
 </main>
 
 <style>
+	.gh { display: inline-flex; align-items: center; color: var(--text-2); padding: 0.25rem; border-radius: 999px; }
+	.gh:hover { color: var(--text); }
 	.top { border-bottom: 1px solid var(--line); background: var(--surface); }
 	.bar { max-width: 40rem; margin: 0 auto; padding: 0.75rem var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 	main { max-width: 40rem; margin: 0 auto; padding: 1.5rem var(--gutter) 2rem; }
@@ -442,7 +446,9 @@
 	button { display: block; margin: 0.75rem 0; padding: 0.6rem 1.1rem; font-size: 1rem; }
 	.primary { width: 100%; padding: 0.85rem 1.25rem; font-weight: 600; font-size: 1.05rem; }
 	.secondary { background: transparent; color: var(--text); border-color: var(--line); }
-	.tools { display: flex; align-items: center; gap: 0.6rem; }
+	/* On a phone with the vault open (mark, languages, Sperren) they wrap
+	   instead of widening the page. */
+	.tools { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0.6rem; min-width: 0; }
 	.langs { display: flex; gap: 0.25rem; }
 	.lang { margin: 0; font-family: var(--mono); font-size: 0.75rem; padding: 0.25rem 0.55rem; background: transparent; color: var(--text-2); border: 1px solid var(--line); border-radius: 999px; }
 	.lang.on { background: var(--cta-bg); color: var(--cta-text); border-color: var(--cta-bg); }
