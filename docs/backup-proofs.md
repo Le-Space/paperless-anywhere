@@ -22,6 +22,27 @@ them, and what it does not prove.
 - The warm storage contract pays the provider only for periods with a valid
   proof. A missed proof is a fault on the chain.
 
+## See it yourself in the app
+
+The app reads the state of each copy from the chain itself, without asking
+the provider:
+
+- **Übersicht / Overview:** "Was die Chain sagt" / "What the chain says",
+  folded under the status card once the list of backups is read; it shows the
+  backup chosen for the start, else the vault's newest.
+- **Erweitert / Advanced:** the same in "Beim Start", under the chosen backup.
+
+One line per copy, "Kopie bei Anbieter N (place) · Datensatz M", with
+**Jetzt prüfen / Check now**: whether the data set is active and still holds
+this backup's pieces, the last proof, the next challenge, missed proofs over
+the last 30 completed proving periods (about 30 days on mainnet), and until
+when the copy is paid. The proving period is read from the warm storage
+service (`getPDPConfig`), not built in.
+
+Green means **read from the chain by the app itself**, through a public node.
+The proofs themselves are checked by the contract, not by the app. Blue means
+only reported by the provider, red a problem, grey no value.
+
 ## How it works, step by step
 
 ### 1. Leaves of 32 bytes
