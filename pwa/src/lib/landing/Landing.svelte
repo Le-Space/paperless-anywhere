@@ -192,7 +192,7 @@
 	<section id="image">
 		<h2>{t.ownImage.title}</h2>
 		<p class="lead">{t.ownImage.lead}</p>
-		<OwnImage t={t.ownImage} />
+		<OwnImage t={t.ownImage} app={APP} />
 	</section>
 
 	<section id="prices">

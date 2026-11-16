@@ -89,7 +89,30 @@ export const texts = {
 		ownImage: {
 			status: 'In der App',
 			title: 'Ein Image nur für dich',
-			lead: 'In der Einrichtung wählst du, wovon deine VM startet: vom öffentlichen Image, dessen Passphrase alle VMs dieser Version teilen und Le Space kennt (siehe „Nachprüfbar“), oder von deinem eigenen. Dessen Passphrase kommt aus deinem Tresor, und sonst hat sie niemand: nicht Le Space, nicht der Knoten, nicht GitHub.',
+			lead: 'Jede Paperless kann ihr eigenes Image bekommen – verschlüsselt nur für deinen Tresor. Die App baut es für dich, beim ersten Start oder mit einem Klick. Die Passphrase leitet sich aus deinem Tresor ab, und sonst kennt sie niemand: nicht Le Space, nicht der Knoten, nicht GitHub.',
+			benefits: [
+				{ t: 'Ein Schlüssel nur für dich', d: 'Beim öffentlichen Image teilen sich alle Nutzer einer Version eine Passphrase, die Le Space kennt. Dein eigenes Image hat seine eigene – kein gemeinsames Geheimnis mehr.' },
+				{ t: 'Nachgeprüft statt vertraut', d: 'Bevor die Passphrase dein Gerät verlässt, bestätigt der AMD-Prozessor (SEV-SNP), dass genau der veröffentlichte Build-Dienst läuft. Geprüft wird in deinem Browser – du musst Le Space nicht glauben.' },
+				{ t: 'In etwa 15 Minuten fertig', d: 'Mit Gutschein ist der Bau enthalten, bis er gelingt (bis zu 3 Versuche). Mit Paket nennt die App den Preis vorher und bucht ihn von deinem Le-Space-Guthaben ab; die Ablage des Images ist enthalten.' },
+				{ t: 'Erprobt', d: 'Ein ganzer Durchlauf lief bei Aleph aus einem Browser heraus: Image bauen, VM starten, sichern, auf einer zweiten VM wiederherstellen. Und im Betrieb: Eine Sicherung aus dem öffentlichen Image kam im eigenen Image vollständig zurück.' }
+			],
+			cta: { label: 'Paperless anywhere starten', hint: 'In der App unter Erweitert → Einrichtung: „Mein eigenes Image“. Mit Paket oder Gutschein baut es der erste Start von selbst.' },
+			howTitle: 'Wie funktioniert das?',
+			tech: [
+				'Ein geprüfter Build-Dienst: ein vermessenes V-PROGRAM in einer vertraulichen VM (AMD SEV-SNP). Die App startet ihn nur für deinen Bau und löscht ihn danach.',
+				'Die Prüfung läuft in deinem Browser (WebAssembly): Der Bericht des AMD-Prozessors wird gegen AMDs Zertifikate und den in der App festgelegten Messwert geprüft. Dazwischen leitet ein Relay nur Verschlüsseltes weiter; lesen kann er nichts.',
+				'Erst dann geht die Passphrase an den Dienst. Er versiegelt das öffentliche Image damit (LUKS2) und vergisst sie wieder.',
+				'Die App holt das versiegelte Image in Stücken zu 3 MiB zurück, jede Verbindung erneut von der Hardware bestätigt, und legt es selbst bei Aleph ab (STORE, signiert von deiner App).',
+				'Beim Start öffnet deine VM die Platte nur mit deiner Passphrase. Eine andere Platte geht nicht auf.'
+			],
+			honestTitle: 'Gut zu wissen',
+			honest: [
+				'Den Build-Dienst stellt Le Space bereit, derzeit auf einem einzigen Knoten. Fällt er aus, ist gerade kein Bau möglich; deine VM startet aber weiter.',
+				'Die Relays betreibt Le Space; du kannst auch einen eigenen eintragen. Sie leiten nur Verschlüsseltes weiter.',
+				'Ohne Paket bezahlt die Adresse der App Bau und Ablage aus ihren Aleph-Credits; Aleph startet den Build-Dienst erst, wenn sie für einen Tag seiner Laufzeit reichen.',
+				'Ein Bau, den das Paket bezahlt, ist noch nicht im echten Betrieb erprobt.'
+			],
+			docs: { text: 'Im Detail:', links: ['Eigenes Image', 'Ablauf'] },
 			steps: [
 				{ t: 'Öffentliches Image', d: 'Das System, in dem Paperless-ngx läuft, ist für alle gleich und enthält kein Geheimnis. Es liegt unverschlüsselt bei Aleph, mit seinem Hash; jeder kann ihn nachrechnen.' },
 				{ t: 'Geprüfter Build-Dienst', d: 'Ein kleiner Dienst in einer vertraulichen VM, vollständig gemessen, samt dem Image, das er versiegelt. Die App startet ihn nur für deinen Bau, lässt sich von der Hardware bestätigen, dass dort genau der veröffentlichte Code mit genau diesem Image läuft, und löscht ihn danach wieder.' },
@@ -106,7 +129,7 @@ export const texts = {
 				{ who: 'Der Betreiber des Knotens', v: 'no' },
 				{ who: 'GitHub', v: 'no' }
 			],
-			compare: 'Öffentlich vergleichen lassen sich der Hash des öffentlichen Images und der Messwert des Build-Dienstes; die App zeigt beide neben „Mein Image bauen“. Das verschlüsselte Image sieht bei jeder Person anders aus. Mit einem Paket von Le Space wird der Bau von deinem Le-Space-Guthaben abgebucht: Die App nennt den Preis vorher, das Paket muss laufen, und der Speicher des Images ist enthalten. Ein Gutschein enthält den Bau des eigenen Images, bis er gelingt (bis zu 3 Versuche). Ohne Paket bezahlt die Adresse der App Bau und Ablage aus ihren Aleph-Credits; Aleph startet den Build-Dienst erst, wenn sie für einen Tag seiner Laufzeit reichen. Der Build-Dienst läuft derzeit nur auf einem einzigen Knoten; fällt er aus, ist kein Bau möglich, deine VM startet aber weiter. Stand: Ein ganzer Durchgang lief bei Aleph aus einem Browser heraus: Bau des Images in voller Größe, knapp 900 MiB, Hochladen von der Seite, eine VM, die davon startete und sicherte, und eine zweite, die die Sicherung wiederherstellte. Der Bau dauerte etwa 15 Minuten. Ein Bau, den das Paket bezahlt, ist noch nicht im echten Betrieb erprobt.'
+			compare: 'Öffentlich vergleichen lassen sich der Hash des öffentlichen Images und der Messwert des Build-Dienstes; die App zeigt beide neben „Mein Image bauen“. Dein verschlüsseltes Image sieht bei jeder Person anders aus.'
 		},
 		nodes: {
 			title: 'Ausfallsicher: kein einzelnes Rechenzentrum',
@@ -389,7 +412,30 @@ export const texts = {
 		ownImage: {
 			status: 'In the app',
 			title: 'An image just for you',
-			lead: 'In the setup you choose what your VM starts from: the public image, whose passphrase every VM of that version shares and Le Space knows (see “Checkable”), or your own. Its passphrase comes from your vault, and nobody else has it: not Le Space, not the node, not GitHub.',
+			lead: 'Every Paperless can have an image of its own – encrypted for your vault alone. The app builds it for you, at the first start or with one click. The passphrase is derived from your vault, and nobody else knows it: not Le Space, not the node, not GitHub.',
+			benefits: [
+				{ t: 'A key just for you', d: 'With the public image, everyone using a version shares one passphrase, and Le Space knows it. Your own image has its own – no shared secret any more.' },
+				{ t: 'Checked, not trusted', d: 'Before the passphrase leaves your device, the AMD processor (SEV-SNP) confirms that exactly the published builder is running. The check runs in your browser – you do not have to take Le Space’s word for it.' },
+				{ t: 'Ready in about 15 minutes', d: 'With a voucher the build is included until it succeeds (up to 3 tries). With a package the app shows the price first and charges it to your Le Space balance; storing the image is included.' },
+				{ t: 'Tried and tested', d: 'A whole round ran on Aleph from a browser: building the image, starting a VM, backing up, restoring on a second VM. And in real use: a backup made with the public image came back in full in an own image.' }
+			],
+			cta: { label: 'Start Paperless anywhere', hint: 'In the app under Advanced → Setup: “My own image”. With a package or a voucher the first start builds it by itself.' },
+			howTitle: 'How does it work?',
+			tech: [
+				'An attested builder: a measured V-PROGRAM in a confidential VM (AMD SEV-SNP). The app starts it only for your build and deletes it afterwards.',
+				'The check runs in your browser (WebAssembly): the AMD processor’s report is checked against AMD’s certificates and the measurement fixed in the app. In between, a relay only forwards encrypted data; it can read nothing.',
+				'Only then does the passphrase go to the builder. It seals the public image with it (LUKS2) and forgets it again.',
+				'The app fetches the sealed image back in pieces of 3 MiB, every connection confirmed by the hardware again, and stores it on Aleph itself (a STORE signed by your app).',
+				'At the start your VM opens the disk only with your passphrase. Any other disk does not open.'
+			],
+			honestTitle: 'Good to know',
+			honest: [
+				'Le Space provides the builder, currently on a single node. If it is down, no build is possible for the moment; your VM still starts.',
+				'Le Space runs the relays; you can enter one of your own. They only forward encrypted data.',
+				'Without a package the app’s address pays for building and storing from its Aleph credits; Aleph starts the builder only once they cover a day of its running time.',
+				'A build paid by the package has not been tried in real operation yet.'
+			],
+			docs: { text: 'In detail:', links: ['Your own image', 'Workflow'] },
 			steps: [
 				{ t: 'Public image', d: 'The system Paperless-ngx runs in is the same for everyone and holds no secret. It lies unencrypted on Aleph, with its hash; anyone can recompute it.' },
 				{ t: 'Attested builder', d: 'A small service in a confidential VM, measured as a whole, together with the image it seals. The app starts it only for your build, has the hardware confirm that exactly the published code runs there with exactly that image, and deletes it afterwards.' },
@@ -406,7 +452,7 @@ export const texts = {
 				{ who: 'The node’s operator', v: 'no' },
 				{ who: 'GitHub', v: 'no' }
 			],
-			compare: 'What can be compared in public: the public image’s hash and the builder’s measurement; the app shows both beside “Build my image”. Your encrypted image looks different for every person. With a package from Le Space the build is charged to your Le Space balance: the app shows the price first, the package must be running, and the image’s storage is included. A voucher includes building your own image until it succeeds (up to 3 tries). Without a package the app’s address pays for building and storing from its Aleph credits; Aleph starts the builder only once they cover a day of its running time. The builder currently runs on one node only; if that node is down, no build is possible, though your VM still starts. Where it stands: a whole round ran on Aleph from a browser: building the image at full size, a little under 900 MiB, uploading it from the page, a VM that started from it and backed up, and a second one that restored the backup. The build took about 15 minutes. A build paid by the package has not been tried in real operation yet.'
+			compare: 'What can be compared in public: the public image’s hash and the builder’s measurement; the app shows both beside “Build my image”. Your encrypted image looks different for every person.'
 		},
 		nodes: {
 			title: 'Resilient: no single data centre',
