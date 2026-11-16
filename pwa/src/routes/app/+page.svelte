@@ -446,7 +446,9 @@
 	button { display: block; margin: 0.75rem 0; padding: 0.6rem 1.1rem; font-size: 1rem; }
 	.primary { width: 100%; padding: 0.85rem 1.25rem; font-weight: 600; font-size: 1.05rem; }
 	.secondary { background: transparent; color: var(--text); border-color: var(--line); }
-	.tools { display: flex; align-items: center; gap: 0.6rem; }
+	/* On a phone with the vault open (mark, languages, Sperren) they wrap
+	   instead of widening the page. */
+	.tools { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0.6rem; min-width: 0; }
 	.langs { display: flex; gap: 0.25rem; }
 	.lang { margin: 0; font-family: var(--mono); font-size: 0.75rem; padding: 0.25rem 0.55rem; background: transparent; color: var(--text-2); border: 1px solid var(--line); border-radius: 999px; }
 	.lang.on { background: var(--cta-bg); color: var(--cta-text); border-color: var(--cta-bg); }
