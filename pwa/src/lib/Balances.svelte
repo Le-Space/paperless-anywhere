@@ -6,6 +6,8 @@
 	import { PAPERLESS_VM } from '$lib/vm.js';
 	import { marketPrices, money, UNITS } from '$lib/prices.js';
 	import { format, lang, t } from '$lib/i18n/index.js';
+	import { balancesRound } from '$lib/balance-refresh.js';
+	import RefreshBalances from '$lib/RefreshBalances.svelte';
 
 	/** @type {{ master: Uint8Array, version?: number, onsummary?: (s: { money: string, lasts: string, warnings: ('start' | 'backups')[] } | null) => void, onshown?: (shown: boolean) => void }} */
 	let { master, version = 0, onsummary = () => {}, onshown = () => {} } = $props();
@@ -98,6 +100,7 @@
 	// Again whenever the profile changed (setup, start, stop).
 	$effect(() => {
 		version;
+		$balancesRound;
 		loadProfile(master)
 			.then((p) => {
 				payer = p.payer ?? '';
@@ -116,6 +119,7 @@
 {#if showAleph || showFilecoin}
 	<section class="balances" data-testid="balances">
 		<h2>{showAleph && appPays ? f.titleBoth : f.titleWallet}</h2>
+		<p class="hint"><RefreshBalances testid="balances-refresh" /></p>
 		<p class="hint keys" data-testid="balance-keys">{showAleph && appPays ? f.keys.app : ''}{payer ? f.keys.wallet : ''}{f.keys.leSpace}</p>
 		<dl>
 			{#if showAleph}

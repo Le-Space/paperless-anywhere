@@ -1,4 +1,6 @@
 <script>
+	import { balancesRound, onceThisRound } from '$lib/balance-refresh.js';
+	import RefreshBalances from '$lib/RefreshBalances.svelte';
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
 	import { AlephShortError, BackupPartialError, attestRunning, eraseStopped, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
 	import { buildImageForVault } from '$lib/own-image-build.js';
@@ -283,8 +285,9 @@
 	/** @type {number | null} */
 	let packageHours = $state(null);
 	$effect(() => {
+		$balancesRound;
 		if (!(short && CREDITS_URL && profile.appPays && !profile.leSpacePays)) return;
-		creditsBalance(master)
+		onceThisRound('credits-balance', () => creditsBalance(master))
 			.then((b) => (packageHours = b?.plan?.hoursLeft == null ? null : Math.floor(b.plan.hoursLeft)))
 			.catch(() => (packageHours = null));
 	});
@@ -700,6 +703,7 @@
 
 {#snippet fundOffer()}
 	{@const locked = busy || purchaseLocked(buying)}
+	<p class="hint"><RefreshBalances label={$i18n.funds.toppedUp} testid="short-refresh" /></p>
 	{#if fromPackage}
 		<div class="fund" data-testid="package-offer">
 			<p class="hint">{c.fund.inPackage(packageHours ?? 0)}</p>
