@@ -501,8 +501,8 @@ export async function buildOwnImage({ master, app, payer = app.address, builder,
 		} finally {
 			channel?.close();
 			// Whatever happened: the builder need not keep this vault's image.
-			// Tried a few times: an image left behind keeps the builder busy for
-			// everyone until it expires (30 minutes; seen 2026-11-13).
+			// Tried a few times: an image left behind takes one of the builder's
+			// few jobs until it expires (minutes; builder/builder.mjs).
 			for (let attempt = 0; job && attempt < 4; attempt++) {
 				if (attempt) await sleep(retryMs * attempt);
 				let last = null;
@@ -511,7 +511,7 @@ export async function buildOwnImage({ master, app, payer = app.address, builder,
 					const dropped = await call(last, 'DELETE', `/job/${job}`);
 					if (dropped.status === 200 || dropped.status === 404) job = '';
 				} catch {
-					/* tried again; at worst the builder removes it after 30 minutes */
+					/* tried again; at worst the builder removes it after ten minutes */
 				} finally {
 					last?.close();
 				}

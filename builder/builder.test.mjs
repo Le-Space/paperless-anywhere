@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { checkBuildRequest, createBuilder, explain, JOB_TTL_MS, MAX_PIECE_BYTES, pieceOf, Refused } from './builder.mjs';
+import { checkBuildRequest, createBuilder, explain, JOB_TTL_MS, MAX_JOBS, MAX_PIECE_BYTES, pieceOf, Refused, UNFETCHED_TTL_MS } from './builder.mjs';
 
 const sha256 = 'cd'.repeat(32);
 const passphrase = 'x'.repeat(44);
@@ -73,33 +73,75 @@ test('seals nothing but the image that was asked for', async () => {
 	assert.equal(seen.removed.length, 1);
 });
 
-test('one image at a time, and a job is known by its own id only', async () => {
+test('builds one image at a time, holds a few jobs, and a job is known by its own id only', async () => {
 	let finish;
 	const gate = new Promise((resolve) => (finish = resolve));
-	const { builder } = setup({ unpack: async () => (await gate, { sha256, size: 4096 }) });
-	const { job, done } = await builder.build({ sha256, passphrase });
-	// While it builds: no second job, and it cannot be removed.
+	let building = 0;
+	let most = 0;
+	const { builder, seen } = setup({
+		unpack: async () => {
+			most = Math.max(most, ++building);
+			await gate;
+			building--;
+			return { sha256, size: 4096 };
+		}
+	});
+	const first = await builder.build({ sha256, passphrase });
+	const more = [];
+	for (let i = 1; i < MAX_JOBS; i++) more.push(await builder.build({ sha256, passphrase }));
+	// While they wait: no further job, the building one cannot be removed, a waiting one can.
 	await assert.rejects(builder.build({ sha256, passphrase }), refusal(503));
-	await assert.rejects(builder.forget(job), refusal(409));
+	await assert.rejects(builder.forget(first.job), refusal(409));
+	assert.equal((await builder.status(more[0].job)).state, 'queued');
+	await builder.forget(more[0].job);
+	await assert.rejects(builder.status(more[0].job), refusal(404));
 	finish();
-	await done;
-	await assert.rejects(builder.build({ sha256, passphrase }), refusal(503));
+	await Promise.all([first.done, ...more.map((m) => m.done)]);
+	assert.equal(most, 1);
+	assert.equal(seen.encrypted.length, MAX_JOBS - 1);
+	assert.equal((await builder.status(first.job)).state, 'built');
 	for (const call of [(id) => builder.status(id), (id) => builder.piece(id, 'bytes=0-1'), (id) => builder.forget(id)]) await assert.rejects(call('00'.repeat(24)), refusal(404));
-	assert.equal((await builder.status(job)).state, 'built');
 });
 
-test('an image nobody touches is removed after a while; fetching keeps it', async () => {
+test('an image nobody fetches is removed within minutes', async () => {
+	const { builder, seen, later } = setup();
+	const jobs = [];
+	for (let i = 0; i < MAX_JOBS; i++) jobs.push(await builder.build({ sha256, passphrase }));
+	await Promise.all(jobs.map((j) => j.done));
+	await assert.rejects(builder.build({ sha256, passphrase }), refusal(503));
+	// Asking for its state does not keep it: only fetching does.
+	later(UNFETCHED_TTL_MS - 1);
+	assert.equal((await builder.status(jobs[0].job)).state, 'built');
+	await builder.piece(jobs[0].job, 'bytes=0-1');
+	later(2);
+	assert.equal((await builder.status(jobs[0].job)).state, 'built');
+	await assert.rejects(builder.status(jobs[1].job), refusal(404));
+	assert.equal(seen.removed.length, MAX_JOBS - 1);
+	await builder.build({ sha256, passphrase });
+});
+
+test('an image being fetched stays while it is touched, and goes when it is not', async () => {
 	const { builder, seen, later } = setup();
 	const { job, done } = await builder.build({ sha256, passphrase });
 	await done;
-	later(JOB_TTL_MS - 1);
 	await builder.piece(job, 'bytes=0-1');
+	later(JOB_TTL_MS - 1);
+	await builder.piece(job, 'bytes=2-3');
 	later(JOB_TTL_MS - 1);
 	assert.equal((await builder.status(job)).state, 'built');
 	later(JOB_TTL_MS + 1);
 	await assert.rejects(builder.status(job), refusal(404));
 	assert.equal(seen.removed.length, 1);
-	await builder.build({ sha256, passphrase });
+});
+
+test('failed jobs make room for new ones', async () => {
+	const { builder } = setup({ unpack: async () => ({ sha256: '00'.repeat(32), size: 4096 }) });
+	const jobs = [];
+	for (let i = 0; i < MAX_JOBS; i++) jobs.push(await builder.build({ sha256, passphrase }));
+	await Promise.all(jobs.map((j) => j.done));
+	const next = await builder.build({ sha256, passphrase });
+	await next.done;
+	assert.equal((await builder.status(next.job)).state, 'failed');
 });
 
 test('a failed step says what lies behind it', async () => {
