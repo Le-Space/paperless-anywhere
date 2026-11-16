@@ -59,7 +59,7 @@ describe("paperless-restore's downloads", { timeout: 30_000 }, () => {
   it("go through download(), with https only and a size limit", () => {
     expect(downloadFn).toBeTruthy();
     expect(downloadFn).toMatch(
-      /curl -fsS --proto =https --proto-redir =https --max-filesize 1000000000 /,
+      /curl -fsS --proto =https --proto-redir =https --max-filesize "\$limit" /,
     );
     expect(downloadFn).not.toMatch(/curl[^\n]* -[a-zA-Z]*L/);
     const curls = restore
