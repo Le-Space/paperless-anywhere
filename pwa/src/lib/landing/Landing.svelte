@@ -13,6 +13,8 @@
 	import { BACKUP_YEAR_CENTS, CREDITS_URL, PLANS, creditsCatalog } from '$lib/credits.js';
 	import Trust from '$lib/landing/Trust.svelte';
 	import BuildLine from '$lib/landing/BuildLine.svelte';
+	import Help from '$lib/Help.svelte';
+	import { help } from '$lib/i18n/help.js';
 
 	const APP = '/app/';
 	/** @type {{ lang: 'de' | 'en' }} */
@@ -234,6 +236,11 @@
 		</div>
 	</section>
 
+	<!-- Help, how to reach Le Space, and how to report a security issue (SECURITY.md). -->
+	<section class="support">
+		<Help t={help[lang]} {lang} faq="#faq" open />
+	</section>
+
 	<section class="closing">
 		<h2>{t.cta.title}</h2>
 		<p>{t.cta.lead}</p>
@@ -252,6 +259,8 @@
 	<a href={TERMS_URL} data-testid="footer-terms">{t.footer.terms}</a>
 	<a href={TERMS_URL} data-testid="footer-withdrawal">{t.footer.withdrawal}</a>
 	<a href="/lizenzen/">{t.licences.link}</a>
+	<a href={lang === 'en' ? '#help' : '#hilfe'} data-testid="footer-help">{help[lang].title}</a>
+	<a href={lang === 'en' ? '#security' : '#sicherheit'} data-testid="footer-security">{help[lang].securityTitle}</a>
 	<BuildLine {lang} t={t.footer.build} />
 </footer>
 

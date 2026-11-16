@@ -1,0 +1,6 @@
+Contact: mailto:security@le-space.de
+Contact: https://github.com/Le-Space/paperless-anywhere/security/advisories/new
+Expires: 2027-11-15T00:00:00.000Z
+Preferred-Languages: de, en
+Canonical: https://paperless.le-space.de/.well-known/security.txt
+Policy: https://github.com/Le-Space/paperless-anywhere/blob/main/SECURITY.md

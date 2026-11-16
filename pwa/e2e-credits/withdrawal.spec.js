@@ -47,7 +47,7 @@ test('a contract within its 14 days is withdrawn in two steps, with a receipt to
 	const view = page.getByTestId('withdraw-view');
 	await expect(page.getByTestId('withdraw-list')).toHaveText('Paket 30 Stunden, Monatsabo, geschlossen am 05.11.2026, Widerruf möglich bis 19.11.2026, 10:00 MEZ');
 	await expect(page.getByTestId('withdraw-what')).toContainText('innerhalb von 14 Tagen');
-	await expect(view).toContainText('Le Space UG (haftungsbeschränkt), info@le-space.de');
+	await expect(view).toContainText('Le Space UG (haftungsbeschränkt), contact@le-space.de');
 	await shot(page, 'withdraw-before', view);
 	// Opening the view withdrew nothing.
 	expect((await received('/v1/withdrawal')).every((r) => r.body.quote === true)).toBe(true);
@@ -69,7 +69,7 @@ test('a contract within its 14 days is withdrawn in two steps, with a receipt to
 	expect(text).toContain('Widerrufen: Paket 30 Stunden, Monatsabo, geschlossen am 05.11.2026');
 	expect(text).toContain('Widerruf eingegangen am: 11.11.2026, 11:15 MEZ (2026-11-11T10:15:00.000Z)');
 	expect(text).toContain('Erstattung: refund_mock_1');
-	expect(text).toContain('Anbieter: Le Space UG (haftungsbeschränkt), info@le-space.de');
+	expect(text).toContain('Anbieter: Le Space UG (haftungsbeschränkt), contact@le-space.de');
 
 	// Closed, nothing is left to withdraw, and the button is gone.
 	await view.getByRole('button', { name: 'Schließen' }).click();
@@ -84,6 +84,6 @@ test('cancelling is reachable without opening the vault', async ({ page }) => {
 	const link = page.getByTestId('cancel-by-mail');
 	await expect(link).toHaveText('Verträge hier kündigen');
 	const href = await link.getAttribute('href');
-	expect(href).toMatch(/^mailto:info@le-space\.de\?subject=K%C3%BCndigung%20Paperless%20anywhere&body=/);
+	expect(href).toMatch(/^mailto:contact@le-space\.de\?subject=K%C3%BCndigung%20Paperless%20anywhere&body=/);
 	expect(decodeURIComponent(/** @type {string} */ (href))).toContain('Rechnungsnummer');
 });

@@ -14,7 +14,7 @@ const germanPlanHours = (plan) => (plan.hours >= ALWAYS ? 'Dauerbetrieb' : `${pl
 export const contractName = (plan, id = '') => `Paperless anywhere, Paket ${plan ? germanPlanHours(plan) : id}, Monatsabo`;
 export const CANCEL_KIND = 'Ordentliche Kündigung zum Ende des bezahlten Monats';
 /** Who the contract is with, as the cancel page and its confirmation name it. */
-export const PROVIDER = 'Le Space UG (haftungsbeschränkt), info@le-space.de';
+export const PROVIDER = 'Le Space UG (haftungsbeschränkt), contact@le-space.de';
 export const IMPRINT_URL = 'https://le-space.de/#impressum';
 
 /** @param {string | null} iso @param {string} [timeZone] */
@@ -51,7 +51,7 @@ export function cancellationRecord({ contract, receivedAt, effectiveAt, address,
  * that says what is cancelled and asks for what identifies the contract. The
  * app fills in nothing about the person.
  */
-export const CANCEL_MAIL = 'info@le-space.de';
+export const CANCEL_MAIL = 'contact@le-space.de';
 export const cancelMailto = () =>
 	`mailto:${CANCEL_MAIL}?${new URLSearchParams({
 		subject: 'Kündigung Paperless anywhere',
