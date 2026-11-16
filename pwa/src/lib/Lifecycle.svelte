@@ -6,7 +6,7 @@
 	import RefreshBalances from '$lib/RefreshBalances.svelte';
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
 	import { noteError, noteState } from '$lib/diagnosis.js';
-	import { AlephShortError, BackupPartialError, StartGoneError, attestRunning, confirmStopBackup, eraseStopped, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
+	import { AlephShortError, BackupPartialError, StartGoneError, pushBackupPlaces, attestRunning, confirmStopBackup, eraseStopped, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
 	import { buildImageForVault } from '$lib/own-image-build.js';
 	import { BUILDER, hasOwnImage, imageStatus } from '$lib/own-image.js';
 	import FirstStart from '$lib/FirstStart.svelte';
@@ -24,7 +24,9 @@
 	import { privateKeyToAccount } from 'viem/accounts';
 	import { alephPrivateKey } from '$lib/keys/derive.js';
 	import BackupExport from '$lib/BackupExport.svelte';
-	import { providersAnswer } from '$lib/backup-status.js';
+	import { checkCopies } from '$lib/backup-status.js';
+	import { listProviders } from '$lib/providers.js';
+	import { replacementPlan } from '$lib/places-replace.js';
 	import { backupSize, knownBackup, listBackups, newerBackup, pieceCidOfStop, place, restoreEntry, restoreGap, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
@@ -724,16 +726,48 @@
 	// cannot go up and the VM keeps running: said, and asked. Without the
 	// registry's answer nothing is said.
 	let stopChecking = $state(false);
-	const stop = async () => {
+	// The same before "Jetzt sichern" and "Sichern und beenden": a provider
+	// that does not answer is said before anything is exported, with a
+	// replacement at an independent operator; confirmed, the new places go to
+	// the running VM (pushBackupPlaces), and the backup goes on.
+	/** @type {{ names: string[], plan: Awaited<ReturnType<typeof replacementPlan>> | null, allDown: boolean, then: () => unknown } | null} */
+	let placesAsk = $state(null);
+	async function checkPlacesThen(/** @type {() => unknown} */ then) {
 		const named = (profile.backupConfig?.providerIds ?? []).map(Number);
 		const ids = named.length ? named : (newestBackup?.copies ?? []).map((/** @type {any} */ x) => Number(x.providerId));
-		if (profile.backupConfig && ids.length) {
-			stopChecking = true;
-			const r = await providersAnswer(profile.network ?? 'calibration', ids).finally(() => (stopChecking = false));
-			if (r && r.total > 0 && r.answering === 0 && !confirm(`${tr().card.simple.stopNoProvider(r.names.join(', '))} ${tr().card.simple.stopAnyway}`)) return;
+		if (!profile.backupConfig || !ids.length) return then();
+		const network = profile.network ?? 'calibration';
+		stopChecking = true;
+		try {
+			const r = await checkCopies({ network, copies: ids.map((providerId) => ({ providerId })) }).catch(() => null);
+			const down = r ? r.copies.filter((c) => !c.answers) : [];
+			// Without the registry's answer, or all answering: nothing to say.
+			if (!r || !down.length) return then();
+			const providers = await listProviders(network).catch(() => []);
+			const plan = providers.length ? await replacementPlan({ providers, ids, down: down.map((c) => c.id), regions: profile.backupConfig.regions ?? [] }) : null;
+			placesAsk = { names: down.map((c) => `${c.id} ${c.name}`.trim()), plan: plan && plan.replaced.some((x) => x.to) ? plan : null, allDown: r.answering === 0, then };
+		} finally {
+			stopChecking = false;
 		}
-		return stopNow();
+	}
+	async function acceptPlaces() {
+		const ask = placesAsk;
+		if (!ask?.plan) return;
+		placesAsk = null;
+		await run(async () => {
+			progress = tr().card.places.pushing;
+			profile = await updateProfile(master, (now) => ({ ...now, backupConfig: { ...now.backupConfig, providerIds: ask.plan.ids, copies: Math.max(1, ask.plan.ids.length) } }));
+			onchange();
+			if (profile.running) await pushBackupPlaces(master, $state.snapshot(profile));
+		});
+		if (!error) ask.then();
+	}
+	const placesAnyway = () => {
+		const ask = placesAsk;
+		placesAsk = null;
+		ask?.then();
 	};
+	const stop = () => checkPlacesThen(stopNow);
 	// A VM whose restore failed runs an empty Paperless and makes no backup
 	// (paperless-backup refuses): it is deleted without one, never stopped
 	// with "Sichern und beenden".
@@ -882,6 +916,25 @@
 	const stepLabel = $derived(action ? (/** @type {Record<string, string>} */ (c.steps)[STEPS[action].find((s) => s.step === current)?.step ?? 'preparing']) : '');
 </script>
 
+{#snippet placesBox()}
+	{#if placesAsk}
+		<div class="warn-box" role="alert" data-testid="places-ask">
+			<p>{c.places.down(placesAsk.names.join(', '))}</p>
+			{#if placesAsk.plan}
+				<ul>{#each placesAsk.plan.replaced as r (r.from.id)}<li>{r.to ? c.places.instead(`${r.from.id} ${r.from.name ?? ''}`.trim(), `${r.to.id} ${r.to.name}${r.to.place ? `, ${r.to.place}` : ''}`) : c.places.none(`${r.from.id} ${r.from.name ?? ''}`.trim())}</li>{/each}</ul>
+				<p class="hint">{c.places.hint}</p>
+			{:else}
+				<p class="hint">{c.places.noReplacement}</p>
+			{/if}
+			<div class="row">
+				{#if placesAsk.plan}<button onclick={acceptPlaces} disabled={busy} data-testid="places-accept">{c.places.accept}</button>{/if}
+				<button class="secondary" onclick={placesAnyway} disabled={busy} data-testid="places-anyway">{placesAsk.allDown ? c.places.tryAnyway : c.places.goOn}</button>
+				<button class="quiet" onclick={() => (placesAsk = null)} data-testid="places-cancel">{c.places.cancel}</button>
+			</div>
+		</div>
+	{/if}
+{/snippet}
+
 {#snippet errorBox()}
 	<div class="error" role="alert" data-testid="start-error">
 		<p class="error-text">{error}</p>
@@ -1009,7 +1062,7 @@
 					<button type="button" class="small" onclick={copyPassword}>{c.simple.copy}</button>
 				</div>
 			</div>
-			{#if profile.backupConfig && !restoreFailed}<BackupNow {master} {profile} known={lastGood} disabled={busy} onbusy={(b) => (backingUp = b)} ongood={rememberGood} />{/if}
+			{#if profile.backupConfig && !restoreFailed}<BackupNow {master} {profile} known={lastGood} disabled={busy || stopChecking} guard={checkPlacesThen} onbusy={(b) => (backingUp = b)} ongood={rememberGood} />{/if}
 			<Evidence rows={evidence} t={evidenceT} onagain={busy ? null : checkAgain} />
 			{#if restoreFailed}<button class="secondary stop" onclick={discardFailed} disabled={busy} data-testid="simple-discard">{c.simple.discard}</button>
 			{:else}
@@ -1044,6 +1097,7 @@
 		{#if phase !== 'running' && profile.trial}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
+		{@render placesBox()}
 		{#if error}{@render errorBox()}{/if}
 		{#if error && !busy && !profile.running && profile.ownImage?.previous}<p class="hint" data-testid="previous-image"><button class="secondary" onclick={startPrevious} disabled={busy} data-testid="start-previous">{$i18n.ownImage.previousStart}</button> {$i18n.ownImage.previousHint}</p>{/if}
 		{#if partial}
@@ -1134,6 +1188,7 @@
 		{#if progress}<p data-testid="progress">{progress} …</p>{/if}
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
+		{@render placesBox()}
 		{#if error}{@render errorBox()}{/if}
 		{#if error && !busy && !profile.running && profile.ownImage?.previous}<p class="hint" data-testid="previous-image"><button class="secondary" onclick={startPrevious} disabled={busy} data-testid="start-previous">{$i18n.ownImage.previousStart}</button> {$i18n.ownImage.previousHint}</p>{/if}
 		{#if partial}
@@ -1202,6 +1257,8 @@
 	.login p { margin: 0.15rem 0; }
 	.login .label { color: var(--text-2); font-size: 0.85rem; margin-bottom: 0.35rem; }
 	.login code { word-break: break-all; }
+	.warn-box { margin: 0.75rem 0; padding: 0.6rem 0.8rem; border: 1px solid var(--warn); border-left-width: 4px; border-radius: var(--radius-sm, 6px); background: var(--warn-bg); }
+	.warn-box ul { margin: 0.3rem 0; padding-left: 1.2rem; }
 	.error-text { margin: 0; }
 	.raw { margin-top: 0.4rem; font-size: 0.85rem; color: var(--dim); }
 	.raw pre { white-space: pre-wrap; word-break: break-word; margin: 0.3rem 0 0; }

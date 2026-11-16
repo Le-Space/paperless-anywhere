@@ -117,3 +117,18 @@ describe('a start that restores, when no copy delivers', () => {
 	});
 });
 
+
+describe('handing backup places to the running VM', () => {
+	it('sends the config and the session key to a VM on the own image, and refuses others', async () => {
+		const { pushBackupPlaces } = await import('./lifecycle.js');
+		const { imagePassphrase } = await import('./keys/derive.js');
+		const plain = 'ef'.repeat(32);
+		const base = { ...profile, running: { instanceHash: 'c'.repeat(64) }, backupConfig: { network: 'calibration', copies: 2, providerIds: [43, 38], regions: [], datasetMetadata: { app: 'x' }, keepWeeks: 1, ageRecipient: 'age1' + 'q'.repeat(58) }, payer: '0x' + '1'.repeat(40) };
+		const own = { ...base, luksPassphrase: imagePassphrase(master, plain), ownImage: { plainSha256: plain, rootfsItemHash: base.rootfsItemHash } };
+		let got = null;
+		const names = await pushBackupPlaces(master, own, { send: async (_m, _p, secrets) => void (got = secrets) });
+		expect(names).toEqual(expect.arrayContaining(['backup_config', 'backup_session_key']));
+		expect(JSON.parse(got.backup_config).providerIds).toEqual([43, 38]);
+		await expect(pushBackupPlaces(master, base, { send: async () => {} })).rejects.toThrow(/eigenen Image/);
+	});
+});

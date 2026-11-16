@@ -13,7 +13,7 @@
 	import BackupPlaces from '$lib/BackupPlaces.svelte';
 	import { buildImageForVault, forgetOldImage } from '$lib/own-image-build.js';
 	import { forgetQueued } from '$lib/old-image.js';
-	import { buildsImageFirst } from '$lib/lifecycle.js';
+	import { buildsImageFirst, pushBackupPlaces } from '$lib/lifecycle.js';
 	import { BUILDER, buildAffordable, forgetLeftBuilder, settleLeftBuild, hasOwnImage, imageFields, imageKindOf, sources } from '$lib/own-image.js';
 	import { format, lang, t, tr } from '$lib/i18n/index.js';
 	import {
@@ -242,6 +242,11 @@
 	});
 	const savePlaces = (places) => run('places', async () => {
 		await save({ backupConfig: backupConfigFor(profile.network, ageRecipient(profile.ageIdentity || vaultAge), places) });
+	});
+	// A VM that runs reads its backup places at every backup: changed places
+	// reach it only when handed over (pushBackupPlaces, over the attested channel).
+	const pushPlaces = () => run('places-push', async () => {
+		await pushBackupPlaces(master, profile);
 	});
 	const recipient = $derived.by(() => {
 		try {
@@ -638,6 +643,7 @@
 	</label>
 	{#if profile.backupConfig}
 		<BackupPlaces network={profile.network} payer={profile.backupOwner || (profile.backupsByCredits ? '' : profile.payer)} config={profile.backupConfig} busy={busy === 'places'} onsave={savePlaces} />
+		{#if profile.running}<p class="hint">{$t.backup.places.pushHint} <button class="link" onclick={pushPlaces} disabled={busy === 'places-push'} data-testid="places-push">{$t.backup.places.push}</button></p>{@render feedback('places-push')}{/if}
 	{/if}
 	{@render feedback('backups')}{@render feedback('places')}
 	{#if profile.network === 'mainnet' && profile.role !== 'primary'}<p class="hint" data-testid="mainnet-backup-hint">{x.backups.mainnetHint}</p>
