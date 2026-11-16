@@ -70,8 +70,10 @@ services:
 
   paperless:
     <<: *host
-    # ghcr.io/paperless-ngx/paperless-ngx:3.2.1, flattened to one layer (rootfs/images.txt, flat-images.yml)
-    image: ghcr.io/le-space/paperless-anywhere/paperless@sha256:c0d043e56538a4089661ed1137f018e85792ea5fa783b1ca8d73690a5e4ebe98
+    # ghcr.io/paperless-ngx/paperless-ngx:3.2.1 with tesseract-ocr-rus and
+    # tesseract-ocr-tur, flattened to one layer (rootfs/images.txt,
+    # flat-images.yml run 43823158293)
+    image: ghcr.io/le-space/paperless-anywhere/paperless@sha256:b61ea30261b0d709adeffdf4819b21c3e19de0cb4b94fa26910ecaa75cfdc879
     # Not on Gotenberg and Tika: they convert office files and mails, and
     # paperless-stack-up starts them after Paperless (their images are the
     # larger half of the download at a start).
@@ -92,10 +94,10 @@ services:
       PAPERLESS_BIND_ADDR: 127.0.0.1
       PAPERLESS_PORT: "8000"
       # As on the Mac: the books hold German, English, Russian, Spanish and
-      # Turkish documents. The image brings deu, eng and spa; rus and tur are
-      # installed when the container starts (PAPERLESS_OCR_LANGUAGES).
+      # Turkish documents. Upstream's image brings deu, eng and spa; rus and
+      # tur are in the flat image (rootfs/images.txt), so nothing is
+      # installed when the container starts.
       PAPERLESS_OCR_LANGUAGE: deu+eng+rus+spa+tur
-      PAPERLESS_OCR_LANGUAGES: rus tur
       PAPERLESS_TIME_ZONE: Europe/Berlin
       # As on the Mac: a file whose hash is already in Paperless is not taken
       # again. Since 3.0 Paperless takes duplicates unless this is set, and

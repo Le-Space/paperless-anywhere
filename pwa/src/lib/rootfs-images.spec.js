@@ -27,6 +27,9 @@ describe("the flat Paperless image", () => {
       ).toBe(true);
     }
   });
+  it("is not told to install languages at a start", () => {
+    expect(compose).not.toMatch(/PAPERLESS_OCR_LANGUAGES/);
+  });
   it("names only Debian package names after the digest", () => {
     for (const pkg of packages) expect(pkg).toMatch(/^[a-z0-9][a-z0-9.+-]+$/);
   });
