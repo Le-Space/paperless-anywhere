@@ -102,3 +102,31 @@ describe('the start panel’s texts', () => {
 		expect(skipped).toContain('in dieser Sitzung nicht geprüft');
 	});
 });
+
+describe('panelTimes', async () => {
+	const { panelTimes } = await import('./start-panel.js');
+	it('reads each row’s time from the same stamps as the start, and the usual time beside it', () => {
+		const steps = [
+			{ step: 'measure', typical: 10 },
+			{ step: 'instance', typical: 90 },
+			{ step: 'network', typical: 25 }
+		];
+		const times = { measure: { from: 0, to: 9000 }, instance: { from: 9000 } };
+		expect(panelTimes(steps, times, 11000)).toEqual({
+			measure: { ms: 9000, typical: 10 },
+			instance: { ms: 2000, typical: 90 },
+			network: { ms: null, typical: 25 }
+		});
+	});
+});
+
+describe('StartPanel with times', () => {
+	it('shows each row’s time and the total, in the one panel', () => {
+		const rows = startPanel({ step: 'instance' });
+		const { body } = render(StartPanel, { props: { rows, t: panelTexts.de, times: { measure: '9 s (üblich ca. 10 s)', instance: '2 s (üblich ca. 2 min)' }, total: 'Gesamt: 11 s · üblich ca. 10 min' } });
+		expect(body).toContain('data-testid="took-measure"');
+		expect(body).toContain('9 s (üblich ca. 10 s)');
+		expect(body).toContain('data-testid="panel-total"');
+		expect(body).toContain('Gesamt: 11 s · üblich ca. 10 min');
+	});
+});
