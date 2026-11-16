@@ -213,6 +213,7 @@ export const backup = {
 					silent: 'Der Anbieter war aus dem Browser nicht abzufragen.'
 				}
 			},
+			more: 'Wie ein Anbieter beweist, dass er die Sicherung noch hat',
 			legend: 'Grün: von der App selbst auf der Chain gelesen. Blau: nur vom Anbieter gemeldet. Rot: ein Problem. Grau: keine Angabe.'
 		},
 		health: {
@@ -446,6 +447,7 @@ export const backup = {
 					silent: 'The provider could not be asked from the browser.'
 				}
 			},
+			more: 'How a provider proves it still has the backup',
 			legend: 'Green: read from the chain by the app itself. Blue: only reported by the provider. Red: a problem. Grey: no answer.'
 		},
 		health: {

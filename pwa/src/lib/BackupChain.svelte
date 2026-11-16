@@ -91,7 +91,7 @@
 			<span class="dim" role="status">{busy ? x.checking : readAt && copies?.[0]?.epoch ? x.checkedAt(when(readAt), copies[0].epoch) : ''}</span>
 		</p>
 	{/if}
-	<p class="legend">{x.legend}</p>
+	<p class="legend">{x.legend} <a href="https://github.com/Le-Space/paperless-anywhere/blob/main/docs/backup-proofs.md" target="_blank" rel="noopener" data-testid="chain-more">{x.more}</a></p>
 </details>
 
 <style>
@@ -124,6 +124,7 @@
 	.failed .sign, .failed .state, .err { color: var(--bad); }
 	.err { margin: 0.25rem 0; }
 	.row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; margin: 0.5rem 0 0; }
+	.legend a { color: var(--rep); }
 	.legend { margin: 0.6rem 0 0; padding-top: 0.6rem; border-top: 1px solid var(--rule); font-size: 0.8rem; }
 	.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 </style>

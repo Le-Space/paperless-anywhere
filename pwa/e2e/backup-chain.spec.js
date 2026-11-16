@@ -142,6 +142,7 @@ test.describe('German', () => {
 		await expect(bad).toHaveAttribute('data-state', 'failed');
 		await expect(bad.getByTestId('chain-faults')).toContainText('2 von 20 Beweisperioden ohne Beweis');
 
+		await expect(chain.getByTestId('chain-more')).toHaveAttribute('href', /docs\/backup-proofs\.md$/);
 		// The provider is asked only on the button, and what it sends is blue, never green.
 		await expect(good.getByTestId('chain-sample')).toHaveCount(0);
 		await chain.getByTestId('chain-check').click();
