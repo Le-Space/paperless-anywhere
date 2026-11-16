@@ -52,6 +52,28 @@ export class BackupFailedError extends Error {
  * piece; the others hold their copies). Paperless is paused and the VM waits
  * for the person: erase it anyway (eraseStopped) or keep it (resumeAfterPartial).
  */
+/**
+ * An interrupted start Aleph rejected or forgot (or never got): nothing to
+ * carry on with. The app drops it and offers a new start. `missing` names
+ * what Aleph found missing, such as an image that was forgotten.
+ */
+export class StartGoneError extends Error {
+	/** @param {string} instanceHash @param {string | number} status @param {string[]} missing */
+	constructor(instanceHash, status, missing = []) {
+		super(tr().life.errors.startGone(String(status), missing.map((h) => h.slice(0, 12))));
+		this.name = 'StartGoneError';
+		this.instanceHash = instanceHash;
+		this.status = status;
+		this.missing = missing;
+	}
+}
+
+/** The hashes Aleph names as missing in a rejected message's details. @param {any} answer */
+export function missingOf(answer) {
+	const errors = answer?.details?.errors ?? answer?.message?.details?.errors ?? [];
+	return (Array.isArray(errors) ? errors : []).map((e) => (typeof e === 'string' ? e : e?.hash ?? e?.item_hash ?? '')).filter((h) => /^[0-9a-f]{64}$/.test(h));
+}
+
 export class BackupPartialError extends Error {
 	/** @param {any} status the VM's status page in phase "stop-partial" */
 	constructor(status) {
@@ -307,13 +329,16 @@ export async function resumeStart(master, profile, onProgress, { lookUpTries = 2
 	onProgress({ step: 'instance', detail: tr().life.progress.lookUp, instanceHash: starting.instanceHash });
 	// A start whose request lost its answer may still be on its way to Aleph:
 	// waited for a little while it is unknown or pending.
-	let res, status;
+	let res, status, answer;
 	for (let i = 0; ; i++) {
 		res = await readFetch(`${ALEPH_API}/api/v0/messages/${starting.instanceHash}`, tr().life.vm.lookUp);
-		status = res.ok ? (await res.json())?.status : null;
+		answer = res.ok ? await res.json() : null;
+		status = answer?.status ?? null;
 		if (status === 'processed' || i >= lookUpTries - 1 || !(res.status === 404 || status === 'pending')) break;
 		await sleep(lookUpPauseMs);
 	}
+	// Rejected, forgotten or never arrived: nothing left to carry on with.
+	if (['rejected', 'forgotten', 'removed', 'removing'].includes(status) || res.status === 404) throw new StartGoneError(starting.instanceHash, status ?? res.status, missingOf(answer));
 	if (status !== 'processed') throw new Error(tr().life.errors.vmGone(starting.instanceHash.slice(0, 12), status ?? res.status));
 	return bringUp(master, { ...profile, restoreEntry: starting.restoreEntry }, starting, await loadWasm(), onProgress);
 }

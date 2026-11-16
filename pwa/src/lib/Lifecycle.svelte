@@ -2,7 +2,7 @@
 	import { balancesRound, onceThisRound } from '$lib/balance-refresh.js';
 	import RefreshBalances from '$lib/RefreshBalances.svelte';
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
-	import { AlephShortError, BackupPartialError, attestRunning, eraseStopped, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
+	import { AlephShortError, BackupPartialError, StartGoneError, attestRunning, eraseStopped, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
 	import { buildImageForVault } from '$lib/own-image-build.js';
 	import { BUILDER, hasOwnImage, imageStatus } from '$lib/own-image.js';
 	import FirstStart from '$lib/FirstStart.svelte';
@@ -130,6 +130,8 @@
 	const seconds = (ms) => `${Math.max(0, Math.round(ms / 1000))} s`;
 	const minutes = (s) => (s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`);
 	let error = $state('');
+	// An interrupted start Aleph no longer had: dropped, and why (not an error).
+	let goneNote = $state('');
 	// A broken connection: a plain sentence above, the browser's own words
 	// under "Details", and what "Noch einmal" does (null: nothing to repeat).
 	let errorRaw = $state('');
@@ -318,6 +320,7 @@
 		purchase.cancel();
 		error = '';
 		errorRaw = '';
+		goneNote = '';
 		again = null;
 		errorLog = [];
 		short = null;
@@ -572,7 +575,15 @@
 			if (newer) profile = await updateProfile(master, (now) => (now.starting ? { ...now, starting: { ...now.starting, restoreEntry: restoreEntry(newer) } } : now));
 		}
 		startRestores = Boolean(profile.starting?.restoreEntry);
-		await finishStart(() => resumeStart(master, $state.snapshot(profile), track('start')));
+		try {
+			await finishStart(() => resumeStart(master, $state.snapshot(profile), track('start')));
+		} catch (e) {
+			// Aleph rejected or forgot it: dropped, said plainly, and a new start offered.
+			if (!(e instanceof StartGoneError)) throw e;
+			profile = await updateProfile(master, ({ starting, ...rest }) => rest);
+			onchange();
+			goneNote = e.message;
+		}
 	}, () => startAgain());
 	/** @param {() => Promise<any>} bringUp */
 	async function finishStart(bringUp) {
@@ -813,7 +824,8 @@
 			<Storage {master} {profile} />
 			{#if profile.ageIdentity && backupListing(profile)}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{:else if phase === 'interrupted'}
-			<button class="cta" onclick={resume} disabled={busy}>{c.simple.resume}</button>
+			<button class="cta" onclick={resume} disabled={busy} data-testid="simple-resume">{c.simple.resume}</button>
+			<button class="quiet" onclick={discard} disabled={busy} data-testid="simple-discard-start">{c.advanced.discard}</button>
 		{:else if phase === 'off'}
 			{#if missing.length}
 				<p class="hint">{c.simple.notSetUp}</p>
@@ -830,6 +842,7 @@
 		{/if}
 		{#if phase !== 'running' && profile.trial}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
+		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
 		{#if error}{@render errorBox()}{/if}
 		{#if partial}
 			<div class="partial" role="alert" data-testid="stop-partial">
@@ -940,6 +953,7 @@
 		{/if}
 		{#if progress}<p data-testid="progress">{progress} …</p>{/if}
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
+		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
 		{#if error}{@render errorBox()}{/if}
 		{#if partial}
 			<div class="partial" role="alert" data-testid="stop-partial">
