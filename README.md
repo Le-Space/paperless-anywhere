@@ -1,73 +1,78 @@
 # paperless-anywhere
 
-**Start your own Paperless-ngx from any computer or phone, when you need it — on a confidential VM, unlocked with a YubiKey or a seed phrase.**
+**Your own [Paperless-ngx](https://github.com/paperless-ngx/paperless-ngx), started from any computer or phone, in a confidential VM: around the clock or when you need it. Opened with a passkey, no account.**
 
-Paperless-ngx usually lives on one machine at home. This project moves it to rented, decentralised compute instead, without giving the operator a look inside:
+Live at **[paperless.le-space.de](https://paperless.le-space.de)** (German and English). Paperless-ngx is an independent open source project; Paperless anywhere runs it and is neither affiliated with nor endorsed by it.
 
-- **Around the clock or on demand.** Keep it running, or press a button in a PWA: a VM starts, restores your archive, and you work. When you are done, it backs up and deletes itself, and no compute time is used in between.
-- **Your data stays yours.** The archive lives encrypted on [Filecoin Onchain Cloud](https://docs.filecoin.cloud), with several independent providers at once (see [paperless-backup-filecoin](https://github.com/Le-Space/paperless-backup-filecoin)). The VM is disposable.
-- **Confidential.** The VM runs on AMD SEV-SNP: memory and disk are encrypted by the CPU, and the keys reach it only after the PWA has checked what was booted.
-- **No fixed computer, no password file.** A YubiKey (WebAuthn PRF) or a seed phrase unlocks a master secret in the browser. From it come the account that pays for the VM and the passwords of your Paperless; the backup key travels sealed with it.
+Paperless-ngx usually lives on one machine at home. Paperless anywhere runs it on rented, decentralised compute instead, without giving the operator a look inside:
 
-> Status: planning (October 2026). Nothing here runs yet. The pieces it builds on are in use: the Filecoin backup runs daily, and [relay-button](https://github.com/NiKrause/relay-button) deploys Aleph VMs from a browser.
+- **Around the clock or on demand.** Keep it running, or start it when you need it: the app requests a VM, restores your newest backup, and you work. "Back up and stop" makes a last backup and deletes the VM; in between no compute time is used.
+- **Your data stays yours.** Backups are encrypted in the VM and kept at several independent storage providers on [Filecoin Onchain Cloud](https://docs.filecoin.cloud), which prove on the chain, again and again, that they still hold them. The VM is disposable.
+- **Confidential.** The VM runs on AMD SEV-SNP: memory and disk are encrypted by the processor, and secrets reach it only after the app has checked the processor's report in your browser.
+- **Your own image.** For real use, an attested builder seals the system with a passphrase from your vault. Neither Le Space nor Aleph Cloud holds a key that opens your disk.
+- **No fixed computer, no password file.** A passkey (WebAuthn PRF), or the 24 words written down at the start, opens a vault in the browser. Every key the app needs is derived from it.
 
 ## How it fits together
 
 ```
- PWA (any device)                      Aleph confidential VM (SEV-SNP)
- ─────────────────                     ───────────────────────────────
- YubiKey / seed ──► master secret      encrypted rootfs (LUKS2):
-   ├─ Aleph account (pays credits)       Debian · Docker · Caddy
-   ├─ Paperless admin/DB/secret key      Paperless · Postgres · Valkey · Tika · Gotenberg
-   └─ age key + Filecoin wallet (sealed) bootstrap: restore ◄── Filecoin Onchain Cloud
-                                          daily backup ──► (3 providers, Europe)
- [Start] ─► deploy ─► measure ─► inject secrets ─► https://…/  ─► [Stop] ─► backup ─► erase
+ Browser (any device)                       Aleph confidential VM (AMD SEV-SNP)
+ ────────────────────                       ───────────────────────────────────
+ passkey / 24 words ──► vault (in memory)    your own image (LUKS2), opens only with
+   ├─ app key (signs for Aleph)                your passphrase: Debian · Docker · Caddy,
+   ├─ image passphrase                         Paperless-ngx · Postgres · Valkey · Tika · Gotenberg
+   ├─ Paperless passwords                    data area: a new random key at every start
+   └─ backup key (age)                       restore ◄── Filecoin Onchain Cloud ──► backups
+                                                          (several independent providers)
+ [Start] ─► request VM ─► check AMD report ─► send secrets ─► https://…/ ─► [Back up and stop] ─► erase
 ```
 
-1. **Start:** the PWA signs an INSTANCE message with the derived Aleph account, asks for a confidential node, checks the launch measurement against the image's manifest, and only then injects the disk key and the secrets.
-2. **Restore:** the guest fetches the newest encrypted export from Filecoin, decrypts it, and imports it into an empty Paperless. Then the web UI comes up behind Caddy on HTTPS.
-3. **Run:** Paperless as you know it, including its mail rules; the backup runs as on the Mac today.
-4. **Stop:** a last backup, then the VM is erased. An idle timer does the same if you forget.
+1. **Your image (once, and for each new version):** an attested builder in its own confidential VM seals the public base image with a passphrase from your vault. Your browser checks the builder's AMD report first, then stores the sealed image on Aleph. Included with a package or a voucher.
+2. **Start:** the app signs an INSTANCE message, asks for a confidential node, and checks the processor's report: the measurement of firmware, kernel, initrd and an owner line naming your app key, a fresh value, and the VM's TLS key. Only then does it send the image passphrase and the secrets, over a relay that forwards encrypted bytes only.
+3. **Restore:** the VM fetches your newest backup from the providers, checks every piece against its content address, decrypts it and imports it into an empty Paperless-ngx. A restoring start asks for no VM while no copy of the backup answers.
+4. **Run:** Paperless-ngx as you know it, on HTTPS. The VM checks every two hours whether something changed and backs it up; "Back up now" does it at once.
+5. **Stop:** "Back up and stop" makes a last backup; once it is confirmed on the chain, the app deletes the VM.
 
 Every step as a sequence diagram, the attestation and unlock included: [docs/workflow.md](docs/workflow.md).
 
-## Plan
+## Paying for it
 
-| Step | What | Where |
-|---|---|---|
-| 1 | **Confidential VMs in relay-button:** choose an SEV-SNP node, encrypted rootfs, measure before the secret goes in; release | [NiKrause/relay-button#154](https://github.com/NiKrause/relay-button/issues/154) |
-| 2 | **Paperless rootfs:** Docker, the compose stack, Caddy, the backup script; deployed through relay-button's Actions path on a confidential node, archive restored by hand — proves image, performance and restore | here (#1) |
-| 3 | **Guest bootstrap:** take the launch secret, restore from Filecoin, backup before erase, idle shutdown | here (#2) |
-| 3b | **Security audit:** attestation and unlock, secrets in the guest, network exposure (IPv4 and IPv6), supply chain, backup and restore, erase. Before real documents and before the PWA | here (#9) |
-| 4 | **PWA:** unlock with YubiKey or seed, derive keys, start and stop with one button, from any device | here, on `@le-space/core` / `@le-space/browser` (#3) |
-| 5 | **Hardening:** own domain, Paperless two-factor login | here (#4) |
-| 6 | **Akash** as a second target: the same compose stack as a multi-service SDL | here, after [akash-deploy-pwa](https://github.com/Le-Space/akash-deploy-pwa) (#5) |
+- **A package or a voucher** from Le Space Credits: compute hours or continuous operation, backups included, building your own image included. The app shows when it ends and warns before.
+- **Your own wallet:** the app starts VMs on Aleph and backs up on Filecoin on behalf of your wallet, which keeps the money and can withdraw the permission at any time.
 
-## If this becomes a product
-
-Customers buy packages from Le Space with fiat (card, SEPA, …) or crypto; Le Space buys the Aleph credits and USDFC the packages consume and keeps a margin (#6). Each customer's usage is paid from a prepaid account derived from *their* master secret and topped up by Le Space, so a package cannot be overspent and Le Space never holds a customer key or sees an archive (#7).
+Prices and terms: [paperless.le-space.de](https://paperless.le-space.de/#prices).
 
 ## Keys
 
-A random **master secret** is sealed by each passkey (WebAuthn PRF, e.g. a YubiKey) and by the 24-word recovery phrase; either opens it, and more passkeys can be added (one per address or device). Nothing secret is stored unsealed, and the master secret lives only in the browser's memory.
+A random **master secret** is sealed by each passkey (WebAuthn PRF) and by the 24-word recovery phrase; either opens it, and more passkeys can be added (one per address or device). Nothing secret is stored unsealed, and the master secret lives only in the browser's memory.
 
-From the master secret, by HKDF with distinct labels: the **app key** (Aleph), the **Filecoin session key**, the **backup key** (age), the **Paperless passwords**. The app key and the session key are delegates: they act for your own wallet, which keeps the money and can revoke them. They hold nothing.
+From the master secret, by HKDF with distinct labels: the **app key** (Aleph), the **Filecoin session key**, the **backup key** (age), the **image passphrase**, the **Paperless passwords**. The app key and the session key hold no money.
 
-What lives where, what holds money, and what to do when a passkey, a device or the words are lost: [docs/keys-and-recovery.md](docs/keys-and-recovery.md). Fetching a backup without a VM: [docs/restore-yourself.md](docs/restore-yourself.md) (Deutsch: [docs/restore-yourself.de.md](docs/restore-yourself.de.md)).
+What lives where, and what to do when a passkey, a device or the words are lost: [docs/keys-and-recovery.md](docs/keys-and-recovery.md). Fetching and decrypting a backup without a VM, without the app and without Le Space: [docs/restore-yourself.md](docs/restore-yourself.md) (Deutsch: [docs/restore-yourself.de.md](docs/restore-yourself.de.md)).
 
-What a VM gets and from whom, what the image contains, and why one vault's VM, balance and backups stay separate from another's: [docs/security-model.md](docs/security-model.md).
+## Images
 
-In preparation, an image sealed with a passphrase only your vault knows, made by a measured builder: [docs/own-image.md](docs/own-image.md).
+- **The base image** is built from this repository by `rootfs.yml` on a GitHub-hosted runner, without encryption and without any secret. Its SHA-256 is fixed in the app and public; GitHub's build provenance ties it to the commit.
+- **Your own image** is that base image, sealed by the attested builder with a passphrase only your vault knows. Real use always runs on it: [docs/own-image.md](docs/own-image.md).
+- **The public image**, for trying out only, has one passphrase per version, shared by everyone using it. A VM on it gets no backup keys and no fixed address, and starts empty.
 
-The variants of confidential VMs we know, what each measures and who holds which key: [docs/confidential-vm-variants.md](docs/confidential-vm-variants.md).
+## Further reading
 
-Which tests run on every pull request, and which live tests on Aleph and Filecoin are started by hand: [docs/testing.md](docs/testing.md).
+- [docs/security-model.md](docs/security-model.md): what a VM gets and from whom, what the image contains, and why one vault's VM, balance and backups stay separate from another's
+- [docs/backup-proofs.md](docs/backup-proofs.md): how the storage providers prove they still hold a backup, and what that does not prove
+- [docs/confidential-vm-variants.md](docs/confidential-vm-variants.md): the variants of confidential VMs we know, what each measures and who holds which key
+- [docs/testing.md](docs/testing.md): which tests run on every pull request, and which live tests on Aleph and Filecoin are started by hand
 
 ## What this does not protect against
 
-- A bug in the CPU's SEV-SNP or in the hypervisor that breaks confidentiality.
-- Losing every passkey and the 24 words: the backups made with the vault's key are lost (your money is not; it stays in your wallet).
-- Someone with your unlocked device while a session is open.
+- A bug in the processor's SEV-SNP or in the hypervisor that breaks confidentiality.
+- The image's content is not measured by the hardware; that your VM runs your image rests on its disk opening only with your passphrase.
+- Losing every passkey and the 24 words: the backups made with the vault's key are lost.
+- Someone with your unlocked device while the vault is open.
+- The relay sees which VM is reached from which IP address, and when; it cannot read or change the traffic unnoticed.
+
+## Status
+
+Running, in daily use. Open: [hardening](https://github.com/Le-Space/paperless-anywhere/issues/4) (two-factor login in Paperless), [Akash as a second target](https://github.com/Le-Space/paperless-anywhere/issues/5), [several customers per package](https://github.com/Le-Space/paperless-anywhere/issues/7), and the [security audit](https://github.com/Le-Space/paperless-anywhere/issues/9), which is still going on.
 
 ## Help and security reports
 
@@ -77,10 +82,9 @@ A security issue: please report it privately, never as a public issue: [SECURITY
 
 ## Related
 
-- [paperless-backup-filecoin](https://github.com/Le-Space/paperless-backup-filecoin) — the encrypted backup this restores from
-- [relay-button](https://github.com/NiKrause/relay-button) — Aleph VM deployment from the browser
-- [akash-deploy-pwa](https://github.com/Le-Space/akash-deploy-pwa) — Akash deployment from the browser
-- [aleph-rs](https://github.com/aleph-im/aleph-rs) — Aleph SDK with SEV / SEV-SNP attestation
+- [paperless-backup-filecoin](https://github.com/Le-Space/paperless-backup-filecoin): the encrypted backup the VM makes and restores from
+- [relay-button](https://github.com/NiKrause/relay-button): the relay, and the action that makes the image confidential
+- [Paperless-ngx](https://github.com/paperless-ngx/paperless-ngx): the document management system that runs in the VM
 
 ## License
 
@@ -88,19 +92,20 @@ Copyright © 2026 [Le Space](https://github.com/Le-Space).
 
 Paperless anywhere (the web app, the image builder and the VM image's own files) is free software under the **GNU Affero General Public License, version 3 or later** (`AGPL-3.0-or-later`), see [LICENSE](LICENSE). The app at paperless.le-space.de is built from this repository; its source is here. What the VM runs beside it (Paperless-ngx and the rest of the stack) keeps its own licences, listed in the app under *Lizenzen*.
 
-## The rootfs (step 2, #1)
+## For developers: the rootfs
 
-`rootfs/build-image.sh` builds the image: Debian 12 with systemd, Docker and the compose plugin, Caddy, age, and the stack in `/opt/paperless/compose.yml` (Paperless, Postgres, Valkey, Tika, Gotenberg). The workflow *Paperless rootfs* hands it to relay-button's `aleph-confidential-rootfs` action, which makes it confidential and encrypts it, then publishes it as an Aleph STORE.
+`rootfs/build-image.sh` builds the image: Debian 12 with systemd, Docker and the compose plugin, Caddy, age, and the stack in `/opt/paperless/compose.yml` (Paperless-ngx, Postgres, Valkey, Tika, Gotenberg). The workflow *Paperless rootfs* (`rootfs.yml`) hands it to relay-button's `aleph-confidential-rootfs` action, which makes it confidential, and publishes it as an Aleph STORE; with `plain` it also publishes the unencrypted base image the builder seals.
 
-- The containers are pulled after the unlock, so the image stays small. Docker uses vfs and the host network, because the confidential guest kernel has no overlayfs, bridge or nftables.
-- Every service binds to 127.0.0.1. The guest has no firewall and a public IPv6 address. Only Caddy faces the network, and sshd when a test sent a key with the unlock (on a productive instance only if the unlock asks for it explicitly, which the app never does); `paperless-anywhere-check` fails if anything else does.
-- `paperless-secrets` takes the database password, `PAPERLESS_SECRET_KEY` and the admin password from `/tmp/secrets` when they came with the unlock. Otherwise it makes them once on the encrypted disk.
+- The containers are pulled after the unlock, so the image stays small. They are pinned by digest and flattened to one layer each (`rootfs/images.txt`, `flat-images.yml`): Docker uses vfs and the host network, because the confidential guest kernel has no overlayfs or bridge.
+- Secrets, a restored backup, certificates and keys are written only to the data area the VM seals at every start with a key that never leaves it (`paperless-data-disk`, `paperless-require-sealed`); without it, Paperless-ngx does not start.
+- Every service binds to 127.0.0.1. The guest has no firewall and a public IPv6 address. Only Caddy faces the network, and sshd when a test sent a key with the unlock (the app never does); `paperless-anywhere-check` fails if anything else does.
 - `paperless-https <hostname>` writes the Caddyfile for `https://<hostname>`, restarts Caddy and recreates the Paperless container with `PAPERLESS_URL`. Without it, Django refuses logins from that origin (CSRF).
 - `paperless-manage <args>` runs a Paperless management command (`document_importer`, `document_thumbnails`, `shell`, …) in a one-off container. `docker exec` does not work in the confidential guest, because Docker runs inside the measured init's chroot. For the same reason the image's healthcheck is turned off.
 
 Every image has a passphrase of its own, and the app keeps it together with the image's hash: another image is saved only with its passphrase, and a start refuses a passphrase entered for another image.
 
-- **A release image** (purpose `release`) is built on a GitHub-hosted runner. The job makes a random passphrase and prints it in the run's summary, encrypted with [age](https://age-encryption.org) to the recipient in the repository variable `IMAGE_KEY_RECIPIENT`. Make the key pair once with `age-keygen -o image-key.txt`, set the variable to its public key (`age1…`), and read a passphrase with `age -d -i image-key.txt`. It is no GitHub secret, and no test gets it.
+- **A release image** (purpose `release`, the public image for trying out) is built on a GitHub-hosted runner. The job makes a random passphrase and prints it in the run's summary, encrypted with [age](https://age-encryption.org) to the recipient in the repository variable `IMAGE_KEY_RECIPIENT`. Make the key pair once with `age-keygen -o image-key.txt`, set the variable to its public key (`age1…`), and read a passphrase with `age -d -i image-key.txt`. It is no GitHub secret, and no test gets it.
 - **A test image** (purpose `test`, the default) uses the secret `PAPERLESS_LUKS_PASSPHRASE`, as the live tests do. It is for tests only.
+- **An own image** is made in the app, by the builder (`builder/`), from the base image: [docs/own-image.md](docs/own-image.md).
 
 The workflow needs the `ALEPH_PRIVATE_KEY` secret, and `PAPERLESS_LUKS_PASSPHRASE` for test images. The image carries no SSH key: a test that needs SSH sends its own public key with the unlock, as the secret `authorized_keys`, which the confidential init adds for root. The app never sends one. `pwa/scripts/live-debug-start.mjs` starts a VM the way the app does, with such a key, for diagnosis.
