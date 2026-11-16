@@ -17,6 +17,8 @@
 	import { help } from '$lib/i18n/help.js';
 
 	const APP = '/app/';
+	// Paperless anywhere's own source.
+	const REPO = 'https://github.com/Le-Space/paperless-anywhere';
 	/** @type {{ lang: 'de' | 'en' }} */
 	let { lang } = $props();
 	// Link previews need absolute addresses.
@@ -100,6 +102,8 @@
 	{@html `<script type="application/ld+json">${structured}</script>`}
 </svelte:head>
 
+{#snippet ghMark(/** @type {number} */ size)}<svg viewBox="0 0 16 16" width={size} height={size} aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" /></svg>{/snippet}
+
 <header class="top">
 	<!-- Not a link: this is the home page, and the line below links to Paperless-ngx,
 	     its first mention on the page. -->
@@ -115,6 +119,10 @@
 		<a href="#prices">{t.nav.prices}</a>
 		<a href="#faq">{t.nav.faq}</a>
 	</nav>
+	<!-- Our own source, next to the languages; Paperless-ngx stays linked under the logo. -->
+	<a class="gh" href={REPO} rel="noopener" aria-label={t.footer.source} title={t.footer.source} data-testid="header-source">
+		{@render ghMark(20)}
+	</a>
 	<div class="langs" role="group" aria-label="Language">
 		<!-- Real links: each language has its own address. -->
 		{#each LANGS as l}
@@ -142,6 +150,15 @@
 			{#each t.points as p}<li><h3>{p.t}</h3><p>{p.d}</p></li>{/each}
 		</ul>
 		<p class="trust-hint"><a href="#trust" data-testid="trust-hint">{t.trustHint} →</a></p>
+	</section>
+
+	<section id="paperless-ngx">
+		<h2>{t.ngx.title}</h2>
+		<p class="lead">{t.ngx.lead}</p>
+		<ul class="cards" data-testid="ngx-features">
+			{#each t.ngx.items as item}<li><h3>{item.t}</h3><p>{item.d}</p></li>{/each}
+		</ul>
+		<p class="ngx-after">{t.ngx.after} <a href={NGX_URL} rel="noopener">{t.ngx.links.project}</a> · <a href="https://docs.paperless-ngx.com/#features" rel="noopener">{t.ngx.links.docs}</a></p>
 	</section>
 
 	<section id="audience">
@@ -251,6 +268,7 @@
 <footer>
 	<p class="built">{t.footer.built}</p>
 	<p class="built" data-testid="footer-disclaimer">{t.disclaimer} <a href={NGX_URL}>{t.footer.ngxLink}</a></p>
+	<a class="source" href={REPO} rel="noopener" data-testid="footer-source">{@render ghMark(16)}{t.footer.source}</a>
 	<span>{t.footer.by}</span>
 	<a href="https://www.belege.le-space.de">{t.footer.belege}</a>
 	<a href="https://le-space.de/">le-space.de</a>
@@ -283,6 +301,10 @@
 	nav a { color: var(--text-2); text-decoration: none; white-space: nowrap; }
 	nav a:hover { color: var(--text); }
 	.langs { display: flex; gap: 0.25rem; }
+	.gh { display: inline-flex; align-items: center; color: var(--text-2); padding: 0.25rem; border-radius: 999px; }
+	.gh:hover { color: var(--text); }
+	.source { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--text); font-weight: 600; }
+	.ngx-after { margin: 1rem 0 0; color: var(--text-2); font-size: 0.95rem; }
 	.lang { font-family: var(--mono); font-size: 0.75rem; padding: 0.25rem 0.55rem; background: transparent; color: var(--text-2); border: 1px solid var(--line); border-radius: 999px; text-decoration: none; }
 	.lang.on { background: var(--cta-bg); color: var(--cta-text); border-color: var(--cta-bg); }
 
@@ -362,6 +384,6 @@
 
 	@media (max-width: 980px) {
 		nav { display: none; }
-		.langs { margin-left: auto; }
+		.gh { margin-left: auto; }
 	}
 </style>

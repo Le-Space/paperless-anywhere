@@ -128,6 +128,7 @@ export const app = {
 			imprint: 'Impressum',
 			privacy: 'Datenschutz',
 			licences: 'Lizenzen',
+			source: 'Quelltext auf GitHub',
 			commit: 'Commit',
 			cid: 'IPFS-CID dieser Version',
 			// The cancel button (§ 312k BGB). Legal wording: the English entry stays
@@ -262,6 +263,7 @@ export const app = {
 			imprint: 'Imprint',
 			privacy: 'Privacy',
 			licences: 'Licences',
+			source: 'Source code on GitHub',
 			commit: 'Commit',
 			cid: 'IPFS CID of this version',
 			// Not translated yet, see the German entry.
