@@ -68,10 +68,10 @@ passphrase, so it may pass through a relay and lie on public storage.
 In the setup, the image step asks which image (once a builder is fixed in
 the app):
 
-- **Das öffentliche Image von Le Space**: one passphrase per image version,
+- **The public image from Le Space**: one passphrase per image version,
   entered with the image's hash. Le Space knows it, and everyone using that
   version.
-- **Mein eigenes Image**: **Mein Image bauen** (`pwa/src/lib/own-image.js`).
+- **My own image**: **Build my image** (`pwa/src/lib/own-image.js`).
   Nobody but your vault knows the passphrase. Until it is built, the VM
   starts from the public image, and the step says so. Going back to the
   public image asks for its hash and passphrase anew.
@@ -101,7 +101,7 @@ try uploads it again, and builds nothing.
 
 While Paperless runs, the step is disabled: a running VM belongs to the
 image it started from. Moving a running Paperless to an image of its own:
-**Sichern und beenden**, build, start again; the start restores the newest
+**Back up and stop**, build, start again; the start restores the newest
 backup. If that restore fails, the new VM makes no backup (see
 [the workflow](workflow.md#4-stop-last-backup-then-erase)) and the app offers
 only to delete it without one (after asking), so the last backup stays the
@@ -167,7 +167,7 @@ cannot be made to run a chosen program.
 
 ## Checking what your image is made from
 
-The app shows, beside "Mein Image bauen", the values it has fixed: the
+The app shows, beside "Build my image", the values it has fixed: the
 plain image's SHA-256 and where it lies on Aleph, the commit it was built
 from, the builder's V-PROGRAM and its measurements. With them, anyone can
 check each link of the chain:
@@ -317,7 +317,7 @@ Without a package, the app's address pays from its own Aleph credits.
 Aleph starts a V-PROGRAM only when its payer holds a day of everything it
 then pays for: the builder (about 2.05 million credits a day, measured
 2026-11-14), the image's storage and what the address already pays. The
-setup reads that before it offers **Mein Image bauen**; without enough
+setup reads that before it offers **Build my image**; without enough
 credits it says so instead.
 
 The volumes (workload, plain image, their hash trees) stay published: they
