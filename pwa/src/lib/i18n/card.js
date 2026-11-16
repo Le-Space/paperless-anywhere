@@ -116,6 +116,11 @@ export const card = {
 			erase: 'VM trotzdem löschen',
 			keep: 'VM behalten, Paperless-ngx weiter'
 		},
+		periodEnd: {
+			stopped: 'Die bezahlte Laufzeit ist zu Ende. Paperless-ngx hat vorher eine letzte Sicherung gemacht und sich angehalten. Die App löscht die VM, sobald diese Sicherung auf der Chain steht; mit einem neuen Paket oder Gutschein startest du sie wieder aus dieser Sicherung.',
+			confirming: 'Letzte Sicherung vor dem Ende auf der Chain prüfen',
+			noBackups: 'Die VM hat sich am Ende der Laufzeit angehalten, aber ohne Sicherungen kann die App nichts prüfen. Lösche sie selbst in der VM-Liste unter „Technisch“.'
+		},
 		advanced: {
 			purpose: 'Deine Paperless-ngx-Maschine: starten, öffnen, sichern und beenden.',
 			runs: 'Paperless-ngx läuft:',
@@ -270,6 +275,11 @@ export const card = {
 			hint: (/** @type {number} */ missing) => `The copies that arrived are enough to restore. If the VM is deleted now, this backup is missing at ${missing === 1 ? 'one provider' : `${missing} providers`}. If it stays, the next check tries all of them again.`,
 			erase: 'Delete the VM anyway',
 			keep: 'Keep the VM, Paperless-ngx goes on'
+		},
+		periodEnd: {
+			stopped: 'The paid time is over. Paperless-ngx made a last backup before and paused itself. The app deletes the VM once that backup is on the chain; with a new package or voucher you start it again from that backup.',
+			confirming: 'Checking the last backup before the end on the chain',
+			noBackups: 'The VM paused itself at the end of the paid time, but without backups the app has nothing to check. Delete it yourself in the VM list under “Technical”.'
 		},
 		advanced: {
 			purpose: 'Your Paperless-ngx machine: start, open, back up and stop.',

@@ -16,7 +16,8 @@ import { answeringCopies } from './restore-reach.js';
 import { placedConfig } from './providers.js';
 import { pinnedTrustedExecution } from './runtime-pin.js';
 import { alephPrivateKey, backupMarkKey, backupPrivateKey, pieceMark, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
-import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
+import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, creditsBalance, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
+import { paidUntil, periodEndChanged, periodEndPiece, periodEndSecret } from './period-end.js';
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
 import { relayTransports } from './attest-p2p.js';
 import { backupFacts, pieceCidOfStop, reportedMarks, vaultBound, vmBackupSecrets, withVaultBackups } from './backups.js';
@@ -466,6 +467,9 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 			onProgress({ step: 'unlock', detail: tr().life.progress.withoutBackups(e instanceof Error ? e.message : String(e)) });
 		}
 	}
+	// When the paid time ends: the VM backs up and stops an hour before (period-end.js).
+	const periodEnd = await periodEndFor(master, profile);
+	if (periodEnd != null) secrets.period_end = periodEnd;
 	const keys = debugKeysFor(profile);
 	if (keys) secrets.authorized_keys = keys;
 	if (profile.restoreEntry && profile.ageIdentity && own) {
@@ -574,8 +578,59 @@ export async function pushBackupPlaces(master, profile, { send = sendToGuest, pl
 			? { backupKey: backupPrivateKey(master), signer, creditsUrl: CREDITS_URL, product: CREDITS_PRODUCT, account: creditsAccount(master).address }
 			: { sessionKey: filecoinSessionPrivateKey(master) })
 	});
+	// The end of the paid time with every hand-over, as at the start.
+	const periodEnd = await periodEndFor(master, profile);
+	if (periodEnd != null) secrets.period_end = periodEnd;
 	await send(master, profile, secrets);
 	return Object.keys(secrets);
+}
+
+/**
+ * The `period_end` secret for this Paperless (period-end.js): Unix seconds
+ * when the package that pays the VM ends without renewing, "0" when it
+ * renews, when something else pays the VM, or when there are no backups (a
+ * stop at the end would save nothing). Null when Le Space Credits did not
+ * answer: then the VM is not told anything new.
+ * @param {Uint8Array} master @param {Record<string, any>} profile
+ * @param {{ read?: typeof creditsBalance, now?: number }} [deps]
+ * @returns {Promise<string | null>}
+ */
+export async function periodEndFor(master, profile, { read = creditsBalance, now = Date.now() } = {}) {
+	if (!profile.leSpacePays || !profile.backupConfig) return '0';
+	try {
+		return periodEndSecret(paidUntil(await read(master), { pays: 'lespace', now }));
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * At an opening, with the VM's status page read: when the end of the paid
+ * time changed (a new voucher, a package renewed or cancelled, hours bought),
+ * the running VM is told. Returns the secret sent, or null when nothing was.
+ * @param {Uint8Array} master @param {Record<string, any>} profile with `running` @param {any} status
+ * @param {{ send?: typeof sendToGuest, read?: typeof creditsBalance, now?: number }} [deps]
+ */
+export async function syncPeriodEnd(master, profile, status, { send = sendToGuest, read = creditsBalance, now = Date.now() } = {}) {
+	if (!profile.running?.instanceHash || !status || ['stopping', 'stopped', 'stop-partial'].includes(status.phase)) return null;
+	const wanted = await periodEndFor(master, profile, { read, now });
+	if (wanted == null) return null;
+	if (!periodEndChanged(status, wanted === '0' ? null : Number(wanted) * 1000)) return null;
+	await send(master, profile, { period_end: wanted });
+	return wanted;
+}
+
+/**
+ * Before a VM that stopped itself at the end of the paid time is erased:
+ * its last backup (periodEndPiece) must be on the chain, read by the app,
+ * and not one this vault knew from an earlier stop. Throws BackupUnconfirmedError.
+ * @param {any} status the VM's status page
+ * @param {{ onChain: () => Promise<string[]>, known?: string[], tries?: number, delayMs?: number }} o
+ */
+export async function confirmPeriodEndBackup(status, { onChain, known = [], tries = 12, delayMs = 10_000 }) {
+	const piece = periodEndPiece(status);
+	if (!piece) throw new BackupUnconfirmedError(status);
+	return confirmStopBackup({ stop: { backup: { pieceCid: piece } } }, { onChain, before: null, known, tries, delayMs });
 }
 
 /**

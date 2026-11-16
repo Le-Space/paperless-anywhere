@@ -19,8 +19,9 @@
 	import { preparing } from '$lib/purchase-step.js';
 	import { applyCustomerDefaults } from '$lib/customer-defaults.js';
 	import { format, lang, t, tr } from '$lib/i18n/index.js';
+	import { endWarning, paidUntil } from '$lib/period-end.js';
 
-	/** @type {{ master: Uint8Array, version?: number, onglance?: (g: { plan: boolean, hoursLeft: number | null, pays: string | null, low: boolean } | null) => void }} */
+	/** @type {{ master: Uint8Array, version?: number, onglance?: (g: { plan: boolean, hoursLeft: number | null, pays: string | null, low: boolean, endsAt: number | null } | null) => void }} */
 	let { master, version = 0, onglance = () => {}, onprofile = () => {} } = $props();
 
 	/** @type {Awaited<ReturnType<typeof creditsBalance>>} */
@@ -268,8 +269,17 @@
 			.catch(() => {});
 		read();
 	});
+	// When the paid time ends without renewing (period-end.js), and the warning
+	// shortly before; the clock moves on once a minute.
+	let clock = $state(Date.now());
+	$effect(() => {
+		const id = setInterval(() => (clock = Date.now()), 60_000);
+		return () => clearInterval(id);
+	});
+	const endsAt = $derived(paidUntil(balance, { pays, now: clock }));
+	const ending = $derived(endWarning(endsAt, clock));
 	// What "Auf einen Blick" shows of the package.
-	$effect(() => onglance(balance ? { plan: Boolean(balance.plan), hoursLeft, pays, low } : null));
+	$effect(() => onglance(balance ? { plan: Boolean(balance.plan), hoursLeft, pays, low, endsAt } : null));
 </script>
 
 <!-- The card's content: as it is for a customer of Le Space, folded for someone who pays the providers themselves. -->
@@ -290,6 +300,11 @@
 			{#if pays !== 'app' && pays !== 'wallet' && hoursLeft != null && current && hoursLeft <= current.hours}
 				<div class="meter" role="meter" aria-valuemin="0" aria-valuemax={current.hours} aria-valuenow={hoursLeft} aria-label={x.meter}>
 					<span style="width: {(share ?? 1) * 100}%"></span>
+				</div>
+			{/if}
+			{#if ending && endsAt != null}
+				<div class="low" role="alert" data-testid="plan-ending">
+					<p><strong>{x.ending[ending](format.dateTime(endsAt, undefined, $lang))}</strong> {x.ending.what}</p>
 				</div>
 			{/if}
 			{#if low}

@@ -6,13 +6,14 @@
 	import RefreshBalances from '$lib/RefreshBalances.svelte';
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
 	import { noteError, noteState } from '$lib/diagnosis.js';
-	import { AlephShortError, BackupPartialError, StartGoneError, pushBackupPlaces, attestRunning, confirmStopBackup, eraseStopped, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
+	import { AlephShortError, BackupPartialError, StartGoneError, pushBackupPlaces, attestRunning, confirmPeriodEndBackup, confirmStopBackup, eraseStopped, syncPeriodEnd, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
 	import { buildImageForVault } from '$lib/own-image-build.js';
 	import { BUILDER, hasOwnImage, imageStatus } from '$lib/own-image.js';
 	import FirstStart from '$lib/FirstStart.svelte';
 	import { onImageBuild } from '$lib/image-build-request.js';
 	import { fetchPercent, stationOfBuildStep } from '$lib/first-start.js';
 	import { vmStatus } from '$lib/vm.js';
+	import { stoppedAtPeriodEnd } from '$lib/period-end.js';
 	import Storage from '$lib/Storage.svelte';
 	import { statusToken } from '$lib/keys/derive.js';
 	import { CREDITS_URL, creditsBalance, fundVm, quoteVm, vmAuthorize } from '$lib/credits.js';
@@ -328,6 +329,18 @@
 			vmStatus(profile.running.host, statusToken(master))
 				.then(async (s) => {
 					if (s?.phase === 'stop-partial' && !busy && !partial) partial = new BackupPartialError(s);
+					// The VM stopped itself at the end of the paid time, with its
+					// last backup: erased now, once that backup is on the chain.
+					// A running one hears a changed end (a new voucher, a renewal).
+					if (stoppedAtPeriodEnd(s)) {
+						if (!busy && !periodEndTried) {
+							periodEndTried = true;
+							eraseAtPeriodEnd(s);
+						}
+					} else if (!busy && !syncingEnd) {
+						syncingEnd = true;
+						syncPeriodEnd(master, $state.snapshot(profile), s).catch(() => {}).finally(() => (syncingEnd = false));
+					}
 					// The backups this VM made with this vault's mark, also the two-hourly ones.
 					const noted = await noteVaultBackups(master, $state.snapshot(profile), s);
 					if (noted) profile = noted;
@@ -839,6 +852,24 @@
 		if (onChain) await confirmStopBackup(p.status, { onChain, before: p.before, known: profile.ownBackups ?? [] });
 		await finishStop(await eraseStopped(master, $state.snapshot(profile), p.status, on));
 	});
+	// A VM that stopped itself at the end of the paid time (paperless-period-end):
+	// erased like after "Sichern und beenden", once its last backup is on the
+	// chain. Without backups, or unconfirmed, it stays and the reason shows.
+	let periodEndTried = false;
+	let syncingEnd = false;
+	/** @type {any} the status page of a VM stopped at the period's end */
+	let periodEnded = $state(null);
+	const eraseAtPeriodEnd = (/** @type {any} */ s) => run(async () => {
+		periodEnded = s;
+		const on = track('stop');
+		stopSent = true;
+		vmPage = s;
+		progress = c.periodEnd.confirming;
+		const onChain = backupsOnChain();
+		if (!onChain) throw new Error(c.periodEnd.noBackups);
+		await confirmPeriodEndBackup(s, { onChain, known: profile.ownBackups ?? [] });
+		await finishStop(await eraseStopped(master, $state.snapshot(profile), s, on));
+	}, () => eraseAtPeriodEnd(s));
 	const keepVm = () => answer(async () => {
 		progress = tr().card.progress.restart;
 		await resumeAfterPartial(master, $state.snapshot(profile));
@@ -1135,6 +1166,7 @@
 		{#if phase !== 'running' && profile.trial}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
+		{#if periodEnded}<p class="hint" role="status" data-testid="period-end-stopped">{c.periodEnd.stopped}</p>{/if}
 		{@render placesBox()}
 		{#if error}{@render errorBox()}{/if}
 		{#if error && !busy && !profile.running && profile.ownImage?.previous}<p class="hint" data-testid="previous-image"><button class="secondary" onclick={startPrevious} disabled={busy} data-testid="start-previous">{$i18n.ownImage.previousStart}</button> {$i18n.ownImage.previousHint}</p>{/if}
@@ -1226,6 +1258,7 @@
 		{#if progress}<p data-testid="progress">{progress} …</p>{/if}
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
+		{#if periodEnded}<p class="hint" role="status" data-testid="period-end-stopped">{c.periodEnd.stopped}</p>{/if}
 		{@render placesBox()}
 		{#if error}{@render errorBox()}{/if}
 		{#if error && !busy && !profile.running && profile.ownImage?.previous}<p class="hint" data-testid="previous-image"><button class="secondary" onclick={startPrevious} disabled={busy} data-testid="start-previous">{$i18n.ownImage.previousStart}</button> {$i18n.ownImage.previousHint}</p>{/if}
