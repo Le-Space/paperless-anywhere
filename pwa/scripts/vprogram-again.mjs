@@ -19,16 +19,27 @@ import { signAlephMessage } from '@le-space/core';
 import { ALEPH_API, broadcast } from '../src/lib/aleph.js';
 
 const { FROM = '', ALEPH_PRIVATE_KEY = '', AGAIN_RESULT = '' } = process.env;
-if (!/^[0-9a-f]{64}$/.test(FROM)) throw new Error('FROM: 64 hex');
+// FROM=fixed: the builder fixed in the app (BUILDER in own-image.js), exactly
+// as a build starts it, so a test runs the builder customers get.
+const fixed = FROM === 'fixed';
+if (!fixed && !/^[0-9a-f]{64}$/.test(FROM)) throw new Error('FROM: 64 hex, or "fixed"');
 const key = ALEPH_PRIVATE_KEY.trim();
 if (!key) throw new Error('ALEPH_PRIVATE_KEY is empty');
 const account = privateKeyToAccount(key.startsWith('0x') ? key : `0x${key}`);
 
-const original = await (await fetch(`${ALEPH_API}/api/v0/messages/${FROM}`)).json();
-const message = original?.message;
-if (original?.status !== 'processed' || message?.type !== 'V-PROGRAM') throw new Error(`${FROM} is no processed V-PROGRAM (${original?.status})`);
-if (message.sender.toLowerCase() !== account.address.toLowerCase()) throw new Error(`${FROM} was sent by ${message.sender}, not by this key`);
-const content = typeof message.item_content === 'string' ? JSON.parse(message.item_content) : message.content;
+let content, message;
+if (fixed) {
+	const { BUILDER } = await import('../src/lib/own-image.js');
+	if (!BUILDER?.program) throw new Error('no builder is fixed in the app');
+	content = { ...BUILDER.program, address: account.address };
+	message = { channel: (await import('../src/lib/aleph.js')).CHANNEL };
+} else {
+	const original = await (await fetch(`${ALEPH_API}/api/v0/messages/${FROM}`)).json();
+	message = original?.message;
+	if (original?.status !== 'processed' || message?.type !== 'V-PROGRAM') throw new Error(`${FROM} is no processed V-PROGRAM (${original?.status})`);
+	if (message.sender.toLowerCase() !== account.address.toLowerCase()) throw new Error(`${FROM} was sent by ${message.sender}, not by this key`);
+	content = typeof message.item_content === 'string' ? JSON.parse(message.item_content) : message.content;
+}
 if (!content?.verification?.measurements?.length) throw new Error(`${FROM} names no measurements`);
 
 const again = { ...content, time: Date.now() / 1000, metadata: { ...content.metadata, name: `${content.metadata?.name ?? 'builder'}-again` } };

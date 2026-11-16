@@ -22,7 +22,9 @@ name: Image builder on Aleph
 #            new STORE of this account: an image forgotten by mistake comes
 #            back under a new item hash, with the same file and so the same
 #            passphrase. Nothing is uploaded.
-#   again    publishes a second V-PROGRAM with the content of the running one
+#   again    (with hash "fixed": the builder fixed in the app's own-image.js,
+#            started as a build starts it, and kept for a round trip)
+#            publishes a second V-PROGRAM with the content of the running one
 #            in "hash" (new time, nothing uploaded: the same runtime and
 #            volumes) and makes an attested call to it: does a builder
 #            started again from the same volumes show the same measurement?
@@ -142,7 +144,8 @@ jobs:
           [[ "$VCPUS" =~ ^[1-9][0-9]?$ ]] || { echo "::error::vcpus: a number"; exit 1; }
           [[ "$RUNTIME" =~ ^[a-z0-9.-]{3,40}$ ]] || { echo "::error::runtime: a name such as compose-1.4"; exit 1; }
           case "$ACTION" in
-            check|trial|delete|again) [[ "$HASH" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::\"$ACTION\" needs the V-PROGRAM's item hash (64 hex)"; exit 1; } ;;
+            check|trial|delete) [[ "$HASH" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::\"$ACTION\" needs the V-PROGRAM's item hash (64 hex)"; exit 1; } ;;
+            again) [[ "$HASH" =~ ^[0-9a-f]{64}$ || "$HASH" = fixed ]] || { echo "::error::\"again\" needs a V-PROGRAM's item hash (64 hex), or \"fixed\" for the builder fixed in the app"; exit 1; } ;;
           esac
           case "$ACTION" in
             dry-run|publish|delete|again|pin) [ -n "$ALEPH_PRIVATE_KEY" ] || { echo "::error::set the ALEPH_PRIVATE_KEY secret"; exit 1; } ;;
