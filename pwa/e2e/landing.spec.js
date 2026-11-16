@@ -54,7 +54,7 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.getByTestId('prices-plan-backup')).toHaveText(['Sicherung inklusive', 'Sicherung inklusive', 'Sicherung inklusive']);
 	await expect(page.locator('#prices')).toContainText('Dauerbetrieb, rund um die Uhr');
 	// The package holds the documents' room, and the backup with it.
-	await expect(page.getByTestId('prices-included')).toHaveText('In jedem Paket enthalten: bis 8 GB Dokumente.');
+	await expect(page.getByTestId('prices-included')).toHaveText('In jedem Paket enthalten: bis 8 GB Dokumente und der Bau deines eigenen Images.');
 	await expect(page.getByTestId('prices-backup')).toContainText('Die verschlüsselte Sicherung in drei Kopien ist in jedem Paket enthalten.');
 	await expect(page.locator('#prices')).not.toContainText('1,50');
 	await expect(page.getByTestId('prices-backup')).not.toContainText('Guthaben');
