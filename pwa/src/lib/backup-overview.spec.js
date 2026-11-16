@@ -17,7 +17,7 @@ describe('backupOverview', () => {
 			backupRequest: null
 		});
 		expect(v.supported).toBe(true);
-		expect(v.last).toEqual({ ok: true, at: new Date(entry.date), copies: 2, requested: 2, reason: null, seconds: 400 });
+		expect(v.last).toEqual({ ok: true, at: new Date(entry.date), copies: 2, providerIds: [1, 2], requested: 2, reason: null, seconds: 400 });
 		expect(v.check).toEqual({ status: 'unchanged', at: new Date('2026-01-02T05:00:00Z') });
 		expect(v.nextCheck).toEqual(new Date('2026-01-02T07:00:00Z'));
 		expect(v.running).toBe(false);

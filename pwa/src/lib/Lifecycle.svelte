@@ -202,8 +202,18 @@
 		const time = format.dateTime(d, d.toDateString() === new Date(nowTick).toDateString() ? { hour: '2-digit', minute: '2-digit' } : { dateStyle: 'medium', timeStyle: 'short' }, $appLanguage);
 		return `${time} (${ago(nowTick - d.getTime())})`;
 	};
-	/** A backup that reached providers: remember it if newer. @param {{ at: string, copies?: number, requested?: number }} good */
+	// The lights at the top follow every backup that reached providers (where
+	// its copies are), not only the list read at the unlock.
+	const reportCopies = (/** @type {number[]} */ ids) => {
+		if (ids.length) oncopies({ network: profile.network ?? 'calibration', copies: ids.map((providerId) => ({ providerId })) });
+	};
+	let reportedGood = '';
+	/** A backup that reached providers: remember it if newer. @param {{ at: string, copies?: number, requested?: number, providerIds?: number[] }} good */
 	async function rememberGood(good) {
+		if (good?.at && good.at !== reportedGood && (!profile.lastGoodBackup?.at || new Date(profile.lastGoodBackup.at) <= new Date(good.at))) {
+			reportedGood = good.at;
+			reportCopies(good.providerIds ?? []);
+		}
 		if (!good?.at || (profile.lastGoodBackup?.at && new Date(profile.lastGoodBackup.at) >= new Date(good.at))) return;
 		profile = await updateProfile(master, (now) =>
 			now.lastGoodBackup?.at && new Date(now.lastGoodBackup.at) >= new Date(good.at) ? now : { ...now, lastGoodBackup: { at: good.at, copies: good.copies ?? null, requested: good.requested ?? null } }
@@ -281,7 +291,9 @@
 	// A backup without this vault's mark waits for the person's word.
 	const unmarkedOpen = $derived(choice === 'any' && Boolean(chosenBackup) && unmarkedAccepted !== chosenBackup?.pieceCid);
 	// The newest backup, for the lights at the top: this vault's own, else the newest listed.
-	const newestBackup = $derived(pick(split.own) ?? pick(backups ?? []) ?? null);
+	// This vault's newest: one with its mark or one its stops made (ownBackups;
+	// a stop's backup may not carry the noted mark yet), else the newest listed.
+	const newestBackup = $derived((backups ?? []).find((b) => (profile.vaultBackups ?? []).includes(b.pieceCid) || (profile.ownBackups ?? []).includes(b.pieceCid)) ?? pick(backups ?? []) ?? null);
 	$effect(() => {
 		if (backups === null || backupsError) return;
 		oncopies({ network: profile.network ?? 'calibration', copies: (newestBackup?.copies ?? []).map((/** @type {any} */ x) => ({ providerId: Number(x.providerId), url: x.retrievalUrl })) });
@@ -804,6 +816,8 @@
 			profile = await updateProfile(master, (now) => ({ ...now, backupConfig: { ...now.backupConfig, providerIds: ask.plan.ids, copies: Math.max(1, ask.plan.ids.length) } }));
 			onchange();
 			if (profile.running) await pushBackupPlaces(master, $state.snapshot(profile));
+			// The lights read the list again (where the newest backup is).
+			reload().catch(() => {});
 		});
 		if (!error) ask.then();
 	}
@@ -891,6 +905,8 @@
 				: rest
 		);
 		listedSeen = Boolean(made);
+		// The stop's backup is the newest now: the lights follow it at once.
+		if (made) reportCopies((result?.copies ?? []).map((/** @type {any} */ x) => Number(x?.providerId)).filter((n) => Number.isInteger(n) && n >= 0));
 		// The backups this VM made with this vault's mark, the stop's among them.
 		const noted = await noteVaultBackups(master, $state.snapshot(profile), status).catch(() => null);
 		if (noted) profile = noted;

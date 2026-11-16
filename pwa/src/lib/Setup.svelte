@@ -251,6 +251,8 @@
 	const pushPlaces = () => run('places-push', async () => {
 		await pushBackupPlaces(master, profile);
 		placesPending = false;
+		// The card reads the backup list again, and the lights at the top with it.
+		onsaved();
 	});
 	const recipient = $derived.by(() => {
 		try {
