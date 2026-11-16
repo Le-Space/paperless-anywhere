@@ -97,7 +97,7 @@ install -D -m 644 "$here/files/paperless-status.service" "$root/etc/systemd/syst
 install -D -m 644 "$here/files/paperless-stop.service" "$root/etc/systemd/system/paperless-stop.service"
 install -D -m 644 "$here/files/paperless-forget-passphrase.service" "$root/etc/systemd/system/paperless-forget-passphrase.service"
 install -D -m 644 "$here/files/paperless-fixed-address.service" "$root/etc/systemd/system/paperless-fixed-address.service"
-for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-backup-loop paperless-net-hardening paperless-status paperless-stop paperless-stack-up paperless-data-disk paperless-file-extents paperless-forget-passphrase paperless-fixed-address paperless-dns-records paperless-ssh-allowed paperless-require-sealed; do
+for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-backup-loop paperless-net-hardening paperless-status paperless-stop paperless-period-end paperless-stack-up paperless-data-disk paperless-file-extents paperless-forget-passphrase paperless-fixed-address paperless-dns-records paperless-ssh-allowed paperless-require-sealed; do
   install -D -m 755 "$here/files/$script" "$root/usr/local/sbin/$script"
 done
 # paperless-restore checks every download host with it.

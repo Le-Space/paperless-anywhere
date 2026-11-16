@@ -19,18 +19,32 @@
 # an old resume never restarts Paperless after a later stop. stop.json names
 # the request it answers, so the app never takes an older stop's outcome for
 # the one it just sent.
+#
+# The end of the paid period (paperless-period-end) makes the same stop,
+# without the app: its request is "period-end-<time>", and stop.json says
+# "reason":"period-end" (else "app"). The app erases the VM at its next
+# opening, once the backup is on the chain. A period-end stop whose backup
+# failed is tried again (paperless-period-end says when).
 set -u
 dir=/run/paperless-anywhere
 mkdir -p "$dir"
 handled=""
 resumed=""
+reason=app
 compose="docker compose --project-directory /opt/paperless"
 status() {
-  printf '{"status":"%s","request":"%s","at":"%s"%s}\n' "$1" "$handled" "$(date -u +%FT%TZ)" "${2:-}" > "$dir/stop.json.tmp" && mv "$dir/stop.json.tmp" "$dir/stop.json"
+  printf '{"status":"%s","request":"%s","reason":"%s","at":"%s"%s}\n' "$1" "$handled" "$reason" "$(date -u +%FT%TZ)" "${2:-}" > "$dir/stop.json.tmp" && mv "$dir/stop.json.tmp" "$dir/stop.json"
 }
 while :; do
-  if [ -s /tmp/secrets/stop_request ]; then
-    request="$(head -c 128 /tmp/secrets/stop_request | tr -cd '0-9A-Za-z_-')"
+  request=""
+  [ -s /tmp/secrets/stop_request ] && request="$(head -c 128 /tmp/secrets/stop_request | tr -cd '0-9A-Za-z_-')"
+  if [ -n "$request" ] && [ "$request" != "$handled" ]; then
+    reason=app
+  else
+    request="$(paperless-period-end 2>/dev/null || true)"
+    [ -n "$request" ] && reason=period-end
+  fi
+  if [ -n "$request" ]; then
     if [ "$request" != "$handled" ]; then
       handled="$request"
       status running
