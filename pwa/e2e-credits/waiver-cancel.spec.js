@@ -89,8 +89,8 @@ test('“Verträge hier kündigen” cancels in the app and keeps a confirmation
 	const view = page.getByTestId('cancel-view');
 	await expect(page.getByTestId('cancel-contract')).toHaveText('Paperless anywhere, Paket 30 Stunden, Monatsabo');
 	await expect(page.getByTestId('cancel-kind')).toHaveText('Ordentliche Kündigung zum Ende des bezahlten Monats, also zum 01.12.2026');
-	await expect(page.getByTestId('cancel-provider')).toContainText('Le Space UG (haftungsbeschränkt), info@le-space.de');
-	await expect(view).toContainText('Fristlos aus wichtigem Grund: per E-Mail an info@le-space.de');
+	await expect(page.getByTestId('cancel-provider')).toContainText('Le Space UG (haftungsbeschränkt), contact@le-space.de');
+	await expect(view).toContainText('Fristlos aus wichtigem Grund: per E-Mail an contact@le-space.de');
 	await expect(page.getByTestId('cancel-portal')).toHaveText('Zahlungsdaten und Rechnungen');
 	await shot(page, 'cancel-before', view);
 
@@ -109,6 +109,6 @@ test('“Verträge hier kündigen” cancels in the app and keeps a confirmation
 	expect(text).toContain('Kündigung eingegangen am: 11.11.2026, 11:15 MEZ (2026-11-11T10:15:00.000Z)');
 	expect(text).toContain('Wirksam zum: 01.12.2026 (2026-12-01T00:00:00.000Z)');
 	expect(text).toMatch(/Konto \(Adresse\): 0x[0-9a-fA-F]{40}/);
-	expect(text).toContain('Anbieter: Le Space UG (haftungsbeschränkt), info@le-space.de');
+	expect(text).toContain('Anbieter: Le Space UG (haftungsbeschränkt), contact@le-space.de');
 	expect(text).toContain('Impressum: https://le-space.de/#impressum');
 });

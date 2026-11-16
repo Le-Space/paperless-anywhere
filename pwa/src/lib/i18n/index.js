@@ -14,6 +14,7 @@ import { card } from './card.js';
 import { credits } from './credits.js';
 import { first } from './first-start.js';
 import { funds } from './funds.js';
+import { help } from './help.js';
 import { life } from './lifecycle.js';
 import { net } from './net.js';
 import { pkg } from './package.js';
@@ -63,6 +64,7 @@ const AREAS = {
 	credits,
 	first,
 	funds,
+	help,
 	life,
 	net,
 	ownImage,

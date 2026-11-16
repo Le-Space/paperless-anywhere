@@ -581,7 +581,7 @@ describe('the cancel page (§ 312k BGB)', () => {
 		expect(text).toMatch(/Kündigung eingegangen am: 11\.11\.2026, 10:15 UTC \(2026-11-11T10:15:00\.000Z\)/);
 		expect(text).toContain('Wirksam zum: 01.12.2026 (2026-12-01T00:00:00.000Z)');
 		expect(text).toContain(`Konto (Adresse): 0x${'ab'.repeat(20)}`);
-		expect(text).toContain('Anbieter: Le Space UG (haftungsbeschränkt), info@le-space.de');
+		expect(text).toContain('Anbieter: Le Space UG (haftungsbeschränkt), contact@le-space.de');
 		expect(text).toContain('Impressum: https://le-space.de/#impressum');
 		expect(contractName(null, 'paperless-x')).toBe('Paperless anywhere, Paket paperless-x, Monatsabo');
 	});
@@ -637,7 +637,7 @@ describe('the withdrawal function (§ 356a BGB)', () => {
 		expect(text).toContain('Widerrufen: Guthaben-Kauf');
 		expect(text).toContain('Widerruf eingegangen am: 11.11.2026, 11:15 MEZ (2026-11-11T10:15:00.000Z)');
 		expect(text).toContain('Erstattung: refund_1');
-		expect(text).toContain('Anbieter: Le Space UG (haftungsbeschränkt), info@le-space.de');
+		expect(text).toContain('Anbieter: Le Space UG (haftungsbeschränkt), contact@le-space.de');
 	});
 });
 
@@ -645,7 +645,7 @@ describe('cancelling without the key (§ 312k BGB)', () => {
 	it('opens a mail to Le Space that names the contract and asks for what identifies it', () => {
 		const url = new URL(cancelMailto());
 		expect(url.protocol).toBe('mailto:');
-		expect(url.pathname).toBe('info@le-space.de');
+		expect(url.pathname).toBe('contact@le-space.de');
 		expect(url.searchParams.get('subject')).toBe('Kündigung Paperless anywhere');
 		const body = url.searchParams.get('body') ?? '';
 		expect(body).toContain('Ich kündige mein Abo von Paperless anywhere');
