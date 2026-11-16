@@ -107,6 +107,22 @@ day on mainnet:
 A copy that is gone shows at the next proof. A small damage takes longer to
 show, which is one reason for several copies with different providers.
 
+## Words used (German and English)
+
+The landing page, this page and the app use the same words:
+
+| English | Deutsch | What it is |
+|---|---|---|
+| proof | Beweis | what a provider submits for a data set in a proving period |
+| challenge | Stichprobe | one leaf the contract asks for, drawn at random |
+| proving period | Beweisperiode | the time within which a proof is due (mainnet: at most 24 h) |
+| challenge window | Beweisfenster | the last part of a period in which the proof must arrive (mainnet: 30 min) |
+| data set | Datensatz | what one provider keeps for one owner: the backups' pieces |
+| piece | Stück | one backup (or one part of a large one) in a data set |
+| piece CID | Piece-CID (Inhaltsadresse des Stücks) | the content address of a piece, the root of its Merkle tree |
+| leaf | Blatt | 32 bytes of a piece |
+| fault | Fehler (verpasster Beweis) | a period that ended without a valid proof |
+
 ## What PDP does not prove
 
 - **That the provider hands the data out.** PDP proves possession, not
