@@ -32,9 +32,10 @@ import { sha256Hex } from './vm.js';
  * @type {null | { route?: string, program?: Record<string, any>, crn?: string, measurements: string[], policy: number | string, vprogram?: string, plain: { sha256: string, store?: string, commit?: string } }}
  */
 export const BUILDER = {
-	// Published 2026-11-14 (workflow "Image builder on Aleph", run 43623983622)
-	// for the plain image of release image e85b9c9a…, then deleted again: its
-	// volumes stay on Aleph, and each build starts a V-PROGRAM from this content.
+	// Published 2026-11-16 (workflow "Image builder on Aleph", run 43822336057)
+	// for the plain image of release image 7257fbd0… (main d824eb4, with the
+	// sealed data area required), then deleted again: its volumes stay on
+	// Aleph, and each build starts a V-PROGRAM from this content.
 	program: {
 		allow_amend: false,
 		environment: {
@@ -66,14 +67,14 @@ export const BUILDER = {
 				{
 					platform: 'sev_snp',
 					registers: {
-						launch: '0ae0dd5305913c6e8cdec0a6bf9f2a6dd5582705ce7e9edc86341b37cd7b62e46d7b668cd1fb391c78638db86a5ef0d6'
+						launch: 'abd6126e132f358f5e25be7b48cecdedae48942db06c5e29d38cb023a7699add6fcc5d69b49ca706fb75b5f0d07294e5'
 					},
 					vcpu_type: 'EPYC-Genoa'
 				},
 				{
 					platform: 'sev_snp',
 					registers: {
-						launch: '289ea5fe8713448d331c49d1846cbaac0ad505f8ad060eebc227528093eef01edd9f422e686d56aa446caa3bc4066201'
+						launch: '419b063f19524f0ffcc800dc408e4fe497e6647ff6d125c41473f45198ab24942ace22c79d4f90ce045c22602fea6453'
 					},
 					vcpu_type: 'EPYC-v4'
 				}
@@ -83,27 +84,27 @@ export const BUILDER = {
 		volumes: [
 			{
 				comment: '',
-				hash_tree: '2c5221ed8fd5994cf4b7bc4b4f13a7fcaa8582b0c3ca91073282401bfba8c808',
-				ref: 'a451e9e7d1402c1a009a713c9436ebb81a747105955a04c58791a18653375ef7',
-				roothash: '45b6e9f5d5c9f60b3c854deb75b9c8c3e364934964493e3039259bef58ec1200'
+				hash_tree: '80990fbd0c5a2678a697324a3e65b417c892b02b639e02ad961f74530e08b8b6',
+				ref: '2b0b94bceb04d6f87fab6fdbcf0c489a0edc0ce13ccc615a1e174c9d5f47dff3',
+				roothash: 'fd10d6b228c91490b649b919c2d15631cd5f8f34c58e38b59b92828f96d1def1'
 			}
 		],
 		workload: {
-			hash_tree: '20e2c950550924aa885c36442a6a3c2cf0dd34e343d2655a7a644b6ca82680e4',
-			ref: '271bfe3ff9f2af3479c2d756e4b8e701c3fb1bd78c9babd406c2209d526d7700',
-			roothash: 'ac72e745bca84a1644dc0379d43e282e3b36ed07281807a87b04c0c15ca815b6'
+			hash_tree: '8849fec9a63fd850303c6470c53f81a8e6055fbe770a9e8b23a62cac5ea61c7e',
+			ref: '4318e36b9694da6247ae63f02218abbbd2c5893f80886db19806f2c3ade8082e',
+			roothash: '4b471fe610a5ffe6f4cf39ff171024e72bfd980b5f58b5122c10b6acffbf49a9'
 		}
 	},
 	crn: '01a3143b384ca43a3af338031b03ae86c0a4e139a24b848475d3ddb9bfbce8fa',
 	measurements: [
-		'0ae0dd5305913c6e8cdec0a6bf9f2a6dd5582705ce7e9edc86341b37cd7b62e46d7b668cd1fb391c78638db86a5ef0d6',
-		'289ea5fe8713448d331c49d1846cbaac0ad505f8ad060eebc227528093eef01edd9f422e686d56aa446caa3bc4066201'
+		'abd6126e132f358f5e25be7b48cecdedae48942db06c5e29d38cb023a7699add6fcc5d69b49ca706fb75b5f0d07294e5',
+		'419b063f19524f0ffcc800dc408e4fe497e6647ff6d125c41473f45198ab24942ace22c79d4f90ce045c22602fea6453'
 	],
 	policy: 196608,
 	plain: {
-		sha256: 'ea56e682870cbb1f0972c60c13b13a6d80ec941f09d39332130fef165f6e8518',
-		store: '9c32bd396008a2c166e49a271934e934194e41fac5985ff4fc9fc6ab0a9a288b',
-		commit: 'b11b8a51229af5db0b7271634f5857fbbcd4b847'
+		sha256: '78025bceb6385d577cfe745603fb2f5c9a0f37d4116d75fe57491a454994cff8',
+		store: '8a5e6b9ad25af12e01ce0e199bfd5e370af0fcb758c4bbbc1033e819c2eef2cd',
+		commit: 'd824eb4884319b3c74ba8c1732a9900b963af444'
 	}
 };
 

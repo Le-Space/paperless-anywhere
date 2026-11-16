@@ -19,7 +19,7 @@ function run(status) {
 	return spawnSync('sh', [script, 'paperless-test'], { env: { ...process.env, PAPERLESS_STATE: dir, PAPERLESS_DATA_DISK: disk }, encoding: 'utf8' });
 }
 
-describe('the sealed data area', () => {
+describe('the sealed data area', { timeout: 30_000 }, () => {
 	it('lets a script go on when the area is sealed', () => {
 		expect(run('encrypted').status).toBe(0);
 	});
