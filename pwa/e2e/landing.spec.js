@@ -66,7 +66,7 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.locator('main')).not.toContainText('Sicherungen in drei Kopien.');
 
 	await expect(page.getByRole('link', { name: 'Impressum' })).toHaveAttribute('href', 'https://le-space.de/#impressum');
-	await expect(page.getByRole('link', { name: 'Datenschutz' })).toHaveAttribute('href', 'https://le-space.de/#datenschutz');
+	await expect(page.getByRole('link', { name: 'Datenschutz' })).toHaveAttribute('href', 'https://credits.le-space.de/datenschutz');
 	// Brand: the product is "Paperless anywhere"; Paperless-ngx is the software,
 	// linked at its first mention (the line under the name), with the notice in
 	// the footer, the FAQ and under the start button.
@@ -104,7 +104,7 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	// Section links stay on the English page, and the licence page follows the language.
 	await page.locator('nav a[href="#trust"]').click();
 	await expect(page).toHaveURL(/\/en\/#trust$/);
-	await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', 'https://le-space.de/#privacy');
+	await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', 'https://credits.le-space.de/datenschutz');
 	await expect(page.getByTestId('hero-disclaimer')).toHaveText('Paperless-ngx is an independent open source project (GPL-3.0). Paperless anywhere is offered by Le Space, is not affiliated with the project and is neither endorsed nor sponsored by it.');
 	await expect(page.getByTestId('brand')).toContainText('Paperless-ngx in confidential VMs · offered by Le Space');
 	await page.reload();
