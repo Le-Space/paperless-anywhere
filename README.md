@@ -36,8 +36,10 @@ Every step as a sequence diagram, the attestation and unlock included: [docs/wor
 
 ## Paying for it
 
-- **A package or a voucher** from Le Space Credits: compute hours or continuous operation, backups included, building your own image included. The app shows when it ends and warns before.
-- **Your own wallet:** the app starts VMs on Aleph and backs up on Filecoin on behalf of your wallet, which keeps the money and can withdraw the permission at any time.
+Two ways, chosen in the app's setup:
+
+- **Through Le Space Credits** ([credits.le-space.de](https://credits.le-space.de), Le Space's credits service): a monthly package, paid by card through Stripe, or a voucher. Compute hours or continuous operation, backups included, building your own image included. The app talks to the service directly: it shows the package, buys, cancels, redeems vouchers, and warns before a package ends. You need no wallet and no crypto.
+- **Directly in crypto, from your own wallet** (for example MetaMask): Aleph credits for the VM, USDFC and a little FIL for the backups on Filecoin. Your wallet authorizes the app once to start and delete VMs and to back up on its behalf; it keeps the money and can withdraw the permission at any time. Le Space is not in the payment path; the app, the image and the relay still come from Le Space.
 
 Prices and terms: [paperless.le-space.de](https://paperless.le-space.de/#prices).
 
