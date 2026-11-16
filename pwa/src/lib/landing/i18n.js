@@ -290,6 +290,31 @@ export const texts = {
 					]
 				},
 				{
+					q: 'Was passiert, wenn ein Speicheranbieter ausfällt?',
+					a: 'Deine Sicherung liegt in mehreren Kopien bei verschiedenen Anbietern, möglichst bei unabhängigen Betreibern. Fällt einer aus, liefern die anderen.',
+					tips: [
+						'Oben in der App zeigen zwei Lichter, ob die Kopien deiner neuesten Sicherung antworten und ob sie bei verschiedenen Betreibern liegen. Die App fragt dafür selbst bei den Anbietern nach, alle fünf Minuten, solange die Seite offen ist.',
+						'Ein Start, der eine Sicherung zurückholen soll, fordert keine VM an, solange keine Kopie antwortet. So bezahlst du keine VM, die leer bliebe; die Sicherung geht dabei nicht verloren.',
+						'Fällt ein Anbieter beim Hochladen aus, macht die VM mit den anderen weiter: Sie bekommen ihre Kopie, die Sicherung gilt als unvollständig, und die nächste Prüfung zwei Stunden später versucht wieder alle Anbieter.'
+					],
+					more: { text: 'Wie die Anbieter beweisen, dass sie deine Sicherung noch haben', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/backup-proofs.md' }
+				},
+				{
+					q: 'Merkt die App vorher, dass ein Anbieter nicht erreichbar ist?',
+					a: 'Zum Teil. Die App fragt die Anbieter deiner neuesten Sicherung regelmäßig selbst und zeigt das Ergebnis oben als Licht. Vor einem Start mit Wiederherstellung und vor „Sichern und beenden“ fragt sie noch einmal; antwortet keiner, hält sie an und sagt es dir. Die automatischen Sicherungen alle zwei Stunden gehen an die eingestellten Anbieter; einen Ersatz für einen ausgefallenen Anbieter schlägt die App noch nicht von sich aus vor.',
+					after: 'Die Lichter zeigen nur, ob ein Anbieter antwortet. Ob er deine Daten noch hat, beweist er auf der Chain; das zeigt die App unter „Was die Chain sagt“.'
+				},
+				{
+					q: 'Zahle ich für ausgefallene Anbieter oder für immer mehr Kopien?',
+					a: 'Mit einem Paket nicht: Die Sicherung ist im Paket enthalten, zu einem festen Preis. Was die Anbieter dafür bekommen, regelt der Vertrag von Filecoin Warm Storage auf der Chain, und so gilt es auch, wenn du sie selbst aus deiner Wallet bezahlst:',
+					tips: [
+						'Bezahlt werden nur Beweisperioden, in denen der Anbieter bewiesen hat, dass er die Daten noch hat. Ein ausgefallener Anbieter verdient für diese Zeit nichts.',
+						'Jede Kopie kostet nach ihrer Größe, solange sie besteht: 2,5 USDFC je TiB und Monat, dazu 0,12 USDFC im Monat je Datensatz (einer je Anbieter). Stand der Chain am 16.11.2026.',
+						'Die VM entfernt alte Sicherungen bisher nicht von selbst; jede bleibt gespeichert, bis sie gelöscht wird.'
+					],
+					more: { text: 'Beweise, Fristen und Bezahlung im Einzelnen', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/backup-proofs.md' }
+				},
+				{
 					q: 'Wie sicher ist mein eigenes Gerät dabei?',
 					a: 'Deine Dokumente liegen verschlüsselt in der VM und in den Sicherungen, und die Schlüssel dazu entstehen nur bei dir, wenn du den Tresor öffnest. Die Grenze ist der Browser auf deinem Gerät, wie bei jeder Web-App und jedem Passwortmanager im Browser: Was dort offen liegt, kann eine Browser-Erweiterung mit Zugriff auf die Seite oder Schadsoftware mitlesen. An den Passkey selbst kommt sie nicht, und ohne deine Freigabe per Fingerabdruck oder PIN öffnet er nichts. Mit wenig Aufwand bist du auf der sicheren Seite:',
 					tips: [
@@ -612,6 +637,31 @@ export const texts = {
 						{ text: 'relay-button: source and instructions', href: 'https://github.com/NiKrause/relay-button' },
 						{ text: 'The relay in the security model', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/security-model.md#the-relay' }
 					]
+				},
+				{
+					q: 'What happens when a storage provider fails?',
+					a: 'Your backup is kept in several copies at different providers, at independent operators where possible. If one fails, the others deliver.',
+					tips: [
+						'At the top of the app, two lights show whether the copies of your newest backup answer and whether they are at different operators. The app asks the providers itself, every five minutes while the page is open.',
+						'A start that is to bring a backup back asks for no VM while no copy answers. So you pay for no VM that would stay empty; the backup is not lost by this.',
+						'If a provider fails during the upload, the VM goes on with the others: they get their copy, the backup counts as incomplete, and the next check two hours later tries all providers again.'
+					],
+					more: { text: 'How the providers prove they still hold your backup', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/backup-proofs.md' }
+				},
+				{
+					q: 'Does the app notice beforehand that a provider cannot be reached?',
+					a: 'In part. The app asks the providers of your newest backup itself, regularly, and shows the result as a light at the top. Before a start with a restore and before “Back up and stop” it asks once more; if none answers, it stops and tells you. The automatic backups every two hours go to the configured providers; the app does not yet suggest a replacement for a failed provider on its own.',
+					after: 'The lights show only whether a provider answers. Whether it still holds your data, it proves on the chain; the app shows that under “What the chain says”.'
+				},
+				{
+					q: 'Do I pay for failed providers, or for more and more copies?',
+					a: 'With a package you don’t: the backup is included in the package, at a fixed price. What the providers get for it is set by the Filecoin Warm Storage contract on the chain, and it is the same when you pay them from your own wallet:',
+					tips: [
+						'Only proving periods in which the provider proved it still holds the data are paid. A failed provider earns nothing for that time.',
+						'Each copy costs by its size for as long as it exists: 2.5 USDFC per TiB and month, plus 0.12 USDFC a month per data set (one per provider). As read from the chain on 2026-11-16.',
+						'The VM does not remove old backups on its own yet; each stays stored until it is deleted.'
+					],
+					more: { text: 'Proofs, deadlines and payment in detail', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/backup-proofs.md' }
 				},
 				{
 					q: 'How safe is my own device in this?',
