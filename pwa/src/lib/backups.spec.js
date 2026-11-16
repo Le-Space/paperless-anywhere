@@ -204,11 +204,12 @@ describe('backups in parts (above 1 GB)', async () => {
 				place: `Land ${id}`
 			})),
 			complete: true,
-			order: 10
+			order: expect.any(Number)
 		});
 		expect(backupSize(big.size)).toBe('2,1 GB');
 		// A single-piece backup keeps its old shape (no parts, no retrievalUrls).
-		expect(small).toEqual({ pieceCid: 's4', size: 300_000_000, copies: [1, 2].map((id) => ({ providerId: String(id), retrievalUrl: `https://sp${id}.example.com/piece/s4`, place: `Land ${id}` })), complete: true, order: 7 });
+		expect(small).toEqual({ pieceCid: 's4', size: 300_000_000, copies: [1, 2].map((id) => ({ providerId: String(id), retrievalUrl: `https://sp${id}.example.com/piece/s4`, place: `Land ${id}` })), complete: true, order: expect.any(Number) });
+		expect(big.order).toBeGreaterThan(small.order);
 	});
 
 	it('a copy names its data set and the ids of its pieces there, for the chain check', () => {
@@ -429,5 +430,38 @@ describe('retention', () => {
 		const signer = { payer: '0x' + '3'.repeat(40), signer: '0x' + '4'.repeat(40), tag: 'f'.repeat(32), label: 'paperless-backup-test', network: 'calibration' };
 		const credits = vmBackupSecrets({ network: 'calibration', backupConfig, backupsByCredits: true }, { backupKey: '0x' + '5'.repeat(64), signer, creditsUrl: 'https://credits.example', product: 'paperless', account: '0x' + '6'.repeat(40) });
 		expect(JSON.parse(credits.backup_config).retention).toMatchObject({ maxBytes: CREDITS_QUOTA_BYTES, protect: [] });
+	});
+});
+
+describe('the newest backup across data sets', async () => {
+	const { backupsFromPieces } = await import('./backups.js');
+	const pieces = (cids, from = 0) => cids.map((cid, i) => ({ cid, id: from + i }));
+	const where = { urlOf: (id) => `https://p${id}.example`, sizeOf: () => 1000 };
+
+	it('is the one added last, also when an old, long data set holds older ones under high piece ids', () => {
+		const old = Array.from({ length: 47 }, (_, i) => `old-${i}`);
+		const sets = [
+			// two old data sets with 47 backups (piece ids up to 93)
+			{ providerId: 36, dataSetId: 1694, pieces: pieces(old, 47) },
+			{ providerId: 37, dataSetId: 1695, pieces: pieces(old, 47) },
+			// an old data set that also got the rescue backup after the old ones
+			{ providerId: 1, dataSetId: 1696, pieces: pieces([...old, 'rescue'], 47) },
+			// two new data sets that start with the rescue backup at piece 0
+			{ providerId: 43, dataSetId: 1858, pieces: pieces(['rescue']) },
+			{ providerId: 38, dataSetId: 1946, pieces: pieces(['rescue']) }
+		];
+		const list = backupsFromPieces(sets, where);
+		expect(list[0].pieceCid).toBe('rescue');
+		expect(list[0].copies.map((c) => c.providerId).sort()).toEqual(['1', '38', '43']);
+		expect(list[1].pieceCid).toBe('old-46');
+		expect(list.at(-1).pieceCid).toBe('old-0');
+	});
+
+	it('falls back to the newer data set where no shared set decides', () => {
+		const sets = [
+			{ providerId: 36, dataSetId: 10, pieces: pieces(['a', 'b'], 90) },
+			{ providerId: 43, dataSetId: 20, pieces: pieces(['c']) }
+		];
+		expect(backupsFromPieces(sets, where).map((b) => b.pieceCid)).toEqual(['c', 'b', 'a']);
 	});
 });
