@@ -71,6 +71,17 @@ describe('the stop panel', () => {
 		expect(currentRow(done)).toBeNull();
 	});
 
+	it('lights the header check green only when the app opened the header itself', () => {
+		const status = stopped([copy(2, 11)], 1);
+		const at = (header) => Object.fromEntries(stopPanel({ kind: 'stop', sent: true, status, erase: { node: 'erased', forgot: 'f'.repeat(64) }, listed: true, header, finished: true }).flatMap((r) => r.lights.map((l) => [l.id, l])));
+		expect(at(null).header).toBeUndefined();
+		expect(at('checking').header.state).toBe('run');
+		expect(at('opens').header).toMatchObject({ state: 'app' });
+		expect(at('refused').header).toMatchObject({ state: 'failed', key: 'headerRefused' });
+		expect(at('unreachable').header).toMatchObject({ state: 'skipped', key: 'headerUnreachable' });
+		for (const lang of ['de', 'en']) for (const k of ['header', 'headerRefused', 'headerUnreachable']) expect(panelTexts[lang].stop.lights[k]).toBeTruthy();
+	});
+
 	it('says a node that did not answer, and a revoke left for later', () => {
 		const rows = stopPanel({ kind: 'discard', erase: { node: null, forgot: 'f'.repeat(64), revoke: 'pending' }, finished: true });
 		expect(rows.map((r) => r.id)).toEqual(['forget']);
@@ -123,18 +134,37 @@ describe('the evidence of a stop', () => {
 		const forgot = 'f'.repeat(64);
 		const instance = 'e'.repeat(64);
 		const rows = stopEvidenceRows({ status: stopped([copy(2, 11), copy(5, 12)]), erase: { node: 'erased', forgot }, instanceHash: instance, alephApi: 'https://api.example' });
-		expect(rows.map((r) => r.kind ?? r.id)).toEqual(['stopPiece', 'stopCopy', 'stopCopy', 'stopForget']);
+		expect(rows.map((r) => r.kind ?? r.id)).toEqual(['stopPiece', 'stopSealed', 'stopCopy', 'stopCopy', 'stopForget']);
 		expect(rows[0]).toMatchObject({ mark: 'reported' });
 		expect(rows[0].values).toContainEqual({ k: 'piece', v: CID, mono: true });
-		expect(rows[1].values).toContainEqual({ k: 'dataSet', v: '11', mono: true });
-		expect(rows[1].links).toEqual([{ k: 'retrieval', href: `https://sp2.example/piece/${CID}` }]);
-		expect(rows[3]).toMatchObject({ mark: 'app' });
-		expect(rows[3].links.map((l) => l.k)).toEqual(['message', 'forgetMessage']);
+		expect(rows[2].values).toContainEqual({ k: 'dataSet', v: '11', mono: true });
+		expect(rows[2].links).toEqual([{ k: 'retrieval', href: `https://sp2.example/piece/${CID}` }]);
+		expect(rows[4]).toMatchObject({ mark: 'app' });
+		expect(rows[4].links.map((l) => l.k)).toEqual(['message', 'forgetMessage']);
 		for (const r of rows) {
 			expect(evidenceTexts.de.rows[r.kind ?? r.id]).toBeTruthy();
 			expect(evidenceTexts.en.rows[r.kind ?? r.id]).toBeTruthy();
 			for (const v of r.values) expect(evidenceTexts.en.values[v.k] && evidenceTexts.de.values[v.k]).toBeTruthy();
 			for (const l of r.links) expect(evidenceTexts.en.links[l.k] && evidenceTexts.de.links[l.k]).toBeTruthy();
+		}
+		// How it was encrypted: the method, the public recipient (copyable), whether it is the vault's key.
+		const recipient = 'age1madeuprecipient';
+		const sealedRow = (header) => stopEvidenceRows({ status: stopped([copy(2, 11)]), recipient, fromVault: true, header, alephApi: 'https://api.example' }).find((r) => r.id === 'stopSealed');
+		expect(sealedRow(null)).toMatchObject({ mark: 'reported', note: 'headerUnchecked' });
+		expect(sealedRow('refused')).toMatchObject({ mark: 'reported', note: 'headerRefused' });
+		const opened = sealedRow('opens');
+		expect(opened).toMatchObject({ mark: 'app', note: 'headerOpens' });
+		expect(opened.values).toContainEqual({ k: 'method', v: 'age v1 · X25519 · HKDF-SHA-256 · ChaCha20-Poly1305 (64 KiB)' });
+		expect(opened.values).toContainEqual({ k: 'recipient', v: recipient, mono: true, copy: true });
+		expect(opened.values).toContainEqual({ k: 'keyFrom', v: 'vault', say: true });
+		expect(opened.links.map((l) => l.href)).toEqual(['https://age-encryption.org/v1', 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/restore-yourself.md']);
+		// Never a secret: only the public recipient appears among the values.
+		expect(JSON.stringify(opened)).not.toMatch(/AGE-SECRET-KEY/i);
+		for (const lang of ['de', 'en']) {
+			const t = evidenceTexts[lang];
+			expect(t.rows.stopSealed && t.says.vault && t.says.profile && t.says.luks && t.copy && t.copied).toBeTruthy();
+			for (const n of ['headerOpens', 'headerRefused', 'headerUnchecked']) expect(t.notes[n]).toBeTruthy();
+			for (const l of opened.links) expect(t.links[l.k]).toBeTruthy();
 		}
 		// An erase without backup: the FORGET only.
 		expect(stopEvidenceRows({ status: null, erase: { node: null, forgot }, instanceHash: instance, alephApi: 'https://api.example' }).map((r) => r.id)).toEqual(['stopForget']);

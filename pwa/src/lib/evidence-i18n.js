@@ -24,14 +24,23 @@ export const evidenceTexts = {
 			data: { t: 'Datenbereich', d: 'Wohin die VM schreibt.' },
 			backups: { t: 'Sicherungen', d: 'Die letzte Sicherung, die bei Speicheranbietern angekommen ist.' },
 			stopPiece: { t: 'Letzte Sicherung', d: 'Das verschlüsselte Archiv dieses Stopps, benannt durch seine Piece-CID, wie die VM es gemeldet hat.' },
+			stopSealed: { t: 'Verschlüsselung', d: 'Wie die VM die Sicherung verschlüsselt hat, bevor sie sie hochlud: mit age, für einen einzigen Empfänger, deinen öffentlichen Sicherungsschlüssel. Öffnen kann sie nur, wer den passenden geheimen Schlüssel hat; er bleibt in deinem Tresor.' },
 			stopCopy: { t: 'Kopie', d: 'Eine Kopie bei einem Speicheranbieter in dessen Datensatz (Filecoin Warm Storage, PDP), wie die VM sie gemeldet hat.' },
 			stopForget: { t: 'VM gelöscht', d: 'Die FORGET-Nachricht, von deiner App signiert und von Aleph angenommen: Die VM wird nicht weiter betrieben.' }
 		},
 		values: {
 			name: 'Name', itemHash: 'Aleph-Nachricht', bundle: 'Paket (SHA-256)', cmdline: 'Startzeile', launch: 'berechnet', instanceHash: 'Nachricht', payer: 'bezahlt von',
 			crnHash: 'Knoten', host: 'Adresse', reportMeasurement: 'Messwert im Bericht', relayHost: 'Relay', policy: 'Policy', tcb: 'Firmware-Stände', at: 'Zeitpunkt', store: 'STORE-Hash', copies: 'Kopien', piece: 'Stück (Piece-CID)',
-			size: 'Größe (verschlüsselt)', part: 'weiterer Teil', provider: 'Anbieter', place: 'Standort', dataSet: 'Datensatz', pieceId: 'Stück im Datensatz', forget: 'FORGET-Nachricht'
+			size: 'Größe (verschlüsselt)', part: 'weiterer Teil', provider: 'Anbieter', place: 'Standort', dataSet: 'Datensatz', pieceId: 'Stück im Datensatz', forget: 'FORGET-Nachricht',
+			method: 'Verfahren', recipient: 'Empfänger (öffentlich)', keyFrom: 'Schlüssel', luks: 'Verschlüsselung der Platte'
 		},
+		says: {
+			vault: 'aus deinem Tresor abgeleitet; der geheime Teil verlässt ihn nicht',
+			profile: 'in deinem Tresor gespeichert (eingetragen, nicht abgeleitet); der geheime Teil verlässt ihn nicht',
+			luks: 'LUKS2 · aes-xts-plain64 · 512-Bit-Schlüssel, wie im Build gesetzt; ohne die Passphrase'
+		},
+		copy: 'Kopieren',
+		copied: 'Kopiert',
 		notes: {
 			none: 'Für diese VM sind keine Messwerte vermerkt.',
 			notKept: 'Für diese VM ist kein Ergebnis vermerkt: Sie wurde vor dieser App-Version gestartet oder war beim Fortsetzen schon entsperrt. Mit „Jetzt erneut prüfen“ holst du einen frischen Bericht.',
@@ -45,9 +54,12 @@ export const evidenceTexts = {
 			unknown: 'Die VM hat dazu nichts gemeldet.',
 			off: 'Sicherungen sind nicht eingerichtet.',
 			encrypted: 'In der VM mit age für deinen Schlüssel verschlüsselt; bei den Anbietern liegt nur Chiffrat.',
-			noneYet: 'Noch keine Sicherung vermerkt.'
+			noneYet: 'Noch keine Sicherung vermerkt.',
+			headerOpens: 'Von der App geprüft: Der Kopf der Sicherung beim Anbieter öffnet sich mit deinem Sicherungsschlüssel, und sein MAC stimmt. Gelesen wurden nur die ersten Bytes, nicht der Inhalt.',
+			headerRefused: 'Der Kopf der Sicherung beim Anbieter öffnet sich nicht mit deinem Sicherungsschlüssel. Bitte die Sicherung mit „Sicherung selbst holen“ prüfen.',
+			headerUnchecked: 'So meldet es die VM. Die App konnte den Kopf der Sicherung beim Anbieter nicht lesen und hat ihn nicht selbst geprüft.'
 		},
-		links: { relayWs: 'Quelltext des Relays (WebSocket)', relayP2p: 'Quelltext des Relays (libp2p)', message: 'Aleph-Nachricht', amd: 'AMD SEV', how: 'Ablauf der Prüfung', build: 'build-image.sh', source: 'paperless-data-disk', model: 'Sicherheitsmodell', retrieval: 'Beim Anbieter abrufen (nur Chiffrat)', forgetMessage: 'FORGET-Nachricht' },
+		links: { relayWs: 'Quelltext des Relays (WebSocket)', relayP2p: 'Quelltext des Relays (libp2p)', message: 'Aleph-Nachricht', amd: 'AMD SEV', how: 'Ablauf der Prüfung', build: 'build-image.sh', source: 'paperless-data-disk', model: 'Sicherheitsmodell', retrieval: 'Beim Anbieter abrufen (nur Chiffrat)', forgetMessage: 'FORGET-Nachricht', ageSpec: 'Spezifikation age v1', selfCheck: 'Selbst prüfen: mit dem Schlüssel und age entschlüsseln', encryptImage: 'encrypt-image.sh' },
 		stopTitle: 'Nachweis: Sicherung und Löschen',
 		again: 'Jetzt erneut prüfen',
 		checking: 'Prüfe die VM (AMD) …',
@@ -70,14 +82,23 @@ export const evidenceTexts = {
 			data: { t: 'Data area', d: 'Where the VM writes.' },
 			backups: { t: 'Backups', d: 'The last backup that reached storage providers.' },
 			stopPiece: { t: 'Last backup', d: 'The encrypted archive of this stop, named by its piece CID, as the VM reported it.' },
+			stopSealed: { t: 'Encryption', d: 'How the VM encrypted the backup before uploading it: with age, to a single recipient, your public backup key. Only the holder of the matching secret key can open it; that key stays in your vault.' },
 			stopCopy: { t: 'Copy', d: 'A copy with a storage provider, in its data set (Filecoin Warm Storage, PDP), as the VM reported it.' },
 			stopForget: { t: 'VM deleted', d: 'The FORGET message, signed by your app and accepted by Aleph: the VM is not run any longer.' }
 		},
 		values: {
 			name: 'Name', itemHash: 'Aleph message', bundle: 'Bundle (SHA-256)', cmdline: 'Boot line', launch: 'computed', instanceHash: 'Message', payer: 'paid by',
 			crnHash: 'Node', host: 'Address', reportMeasurement: 'Measurement in the report', relayHost: 'Relay', policy: 'Policy', tcb: 'Firmware levels', at: 'Time', store: 'STORE hash', copies: 'Copies', piece: 'Piece (piece CID)',
-			size: 'Size (encrypted)', part: 'further part', provider: 'Provider', place: 'Location', dataSet: 'Data set', pieceId: 'Piece in the data set', forget: 'FORGET message'
+			size: 'Size (encrypted)', part: 'further part', provider: 'Provider', place: 'Location', dataSet: 'Data set', pieceId: 'Piece in the data set', forget: 'FORGET message',
+			method: 'Method', recipient: 'Recipient (public)', keyFrom: 'Key', luks: 'Disk encryption'
 		},
+		says: {
+			vault: 'derived from your vault; its secret part never leaves it',
+			profile: 'kept in your vault (entered, not derived); its secret part never leaves it',
+			luks: 'LUKS2 · aes-xts-plain64 · 512-bit key, as set in the build; without the passphrase'
+		},
+		copy: 'Copy',
+		copied: 'Copied',
 		notes: {
 			none: 'No measurements are recorded for this VM.',
 			notKept: 'No result is recorded for this VM: it was started before this version of the app, or was already unlocked when the start was resumed. “Check again now” fetches a fresh report.',
@@ -91,9 +112,12 @@ export const evidenceTexts = {
 			unknown: 'The VM reported nothing about it.',
 			off: 'Backups are not set up.',
 			encrypted: 'Encrypted with age inside the VM, to your key; the providers hold ciphertext only.',
-			noneYet: 'No backup recorded yet.'
+			noneYet: 'No backup recorded yet.',
+			headerOpens: 'Checked by the app: the backup’s header at the provider opens with your backup key, and its MAC holds. Only the first bytes were read, not the content.',
+			headerRefused: 'The backup’s header at the provider does not open with your backup key. Please check the backup with “Fetch a backup yourself”.',
+			headerUnchecked: 'As the VM reports it. The app could not read the backup’s header at the provider and did not check it itself.'
 		},
-		links: { relayWs: 'The relay’s source (WebSocket)', relayP2p: 'The relay’s source (libp2p)', message: 'Aleph message', amd: 'AMD SEV', how: 'How the check works', build: 'build-image.sh', source: 'paperless-data-disk', model: 'Security model', retrieval: 'Fetch from the provider (ciphertext only)', forgetMessage: 'FORGET message' },
+		links: { relayWs: 'The relay’s source (WebSocket)', relayP2p: 'The relay’s source (libp2p)', message: 'Aleph message', amd: 'AMD SEV', how: 'How the check works', build: 'build-image.sh', source: 'paperless-data-disk', model: 'Security model', retrieval: 'Fetch from the provider (ciphertext only)', forgetMessage: 'FORGET message', ageSpec: 'age v1 specification', selfCheck: 'Check it yourself: decrypt with the key and age', encryptImage: 'encrypt-image.sh' },
 		stopTitle: 'Evidence: backup and deletion',
 		again: 'Check again now',
 		checking: 'Checking the VM (AMD) …',
@@ -141,9 +165,12 @@ export const panelTexts = {
 				paused: 'Paperless pausiert, damit nichts mehr hinzukommt',
 				exported: 'Datenbank und Dokumente exportiert',
 				exportedFiles: (/** @type {number} */ n) => `Datenbank und Dokumente exportiert (${n} Dateien)`,
-				sealed: 'Archiv gepackt und in der VM für deinen Schlüssel verschlüsselt',
-				sealedSize: (/** @type {number} */ bytes) => `Archiv gepackt und verschlüsselt: ${mb(bytes, 'de')}`,
-				sealedParts: (/** @type {number} */ bytes, /** @type {number} */ parts) => `Archiv gepackt und verschlüsselt: ${mb(bytes, 'de')} in ${parts} Teilen`,
+				sealed: 'Archiv gepackt und in der VM mit age (X25519, ChaCha20-Poly1305) für deinen Sicherungsschlüssel verschlüsselt',
+				sealedSize: (/** @type {number} */ bytes) => `Archiv gepackt und mit age (X25519, ChaCha20-Poly1305) für deinen Sicherungsschlüssel verschlüsselt: ${mb(bytes, 'de')}`,
+				sealedParts: (/** @type {number} */ bytes, /** @type {number} */ parts) => `Archiv gepackt und mit age (X25519, ChaCha20-Poly1305) für deinen Sicherungsschlüssel verschlüsselt: ${mb(bytes, 'de')} in ${parts} Teilen`,
+				header: 'Kopf der Sicherung beim Anbieter öffnet sich mit deinem Schlüssel',
+				headerRefused: 'Kopf der Sicherung beim Anbieter öffnet sich nicht mit deinem Schlüssel',
+				headerUnreachable: 'Kopf der Sicherung beim Anbieter nicht erreichbar',
 				copies: 'Kopien bei den Speicheranbietern',
 				copyTo: (/** @type {number} */ id) => `Kopie bei Anbieter ${id}`,
 				copyAt: (/** @type {number} */ id, /** @type {string} */ dataSet, /** @type {string} */ place) => `Kopie bei Anbieter ${id}${place ? ` (${place})` : ''}, Datensatz ${dataSet}`,
@@ -199,9 +226,12 @@ export const panelTexts = {
 				paused: 'Paperless paused, so nothing more arrives',
 				exported: 'database and documents exported',
 				exportedFiles: (/** @type {number} */ n) => `database and documents exported (${n} files)`,
-				sealed: 'archive packed and encrypted inside the VM, to your key',
-				sealedSize: (/** @type {number} */ bytes) => `archive packed and encrypted: ${mb(bytes, 'en')}`,
-				sealedParts: (/** @type {number} */ bytes, /** @type {number} */ parts) => `archive packed and encrypted: ${mb(bytes, 'en')} in ${parts} parts`,
+				sealed: 'archive packed and encrypted inside the VM with age (X25519, ChaCha20-Poly1305) to your backup key',
+				sealedSize: (/** @type {number} */ bytes) => `archive packed and encrypted with age (X25519, ChaCha20-Poly1305) to your backup key: ${mb(bytes, 'en')}`,
+				sealedParts: (/** @type {number} */ bytes, /** @type {number} */ parts) => `archive packed and encrypted with age (X25519, ChaCha20-Poly1305) to your backup key: ${mb(bytes, 'en')} in ${parts} parts`,
+				header: 'the backup’s header at the provider opens with your key',
+				headerRefused: 'the backup’s header at the provider does not open with your key',
+				headerUnreachable: 'the backup’s header at the provider could not be reached',
 				copies: 'copies with the storage providers',
 				copyTo: (/** @type {number} */ id) => `copy with provider ${id}`,
 				copyAt: (/** @type {number} */ id, /** @type {string} */ dataSet, /** @type {string} */ place) => `copy with provider ${id}${place ? ` (${place})` : ''}, data set ${dataSet}`,

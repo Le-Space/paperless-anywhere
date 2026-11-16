@@ -9,6 +9,10 @@
 	const n = $derived(tally(rows));
 	const SIGN = { app: '✓', reported: '•', open: '○' };
 	let checking = $state(false);
+	// Only public values are copied (a recipient key, a hash); the full value is in the title.
+	let copied = $state('');
+	const short = (/** @type {string} */ v) => (v.length > 24 ? `${v.slice(0, 12)}…${v.slice(-8)}` : v);
+	const copy = (/** @type {string} */ v) => navigator.clipboard?.writeText(v).then(() => (copied = v)).catch(() => {});
 	let result = $state('');
 	async function again() {
 		if (!onagain || checking) return;
@@ -42,7 +46,7 @@
 				{#if row.note}<p class="note">{t.notes[row.note]}</p>{/if}
 				{#if row.values.length}
 					<dl>
-						{#each row.values as v}<dt>{t.values[v.k]}</dt><dd class:mono={v.mono}>{v.v}</dd>{/each}
+						{#each row.values as v}<dt>{t.values[v.k]}</dt><dd class:mono={v.mono}>{#if v.say}{t.says[v.v]}{:else if v.copy}<span title={v.v}>{short(v.v)}</span> <button type="button" class="small" onclick={() => copy(v.v)} data-testid="evidence-copy-{v.k}">{copied === v.v ? t.copied : t.copy}</button>{:else}{v.v}{/if}</dd>{/each}
 					</dl>
 				{/if}
 				{#if row.links.length}<p class="links">{#each row.links as l}<a href={l.href} target="_blank" rel="noopener noreferrer">{t.links[l.k]}</a>{/each}</p>{/if}

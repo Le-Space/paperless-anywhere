@@ -13,6 +13,11 @@ const row = (rows, id) => rows.find((r) => r.id === id);
 describe('the evidence of a VM', () => {
 	it('names every claim once, in a fixed order', () => {
 		expect(evidenceRows({ ...base, running }).map((r) => r.id)).toEqual(['runtime', 'measurement', 'instance', 'node', 'attestation', 'relay', 'image', 'data', 'backups']);
+		// An own image names its disk encryption as the build sets it, never the passphrase; the public one does not.
+		expect(row(evidenceRows({ ...base, running }), 'image').values.map((v) => v.k)).toEqual(['store']);
+		const own = row(evidenceRows({ ...base, running, ownImage: true }), 'image');
+		expect(own.values).toContainEqual({ k: 'luks', v: 'luks', say: true });
+		expect(own.links.map((l) => l.k)).toContain('encryptImage');
 	});
 
 	it('calls the attestation checked only with a kept result whose measurement the app computed', () => {

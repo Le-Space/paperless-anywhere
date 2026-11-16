@@ -10,6 +10,8 @@ import { alephPrivateKey, deriveBytes, LABELS, newMasterSecret, statusToken } fr
 import { newSeedPhrase, seal, sealingKeyFromSeedPhrase } from '../src/lib/keys/seal.js';
 import { seedIndexAccount, VAULT_KEY } from '../src/lib/keys/index-keys.js';
 import { PROFILE_KEY } from '../src/lib/profile.js';
+import { ageIdentityFromMaster, ageRecipient } from '../src/lib/keys/age.js';
+import { Encrypter } from 'age-encryption';
 
 const HOST = 'vm.example.test:24000';
 
@@ -24,7 +26,9 @@ async function runningVault(aggregates, extra = {}) {
 		role: 'test',
 		backupConfig: { providers: 2 },
 		running: { instanceHash: 'c'.repeat(64), crnHash: 'd'.repeat(64), host: HOST, payer: '0x00000000000000000000000000000000000000bb', trustedExecution: {} },
-		...extra
+		...extra,
+		// 'vault': the vault's own backup key, as the app derives it.
+		...(extra.ageIdentity === 'vault' ? { ageIdentity: ageIdentityFromMaster(master) } : {})
 	};
 	const sealed = await seal(new TextEncoder().encode(JSON.stringify(profile)), deriveBytes(master, LABELS.profileKey), 'profile');
 	aggregates.set(privateKeyToAccount(alephPrivateKey(master)).address, { [PROFILE_KEY]: { v: 1, box: sealed } });
@@ -188,7 +192,7 @@ test.describe('German', () => {
 		// Made up: no real piece CID or data set.
 		const cid = 'bafkzcibmadeuppiece';
 		const partial = { status: 'partial', at, reason: 'only 1 of 2 copies reached the providers', log: [`${at.replace(/\.\d+Z$/, 'Z')} upload with primary 2 failed: made up`], backup: { name: 'paperless-made-up', date: at, pieceCid: cid, size: 52_000_000, requestedCopies: 2, complete: false, copies: [{ providerId: '1', dataSetId: '11', pieceId: '7', location: 'DE', retrievalUrl: `https://sp1.example/piece/${cid}` }] } };
-		const { phrase } = await setUp(page, {
+		const { master, phrase } = await setUp(page, {
 			v: 2,
 			phase: 'stop-partial',
 			paperless: false,
@@ -197,7 +201,12 @@ test.describe('German', () => {
 			backupSchedule: { nextCheck: new Date(Date.now() + 3600_000).toISOString(), everySeconds: 7200 },
 			backupRequest: null,
 			stop: { status: 'partial', request: '1', at, backup: partial }
-		});
+		}, { ageIdentity: 'vault' });
+		// The provider serves a backup sealed with age to the vault's backup key (made up, made here).
+		const e = new Encrypter();
+		e.addRecipient(ageRecipient(ageIdentityFromMaster(master)));
+		const piece = Buffer.from(await e.encrypt(new Uint8Array(100_000)));
+		await page.context().route(`https://sp1.example/piece/${cid}`, (route) => route.fulfill({ body: piece, headers: { 'access-control-allow-origin': '*' } }));
 		await open(page, phrase);
 		await page.getByTestId('stop-partial-erase').click();
 		const panel = page.getByTestId('stop-panel');
@@ -219,6 +228,16 @@ test.describe('German', () => {
 		await expect(evidence).toContainText(cid);
 		await expect(evidence.getByRole('link', { name: 'Beim Anbieter abrufen (nur Chiffrat)' })).toHaveAttribute('href', `https://sp1.example/piece/${cid}`);
 		await expect(evidence.getByRole('link', { name: 'FORGET-Nachricht' })).toBeVisible();
+		// How it was encrypted, checked by the app itself: the header opened with the vault's key.
+		await expect(page.getByTestId('light-header')).toHaveAttribute('data-state', 'app', { timeout: 15_000 });
+		const sealedRow = page.getByTestId('evidence-stopSealed');
+		await expect(sealedRow).toHaveAttribute('data-mark', 'app');
+		await expect(sealedRow).toContainText('age v1 · X25519 · HKDF-SHA-256 · ChaCha20-Poly1305 (64 KiB)');
+		await expect(sealedRow).toContainText('aus deinem Tresor abgeleitet');
+		await expect(sealedRow.getByTestId('evidence-copy-recipient')).toBeVisible();
+		await expect(sealedRow.getByRole('link', { name: 'Spezifikation age v1' })).toHaveAttribute('href', 'https://age-encryption.org/v1');
+		// Only public keys in the page.
+		expect(await page.content()).not.toMatch(/AGE-SECRET-KEY-1[0-9A-Z]{20}/);
 	});
 
 	test('an older image: no backup details, no button', async ({ page }) => {
