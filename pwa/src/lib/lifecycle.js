@@ -617,13 +617,15 @@ export async function stopPaperless(master, profile, onProgress, { send = sendTo
 	const earlier = (await read(run.host, token).catch(() => null))?.stop?.at ?? null;
 	const request = String(Date.now());
 	await send(master, profile, { stop_request: request });
+	onProgress({ step: 'stop', detail: tr().life.progress.stop, sent: true });
 	const status = await until('stop', async () => {
 		const s = await read(run.host, token);
 		if (!s?.stop) return null;
 		if ('request' in s.stop ? s.stop.request !== request : s.stop.at === earlier) return null;
-		// The backup's latest log line, while it runs (status page: backup.log).
+		// Every answer to this request goes to the panel; the backup's latest
+		// log line, while it runs (status page: backup.log), to the progress line.
 		const line = s.backup?.status === 'running' ? s.backup.log?.at(-1) : null;
-		if (line) onProgress({ step: 'stop', detail: line.replace(/^\S+Z /, ''), status: s });
+		onProgress({ step: 'stop', ...(line ? { detail: line.replace(/^\S+Z /, '') } : {}), status: s });
 		return ['stopped', 'stop-failed', 'stop-partial'].includes(s.phase) ? s : null;
 	}, { tries, delayMs });
 	if (status.phase === 'stop-partial') throw new BackupPartialError(status);
@@ -640,17 +642,22 @@ export async function stopPaperless(master, profile, onProgress, { send = sendTo
  * @param {Uint8Array} master
  * @param {Record<string, any>} profile with `running`
  * @param {any} status the VM's status page at the end of the stop
- * @param {(p: { step: string, detail?: string }) => void} onProgress
+ * @param {(p: { step: string, detail?: string, erase?: { node: string | null, forgot?: string, revoke?: string } }) => void} onProgress
+ * @param {{ forget?: typeof forgetInstance }} [deps] for the tests
  */
-export async function eraseStopped(master, profile, status, onProgress) {
+export async function eraseStopped(master, profile, status, onProgress, { forget = forgetInstance } = {}) {
 	const run = profile.running;
 	const app = privateKeyToAccount(alephPrivateKey(master));
 	onProgress({ step: 'forget', detail: tr().life.progress.forget });
 	const crnUrl = await crnAddress(run.crnHash).catch(() => null);
-	if (crnUrl) await eraseOnNode(app, run.instanceHash, crnUrl);
+	// What the node answered ('erased', 'missing'), else null: the FORGET stops it later.
+	const node = crnUrl ? ((await eraseOnNode(app, run.instanceHash, crnUrl))?.status ?? null) : null;
+	onProgress({ step: 'forget', erase: { node } });
 	// Who paid at the start, also when the profile changed since.
-	await forgetInstance(app, run.payer ?? vmPayer(profile, app.address), run.instanceHash);
-	await revokeBackupKey(master, profile, run.instanceHash, { onProgress });
+	const forgot = await forget(app, run.payer ?? vmPayer(profile, app.address), run.instanceHash);
+	onProgress({ step: 'forget', erase: { node, forgot: forgot?.itemHash ?? '' } });
+	const revoke = await revokeBackupKey(master, profile, run.instanceHash, { onProgress });
+	onProgress({ step: 'forget', erase: { node, forgot: forgot?.itemHash ?? '', revoke } });
 	return status;
 }
 

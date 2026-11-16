@@ -22,11 +22,15 @@ export const evidenceTexts = {
 			relay: { t: 'Relay', d: 'Der Server, über den dein Browser die VM für die Prüfung erreicht hat.' },
 			image: { t: 'Image', d: 'Die verschlüsselte Platte, von der die VM startet, benannt durch ihren STORE-Hash.' },
 			data: { t: 'Datenbereich', d: 'Wohin die VM schreibt.' },
-			backups: { t: 'Sicherungen', d: 'Die letzte Sicherung, die bei Speicheranbietern angekommen ist.' }
+			backups: { t: 'Sicherungen', d: 'Die letzte Sicherung, die bei Speicheranbietern angekommen ist.' },
+			stopPiece: { t: 'Letzte Sicherung', d: 'Das verschlüsselte Archiv dieses Stopps, benannt durch seine Piece-CID, wie die VM es gemeldet hat.' },
+			stopCopy: { t: 'Kopie', d: 'Eine Kopie bei einem Speicheranbieter in dessen Datensatz (Filecoin Warm Storage, PDP), wie die VM sie gemeldet hat.' },
+			stopForget: { t: 'VM gelöscht', d: 'Die FORGET-Nachricht, von deiner App signiert und von Aleph angenommen: Die VM wird nicht weiter betrieben.' }
 		},
 		values: {
 			name: 'Name', itemHash: 'Aleph-Nachricht', bundle: 'Paket (SHA-256)', cmdline: 'Startzeile', launch: 'berechnet', instanceHash: 'Nachricht', payer: 'bezahlt von',
-			crnHash: 'Knoten', host: 'Adresse', reportMeasurement: 'Messwert im Bericht', relayHost: 'Relay', policy: 'Policy', tcb: 'Firmware-Stände', at: 'Zeitpunkt', store: 'STORE-Hash', copies: 'Kopien', piece: 'Stück (Piece-CID)'
+			crnHash: 'Knoten', host: 'Adresse', reportMeasurement: 'Messwert im Bericht', relayHost: 'Relay', policy: 'Policy', tcb: 'Firmware-Stände', at: 'Zeitpunkt', store: 'STORE-Hash', copies: 'Kopien', piece: 'Stück (Piece-CID)',
+			size: 'Größe (verschlüsselt)', part: 'weiterer Teil', provider: 'Anbieter', place: 'Standort', dataSet: 'Datensatz', pieceId: 'Stück im Datensatz', forget: 'FORGET-Nachricht'
 		},
 		notes: {
 			none: 'Für diese VM sind keine Messwerte vermerkt.',
@@ -43,7 +47,8 @@ export const evidenceTexts = {
 			encrypted: 'In der VM mit age für deinen Schlüssel verschlüsselt; bei den Anbietern liegt nur Chiffrat.',
 			noneYet: 'Noch keine Sicherung vermerkt.'
 		},
-		links: { relayWs: 'Quelltext des Relays (WebSocket)', relayP2p: 'Quelltext des Relays (libp2p)', message: 'Aleph-Nachricht', amd: 'AMD SEV', how: 'Ablauf der Prüfung', build: 'build-image.sh', source: 'paperless-data-disk', model: 'Sicherheitsmodell' },
+		links: { relayWs: 'Quelltext des Relays (WebSocket)', relayP2p: 'Quelltext des Relays (libp2p)', message: 'Aleph-Nachricht', amd: 'AMD SEV', how: 'Ablauf der Prüfung', build: 'build-image.sh', source: 'paperless-data-disk', model: 'Sicherheitsmodell', retrieval: 'Beim Anbieter abrufen (nur Chiffrat)', forgetMessage: 'FORGET-Nachricht' },
+		stopTitle: 'Nachweis: Sicherung und Löschen',
 		again: 'Jetzt erneut prüfen',
 		checking: 'Prüfe die VM (AMD) …',
 		checked: 'Frisch geprüft.',
@@ -63,11 +68,15 @@ export const evidenceTexts = {
 			relay: { t: 'Relay', d: 'The server through which your browser reached the VM for the check.' },
 			image: { t: 'Image', d: 'The encrypted disk the VM boots from, named by its STORE hash.' },
 			data: { t: 'Data area', d: 'Where the VM writes.' },
-			backups: { t: 'Backups', d: 'The last backup that reached storage providers.' }
+			backups: { t: 'Backups', d: 'The last backup that reached storage providers.' },
+			stopPiece: { t: 'Last backup', d: 'The encrypted archive of this stop, named by its piece CID, as the VM reported it.' },
+			stopCopy: { t: 'Copy', d: 'A copy with a storage provider, in its data set (Filecoin Warm Storage, PDP), as the VM reported it.' },
+			stopForget: { t: 'VM deleted', d: 'The FORGET message, signed by your app and accepted by Aleph: the VM is not run any longer.' }
 		},
 		values: {
 			name: 'Name', itemHash: 'Aleph message', bundle: 'Bundle (SHA-256)', cmdline: 'Boot line', launch: 'computed', instanceHash: 'Message', payer: 'paid by',
-			crnHash: 'Node', host: 'Address', reportMeasurement: 'Measurement in the report', relayHost: 'Relay', policy: 'Policy', tcb: 'Firmware levels', at: 'Time', store: 'STORE hash', copies: 'Copies', piece: 'Piece (piece CID)'
+			crnHash: 'Node', host: 'Address', reportMeasurement: 'Measurement in the report', relayHost: 'Relay', policy: 'Policy', tcb: 'Firmware levels', at: 'Time', store: 'STORE hash', copies: 'Copies', piece: 'Piece (piece CID)',
+			size: 'Size (encrypted)', part: 'further part', provider: 'Provider', place: 'Location', dataSet: 'Data set', pieceId: 'Piece in the data set', forget: 'FORGET message'
 		},
 		notes: {
 			none: 'No measurements are recorded for this VM.',
@@ -84,13 +93,17 @@ export const evidenceTexts = {
 			encrypted: 'Encrypted with age inside the VM, to your key; the providers hold ciphertext only.',
 			noneYet: 'No backup recorded yet.'
 		},
-		links: { relayWs: 'The relay’s source (WebSocket)', relayP2p: 'The relay’s source (libp2p)', message: 'Aleph message', amd: 'AMD SEV', how: 'How the check works', build: 'build-image.sh', source: 'paperless-data-disk', model: 'Security model' },
+		links: { relayWs: 'The relay’s source (WebSocket)', relayP2p: 'The relay’s source (libp2p)', message: 'Aleph message', amd: 'AMD SEV', how: 'How the check works', build: 'build-image.sh', source: 'paperless-data-disk', model: 'Security model', retrieval: 'Fetch from the provider (ciphertext only)', forgetMessage: 'FORGET message' },
+		stopTitle: 'Evidence: backup and deletion',
 		again: 'Check again now',
 		checking: 'Checking the VM (AMD) …',
 		checked: 'Freshly checked.',
 		failed: (reason) => `The check failed: ${reason}`
 	}
 };
+
+/** Bytes as MB, in the language shown. @param {number} bytes @param {'de' | 'en'} lang */
+const mb = (bytes, lang) => `${(bytes / 1e6).toLocaleString(lang, { maximumFractionDigits: 1 })} MB`;
 
 export const panelTexts = {
 	de: {
@@ -113,11 +126,43 @@ export const panelTexts = {
 			cert: 'Zertifikat ausgestellt',
 			paperless: 'Paperless-ngx antwortet'
 		},
-		states: { off: 'offen', run: 'läuft', app: 'von der App geprüft', reported: 'gemeldet', skipped: 'in dieser Sitzung nicht geprüft', failed: 'fehlgeschlagen' },
+		states: { off: 'offen', run: 'läuft', app: 'von der App geprüft', reported: 'gemeldet', skipped: 'in dieser Sitzung nicht geprüft', failed: 'fehlgeschlagen', later: 'später' },
 		rowStates: { off: 'offen', run: 'läuft', done: 'fertig', skipped: 'nicht geprüft', failed: 'fehlgeschlagen' },
 		live: (row, state) => `${row}: ${state}`,
 		legend: 'Grün: von der App selbst geprüft. Blau: von der VM oder von Aleph gemeldet, nicht von der Hardware bestätigt.',
-		after: 'Werte und Links stehen danach unter „Nachweis dieser VM“.'
+		after: 'Werte und Links stehen danach unter „Nachweis dieser VM“.',
+		stop: {
+			title: 'Sichern und beenden: was gerade geschieht und wohin die Sicherung geht',
+			titleDiscard: 'Löschen ohne Sicherung: was gerade geschieht',
+			rows: { request: 'Auftrag', export: 'Export', sealed: 'Archiv', upload: 'Hochladen', piece: 'Bestätigt', forget: 'Löschen', listed: 'Liste' },
+			lights: {
+				sent: 'Stopp-Auftrag von der App signiert an die VM geschickt',
+				taken: 'VM hat den Auftrag angenommen',
+				paused: 'Paperless pausiert, damit nichts mehr hinzukommt',
+				exported: 'Datenbank und Dokumente exportiert',
+				exportedFiles: (/** @type {number} */ n) => `Datenbank und Dokumente exportiert (${n} Dateien)`,
+				sealed: 'Archiv gepackt und in der VM für deinen Schlüssel verschlüsselt',
+				sealedSize: (/** @type {number} */ bytes) => `Archiv gepackt und verschlüsselt: ${mb(bytes, 'de')}`,
+				sealedParts: (/** @type {number} */ bytes, /** @type {number} */ parts) => `Archiv gepackt und verschlüsselt: ${mb(bytes, 'de')} in ${parts} Teilen`,
+				copies: 'Kopien bei den Speicheranbietern',
+				copyTo: (/** @type {number} */ id) => `Kopie bei Anbieter ${id}`,
+				copyAt: (/** @type {number} */ id, /** @type {string} */ dataSet, /** @type {string} */ place) => `Kopie bei Anbieter ${id}${place ? ` (${place})` : ''}, Datensatz ${dataSet}`,
+				pieceCid: 'Piece-CID des Archivs',
+				pieceCidIs: (/** @type {string} */ cid) => `Piece-CID ${cid}`,
+				confirmed: 'Anbieter bestätigen das Stück in ihrem Datensatz',
+				confirmedOf: (/** @type {number} */ have, /** @type {number} */ want) => `${have} von ${want} Anbietern bestätigen das Stück in ihrem Datensatz`,
+				node: 'Knoten hat die VM angehalten und gelöscht',
+				nodeGone: 'Knoten führt die VM nicht mehr',
+				nodeLater: 'Knoten hat nicht sofort geantwortet; das FORGET beendet die VM in einigen Minuten',
+				forgot: 'FORGET von der App signiert und von Aleph angenommen',
+				revoke: 'Sicherungsschlüssel der VM bei Le Space widerrufen',
+				revokeLater: 'Sicherungsschlüssel noch nicht widerrufen; die App versucht es beim nächsten Öffnen erneut',
+				listed: 'Sicherung in deiner Liste der Sicherungen vermerkt',
+				nothingNew: 'keine neue Sicherung: nichts geändert seit der letzten, oder Sicherungen aus'
+			},
+			after: 'Anbieter, Datensätze, Piece-CID und die FORGET-Nachricht stehen danach unter „Nachweis: Sicherung und Löschen“.',
+			afterDiscard: 'Die FORGET-Nachricht steht danach unter „Nachweis: Sicherung und Löschen“.'
+		}
 	},
 	en: {
 		title: 'Start of the VM: what is happening and what has been checked',
@@ -139,10 +184,42 @@ export const panelTexts = {
 			cert: 'certificate issued',
 			paperless: 'Paperless-ngx answers'
 		},
-		states: { off: 'open', run: 'under way', app: 'checked by the app', reported: 'reported', skipped: 'not checked in this session', failed: 'failed' },
+		states: { off: 'open', run: 'under way', app: 'checked by the app', reported: 'reported', skipped: 'not checked in this session', failed: 'failed', later: 'later' },
 		rowStates: { off: 'open', run: 'under way', done: 'done', skipped: 'not checked', failed: 'failed' },
 		live: (row, state) => `${row}: ${state}`,
 		legend: 'Green: checked by the app itself. Blue: reported by the VM or by Aleph, not confirmed by the hardware.',
-		after: 'Values and links are under “Evidence of this VM” afterwards.'
+		after: 'Values and links are under “Evidence of this VM” afterwards.',
+		stop: {
+			title: 'Back up and stop: what is happening and where the backup goes',
+			titleDiscard: 'Delete without backup: what is happening',
+			rows: { request: 'Request', export: 'Export', sealed: 'Archive', upload: 'Upload', piece: 'Confirmed', forget: 'Deletion', listed: 'List' },
+			lights: {
+				sent: 'stop request signed by the app and sent to the VM',
+				taken: 'VM took the request',
+				paused: 'Paperless paused, so nothing more arrives',
+				exported: 'database and documents exported',
+				exportedFiles: (/** @type {number} */ n) => `database and documents exported (${n} files)`,
+				sealed: 'archive packed and encrypted inside the VM, to your key',
+				sealedSize: (/** @type {number} */ bytes) => `archive packed and encrypted: ${mb(bytes, 'en')}`,
+				sealedParts: (/** @type {number} */ bytes, /** @type {number} */ parts) => `archive packed and encrypted: ${mb(bytes, 'en')} in ${parts} parts`,
+				copies: 'copies with the storage providers',
+				copyTo: (/** @type {number} */ id) => `copy with provider ${id}`,
+				copyAt: (/** @type {number} */ id, /** @type {string} */ dataSet, /** @type {string} */ place) => `copy with provider ${id}${place ? ` (${place})` : ''}, data set ${dataSet}`,
+				pieceCid: 'piece CID of the archive',
+				pieceCidIs: (/** @type {string} */ cid) => `piece CID ${cid}`,
+				confirmed: 'providers confirm the piece in their data set',
+				confirmedOf: (/** @type {number} */ have, /** @type {number} */ want) => `${have} of ${want} providers confirm the piece in their data set`,
+				node: 'node stopped and erased the VM',
+				nodeGone: 'node no longer runs the VM',
+				nodeLater: 'node did not answer at once; the FORGET ends the VM within minutes',
+				forgot: 'FORGET signed by the app and accepted by Aleph',
+				revoke: 'the VM’s backup key revoked at Le Space',
+				revokeLater: 'backup key not revoked yet; the app tries again when opened next',
+				listed: 'backup recorded in your list of backups',
+				nothingNew: 'no new backup: nothing changed since the last one, or backups are off'
+			},
+			after: 'Providers, data sets, the piece CID and the FORGET message are under “Evidence: backup and deletion” afterwards.',
+			afterDiscard: 'The FORGET message is under “Evidence: backup and deletion” afterwards.'
+		}
 	}
 };
