@@ -45,7 +45,7 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	// Who it is for, and the way to "Nachprüfbar" from the top.
 	await expect(page.locator('#audience .lead')).toHaveText('Für alle, die ihr Dokumentenarchiv nicht einem einzelnen Rechenzentrum anvertrauen wollen:');
 	await expect(page.getByTestId('audience').locator('li strong')).toHaveText(['Wer nicht vom Ausfall eines Hosters oder Speicheranbieters abhängen will:', 'Wem die Vertraulichkeit seiner Dokumente wichtig ist:', 'Unternehmen, die ihr Archiv rund um die Uhr brauchen:', 'Selbstständige und kleine Firmen, die es nur ab und zu brauchen:']);
-	await expect(page.getByTestId('audience')).toContainText('Was dabei noch offen ist, steht unter „Nachprüfbar“.');
+	await expect(page.getByTestId('audience')).toContainText('Was die Hardware dabei nicht prüft, steht unter „Nachprüfbar“.');
 	await expect(page.getByTestId('audience')).toContainText('in etwa einer Viertelstunde bereit');
 	if (process.env.SHOTS) await page.locator('#audience').screenshot({ path: `${process.env.SHOTS}/audience.png` });
 	await expect(page.getByTestId('trust-hint')).toHaveAttribute('href', '#trust');
@@ -175,11 +175,11 @@ test('the landing page shows who holds which key, what is attested and where to 
 	await page.goto('/');
 	const trust = page.locator('#trust');
 	await expect(trust.getByRole('heading', { level: 2 })).toHaveText('Vertrauen ist gut. Nachprüfen ist besser.');
-	// The claim keeps its company: the old heading as a subline, and the way to what is not confirmed yet.
+	// The claim keeps its company: the old heading as a subline, and the way to what the hardware does not check.
 	await expect(page.getByTestId('trust-sub')).toContainText('Nachprüfbar: wer welchen Schlüssel hat');
 	await expect(page.getByTestId('trust-sub').getByRole('link')).toHaveAttribute('href', '#trust-open');
 	await expect(page.locator('#trust-open')).toBeVisible();
-	await expect(page.locator('#trust-open h3')).toHaveText('Noch nicht bestätigt');
+	await expect(page.locator('#trust-open h3')).toHaveText('Was die Hardware nicht prüft');
 	if (process.env.SHOTS) await page.locator('#trust').screenshot({ path: `${process.env.SHOTS}/trust-claim.png` });
 	// The diagram, wide on a desktop, tall on a phone, with a text for screen readers.
 	await expect(page.getByTestId('trust-diagram').getByRole('img')).toHaveCount(1);
@@ -226,7 +226,7 @@ test('the landing page shows who holds which key, what is attested and where to 
 	await page.goto('/en/');
 	await expect(trust.getByRole('heading', { level: 2 })).toHaveText('Don’t trust. Verify.');
 	await expect(page.getByTestId('trust-sub')).toContainText('Checkable: who holds which key');
-	await expect(page.getByTestId('trust-sub').getByRole('link')).toHaveText('Not confirmed yet ↓');
+	await expect(page.getByTestId('trust-sub').getByRole('link')).toHaveText('What the hardware does not check ↓');
 	await expect(page.getByTestId('trust-gaps')).toContainText('The image’s content is not measured.');
 
 	await page.setViewportSize({ width: 375, height: 812 });

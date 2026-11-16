@@ -27,9 +27,9 @@ describe('the sample of the evidence view on the landing page', () => {
 		expect(row('measurement').links).toEqual([]);
 	});
 
-	it('shows the same honesty as the real view: the image open, the VM’s word only reported', () => {
+	it('shows the same honesty as the real view: the image outside the hardware check, the VM’s word only reported', () => {
 		expect(row('attestation').mark).toBe('app');
-		expect(row('image')).toMatchObject({ mark: 'open', note: 'notMeasured' });
+		expect(row('image')).toMatchObject({ mark: 'outside', note: 'notMeasured' });
 		expect(row('data').mark).toBe('reported');
 		expect(row('backups').mark).toBe('reported');
 	});

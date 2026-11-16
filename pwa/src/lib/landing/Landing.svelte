@@ -183,7 +183,7 @@
 
 	<section id="trust">
 		<h2>{t.trust.title}</h2>
-		<!-- The claim never stands alone: what is not confirmed yet is one click below it. -->
+		<!-- The claim never stands alone: what the hardware does not check is one click below it. -->
 		<p class="claim-sub" data-testid="trust-sub">{t.trust.sub} · <a href="#trust-open">{t.trust.gapsTitle} ↓</a></p>
 		<p class="lead">{t.trust.lead}</p>
 		<Trust t={t.trust} {lang} />

@@ -1,6 +1,6 @@
 <script>
 	// "Nachprüfbar": where the image is built, how it is encrypted, who knows
-	// which secret, what the attestation confirms and what not yet, and where
+	// which secret, what the attestation confirms and what it does not check, and where
 	// each claim can be checked. Written from docs/security-model.md,
 	// docs/keys-and-recovery.md, docs/own-image.md, docs/workflow.md and
 	// rootfs/; change it with them. All text comes from the catalogue; the
@@ -66,7 +66,7 @@
 	const KEYS = /** @type {const} */ (['image', 'data', 'vault']);
 
 	// The table and the sources are folded (<details>, so they open without
-	// JavaScript too); what the hardware confirms and what it does not yet
+	// JavaScript too); what the hardware confirms and what it does not check
 	// stay open. A link to a folded part, or into it, opens it.
 	onMount(() => {
 		const openTarget = () => {
