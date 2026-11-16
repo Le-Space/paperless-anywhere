@@ -46,7 +46,9 @@ jobs:
         run: pnpm test
       - name: Image builder tests
         working-directory: builder
-        run: node --test
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
+          node --test
 
   e2e:
     name: Build and browser tests
