@@ -93,7 +93,7 @@ export const texts = {
 			benefits: [
 				{ t: 'Ein Schlüssel nur für dich', d: 'Beim öffentlichen Image teilen sich alle Nutzer einer Version eine Passphrase, die Le Space kennt. Dein eigenes Image hat seine eigene – kein gemeinsames Geheimnis mehr.' },
 				{ t: 'Nachgeprüft statt vertraut', d: 'Bevor die Passphrase dein Gerät verlässt, bestätigt der AMD-Prozessor (SEV-SNP), dass genau der veröffentlichte Build-Dienst läuft. Geprüft wird in deinem Browser – du musst Le Space nicht glauben.' },
-				{ t: 'In etwa 15 Minuten fertig', d: 'Mit Gutschein ist der Bau enthalten, bis er gelingt (bis zu 3 Versuche). Mit Paket nennt die App den Preis vorher und bucht ihn von deinem Le-Space-Guthaben ab; die Ablage des Images ist enthalten.' },
+				{ t: 'In etwa 15 Minuten fertig', d: 'Mit Paket oder Gutschein ist der Bau enthalten, bis er gelingt (bis zu 3 Versuche), und für jede neue Image-Version wieder. Die Ablage des Images ist auch enthalten.' },
 				{ t: 'Erprobt', d: 'Ein ganzer Durchlauf lief bei Aleph aus einem Browser heraus: Image bauen, VM starten, sichern, auf einer zweiten VM wiederherstellen. Und im Betrieb: Eine Sicherung aus dem öffentlichen Image kam im eigenen Image vollständig zurück.' }
 			],
 			cta: { label: 'Paperless anywhere starten', hint: 'In der App unter Erweitert → Einrichtung: „Mein eigenes Image“. Mit Paket oder Gutschein baut es der erste Start von selbst.' },
@@ -110,7 +110,7 @@ export const texts = {
 				'Den Build-Dienst stellt Le Space bereit, derzeit auf einem einzigen Knoten. Fällt er aus, ist gerade kein Bau möglich; deine VM startet aber weiter.',
 				'Die Relays betreibt Le Space; du kannst auch einen eigenen eintragen. Sie leiten nur Verschlüsseltes weiter.',
 				'Ohne Paket bezahlt die Adresse der App Bau und Ablage aus ihren Aleph-Credits; Aleph startet den Build-Dienst erst, wenn sie für einen Tag seiner Laufzeit reichen.',
-				'Ein Bau, den das Paket bezahlt, ist noch nicht im echten Betrieb erprobt.'
+				'Ein Bau über das Paket ist noch nicht im echten Betrieb erprobt.'
 			],
 			docs: { text: 'Im Detail:', links: ['Eigenes Image', 'Ablauf'] },
 			steps: [
@@ -251,7 +251,7 @@ export const texts = {
 			legal: { before: 'Es gelten die ', terms: 'AGB', between: '; dort steht auch die ', withdrawal: 'Widerrufsbelehrung', after: ' (§ 9).' },
 			hours: (h) => (h >= 720 ? 'Dauerbetrieb, rund um die Uhr' : `${h} Stunden`),
 			example: 'Beispiel: zwei Stunden pro Woche sind rund 8,7 Stunden im Monat und passen in das kleinste Paket.',
-			included: 'In jedem Paket enthalten: bis 8 GB Dokumente.',
+			included: 'In jedem Paket enthalten: bis 8 GB Dokumente und der Bau deines eigenen Images.',
 			backupIncluded: 'Sicherung inklusive',
 			backup: 'Die verschlüsselte Sicherung in drei Kopien ist in jedem Paket enthalten.',
 			backupYear: (price) => `Ohne Paket kannst du deine Sicherungen für einmalig ${price} ein Jahr aufbewahren lassen. Aufbewahren heißt nicht öffnen: Zum Wiederherstellen braucht es Rechenzeit, also ein Paket oder Zusatzstunden.`,
@@ -306,7 +306,7 @@ export const texts = {
 					tips: [
 						'Der Zeitraum beginnt mit dem Einlösen und läuft in Kalendertagen durch, auch wenn Paperless nicht läuft. Er verlängert sich nicht und geht in kein Abo über; wer weitermachen will, schließt ein Paket ab.',
 						'Jeder Code lässt sich mit einem Tresor nur einmal einlösen, und nur bis zu seinem Ablaufdatum. Während ein Paket läuft, lässt sich kein Gutschein einlösen.',
-						'Der Bau eines eigenen Images ist im Gutschein-Zeitraum enthalten, bis er gelingt (bis zu 3 Versuche); die App zeigt dann „im Gutschein enthalten“ statt eines Preises.',
+						'Der Bau eines eigenen Images ist im Gutschein-Zeitraum enthalten, bis er gelingt (bis zu 3 Versuche), und für jede neue Image-Version wieder; die App zeigt dann „enthalten“ statt eines Preises.',
 						'Sichere oder exportiere deine Dokumente vor dem Ende: 3 Tage danach startet die App keine VM mehr, und zum Wiederherstellen brauchst du dann ein Paket.',
 						'Umfasst der Gutschein die Sicherung, bleiben die Sicherungen danach noch mindestens 30 Tage abrufbar.'
 					],
@@ -416,7 +416,7 @@ export const texts = {
 			benefits: [
 				{ t: 'A key just for you', d: 'With the public image, everyone using a version shares one passphrase, and Le Space knows it. Your own image has its own – no shared secret any more.' },
 				{ t: 'Checked, not trusted', d: 'Before the passphrase leaves your device, the AMD processor (SEV-SNP) confirms that exactly the published builder is running. The check runs in your browser – you do not have to take Le Space’s word for it.' },
-				{ t: 'Ready in about 15 minutes', d: 'With a voucher the build is included until it succeeds (up to 3 tries). With a package the app shows the price first and charges it to your Le Space balance; storing the image is included.' },
+				{ t: 'Ready in about 15 minutes', d: 'With a package or a voucher the build is included until it succeeds (up to 3 tries), and again for every new image version. Storing the image is included too.' },
 				{ t: 'Tried and tested', d: 'A whole round ran on Aleph from a browser: building the image, starting a VM, backing up, restoring on a second VM. And in real use: a backup made with the public image came back in full in an own image.' }
 			],
 			cta: { label: 'Start Paperless anywhere', hint: 'In the app under Advanced → Setup: “My own image”. With a package or a voucher the first start builds it by itself.' },
@@ -433,7 +433,7 @@ export const texts = {
 				'Le Space provides the builder, currently on a single node. If it is down, no build is possible for the moment; your VM still starts.',
 				'Le Space runs the relays; you can enter one of your own. They only forward encrypted data.',
 				'Without a package the app’s address pays for building and storing from its Aleph credits; Aleph starts the builder only once they cover a day of its running time.',
-				'A build paid by the package has not been tried in real operation yet.'
+				'A build through the package has not been tried in real operation yet.'
 			],
 			docs: { text: 'In detail:', links: ['Your own image', 'Workflow'] },
 			steps: [
@@ -574,7 +574,7 @@ export const texts = {
 			legal: { before: 'The ', terms: 'terms', between: ' apply (in German); they also hold the ', withdrawal: 'instruction on withdrawal', after: ' (§ 9).' },
 			hours: (h) => (h >= 720 ? 'Always on, around the clock' : `${h} hours`),
 			example: 'Example: two hours a week are about 8.7 hours a month and fit in the smallest package.',
-			included: 'Included in every package: up to 8 GB of documents.',
+			included: 'Included in every package: up to 8 GB of documents and building your own image.',
 			backupIncluded: 'Backup included',
 			backup: 'The encrypted backup in three copies is included in every package.',
 			backupYear: (price) => `Without a package you can have your backups kept for a year, for ${price} once. Keeping is not opening: restoring needs compute time, that is a package or extra hours.`,
@@ -629,7 +629,7 @@ export const texts = {
 					tips: [
 						'The period starts when you redeem it and runs on in calendar days, even while Paperless is not running. It does not renew and does not turn into a subscription; to carry on, take a package.',
 						'Each code can be redeemed only once per vault, and only until its expiry date. While a package runs, no voucher can be redeemed.',
-						'Building an own image in the voucher’s period is included until it succeeds (up to 3 tries); the app then shows “included in your voucher” instead of a price.',
+						'Building an own image in the voucher’s period is included until it succeeds (up to 3 tries), and again for every new image version; the app then shows “included” instead of a price.',
 						'Back up or export your documents before it ends: 3 days later the app starts no more VMs, and to restore you then need a package.',
 						'If the voucher includes the backup, the backups stay available for at least 30 days afterwards.'
 					],
