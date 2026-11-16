@@ -96,7 +96,9 @@ database, so only inside that person's running VM and their encrypted backups.
   must ask for sshd explicitly, which only one live test does. The image
   itself carries no key.
 - Postgres, Valkey, Tika, Gotenberg and Paperless listen on the VM's loopback
-  only; Caddy serves HTTPS. Caddy's admin interface is off.
+  only; Caddy serves HTTPS. Caddy's admin interface is off. Postgres and
+  Valkey ask for passwords the VM makes; the containers' logs stay in
+  Docker's log store on the sealed data area.
 - A stop backs up first and erases the VM only when every requested copy has
   arrived.
 

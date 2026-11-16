@@ -5,8 +5,10 @@
 # are about 880 MB of the 1.9 GB, and Paperless needs them only to convert
 # office files and mails, not to start or to restore. So Postgres, Valkey and
 # Paperless come first; Gotenberg and Tika follow, and Paperless uses them
-# once they answer. Then stay in the foreground on the whole stack, as the
-# unit expects.
+# once they answer. Then stay in the foreground, as the unit expects, but
+# without attaching to the containers: their logs (file names, mail activity,
+# error texts) stay in Docker's log store on the sealed data area and never
+# reach the unit's output.
 set -u
 # Only on the sealed data area: if paperless-data-disk could not make it,
 # documents and secrets would land on the shared-key rootfs. Refuse instead;
@@ -15,4 +17,14 @@ set -u
 compose="docker compose --project-directory /opt/paperless"
 $compose up -d --remove-orphans postgres valkey paperless || exit 1
 $compose up -d gotenberg tika || echo "paperless-stack-up: Gotenberg/Tika did not start yet; Paperless runs without them" >&2
-exec $compose up --remove-orphans
+# Docker restarts a container that stops (restart: unless-stopped). This
+# only watches dockerd: once it stays gone, the unit fails and restarts.
+missed=0
+while sleep 30; do
+  if docker info >/dev/null 2>&1; then
+    missed=0
+  else
+    missed=$((missed + 1))
+    [ "$missed" -lt 4 ] || { echo "paperless-stack-up: dockerd does not answer" >&2; exit 1; }
+  fi
+done
