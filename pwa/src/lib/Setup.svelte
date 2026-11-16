@@ -287,13 +287,46 @@
 	/** @type {{ ok: boolean | null, need?: number | null, have?: number | null, price?: number | null, included?: boolean, reason?: string, short?: boolean } | null} */
 	let affordable = $state(null);
 	const packagePays = $derived(Boolean(profile?.leSpacePays && CREDITS_URL));
+	// Asked again when who pays changes, and when the page comes back into
+	// view after a "no" (a top-up in another tab); an answer for an earlier
+	// choice is dropped.
+	let affordableRound = $state(0);
+	const affordableKey = $derived(`${packagePays}|${profile?.appPays ? 'app' : profile?.leSpacePays ? 'lespace' : 'wallet'}|${profile?.payer ?? ''}|${affordableRound}`);
+	let affordableFor = '';
 	$effect(() => {
-		if (!BUILDER || imageKind !== 'own' || !loaded || affordable) return;
+		if (!BUILDER || imageKind !== 'own' || !loaded) return;
+		const key = affordableKey;
+		if (key === affordableFor) return;
+		affordableFor = key;
+		affordable = null;
+		const answer = (/** @type {NonNullable<typeof affordable>} */ a) => {
+			if (affordableFor === key) affordable = a;
+		};
 		if (packagePays)
 			imageBuild(master, { quote: true })
-				.then((q) => (affordable = { ok: true, price: q.chargedCredits, included: q.included }))
-				.catch((e) => (affordable = { ok: false, reason: e instanceof TypeError ? $t.ownImage.choice.creditsUnreachable : e.message, short: e instanceof CreditsShortError }));
-		else buildAffordable(privateKeyToAccount(alephPrivateKey(master)), /** @type {any} */ (BUILDER)).then((a) => (affordable = a));
+				.then((q) => answer({ ok: true, price: q.chargedCredits, included: q.included }))
+				.catch((e) =>
+					answer({
+						ok: false,
+						reason:
+							e instanceof TypeError ? $t.ownImage.choice.creditsUnreachable
+							: e instanceof CreditsShortError ? $t.ownImage.choice.packageShort(e.price != null ? format.euro(e.price, $lang) : null, e.neededCredits != null ? format.euro(e.neededCredits, $lang) : null)
+							: e.message,
+						short: e instanceof CreditsShortError
+					})
+				);
+		else buildAffordable(privateKeyToAccount(alephPrivateKey(master)), /** @type {any} */ (BUILDER)).then(answer);
+	});
+	$effect(() => {
+		const again = () => {
+			if (document.visibilityState === 'visible' && affordable?.ok === false) affordableRound++;
+		};
+		document.addEventListener('visibilitychange', again);
+		window.addEventListener('focus', again);
+		return () => {
+			document.removeEventListener('visibilitychange', again);
+			window.removeEventListener('focus', again);
+		};
 	});
 	const ownBuilt = $derived(Boolean(BUILDER && hasOwnImage(profile, BUILDER.plain.sha256)));
 	// Back to the public image after an own one: its hash and passphrase are
@@ -513,8 +546,8 @@
 				</details>
 				{#if ownBuilt}<p class="saved" data-testid="own-image-have">{$t.ownImage.have(format.date(profile.ownImage.builtAt, undefined, $lang))}</p>{/if}
 				{#if affordable === null}<p class="hint" data-testid="own-image-checking">{$t.ownImage.choice.checking}</p>
-				{:else if affordable.ok === false && affordable.reason}<p class="error alert" role="alert" data-testid="own-image-package-no">{affordable.reason}{#if affordable.short} <a href="#paket">{$t.ownImage.choice.toTopUp}</a>{/if}</p>
-				{:else if affordable.ok === false}<p class="error alert" role="alert" data-testid="own-image-needs-credits">{$t.ownImage.choice.needsCredits(format.number(affordable.need ?? 0, undefined, $lang), format.number(affordable.have ?? 0, undefined, $lang))}</p>
+				{:else if affordable.ok === false && affordable.reason}<p class="error alert" role="alert" data-testid="own-image-package-no">{affordable.reason}{#if affordable.short} <a href="#paket">{$t.ownImage.choice.toTopUp}</a>{/if} <button class="link" onclick={() => affordableRound++} data-testid="own-image-recheck">{$t.ownImage.choice.recheck}</button></p>
+				{:else if affordable.ok === false}<p class="error alert" role="alert" data-testid="own-image-needs-credits">{$t.ownImage.choice.needsCredits(format.number(affordable.need ?? 0, undefined, $lang), format.number(affordable.have ?? 0, undefined, $lang))} <button class="link" onclick={() => affordableRound++} data-testid="own-image-recheck">{$t.ownImage.choice.recheck}</button></p>
 				{:else}{#if affordable.included}<p class="hint" data-testid="own-image-price">{$t.ownImage.choice.included}</p>{:else if affordable.price != null}<p class="hint" data-testid="own-image-price">{$t.ownImage.choice.price(format.euro(affordable.price, $lang))}</p>{/if}<button onclick={buildImage} data-testid="own-image-build" disabled={busy === 'own-image' || Boolean(profile.running)}>{ownBuilt ? $t.ownImage.rebuild : $t.ownImage.build}</button>{/if}
 				{#if profile.running}<p class="hint">{$t.ownImage.whileRunning}</p>{/if}
 				{#if busy === 'own-image' && ownStep}<p class="hint" role="status" data-testid="own-image-step">{ownStep} …</p>{/if}
@@ -595,4 +628,5 @@
 	.error { color: var(--danger); }
 	/* A message that must not go unseen: framed, tinted, like a callout. */
 	.alert { border: 1px solid var(--danger); border-left-width: 4px; border-radius: var(--radius-sm, 6px); padding: 0.6rem 0.8rem; background: color-mix(in srgb, var(--danger) 8%, transparent); }
+	.link { background: none; border: none; color: inherit; text-decoration: underline; padding: 0; font: inherit; cursor: pointer; }
 </style>

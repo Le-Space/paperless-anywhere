@@ -19,7 +19,7 @@ const RECEIVED_AT = '2026-11-11T10:15:00.000Z';
 const PAYER = '0x' + '5'.repeat(40);
 const OFFER = { month_credits: 150, month_price_cents: 150, year_price_cents: 1800, year_days: 365, copies: 3, quota_gib: 32, retention_days: 30 };
 // `backup`: null (the service pays no backups), 'none', 'line', 'paid', 'soon', 'week', 'ended' or 'over'.
-let state = { plan: true, cancelled: false, withdrawable: false, backup: null, offered: false, included: false, vouchers: false, termsDue: false, voucherRunning: false, voucherGranted: false, network: null };
+let state = { plan: true, cancelled: false, withdrawable: false, backup: null, offered: false, included: false, vouchers: false, termsDue: false, voucherRunning: false, voucherGranted: false, network: null, buildShort: false };
 // With `included`, the packages offered carry the backup in their price (le-space-credits#72).
 const PACKAGES_INCLUDED = [{ id: 'paperless-15-backup', hours: 15, price_credits: 640, backup_included: true }, { id: 'paperless-100-backup', hours: 100, price_credits: 1640, backup_included: true }, { id: 'paperless-always-backup', hours: 730, price_credits: 9050, backup_included: true }];
 const BACKUPS = {
@@ -62,6 +62,10 @@ const routes = {
 	'POST /v1/backup/checkout': () => (state.offered ? [200, { client_secret: 'cs_test_mock_year' }] : [409, { error: 'not sold yet', code: 'NOT_YET' }]),
 	// The start asks for the delegation; the mock has none, so a start ends here.
 	'POST /v1/vm/authorize': () => [503, { error: 'no VM account in the mock', code: 'VM_OFF' }],
+	// The price of one build of an own image: with "buildShort", the balance
+	// does not cover it (a running package, Le Space balance 0).
+	'POST /v1/image/build': () =>
+		state.buildShort ? [402, { error: 'insufficient credits: 0 free, 30 needed' }] : [200, { owner: '0x00000000000000000000000000000000000000cc', aleph_credits: 2052000, charged_credits: 30, included: false }],
 	// Made-up codes: one that works, one already redeemed by this account, one
 	// whose hours are still to come; anything else does not exist.
 	'POST /v1/voucher/redeem': (body) => {
@@ -106,7 +110,7 @@ const server = createServer(async (req, res) => {
 	const send = (status, json) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(json));
 	if (url.pathname === '/__requests') return send(200, requests);
 	if (url.pathname === '/__state' && req.method === 'POST') {
-		state = { plan: Boolean(body?.plan), cancelled: false, withdrawable: Boolean(body?.withdrawable), backup: body?.backup in BACKUPS ? body.backup : null, offered: Boolean(body?.offered), included: Boolean(body?.included), vouchers: Boolean(body?.vouchers), termsDue: Boolean(body?.termsDue), voucherRunning: false, voucherGranted: false, network: body?.network === 'mainnet' || body?.network === 'calibration' ? body.network : null };
+		state = { plan: Boolean(body?.plan), cancelled: false, withdrawable: Boolean(body?.withdrawable), backup: body?.backup in BACKUPS ? body.backup : null, offered: Boolean(body?.offered), included: Boolean(body?.included), vouchers: Boolean(body?.vouchers), termsDue: Boolean(body?.termsDue), voucherRunning: false, voucherGranted: false, network: body?.network === 'mainnet' || body?.network === 'calibration' ? body.network : null, buildShort: Boolean(body?.buildShort) };
 		requests = [];
 		return send(200, state);
 	}

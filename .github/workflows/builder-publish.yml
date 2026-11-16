@@ -18,10 +18,6 @@ name: Image builder on Aleph
 #            it shows that a whole image fits into the VM's memory, how long
 #            it takes, and that the result begins as a LUKS2 disk
 #   delete   forgets a published V-PROGRAM (the scheduler then stops the VM)
-#   forget   forgets the STOREs named in "stores" (space-separated item
-#            hashes): volumes of builders that are gone. Only STOREs this
-#            account sent, and never the plain image named in "plain_store"
-#            or the fixed builder's volumes (listed in own-image.js).
 #   again    publishes a second V-PROGRAM with the content of the running one
 #            in "hash" (new time, nothing uploaded: the same runtime and
 #            volumes) and makes an attested call to it: does a builder
@@ -54,11 +50,6 @@ on:
           - trial
           - delete
           - again
-          - forget
-      stores:
-        description: 'For "forget": the STOREs to forget, item hashes separated by spaces.'
-        required: false
-        default: ''
       hash:
         description: The V-PROGRAM's item hash (64 hex), for "check", "trial" and "delete".
         required: false
@@ -143,7 +134,7 @@ jobs:
             check|trial|delete|again) [[ "$HASH" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::\"$ACTION\" needs the V-PROGRAM's item hash (64 hex)"; exit 1; } ;;
           esac
           case "$ACTION" in
-            dry-run|publish|delete|again|forget) [ -n "$ALEPH_PRIVATE_KEY" ] || { echo "::error::set the ALEPH_PRIVATE_KEY secret"; exit 1; } ;;
+            dry-run|publish|delete|again) [ -n "$ALEPH_PRIVATE_KEY" ] || { echo "::error::set the ALEPH_PRIVATE_KEY secret"; exit 1; } ;;
           esac
 
       - name: Aleph's CLI and the image tools
@@ -306,41 +297,6 @@ jobs:
           } | tee "$RUNNER_TEMP/again.txt"
           [ -n "$verified" ] || { echo "::error::the builder started again did not verify; delete $hash"; exit 1; }
 
-      - name: Forget volumes of builders that are gone
-        if: inputs.action == 'forget'
-        env:
-          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
-          STORES: ${{ inputs.stores }}
-          PLAIN_STORE: ${{ inputs.plain_store }}
-        run: |
-          # The account that sent the plain image is the one that published the builders.
-          [[ "$PLAIN_STORE" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::\"forget\" needs plain_store, to be kept and to name the account"; exit 1; }
-          me="$(curl -fsS "https://api2.aleph.im/api/v0/messages/$PLAIN_STORE" | jq -r .message.sender)"
-          keep="$(grep -oE '[0-9a-f]{64}' pwa/src/lib/own-image.js | sort -u)"
-          : > "$RUNNER_TEMP/forget.txt"
-          for h in $STORES; do
-            [[ "$h" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::$h is no item hash"; exit 1; }
-            [ "$h" = "$PLAIN_STORE" ] && { echo "::error::$h is the plain image"; exit 1; }
-            grep -qx "$h" <<< "$keep" && { echo "::error::$h is named in own-image.js"; exit 1; }
-            got="$(curl -fsS "https://api2.aleph.im/api/v0/messages/$h" | jq -r '"\(.status) \(.message.type) \(.message.sender)"')"
-            case "$got" in
-              "forgotten "*) echo "$h already forgotten" ;;
-              "processed STORE $me") echo "$h" >> "$RUNNER_TEMP/forget.txt" ;;
-              *) echo "::error::$h is not a processed STORE of $me ($got)"; exit 1 ;;
-            esac
-          done
-          echo "$(wc -l < "$RUNNER_TEMP/forget.txt") STOREs to forget"
-          [ -s "$RUNNER_TEMP/forget.txt" ] && aleph message forget $(cat "$RUNNER_TEMP/forget.txt") --reason "volumes of image builders that are gone" --chain eth --yes
-          for h in $(cat "$RUNNER_TEMP/forget.txt"); do
-            for i in $(seq 1 12); do
-              s="$(curl -fsS "https://api2.aleph.im/api/v0/messages/$h" | jq -r .status)"
-              [ "$s" = forgotten ] && break
-              sleep 10
-            done
-            echo "$h $s" | tee -a "$RUNNER_TEMP/forgotten.txt"
-          done
-          ! grep -v ' forgotten$' "$RUNNER_TEMP/forgotten.txt"
-
       - name: Show it and call it, attested
         if: inputs.action == 'check'
         env:
@@ -410,20 +366,19 @@ jobs:
           ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
           HASH: ${{ inputs.hash }}
           FORGET_VOLUMES: ${{ inputs.forget_volumes }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # The volumes, read before the V-PROGRAM is forgotten: only STOREs
-          # this account sent (never Aleph's runtime).
+          # The volumes, read before the V-PROGRAM is forgotten. Only the STOREs
+          # it names, of this account, smaller than any image, and not named in
+          # own-image.js or a release (pwa/src/lib/forget-guard.js); one refusal
+          # forgets none of them and deletes nothing.
+          : > "$RUNNER_TEMP/stores.txt"
           if [ "$FORGET_VOLUMES" = true ]; then
-            curl -fsS "https://api2.aleph.im/api/v0/messages/$HASH" \
-              | jq -r '.message.item_content | fromjson | [.workload.ref, .workload.hash_tree, (.volumes[]? | .ref, .hash_tree)] | .[] | select(. != null)' > "$RUNNER_TEMP/refs.txt"
-            sender="$(curl -fsS "https://api2.aleph.im/api/v0/messages/$HASH" | jq -r .message.sender)"
-            : > "$RUNNER_TEMP/stores.txt"
-            while read -r ref; do
-              m="$(curl -fsS "https://api2.aleph.im/api/v0/messages.json?addresses=$sender&msgTypes=STORE&contentHashes=$ref" | jq -r '.messages[].item_hash')"
-              [[ "$ref" =~ ^[0-9a-f]{64}$ ]] && [ "$(curl -fsS "https://api2.aleph.im/api/v0/messages/$ref" | jq -r '"\(.message.type) \(.message.sender)"')" = "STORE $sender" ] && m="$m $ref"
-              for h in $m; do echo "$h"; done >> "$RUNNER_TEMP/stores.txt"
-            done < "$RUNNER_TEMP/refs.txt"
-            sort -u -o "$RUNNER_TEMP/stores.txt" "$RUNNER_TEMP/stores.txt"
+            grep -ohE '[0-9a-f]{64}' pwa/src/lib/own-image.js > "$RUNNER_TEMP/kept.txt" || true
+            gh release list -R "$GITHUB_REPOSITORY" -L 200 --json tagName -q '.[].tagName' | while read -r t; do
+              gh release view "$t" -R "$GITHUB_REPOSITORY" --json body -q .body
+            done | grep -oE '[0-9a-f]{64}' >> "$RUNNER_TEMP/kept.txt" || true
+            node pwa/scripts/forget-builder-volumes.mjs "$HASH" "$RUNNER_TEMP/kept.txt" > "$RUNNER_TEMP/stores.txt"
             echo "volumes to forget:"; cat "$RUNNER_TEMP/stores.txt"
           fi
           aleph vprogram delete "$HASH" --yes --chain eth --reason "image builder stopped" --json > "$RUNNER_TEMP/delete.json"

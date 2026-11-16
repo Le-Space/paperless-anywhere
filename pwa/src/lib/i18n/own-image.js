@@ -39,6 +39,9 @@ export const ownImage = {
 			ownHint: 'Eine Passphrase nur für diesen Tresor: Niemand sonst kennt sie, auch Le Space nicht.',
 			notBuilt: 'Noch nicht gebaut: Bis dahin startet die VM vom öffentlichen Image.',
 			toTopUp: 'Zum Guthaben',
+			recheck: 'Ich habe aufgeladen – neu prüfen',
+			packageShort: (/** @type {string | null} */ price, /** @type {string | null} */ missing) =>
+				`${price ? `Ein Bau kostet ${price} aus deinem Le-Space-Guthaben. ` : ''}Dein Guthaben reicht dafür nicht${missing ? `: Es fehlen ${missing}` : ''}. Lade es bei deinem Paket auf dieser Seite auf. Einen Gutschein kannst du nicht einlösen, solange dein Paket läuft.`,
 			creditsUnreachable: 'Der Preis für den Bau ließ sich beim Credits-Dienst gerade nicht abfragen. Bitte später noch einmal versuchen.',
 			builtAtStart: 'Wird beim ersten Start gebaut (etwa 15 Minuten, das Fenster so lange offen lassen). Du kannst es auch jetzt schon bauen.',
 			checking: 'Guthaben der App-Adresse wird geprüft …',
@@ -121,6 +124,9 @@ export const ownImage = {
 			ownHint: 'A passphrase for this vault only: nobody else knows it, Le Space neither.',
 			notBuilt: 'Not built yet: until then the VM starts from the public image.',
 			toTopUp: 'To the balance',
+			recheck: 'I topped it up – check again',
+			packageShort: (/** @type {string | null} */ price, /** @type {string | null} */ missing) =>
+				`${price ? `A build costs ${price} from your Le Space balance. ` : ''}Your balance does not cover it${missing ? `: ${missing} missing` : ''}. Top it up with your package on this page. A voucher cannot be redeemed while your package runs.`,
 			creditsUnreachable: 'The price of a build could not be asked from the credits service just now. Please try again later.',
 			builtAtStart: 'Built at the first start (about 15 minutes; keep the window open meanwhile). You can also build it now.',
 			checking: 'Checking the app address\'s credits …',

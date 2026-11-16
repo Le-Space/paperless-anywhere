@@ -344,11 +344,12 @@ export async function creditsCatalog({ baseUrl = CREDITS_URL, fetch: fetchImpl =
 
 /** The balance does not cover it (402); `neededCredits` when the service says. */
 export class CreditsShortError extends Error {
-	/** @param {string} message @param {number | null} neededCredits */
-	constructor(message, neededCredits) {
+	/** @param {string} message @param {number | null} neededCredits what is missing @param {number | null} [price] what the whole thing costs */
+	constructor(message, neededCredits, price = null) {
 		super(message);
 		this.name = 'CreditsShortError';
 		this.neededCredits = neededCredits;
+		this.price = price;
 	}
 }
 
@@ -399,7 +400,7 @@ async function send(master, method, path, body, { baseUrl = CREDITS_URL, fetch: 
 		// "insufficient credits: N free, M needed"
 		const [, free, needed] = /(\d+)\s*free,\s*(\d+)\s*needed/.exec(String(answer?.error ?? '')) ?? [];
 		const missing = free != null ? Math.max(0, Number(needed) - Number(free)) : null;
-		throw new CreditsShortError(tr().credits.short(missing != null ? format.euro(missing) : null), missing);
+		throw new CreditsShortError(tr().credits.short(missing != null ? format.euro(missing) : null), missing, needed != null ? Number(needed) : null);
 	}
 	if (!res.ok) {
 		const e = /** @type {Error & { status?: number, code?: string }} */ (new Error(messages[answer?.code] ?? MESSAGES[answer?.code] ?? (answer?.error ? `Le Space Credits: ${answer.error}` : tr().credits.answers(res.status))));
