@@ -297,7 +297,7 @@ ul.plain li { margin: 4px 0; }
 		<thead><tr><th>Platz in v0.2</th><th>Einträge</th><th>davon auch in Standard</th></tr></thead>
 		<tbody><tr><td>Start</td><td class="n">160</td><td class="n">125</td></tr><tr><td>Sicherung</td><td class="n">150</td><td class="n">69</td></tr><tr><td>Paket</td><td class="n">184</td><td class="n">151</td></tr><tr><td>System (in Standard: nur als Meldung mit Knopf)</td><td class="n">66</td><td class="n">16</td></tr><tr><td>Mehr: Schlüssel, Hilfe, Rechtliches</td><td class="n">33</td><td class="n">26</td></tr><tr><td>Vor dem Entsperren</td><td class="n">28</td><td class="n">26</td></tr><tr><td>Übergreifend: Kopf, Meldungen, Dialoge, Fuß</td><td class="n">130</td><td class="n">123</td></tr><tr><td>Zusammengelegt (Doppelung, bleibt an einem Ort)</td><td class="n">39</td><td class="n">–</td></tr><tr><td>Nur Testhaken</td><td class="n">1</td><td class="n">–</td></tr><tr><td><b>Summe</b></td><td class="n"><b>791</b></td><td class="n"><b>536</b></td></tr></tbody>
 	</table></div>
-	<p class="note" id="mapnote">Kein Eintrag blieb ohne Platz. Vier unbenutzte Katalogtexte und ein doppelt definierter Schlüssel (<code>funds.refresh</code>) werden nicht übernommen; sie erscheinen heute nirgends. Dateien im Zweig: <code>docs/ui-v0.2/inventory/</code> (Bestand mit Datei und Zeile) und <code>docs/ui-v0.2/mapping/</code> (Zuordnung).</p>
+	<p class="note" id="mapnote">Kein Eintrag blieb ohne Platz. Sieben Einträge, die seit der Inventur auf main dazukamen (drei unabhängige Betreiber in Europa, Anzeige der nächsten Sicherung, eine neue Fehlermeldung beim Start), sind in <code>inventory/D-delta-since-30f34f4.md</code> nachgetragen und zugeordnet. Vier unbenutzte Katalogtexte und ein doppelt definierter Schlüssel (<code>funds.refresh</code>) werden nicht übernommen; sie erscheinen heute nirgends. Dateien im Zweig: <code>docs/ui-v0.2/inventory/</code> (Bestand mit Datei und Zeile) und <code>docs/ui-v0.2/mapping/</code> (Zuordnung).</p>
 </section>
 
 <section>
@@ -420,7 +420,7 @@ const SCREENS = [
 		</div>
 		<div class="card"><h4>Sicherungen</h4>
 			<div class="light"><span class="dot"></span><span>Erreichbar: 3 von 3 Kopien antworten.</span></div>
-			<div class="light"><span class="dot"></span><span>Unabhängig: bei drei verschiedenen Betreibern.</span></div>
+			<div class="light"><span class="dot"></span><span>Unabhängig: bei drei verschiedenen Betreibern in Europa.</span></div>
 			${t ? '<p class="tline">Anbieter 4, 9, 12 · Calibration · aus der zuletzt gelesenen Liste (16.11., 21:14)</p>' : ''}
 		</div>
 		${t ? tech('Entsperren', dl([['Passkey', 'liest die PRF-Ausgabe, entsiegelt das Hauptgeheimnis'], ['Ohne lokalen Datensatz', 'holt ihn von Aleph, gefunden über den Passkey'], ['Unter „Probleme“', 'Diesen Browser vergessen']])) : ''}` },
@@ -482,8 +482,8 @@ const SCREENS = [
 	{ id: 'sicherung', label: 'Sicherung', nav: 'sich', r: (t) => `
 		<div class="card"><h3>Deine Dokumente sind gesichert</h3>
 			<div class="light"><span class="dot"></span><span>Erreichbar: 3 von 3 Kopien antworten.</span></div>
-			<div class="light"><span class="dot"></span><span>Unabhängig: bei drei verschiedenen Betreibern.</span></div>
-			<p style="margin-top:8px">Letzte Sicherung: heute, 14:02 Uhr. Gesichert wird alle zwei Stunden, wenn sich etwas geändert hat, und beim Beenden.</p>
+			<div class="light"><span class="dot"></span><span>Unabhängig: bei drei verschiedenen Betreibern in Europa.</span></div>
+			<p style="margin-top:8px">Letzte Sicherung: heute, 14:02 Uhr. Gesichert wird, wenn sich etwas geändert hat und danach 30 Minuten nichts mehr, höchstens alle 6 Stunden, und beim Beenden.</p>
 			<button class="cta">Jetzt sichern</button>
 		</div>
 		${t ? tech('Kopien', dl([['Anbieter 4', 'antwortet · EU · bezahlt bis 30.11.'], ['Anbieter 9', 'antwortet · EU'], ['Anbieter 12', 'antwortet · EU']]) + '<button class="small">Jetzt prüfen</button>') : ''}
