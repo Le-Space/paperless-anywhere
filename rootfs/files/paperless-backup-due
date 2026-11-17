@@ -47,8 +47,12 @@ case "$what" in
 esac
 
 # The fingerprint goes through the environment: python3 reads its program
-# from stdin. The next look at Paperless: the loop asks every CHECK seconds.
-FINGERPRINT="$(head -c 4096)" python3 - "$now" "$lib" "$dir" "$secrets/backup_config" "${CHECK_SECONDS:-600}" <<'PY'
+# from stdin. Read first, on its own: dash (sh on Debian/Ubuntu) performs the
+# heredoc before a prefix assignment, which would then read the program.
+# The next look at Paperless: the loop asks every CHECK seconds.
+FINGERPRINT="$(head -c 4096)"
+export FINGERPRINT
+python3 - "$now" "$lib" "$dir" "$secrets/backup_config" "${CHECK_SECONDS:-600}" <<'PY'
 import json, os, sys
 from datetime import datetime, timezone
 

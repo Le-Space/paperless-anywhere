@@ -12,6 +12,7 @@ import { join } from 'node:path';
 const files = new URL('../../../rootfs/files/', import.meta.url).pathname;
 const source = (/** @type {string} */ name) => readFileSync(join(files, name), 'utf8');
 
+const SH = existsSync('/bin/dash') ? '/bin/dash' : 'sh';
 const T = 1_800_000_000;
 const MIN = 60;
 const HOUR = 3600;
@@ -22,7 +23,8 @@ function vm() {
 	for (const d of Object.values(dirs)) mkdirSync(d);
 	/** @param {string[]} args @param {string} [input] */
 	const sh = (args, input = '') => {
-		const r = spawnSync('sh', [join(files, 'paperless-backup-due'), ...args], {
+		// dash where there is one: sh on the VM (Debian) and on CI (Ubuntu).
+		const r = spawnSync(SH, [join(files, 'paperless-backup-due'), ...args], {
 			encoding: 'utf8',
 			input,
 			env: { PATH: process.env.PATH, PAPERLESS_RUN_DIR: dirs.run, PAPERLESS_LIB_DIR: dirs.lib, PAPERLESS_SECRETS_DIR: dirs.secrets }
