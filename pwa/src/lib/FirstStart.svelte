@@ -19,15 +19,19 @@
 	 *   ownImage?: any,
 	 *   imageHash?: string | null,
 	 *   plain?: any,
+	 *   texts?: typeof import('$lib/i18n/first-start.js').first.de | null,
+	 *   simple?: boolean,
 	 *   onminimize: () => void,
 	 *   onexpand: () => void,
 	 *   oncertificate: (show: boolean) => void,
 	 *   onclose: () => void
 	 * }}
 	 */
-	let { view, startTypical, host = null, ownImage = null, imageHash = null, plain = null, onminimize, onexpand, oncertificate, onclose } = $props();
+	let { view, startTypical, host = null, ownImage = null, imageHash = null, plain = null, texts = null, simple = false, onminimize, onexpand, oncertificate, onclose } = $props();
 
-	const x = $derived($t.first);
+	// `texts`: other words for the same journey (v0.2's "Standard" speaks plainly);
+	// `simple`: without the small steps and the evidence, which stay in the technical view.
+	const x = $derived(texts ?? $t.first);
 	let now = $state(Date.now());
 	const tick = setInterval(() => (now = Date.now()), 1000);
 	onDestroy(() => clearInterval(tick));
@@ -165,7 +169,7 @@
 							{:else}
 								<h3 data-testid="first-stage">{here.title}</h3>
 								<p>{here.text}</p>
-								<ul class="subs" data-testid="first-substeps">
+								<ul class="subs" hidden={simple} data-testid="first-substeps">
 									{#each steps as st (st.key)}
 										<li class={st.state}><span class="led" class:on={st.state === 'done'} class:blink={st.state === 'active' && running} aria-hidden="true"></span><span>{/** @type {any} */ (x.sub)[st.key]}{#if st.key === 'lanes' && facts.attested}{' · '}<small>{x.attestedCount(facts.attested)}</small>{/if}{#if st.key === 'bytes' && facts.size}{' · '}<small>{x.mib(mib(facts.got ?? 0), mib(facts.size))}{#if rate}{' · '}{x.rate(rate.toFixed(1))}{/if}</small>{/if}{#if st.key === 'upload' && facts.host && view.station === 'store'}{' · '}<small data-testid="first-upload">{#if (facts.attempt ?? 1) > 1}{x.attempt(facts.attempt ?? 1, UPLOAD_HOSTS.length)}{' · '}{/if}{String(facts.host).replace(/^https?:\/\//, '')}</small>{/if}</span></li>
 									{/each}
@@ -200,7 +204,7 @@
 							</figure>
 						{/if}
 					</div>
-					<aside class="proofs" data-testid="first-evidence">
+					<aside class="proofs" hidden={simple} data-testid="first-evidence">
 						<h4>{x.evidenceTitle}</h4>
 						<ul>
 							{#each proofs as p (p.key)}

@@ -7,8 +7,10 @@
 	import { currentRow } from '$lib/start-panel.js';
 
 	/** @typedef {{ id: string, state: import('$lib/start-panel.js').LightState, key?: string, args?: (string | number)[], say?: string }} AnyLight */
-	/** @type {{ rows: { id: string, state: string, lights: AnyLight[] }[], t: { title: string, rows: Record<string, string>, lights: Record<string, string | ((...a: any[]) => string)>, states: Record<string, string>, rowStates: Record<string, string>, live: (row: string, state: string) => string, legend: string, after: string }, times?: Record<string, string>, total?: string, testid?: string }} times: per row, what it took and usually takes; total: the whole action */
-	let { rows, t, times = {}, total = '', testid = 'start-panel' } = $props();
+	/** @type {{ rows: { id: string, state: string, lights: AnyLight[] }[], t: { title: string, rows: Record<string, string>, lights: Record<string, string | ((...a: any[]) => string)>, states: Record<string, string>, rowStates: Record<string, string>, live: (row: string, state: string) => string, legend: string, after: string }, times?: Record<string, string>, total?: string, testid?: string, compact?: boolean }} times: per row, what it took and usually takes; total: the whole action; compact: rows and lights only, the written facts behind one button (v0.2's "Standard"; `t.details` and `t.hide` name it) */
+	let { rows, t, times = {}, total = '', testid = 'start-panel', compact = false } = $props();
+	let shown = $state(false);
+	const facts = $derived(!compact || shown);
 	/** A light's words: its own text, or the one its key names, with what it names. @param {AnyLight} l */
 	const said = (l) => {
 		const x = t.lights[l.key ?? l.id];
@@ -18,15 +20,16 @@
 	const cur = $derived(currentRow(/** @type {any} */ (rows)));
 </script>
 
-<section class="panel" aria-label={t.title} data-testid={testid}>
+<section class="panel" class:compact={!facts} aria-label={t.title} data-testid={testid}>
 	<ol>
 		{#each rows as row, i (row.id)}
 			<li class="row is-{row.state}" data-testid="panel-{row.id}" data-state={row.state}>
 				<span class="name"><span class="no" aria-hidden="true">{i + 1}</span>{t.rows[row.id]}<span class="sr">: {t.rowStates[row.state]}</span>{#if times[row.id]}<small class="took" data-testid="took-{row.id}">{times[row.id]}</small>{/if}</span>
 				<span class="leds" aria-hidden="true">{#each row.lights as l (l.id)}<i class="led {l.state}"></i>{/each}</span>
-				<ul class="facts">
+				<!-- Compact: the facts wait behind the button, except one that failed, which is always said in words. -->
+				<ul class="facts" hidden={!facts && !row.lights.some((l) => l.state === 'failed')}>
 					{#each row.lights as l (l.id)}
-						<li class={l.state} data-testid="light-{l.id}" data-state={l.state}><span class="sign" aria-hidden="true">{SIGN[l.state]}</span>{said(l)} <span class="state">({t.states[l.say ?? l.state]})</span></li>
+						<li class={l.state} hidden={!facts && l.state !== 'failed'} data-testid="light-{l.id}" data-state={l.state}><span class="sign" aria-hidden="true">{SIGN[l.state]}</span>{said(l)} <span class="state">({t.states[l.say ?? l.state]})</span></li>
 					{/each}
 				</ul>
 			</li>
@@ -34,6 +37,7 @@
 	</ol>
 	<p class="sr" role="status" aria-live="polite" data-testid="panel-live">{cur ? t.live(t.rows[cur.id], t.rowStates[cur.state]) : ''}</p>
 	{#if total}<p class="total" data-testid="panel-total">{total}</p>{/if}
+	{#if compact}<button type="button" class="more" aria-expanded={shown} onclick={() => (shown = !shown)} data-testid="panel-details">{/** @type {any} */ (t)[shown ? 'hide' : 'details']}</button>{/if}
 	<p class="legend">{t.legend} {t.after}</p>
 </section>
 
@@ -74,6 +78,10 @@
 	.run .sign { color: var(--run); }
 	.failed .sign, .failed .state { color: var(--bad); }
 	.state { color: var(--dim); }
+	/* Rows and lights only: the name takes the room the facts leave. */
+	.compact .row { grid-template-columns: minmax(0, 1fr) auto; }
+	.compact .facts { grid-column: 1 / -1; }
+	.more { margin: 0.6rem 0 0; min-height: 2.75rem; padding: 0.3rem 0.9rem; background: transparent; color: var(--ink); border: 1px solid var(--dim); font-size: 0.85rem; }
 	.legend { margin: 0.6rem 0 0; padding-top: 0.6rem; border-top: 1px solid var(--rule); color: var(--dim); font-size: 0.8rem; }
 	.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 	@media (max-width: 560px) {

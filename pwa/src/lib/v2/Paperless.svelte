@@ -21,7 +21,7 @@
 	import StartPanel from '$lib/StartPanel.svelte';
 	import Storage from '$lib/Storage.svelte';
 	import TrialRestore from '$lib/TrialRestore.svelte';
-	import { place } from '$lib/backups.js';
+	import { backupSize, place } from '$lib/backups.js';
 	import { CREDITS_URL } from '$lib/credits.js';
 	import { httpsUrl } from '$lib/evidence.js';
 	import { format, lang, t } from '$lib/i18n/index.js';
@@ -29,18 +29,20 @@
 	import { BUILDER, hasOwnImage } from '$lib/own-image.js';
 	import { backupListing, loadProfile } from '$lib/profile.js';
 	import { purchaseLocked } from '$lib/purchase.js';
+	import { BACKUP_TEXTS } from '$lib/backup-overview.js';
+	import { overlay } from '$lib/v2/plain.js';
 
 	/**
 	 * @type {{
 	 *   master: Uint8Array, technical: boolean, area: string, version?: number, reach?: import('$lib/backup-status.js').Level,
-	 *   onchange?: () => void, onsetup?: () => void, onpackage?: () => void, onmissing?: (missing: string[]) => void,
+	 *   onchange?: () => void, onsetup?: () => void, ontechnical?: () => void, onpackage?: () => void, onmissing?: (missing: string[]) => void,
 	 *   onglance?: (g: any) => void, onbusy?: (busy: boolean) => void, oncopies?: (c: any) => void,
 	 *   confirm: (q: { title: string, text: string, yes: string, no: string, danger?: boolean }) => Promise<boolean>,
 	 *   lights?: import('svelte').Snippet
 	 * }}
-	 * confirm: the shell's dialog; lights: the two backup lights, drawn at the top of "Sicherung".
+	 * ontechnical: switches to the technical view (where a backup can be chosen); confirm: the shell's dialog; lights: the two backup lights, drawn at the top of "Sicherung".
 	 */
-	let { master, technical, area, version = 0, reach = 'unknown', onchange = () => {}, onsetup = () => {}, onpackage = () => {}, onmissing = () => {}, onglance = () => {}, onbusy = () => {}, oncopies = () => {}, confirm, lights } = $props();
+	let { master, technical, area, version = 0, reach = 'unknown', onchange = () => {}, onsetup = () => {}, ontechnical = () => {}, onpackage = () => {}, onmissing = () => {}, onglance = () => {}, onbusy = () => {}, oncopies = () => {}, confirm, lights } = $props();
 
 	const x = $derived($t.v2);
 	const s = $derived($t.v2.start);
@@ -84,6 +86,18 @@
 	};
 	// The backup "Dokumente herunterladen" fetches: the one chosen for the start, else this vault's newest.
 	const downloadable = $derived(k.chosenBackup ?? k.chainBackup);
+
+	// "Standard" speaks plainly in the parts it shares with v0.1: their texts with the plain ones laid over (plain.js).
+	const plain = $derived($t.v2.plain);
+	const startPanelT = $derived(technical ? k.panelT : overlay(k.panelT, { ...plain.panel, stop: undefined }));
+	const stopPanelT = $derived.by(() => {
+		if (technical) return k.panelShownT;
+		const discard = k.panelShownT.title === k.panelT.stop.titleDiscard;
+		const p = plain.panel;
+		return overlay(k.panelShownT, { title: discard ? p.stop.titleDiscard : p.stop.title, rows: p.stop.rows, legend: p.legend, after: discard ? p.stop.afterDiscard : p.stop.after, details: p.details, hide: p.hide });
+	});
+	const firstT = $derived(technical ? null : overlay($t.first, plain.first));
+	const backupNowT = $derived(technical ? null : overlay(BACKUP_TEXTS[$lang], plain.backupNow));
 </script>
 
 {#snippet tech(/** @type {string} */ title, /** @type {import('svelte').Snippet} */ body)}
@@ -99,13 +113,20 @@
 	{#if k.placesAsk}
 		{@const ask = k.placesAsk}
 		<div class="alert" role="alert" data-testid="places-ask">
-			{#if ask.blocked}<p data-testid="places-blocked">{c.places.blocked(ask.blocked.names.join(', '), ask.blocked.why)}</p>{/if}
-			{#if ask.names.length}<p>{c.places.down(ask.names.join(', '))}</p>{/if}
-			{#if ask.plan}
-				<ul>{#each ask.plan.replaced as r (r.from.id)}<li>{r.to ? c.places.instead(`${r.from.id} ${r.from.name ?? ''}`.trim(), `${r.to.id} ${r.to.name}${r.to.place ? `, ${r.to.place}` : ''}`) : c.places.none(`${r.from.id} ${r.from.name ?? ''}`.trim())}</li>{/each}</ul>
-				<p class="hint">{ask.blocked && !ask.names.length ? c.places.blockedHint : c.places.hint}</p>
+			{#if technical}
+				{#if ask.blocked}<p data-testid="places-blocked">{c.places.blocked(ask.blocked.names.join(', '), ask.blocked.why)}</p>{/if}
+				{#if ask.names.length}<p>{c.places.down(ask.names.join(', '))}</p>{/if}
+				{#if ask.plan}
+					<ul>{#each ask.plan.replaced as r (r.from.id)}<li>{r.to ? c.places.instead(`${r.from.id} ${r.from.name ?? ''}`.trim(), `${r.to.id} ${r.to.name}${r.to.place ? `, ${r.to.place}` : ''}`) : c.places.none(`${r.from.id} ${r.from.name ?? ''}`.trim())}</li>{/each}</ul>
+					<p class="hint">{ask.blocked && !ask.names.length ? c.places.blockedHint : c.places.hint}</p>
+				{:else}
+					<p class="hint">{c.places.noReplacement}</p>
+				{/if}
 			{:else}
-				<p class="hint">{c.places.noReplacement}</p>
+				<!-- Standard: what it means and what can be done, without provider numbers. -->
+				{#if ask.blocked}<p data-testid="places-blocked">{plain.places.blocked(ask.blocked.names.length)}</p>{/if}
+				{#if ask.names.length}<p>{plain.places.down(ask.names.length)}</p>{/if}
+				<p>{ask.plan ? plain.places.replace : plain.places.noReplacement}</p>
 			{/if}
 			{#if ask.blocked && !ask.names.length}
 				{#if ask.plan}<button class="sec" onclick={k.acceptPlaces} disabled={k.busy} data-testid="places-accept">{c.places.acceptOnly}</button>{/if}
@@ -146,6 +167,8 @@
 		ownImage={profile.ownImage ?? null}
 		imageHash={profile.rootfsItemHash ?? null}
 		plain={BUILDER?.plain ?? null}
+		texts={firstT}
+		simple={!technical}
 		onminimize={() => (k.ceremony = { ...ceremony, minimized: true })}
 		onexpand={() => (k.ceremony = { ...ceremony, minimized: false })}
 		oncertificate={(show) => (k.ceremony = !show && ceremony.only ? null : { ...ceremony, certificate: show })}
@@ -226,23 +249,41 @@
 	{#if phase === 'off' && k.gap}
 		<div class="alert" data-testid="restore-gap">
 			<p>
-				{#if k.gap === 'missing'}{c.gap.missing(k.known?.slice(-12) ?? '', k.lastGood?.pieceCid === k.known && k.lastGood?.at ? c.dated(format.dateTime(k.lastGood.at, undefined, $lang)) : '', Boolean(k.chosenBackup))}
+				{#if !technical}{k.gap === 'missing' ? plain.restore.gapMissing(Boolean(k.chosenBackup)) : plain.restore.gapOlder}
+				{:else if k.gap === 'missing'}{c.gap.missing(k.known?.slice(-12) ?? '', k.lastGood?.pieceCid === k.known && k.lastGood?.at ? c.dated(format.dateTime(k.lastGood.at, undefined, $lang)) : '', Boolean(k.chosenBackup))}
 				{:else}{c.gap.older(k.known?.slice(-12) ?? '')}{/if}
 				{c.gap.later}
 			</p>
 			<label class="check"><input type="checkbox" data-testid="restore-gap-accept" checked={!k.gapOpen} onchange={(e) => (k.gapAccepted = e.currentTarget.checked ? k.gapKey : '')} /> <span>{c.gap.accept}</span></label>
 		</div>
 	{/if}
+	<!-- From v0.1 (#368), in both views: the newest backup may be an empty Paperless's, and an empty start must not bury the real ones. -->
+	{#if phase === 'off' && k.tinyNewest && (k.choice === 'latest' || k.choice === 'own')}
+		<div class="alert" data-testid="tiny-newest">
+			{#if technical}<p>{c.advanced.tinyNewest(backupSize(k.tinyNewest.newest.size), backupSize(k.tinyNewest.before.size), k.tinyNewest.before.pieceCid.slice(-12))}</p>
+			{:else}
+				<p>{s.tinyNewest(backupSize(k.tinyNewest.newest.size), backupSize(k.tinyNewest.before.size))}</p>
+				<button class="sec" onclick={ontechnical} data-testid="v2-choose-backup">{s.chooseInTechnical}</button>
+			{/if}
+		</div>
+	{/if}
+	{#if phase === 'off' && !k.missing.length && k.choice === 'empty' && k.backups?.length}
+		<div class="alert" data-testid="empty-over-backups">
+			<p>{c.advanced.emptyOverBackups(k.backups.length)}</p>
+			<label class="check"><input type="checkbox" bind:checked={k.freshConfirmed} data-testid="empty-fresh-confirm" /> <span>{c.advanced.emptyFresh}</span></label>
+			{#if !technical}<button class="sec" onclick={ontechnical} data-testid="v2-choose-backup-empty">{s.chooseInTechnical}</button>{/if}
+		</div>
+	{/if}
 	{#if phase === 'off' && k.choice === 'any' && k.chosenBackup}
 		<div class="alert" data-testid="restore-unmarked">
-			<p>{c.unmarked.text(tail(k.chosenBackup.pieceCid), k.whenOf(k.chosenBackup))}</p>
+			<p>{technical ? c.unmarked.text(tail(k.chosenBackup.pieceCid), k.whenOf(k.chosenBackup)) : plain.restore.unmarked(dateOf(k.chosenBackup))}</p>
 			<label class="check"><input type="checkbox" data-testid="restore-unmarked-accept" checked={!k.unmarkedOpen} onchange={(e) => (k.unmarkedAccepted = e.currentTarget.checked ? (k.chosenBackup?.pieceCid ?? '') : '')} /> <span>{c.unmarked.accept}</span></label>
 		</div>
 	{/if}
 
 	<!-- The panel of lights for a start, a stop and an erase, in both views; it stays once a stop is over. -->
-	{#if k.startShown}<StartPanel rows={k.panel} t={k.panelT} times={technical ? k.panelTook : {}} total={technical ? k.panelTotal : ''} />{/if}
-	{#if k.stopShown}<StartPanel rows={k.panel} t={k.panelShownT} times={technical ? k.panelTook : {}} total={technical ? k.panelTotal : ''} testid="stop-panel" />{/if}
+	{#if k.startShown}<StartPanel rows={k.panel} t={startPanelT} times={technical ? k.panelTook : {}} total={technical ? k.panelTotal : ''} compact={!technical} />{/if}
+	{#if k.stopShown}<StartPanel rows={k.panel} t={stopPanelT} times={technical ? k.panelTook : {}} total={technical ? k.panelTotal : ''} compact={!technical} testid="stop-panel" />{/if}
 	{#if technical && k.progress}<p class="tline" data-testid="progress">{k.progress} …</p>{/if}
 
 	{#if phase === 'running'}
@@ -340,7 +381,7 @@
 			<!-- The answer people look for first: when the documents were last safe. -->
 			<p class="good" class:stale={k.goodStale} data-testid="last-good-backup">{#if k.lastGood}{k.fromStop ? c.simple.lastAtStop : c.simple.lastGood}: <strong>{k.goodWhen(k.lastGood.at)}</strong>{k.lastGood.copies ? ` · ${c.simple.copies(k.lastGood.copies)}` : ''}{#if k.newerOnChain}<br /><span data-testid="newer-on-chain">{c.simple.newerOnChain(c.simple.copies(k.backups?.[0]?.copies.length ?? 0))}</span>{/if}{:else}{c.simple.noneKnown}{/if}</p>
 			{#if phase === 'running' && !k.restoreFailed}
-				<BackupNow {master} {profile} known={k.lastGood} disabled={k.busy || k.stopChecking} guard={k.checkPlacesThen} onbusy={(b) => (k.backingUp = b)} ongood={k.rememberGood} />
+				<BackupNow {master} {profile} known={k.lastGood} disabled={k.busy || k.stopChecking} guard={k.checkPlacesThen} onbusy={(b) => (k.backingUp = b)} ongood={k.rememberGood} texts={backupNowT} simple={!technical} />
 			{:else if phase !== 'running'}
 				<p class="hint" data-testid="v2-backup-only-running">{x.backupArea.onlyRunning}</p>
 			{/if}
