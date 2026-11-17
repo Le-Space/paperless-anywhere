@@ -26,29 +26,31 @@ export const nodeBlockedReason = (hash) => BLOCKED_NODES[String(hash ?? '').toLo
 /**
  * How long a node that refused a start for another reason (the allocation
  * refused, not "no SEV-SNP") is left out: it may have been full or restarting.
+ * The same for a node where the VM could not seal its data area (`dataArea`,
+ * paperless-data-disk): its disk may have been short of room.
  */
 export const REFUSED_PAUSE_MS = 24 * 60 * 60 * 1000;
 
 /**
- * @typedef {{ hash: string, reason: 'noSevSnp' | 'refused', at: number }} UnsuitableNode
+ * @typedef {{ hash: string, reason: 'noSevSnp' | 'refused' | 'dataArea', at: number }} UnsuitableNode
  * A node this vault saw refuse a start, kept in the profile (`unsuitableNodes`).
  */
 
 /**
  * The nodes this profile leaves out: those it saw refuse SEV-SNP, and for a
- * day those that refused the allocation otherwise.
+ * day those that refused the allocation otherwise or failed the data area.
  * @param {Record<string, any> | null | undefined} profile @param {number} [now]
  * @returns {Set<string>}
  */
 export function avoidedNodes(profile, now = Date.now()) {
 	/** @type {UnsuitableNode[]} */
 	const list = Array.isArray(profile?.unsuitableNodes) ? profile.unsuitableNodes : [];
-	return new Set(list.filter((n) => n?.hash && (n.reason !== 'refused' || now - Number(n.at ?? 0) < REFUSED_PAUSE_MS)).map((n) => String(n.hash).toLowerCase()));
+	return new Set(list.filter((n) => n?.hash && ((n.reason !== 'refused' && n.reason !== 'dataArea') || now - Number(n.at ?? 0) < REFUSED_PAUSE_MS)).map((n) => String(n.hash).toLowerCase()));
 }
 
 /**
  * The profile with `hash` noted as unsuitable (replacing an earlier note of it).
- * @param {Record<string, any>} profile @param {string} hash @param {'noSevSnp' | 'refused'} reason @param {number} [at]
+ * @param {Record<string, any>} profile @param {string} hash @param {'noSevSnp' | 'refused' | 'dataArea'} reason @param {number} [at]
  */
 export function noteUnsuitable(profile, hash, reason, at = Date.now()) {
 	const h = String(hash).toLowerCase();

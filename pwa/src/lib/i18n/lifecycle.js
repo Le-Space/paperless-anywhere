@@ -21,7 +21,25 @@ export const life = {
 			restoreNeedsOwnImage: 'Eine Sicherung wird nur in dein eigenes Image wiederhergestellt. Baue zuerst dein eigenes Image (Einrichtung, Schritt Image) oder starte ohne Sicherung.',
 			startGone: (/** @type {string} */ status, /** @type {string[]} */ missing) =>
 				`Der unterbrochene Start ist bei Aleph ${status === 'rejected' ? 'abgelehnt worden' : 'nicht mehr da'}${missing.length ? ` (Aleph kennt ${missing.length === 1 ? 'dieses Image' : 'diese Teile'} nicht mehr: ${missing.join(', ')})` : ''}. Er ist verworfen; du kannst neu starten.`,
-			dataDiskFailed: (/** @type {string} */ reason) => `Die VM konnte ihre verschlüsselte Datenplatte nicht anlegen (${reason}); Paperless startet darauf nicht. Die VM unter „Meine VMs“ löschen und neu starten.`,
+			dataDiskFailed: (/** @type {string} */ reason) => `Der versiegelte Datenbereich ist auf diesem Knoten gescheitert (${reason}); Paperless-ngx startet dort nicht.`,
+			addressFailed: (/** @type {string} */ step) =>
+				`Die feste Adresse ist bei diesem Start gescheitert: ${step === 'dns' ? 'die VM konnte ihren Namen nicht bei Cloudflare eintragen (DNS-Token prüfen)' : step === 'data-area' ? 'der versiegelte Datenbereich ist gescheitert' : 'sie hat kein Zertifikat bekommen'}. Die VM läuft weiter und kostet; unter „Meine VMs“ kannst du sie löschen und neu starten.`,
+			startStuck: (/** @type {string} */ step, /** @type {number} */ minutes) =>
+				`${
+					{
+						silent: `Die VM antwortet seit ${minutes} Minuten nicht, weder unter der festen Adresse noch unter ihrem 2n6-Namen.`,
+						silentOne: `Die VM antwortet seit ${minutes} Minuten nicht.`,
+						'data-area': `Die VM legt seit ${minutes} Minuten ihren versiegelten Datenbereich an.`,
+						dns: `Die feste Adresse wird seit ${minutes} Minuten bei Cloudflare eingetragen.`,
+						certificate: `Die feste Adresse wartet seit ${minutes} Minuten auf das Zertifikat.`,
+						'restore-download': `Die Sicherung wird seit ${minutes} Minuten geladen.`,
+						'restore-import': `Die Sicherung wird seit ${minutes} Minuten eingespielt.`,
+						images: `Die Programme von Paperless-ngx werden seit ${minutes} Minuten geladen.`,
+						containers: `Paperless-ngx startet seit ${minutes} Minuten nicht.`,
+						paperless: `Paperless-ngx antwortet seit ${minutes} Minuten nicht.`,
+						address: `Paperless-ngx läuft, aber die feste Adresse antwortet diesem Browser seit ${minutes} Minuten nicht.`
+					}[step] ?? `Der Start wartet seit ${minutes} Minuten.`
+				} Die App wartet nicht länger; die VM läuft weiter und kostet. „Noch einmal“ schaut wieder nach, oder lösche die VM unter „Meine VMs“.`,
 			noReason: 'ohne Angabe',
 			noVm: 'Es läuft keine VM.',
 			noAttestation: 'Die Prüfung hat kein Ergebnis geliefert.',
@@ -57,6 +75,18 @@ export const life = {
 			unlocked: 'entsperrt',
 			starting: 'Paperless startet',
 			startingPhase: (/** @type {string} */ phase) => `Paperless startet (${phase})`,
+			waiting: {
+				'data-area': 'Die VM legt ihren versiegelten Datenbereich an',
+				dns: 'Die feste Adresse wird bei Cloudflare eingetragen',
+				certificate: 'Feste Adresse wartet auf das Zertifikat',
+				'restore-download': 'Die Sicherung wird geladen und entschlüsselt',
+				'restore-import': 'Die Sicherung wird in Paperless-ngx eingespielt',
+				images: 'Die Programme von Paperless-ngx werden geladen',
+				containers: 'Paperless-ngx wird gestartet',
+				paperless: 'Paperless-ngx startet',
+				address: 'Paperless-ngx läuft; die feste Adresse antwortet noch nicht'
+			},
+			viaOther: (/** @type {string} */ what) => `${what} (Stand über den 2n6-Namen der VM, die feste Adresse antwortet noch nicht)`,
 			passphraseAgain: 'Noch keine Antwort der VM: Passphrase erneut übergeben',
 			passphraseAgainFailed: (/** @type {string} */ reason) => `Erneute Übergabe fehlgeschlagen: ${reason}`,
 			stop: 'Stopp anfordern (letzte Sicherung)',
@@ -139,7 +169,25 @@ export const life = {
 			restoreNeedsOwnImage: 'A backup is restored only into your own image. Build your own image first (setup, image step) or start without a backup.',
 			startGone: (/** @type {string} */ status, /** @type {string[]} */ missing) =>
 				`Aleph ${status === 'rejected' ? 'rejected' : 'no longer has'} the interrupted start${missing.length ? ` (Aleph no longer knows ${missing.length === 1 ? 'this image' : 'these parts'}: ${missing.join(', ')})` : ''}. It was dropped; you can start again.`,
-			dataDiskFailed: (/** @type {string} */ reason) => `The VM could not create its encrypted data disk (${reason}); Paperless does not start on that. Delete the VM under “My VMs” and start again.`,
+			dataDiskFailed: (/** @type {string} */ reason) => `The sealed data area failed on this node (${reason}); Paperless-ngx does not start there.`,
+			addressFailed: (/** @type {string} */ step) =>
+				`The fixed address failed on this start: ${step === 'dns' ? 'the VM could not enter its name at Cloudflare (check the DNS token)' : step === 'data-area' ? 'the sealed data area failed' : 'it got no certificate'}. The VM runs on and costs; under “My VMs” you can delete it and start again.`,
+			startStuck: (/** @type {string} */ step, /** @type {number} */ minutes) =>
+				`${
+					{
+						silent: `The VM has not answered for ${minutes} minutes, neither at the fixed address nor at its 2n6 name.`,
+						silentOne: `The VM has not answered for ${minutes} minutes.`,
+						'data-area': `The VM has been creating its sealed data area for ${minutes} minutes.`,
+						dns: `The fixed address has been entered at Cloudflare for ${minutes} minutes.`,
+						certificate: `The fixed address has been waiting for its certificate for ${minutes} minutes.`,
+						'restore-download': `The backup has been downloading for ${minutes} minutes.`,
+						'restore-import': `The backup has been importing for ${minutes} minutes.`,
+						images: `Paperless-ngx's programs have been loading for ${minutes} minutes.`,
+						containers: `Paperless-ngx has not started for ${minutes} minutes.`,
+						paperless: `Paperless-ngx has not answered for ${minutes} minutes.`,
+						address: `Paperless-ngx runs, but the fixed address has not answered this browser for ${minutes} minutes.`
+					}[step] ?? `The start has been waiting for ${minutes} minutes.`
+				} The app waits no longer; the VM runs on and costs. “Try again” looks again, or delete the VM under “My VMs”.`,
 			noReason: 'no reason given',
 			noVm: 'No VM is running.',
 			noAttestation: 'The check returned no result.',
@@ -175,6 +223,18 @@ export const life = {
 			unlocked: 'unlocked',
 			starting: 'Paperless is starting',
 			startingPhase: (/** @type {string} */ phase) => `Paperless is starting (${phase})`,
+			waiting: {
+				'data-area': 'The VM is creating its sealed data area',
+				dns: 'The fixed address is being entered at Cloudflare',
+				certificate: 'The fixed address is waiting for its certificate',
+				'restore-download': 'The backup is being downloaded and decrypted',
+				'restore-import': 'The backup is being imported into Paperless-ngx',
+				images: "Paperless-ngx's programs are loading",
+				containers: 'Paperless-ngx is being started',
+				paperless: 'Paperless-ngx is starting',
+				address: 'Paperless-ngx runs; the fixed address does not answer yet'
+			},
+			viaOther: (/** @type {string} */ what) => `${what} (as the VM's 2n6 name reports; the fixed address does not answer yet)`,
 			passphraseAgain: 'No answer from the VM yet: handing over the passphrase again',
 			passphraseAgainFailed: (/** @type {string} */ reason) => `Handing it over again failed: ${reason}`,
 			stop: 'Requesting the stop (last backup)',

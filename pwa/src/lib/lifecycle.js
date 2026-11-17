@@ -14,6 +14,7 @@ import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
 import { loadAttestWasm } from './attest-wasm-load.js';
 import { ownImageVerified, runsOwnImage } from './own-image-check.js';
 import { answeringCopies } from './restore-reach.js';
+import { DataAreaFailedError, FIRST_LOOK_FIXED_MS, watchStart } from './start-watch.js';
 import { placedConfig } from './providers.js';
 import { pinnedTrustedExecution } from './runtime-pin.js';
 import { alephPrivateKey, backupMarkKey, backupPrivateKey, pieceMark, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
@@ -137,12 +138,6 @@ export async function confirmStopBackup(status, { onChain, before = null, known 
 // Loaded once per page, again on a broken connection (attest-wasm-load.js).
 const loadWasm = () => loadAttestWasm();
 
-// When to hand the secrets over again if the status page has not answered
-// yet (normally it answers 2–6 minutes after the unlock, once the certificate
-// is there), and when to give up.
-const UNLOCK_AGAIN_AFTER_MS = [5 * 60_000, 12 * 60_000];
-const READY_TIMEOUT_MS = 20 * 60_000;
-const FIRST_LOOK_FIXED_MS = 90_000;
 
 async function until(what, fn, { tries = 60, delayMs = 5000 } = {}) {
 	for (let i = 0; i < tries; i++) {
@@ -598,8 +593,13 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 			sign: (payload) => app.signMessage({ message: payload }),
 			onProgress: ({ detail, phase }) => onProgress({ step: 'unlock', detail, phase })
 		});
-	// A resumed start may find the VM unlocked already: its status page answers.
-	const already = await vmStatus(host, statusToken(master)).catch(() => null);
+	// A resumed start may find the VM unlocked already: its status page answers
+	// (with a fixed address perhaps only over the 2n6 name, start-watch.js).
+	const fixed = Boolean(profile.dnsToken && own);
+	const twoN6 = fixed ? () => hostname(instanceHash) : null;
+	const readStatus = (/** @type {string} */ h) => vmStatus(h, statusToken(master));
+	let already = await readStatus(host).catch(() => null);
+	if (!already?.phase && twoN6) already = await twoN6().then((h) => (h ? readStatus(h) : null)).catch(() => null);
 	// What the attestation of this start confirmed, for the evidence view; a
 	// resumed start that finds the VM unlocked has checked nothing itself.
 	/** @type {import('./evidence.js').Attestation | null} */
@@ -620,35 +620,23 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	// app attests and hands the secrets over again. A VM that is already up
 	// is not affected by that.
 	onProgress({ step: 'ready', detail: tr().life.progress.starting });
-	const unlockedAt = Date.now();
-	// The fixed name exists only once the VM has set its records; asked
-	// earlier, a wildcard in the zone answers with another address, and the
-	// browser keeps that for minutes (2026-10-31: the first answer after
-	// 529 s). The images take longer than this anyway.
-	if (profile.dnsToken && own) await sleep(FIRST_LOOK_FIXED_MS);
-	const again = [...UNLOCK_AGAIN_AFTER_MS];
-	let ready = null;
-	let answered = false;
-	while (!ready) {
-		if (Date.now() - unlockedAt > READY_TIMEOUT_MS) throw new Error('Paperless: no answer in time');
-		const status = await vmStatus(host, statusToken(master)).catch(() => null);
-		if (status?.phase) {
-			answered = true;
-			onProgress({ step: 'ready', detail: tr().life.progress.startingPhase(status.phase), status });
-			// A failed restore is final too: Paperless runs (empty), and says why.
-			if (status.phase === 'ready' || (status.phase === 'restore-failed' && status.paperless)) ready = status;
-			// The image refuses to run Paperless without its sealed data area.
-			if (status.phase === 'data-disk-failed') throw new Error(tr().life.errors.dataDiskFailed(status.dataDisk?.reason ?? tr().life.errors.noReason));
-		}
-		if (!ready && !answered && again.length && Date.now() - unlockedAt > again[0]) {
-			again.shift();
-			onProgress({ step: 'ready', detail: tr().life.progress.passphraseAgain });
-			await unlock()
-				.then((unlocked) => (attestation = kept(unlocked) ?? attestation))
-				.catch((e) => onProgress({ step: 'ready', detail: tr().life.progress.passphraseAgainFailed(e instanceof Error ? e.message : String(e)) }));
-		}
-		if (!ready) await sleep(10_000);
-	}
+	// With a fixed address, the 2n6 name while the fixed one does not answer
+	// (start-watch.js); the fixed name is asked only after FIRST_LOOK_FIXED_MS.
+	const ready = await watchStart({
+		host,
+		alternate: twoN6,
+		read: readStatus,
+		onProgress,
+		firstLookMs: fixed ? FIRST_LOOK_FIXED_MS : 0,
+		unlockAgain: () => unlock().then((unlocked) => {
+			attestation = kept(unlocked) ?? attestation;
+		})
+	}).catch((e) => {
+		// The node could not seal the data area: said with the node, so the
+		// card notes it and offers a start on another one.
+		if (e instanceof DataAreaFailedError) throw Object.assign(e, { crnHash: starting.crnHash, instanceHash, payer });
+		throw e;
+	});
 	// Whether the VM sealed its data area with a key of its own (image paperless-data-disk).
 	const dataDisk = ready.dataDisk?.status === 'encrypted' ? 'encrypted' : ready.dataDisk ? 'plain' : 'unknown';
 	return { instanceHash, crnHash: starting.crnHash, payer, host, trustedExecution, dataDisk, ...(attestation ? { attestation } : {}), ...(ready.phase === 'restore-failed' ? { restore: ready.restore } : Number(ready.restore?.superusers) > 0 ? { restore: { status: 'done', superusers: Number(ready.restore.superusers) } } : {}) };
