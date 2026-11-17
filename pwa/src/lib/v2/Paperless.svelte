@@ -35,14 +35,14 @@
 	/**
 	 * @type {{
 	 *   master: Uint8Array, technical: boolean, area: string, version?: number, reach?: import('$lib/backup-status.js').Level,
-	 *   onchange?: () => void, onsetup?: () => void, ontechnical?: () => void, onpackage?: () => void, onmissing?: (missing: string[]) => void,
+	 *   onchange?: () => void, onsetup?: () => void, onpackage?: () => void, onmissing?: (missing: string[]) => void,
 	 *   onglance?: (g: any) => void, onbusy?: (busy: boolean) => void, oncopies?: (c: any) => void,
 	 *   confirm: (q: { title: string, text: string, yes: string, no: string, danger?: boolean }) => Promise<boolean>,
 	 *   lights?: import('svelte').Snippet
 	 * }}
-	 * ontechnical: switches to the technical view (where a backup can be chosen); confirm: the shell's dialog; lights: the two backup lights, drawn at the top of "Sicherung".
+	 * confirm: the shell's dialog; lights: the two backup lights, drawn at the top of "Sicherung".
 	 */
-	let { master, technical, area, version = 0, reach = 'unknown', onchange = () => {}, onsetup = () => {}, ontechnical = () => {}, onpackage = () => {}, onmissing = () => {}, onglance = () => {}, onbusy = () => {}, oncopies = () => {}, confirm, lights } = $props();
+	let { master, technical, area, version = 0, reach = 'unknown', onchange = () => {}, onsetup = () => {}, onpackage = () => {}, onmissing = () => {}, onglance = () => {}, onbusy = () => {}, oncopies = () => {}, confirm, lights } = $props();
 
 	const x = $derived($t.v2);
 	const s = $derived($t.v2.start);
@@ -73,6 +73,8 @@
 	};
 
 	let copied = $state('');
+	// "Standard": the list of the last backups, opened on request.
+	let listOpen = $state(false);
 	async function copyPassword() {
 		try {
 			await navigator.clipboard.writeText(k.adminPassword);
@@ -227,6 +229,19 @@
 				{:else if profile.ageIdentity}
 					<p class="with" data-testid="v2-starts-with">{k.chosenBackup ? s.withBackup(dateOf(k.chosenBackup)) : s.empty}</p>
 					{#if technical && k.chosenBackup}<p class="tline" data-testid="v2-starts-with-tech">Piece …{tail(k.chosenBackup.pieceCid)}{k.sizePart(k.chosenBackup)}, {c.advanced.copiesAt(k.chosenBackup.copies.length, k.wherePlaces(k.chosenBackup))}</p>{/if}
+					{#if !technical && k.backups?.length}
+						<!-- "Standard" chooses too: the last backups by age and size, without ids. -->
+						<button class="lnk" aria-expanded={listOpen} onclick={() => (listOpen = !listOpen)} data-testid="v2-other-backup">{listOpen ? s.hideList : s.otherBackup}</button>
+						{#if listOpen}
+							<fieldset class="restore" data-testid="v2-backup-list">
+								<legend>{s.listTitle}</legend>
+								{#each k.backups.slice(0, 12) as b, i (b.pieceCid)}
+									<label><input type="radio" name="v2-backup-pick" value={b.pieceCid} checked={k.chosenBackup?.pieceCid === b.pieceCid} onchange={() => k.pickBackup(b.pieceCid)} data-testid="v2-backup-pick-{i}" />
+										<span>{s.nth(i + 1)}{dateOf(b) ? ` ${dateOf(b)}` : ''} · {backupSize(b.size) || s.sizeUnknown} · {c.simple.copies(b.copies.length)}{k.marked(b) ? '' : ` · ${s.notConfirmed}`}</span></label>
+								{/each}
+							</fieldset>
+						{/if}
+					{/if}
 				{/if}
 			{/if}
 			{#if BUILDER && k.image.buildsAtStart}<p class="hint" data-testid="first-build">{s.firstBuild}</p>{/if}
@@ -258,23 +273,21 @@
 		</div>
 	{/if}
 	<!-- From v0.1 (#368), in both views: the newest backup may be an empty Paperless's, and an empty start must not bury the real ones. -->
-	{#if phase === 'off' && k.tinyNewest && (k.choice === 'latest' || k.choice === 'own')}
+	{#if phase === 'off' && k.tinyNewest && k.choice !== 'pick'}
+		{@const before = k.tinyNewest.before}
 		<div class="alert" data-testid="tiny-newest">
-			{#if technical}<p>{c.advanced.tinyNewest(backupSize(k.tinyNewest.newest.size), backupSize(k.tinyNewest.before.size), k.tinyNewest.before.pieceCid.slice(-12))}</p>
-			{:else}
-				<p>{s.tinyNewest(backupSize(k.tinyNewest.newest.size), backupSize(k.tinyNewest.before.size))}</p>
-				<button class="sec" onclick={ontechnical} data-testid="v2-choose-backup">{s.chooseInTechnical}</button>
-			{/if}
+			<p>{technical ? c.advanced.tinyNewest(backupSize(k.tinyNewest.newest.size), backupSize(before.size), before.pieceCid.slice(-12)) : s.tinyNewest(backupSize(k.tinyNewest.newest.size), backupSize(before.size))}</p>
+			<button class="sec" onclick={() => k.pickBackup(before.pieceCid)} data-testid="tiny-pick-before">{c.advanced.pickBefore}</button>
 		</div>
 	{/if}
 	{#if phase === 'off' && !k.missing.length && k.choice === 'empty' && k.backups?.length}
 		<div class="alert" data-testid="empty-over-backups">
 			<p>{c.advanced.emptyOverBackups(k.backups.length)}</p>
 			<label class="check"><input type="checkbox" bind:checked={k.freshConfirmed} data-testid="empty-fresh-confirm" /> <span>{c.advanced.emptyFresh}</span></label>
-			{#if !technical}<button class="sec" onclick={ontechnical} data-testid="v2-choose-backup-empty">{s.chooseInTechnical}</button>{/if}
+			{#if !technical}<button class="sec" onclick={() => (listOpen = true)} data-testid="v2-choose-backup-empty">{s.otherBackup}</button>{/if}
 		</div>
 	{/if}
-	{#if phase === 'off' && k.choice === 'any' && k.chosenBackup}
+	{#if phase === 'off' && k.chosenUnmarked && k.chosenBackup}
 		<div class="alert" data-testid="restore-unmarked">
 			<p>{technical ? c.unmarked.text(tail(k.chosenBackup.pieceCid), k.whenOf(k.chosenBackup)) : plain.restore.unmarked(dateOf(k.chosenBackup))}</p>
 			<label class="check"><input type="checkbox" data-testid="restore-unmarked-accept" checked={!k.unmarkedOpen} onchange={(e) => (k.unmarkedAccepted = e.currentTarget.checked ? (k.chosenBackup?.pieceCid ?? '') : '')} /> <span>{c.unmarked.accept}</span></label>
@@ -364,6 +377,17 @@
 					{:else if k.backups}<small>{c.advanced.noneOwn}</small>{:else}<small>{c.advanced.reading}</small>{/if}</span></label>
 				{#if k.split.other.length}
 					<label><input type="radio" bind:group={k.choice} value="any" /> <span>{c.advanced.restoreOther} ({tail(k.unmarkedPick(k.split.other).pieceCid)}{k.sizePart(k.unmarkedPick(k.split.other))}, {k.wherePlaces(k.unmarkedPick(k.split.other))}) <small>{c.advanced.otherHint(k.split.other.length)}</small></span></label>
+				{/if}
+				{#if k.backups?.length}
+					<label><input type="radio" bind:group={k.choice} value="pick" data-testid="restore-pick" /> <span>{c.advanced.pickOne}</span></label>
+					{#if k.choice === 'pick'}
+						<div class="picks" data-testid="backup-pick-list">
+							{#each k.backups.slice(0, 12) as b, i (b.pieceCid)}
+								<label><input type="radio" name="backup-pick" value={b.pieceCid} checked={k.pickedCid === b.pieceCid} onchange={() => (k.pickedCid = b.pieceCid)} data-testid="backup-pick-{i}" />
+									<span><small>…{tail(b.pieceCid)}{k.whenOf(b)}{k.sizePart(b)}{b.parts?.length > 1 ? `, ${c.advanced.parts(b.parts.length)}` : ''}, {c.advanced.copiesAt(b.copies.length, k.wherePlaces(b))}, {k.marked(b) ? c.advanced.sealYes : c.advanced.sealNo}</small></span></label>
+							{/each}
+						</div>
+					{/if}
 				{/if}
 				<label><input type="radio" bind:group={k.choice} value="empty" /> <span>{c.advanced.empty}</span></label>
 			</fieldset>
@@ -477,6 +501,7 @@
 	.tline { font-family: var(--mono); font-size: 0.85rem; color: var(--text-2); overflow-wrap: anywhere; margin: 0.4rem 0 0.6rem; }
 	.restore { border: 1px solid var(--line); border-radius: var(--radius-sm); margin: 0.5rem 0 0; padding: 0.5rem 0.75rem; }
 	.restore label { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.4rem 0; min-height: 2.75rem; }
+	.picks { margin: 0 0 0.3rem 1.6rem; }
 	.restore small { color: var(--text-2); font-family: var(--mono); overflow-wrap: anywhere; }
 	.log pre { overflow-x: auto; font-size: 0.8rem; }
 	.log, .part { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.8rem 1rem; margin: 0 0 0.9rem; }
