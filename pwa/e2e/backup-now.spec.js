@@ -127,6 +127,27 @@ test.describe('German', () => {
 		await expect(page.getByTestId('backup-summary')).toHaveText(`Zuletzt geprüft ${hhmm(checked)}, keine Änderung · letzte Sicherung ${hhmm(earlier)} · nächste Prüfung ${hhmm(next)}`);
 	});
 
+	test('an image that backs up after a quiet half hour says when the next backup is due, or that none is', async ({ page }) => {
+		test.setTimeout(60_000);
+		const last = new Date(Date.now() - 2 * 3600_000);
+		const due = new Date(Date.now() + 4 * 3600_000);
+		/** @type {any} */
+		const schedule = { nextCheck: new Date(Date.now() + 600_000).toISOString(), everySeconds: 600, pending: true, nextBackup: due.toISOString(), quietSeconds: 1800, minSeconds: 6 * 3600 };
+		const { phrase } = await setUp(page, {
+			v: 2,
+			phase: 'ready',
+			paperless: true,
+			backup: { status: 'done', at: last.toISOString() },
+			lastBackup: { status: 'done', at: last.toISOString(), seconds: 410, backup: { name: 'paperless-made-up', date: last.toISOString(), requestedCopies: 2, complete: true, copies: [{ providerId: 1 }, { providerId: 2 }] } },
+			backupSchedule: schedule,
+			backupRequest: null
+		});
+		await open(page, phrase);
+		await expect(page.getByTestId('backup-next')).toHaveText(`nächste Sicherung frühestens ${hhmm(due)}`);
+		await expect(page.getByTestId('simple-backup')).toContainText('höchstens alle 6 Stunden');
+		await expect(page.getByTestId('simple-backup')).not.toContainText('Alle zwei Stunden');
+	});
+
 	test('while the VM backs up, the overview shows its progress; "Jetzt sichern" waits', async ({ page }) => {
 		test.setTimeout(60_000);
 		const { phrase } = await setUp(page, {
