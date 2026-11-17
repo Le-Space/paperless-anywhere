@@ -20,9 +20,14 @@ on:
   workflow_dispatch:
     inputs:
       link_domain:
-        description: Point paperless.le-space.de at this build (off for a test publish)
+        description: Point the domain chosen below at this build (off for a test publish)
         type: boolean
         default: false
+      site_domain:
+        description: The domain a dispatch links (a release always links paperless.le-space.de). v2 is the parallel address for testing the v0.2 interface.
+        type: choice
+        options: [paperless.le-space.de, v2.paperless.le-space.de]
+        default: paperless.le-space.de
       runner:
         description: Where the job runs ("aleph" is a self-hosted runner from relay-button's gh-runner; since the repository is public it starts only with --allow-public and is rarely needed)
         type: choice
@@ -50,7 +55,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SITE_DOMAIN: paperless.le-space.de
+  # A release has no inputs and always goes to the main domain.
+  SITE_DOMAIN: ${{ inputs.site_domain || 'paperless.le-space.de' }}
 
 jobs:
   build:
