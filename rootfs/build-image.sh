@@ -13,7 +13,7 @@ set -euo pipefail
 NODE_VERSION=v22.21.0
 NODE_SHA256=71a04f4b9144870c9407b8019fe912514229e50246bc706862eded3ac8e9025d
 BACKUP_TOOL_REPO=https://github.com/Le-Space/paperless-backup-filecoin.git
-BACKUP_TOOL_COMMIT=d4f99f12dab20c7cafb92c32b97deebca4a4da83
+BACKUP_TOOL_COMMIT=a06a0639a11303849823830bc1423aa7bc2d2001
 ESBUILD_VERSION=0.25.10
 
 # lego, for the fixed address's certificate over DNS (Debian's Caddy has no
@@ -97,7 +97,7 @@ install -D -m 644 "$here/files/paperless-status.service" "$root/etc/systemd/syst
 install -D -m 644 "$here/files/paperless-stop.service" "$root/etc/systemd/system/paperless-stop.service"
 install -D -m 644 "$here/files/paperless-forget-passphrase.service" "$root/etc/systemd/system/paperless-forget-passphrase.service"
 install -D -m 644 "$here/files/paperless-fixed-address.service" "$root/etc/systemd/system/paperless-fixed-address.service"
-for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-backup-loop paperless-net-hardening paperless-status paperless-stop paperless-period-end paperless-stack-up paperless-data-disk paperless-file-extents paperless-forget-passphrase paperless-fixed-address paperless-dns-records paperless-ssh-allowed paperless-require-sealed; do
+for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-backup-loop paperless-net-hardening paperless-status paperless-stop paperless-period-end paperless-stack-up paperless-data-disk paperless-file-extents paperless-forget-passphrase paperless-fixed-address paperless-dns-records paperless-ssh-allowed paperless-require-sealed paperless-dedup-key; do
   install -D -m 755 "$here/files/$script" "$root/usr/local/sbin/$script"
 done
 # paperless-restore checks every download host with it.

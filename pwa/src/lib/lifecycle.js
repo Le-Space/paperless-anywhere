@@ -16,7 +16,7 @@ import { ownImageVerified, runsOwnImage } from './own-image-check.js';
 import { answeringCopies } from './restore-reach.js';
 import { placedConfig } from './providers.js';
 import { pinnedTrustedExecution } from './runtime-pin.js';
-import { alephPrivateKey, backupMarkKey, backupPrivateKey, pieceMark, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
+import { alephPrivateKey, backupDedupKey, backupMarkKey, backupPrivateKey, pieceMark, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
 import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, creditsBalance, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
 import { paidUntil, periodEndChanged, periodEndPiece, periodEndSecret } from './period-end.js';
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
@@ -514,7 +514,11 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	// Binds backups to this vault: the VM marks each one it makes, and a
 	// restore takes only a backup with this vault's mark. Like the backups'
 	// other keys, only for a VM on this vault's own image.
-	if (own) secrets.backup_mark_key = backupMarkKey(master);
+	if (own) {
+		secrets.backup_mark_key = backupMarkKey(master);
+		// Names the files of incremental backups (snapshots), the same for every VM of this vault.
+		secrets.backup_dedup_key = backupDedupKey(master);
+	}
 	if (profile.backupConfig && !own) onProgress({ step: 'unlock', detail: tr().life.progress.publicNoBackups });
 	if (profile.backupConfig && own) {
 		// Through Le Space Credits: ask the service again (it may have a new

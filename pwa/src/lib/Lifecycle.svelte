@@ -315,7 +315,8 @@
 	const whenOf = (b) => (b && lastGood?.pieceCid === b.pieceCid && lastGood.at ? c.dated(format.dateTime(lastGood.at, undefined, $appLanguage)) : '');
 	const wherePlaces = (b) => b.copies.map((c) => c.place || tr().card.provider(c.providerId)).join(tr().card.and);
 	// Size, and the parts a large backup went up in: shown as one backup.
-	const sizeOf = (b) => [backupSize(b.size), b.parts?.length > 1 ? c.inParts(b.parts.length) : ''].filter(Boolean).join(' ');
+	// An incremental backup says which generation it belongs to: an addition restores with its baseline and the additions before it.
+	const sizeOf = (b) => [b.kind === 'snapshot' ? `${c.snapshotOf(b.gen.slice(0, 6), b.seq)},` : '', backupSize(b.size), b.parts?.length > 1 ? c.inParts(b.parts.length) : ''].filter(Boolean).join(' ');
 	const sizePart = (b) => (sizeOf(b) ? `, ${sizeOf(b)}` : '');
 	// The admin password is derived from the master secret; it is shown only on request.
 	let showPassword = $state(false);

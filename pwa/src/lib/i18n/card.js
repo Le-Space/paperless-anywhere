@@ -9,6 +9,7 @@ export const card = {
 		provider: (/** @type {string | number} */ id) => `Anbieter ${id}`,
 		and: ' und ',
 		inParts: (/** @type {number} */ n) => `in ${n} Teilen`,
+		snapshotOf: (/** @type {string} */ gen, /** @type {number} */ seq) => (seq === 0 ? `Grundsicherung ${gen}` : `Ergänzung ${seq} zu ${gen}`),
 		backupsUnreadable: 'Die Sicherungen ließen sich gerade nicht lesen.',
 		progress: {
 			packagePays: 'Le Space bezahlt die VM jetzt aus deinem Paket',
@@ -175,6 +176,7 @@ export const card = {
 		provider: (/** @type {string | number} */ id) => `provider ${id}`,
 		and: ' and ',
 		inParts: (/** @type {number} */ n) => `in ${n} parts`,
+		snapshotOf: (/** @type {string} */ gen, /** @type {number} */ seq) => (seq === 0 ? `baseline ${gen}` : `addition ${seq} to ${gen}`),
 		backupsUnreadable: 'The backups could not be read just now.',
 		progress: {
 			packagePays: 'Le Space now pays the VM from your package',
