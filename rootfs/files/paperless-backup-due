@@ -1,0 +1,129 @@
+#!/bin/sh
+# paperless-backup-due: is a scheduled backup due now, and is retention due?
+# Each AddPieces and each SchedulePieceRemovals costs a fee, far more than the
+# storage, so the VM backs up only when it is worth it and retains once a day.
+#
+#   paperless-backup-due backup [now]   reads Paperless's fingerprint on stdin
+#                                       (paperless-backup fingerprint); prints
+#                                       "due" or "wait" and writes when the next
+#                                       backup is due to backup-schedule.json
+#   paperless-backup-due retain [now]   prints "due" when the last retention ran
+#                                       a day ago or longer (or never), else "wait"
+#   paperless-backup-due retained [now] notes that retention ran now
+#
+# A scheduled backup is due when all three hold:
+#   - Paperless changed since the last backup: its fingerprint differs from the
+#     one the last complete backup (or the restore) recorded;
+#   - it has stayed quiet: the fingerprint has not changed for QUIET seconds
+#     (30 minutes), so a batch of scans or an afternoon of tagging is one backup;
+#   - the last backup started at least backup_config's schedule.minHours ago
+#     (default 6, a whole number from 1 to 24); after a failed one, at most
+#     RETRY seconds (two hours, the old rhythm), so a failure does not wait long.
+# "Jetzt sichern" and the stop's last backup do not ask: they back up at once.
+#
+# State on the encrypted disk ($PAPERLESS_LIB_DIR): backup-watch.json (the
+# fingerprint seen last and since when), backup-last.json (when the last backup
+# started and how it ended; paperless-backup writes it), retained.at (Unix
+# seconds of the last retention). Now is Unix seconds, for the tests.
+set -u
+dir="${PAPERLESS_RUN_DIR:-/run/paperless-anywhere}"
+lib="${PAPERLESS_LIB_DIR:-/var/lib/paperless-anywhere}"
+secrets="${PAPERLESS_SECRETS_DIR:-/tmp/secrets}"
+what="${1:-}"
+now="${2:-$(date +%s)}"
+case "$now" in ''|*[!0-9]*) echo "paperless-backup-due: now must be Unix seconds" >&2; exit 2 ;; esac
+DAY=86400
+
+case "$what" in
+  retain)
+    at="$(head -c 32 "$lib/retained.at" 2>/dev/null | tr -cd '0-9')"
+    if [ -z "$at" ] || [ "$now" -ge $((at + DAY)) ] || [ "$at" -gt "$now" ]; then echo due; else echo wait; fi
+    exit 0 ;;
+  retained)
+    printf '%s\n' "$now" > "$lib/retained.at.tmp" && mv "$lib/retained.at.tmp" "$lib/retained.at"
+    exit 0 ;;
+  backup) ;;
+  *) echo "usage: paperless-backup-due backup|retain|retained [now]" >&2; exit 2 ;;
+esac
+
+# The fingerprint goes through the environment: python3 reads its program
+# from stdin. Read first, on its own: dash (sh on Debian/Ubuntu) performs the
+# heredoc before a prefix assignment, which would then read the program.
+# The next look at Paperless: the loop asks every CHECK seconds.
+FINGERPRINT="$(head -c 4096)"
+export FINGERPRINT
+python3 - "$now" "$lib" "$dir" "$secrets/backup_config" "${CHECK_SECONDS:-600}" <<'PY'
+import json, os, sys
+from datetime import datetime, timezone
+
+now, lib, run, config_path, check = int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4], int(sys.argv[5])
+QUIET, RETRY, DEFAULT_HOURS = 1800, 7200, 6
+fp = os.environ.get("FINGERPRINT", "").strip()
+
+def load(path):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+def save(path, value):
+    with open(path + ".tmp", "w") as f:
+        json.dump(value, f)
+        f.write("\n")
+    os.replace(path + ".tmp", path)
+
+def iso(t):
+    return None if t is None else datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+hours = DEFAULT_HOURS
+cfg = load(config_path)
+if isinstance(cfg, dict) and isinstance(cfg.get("schedule"), dict):
+    h = cfg["schedule"].get("minHours")
+    if isinstance(h, int) and not isinstance(h, bool) and 1 <= h <= 24:
+        hours = h
+gap = hours * 3600
+
+try:
+    backed_up = open(os.path.join(lib, "backed-up.fingerprint")).read().strip()
+except OSError:
+    backed_up = ""
+
+watch = load(os.path.join(lib, "backup-watch.json"))
+if not isinstance(watch, dict) or not isinstance(watch.get("since"), int) or watch["since"] > now:
+    watch = None
+if fp:
+    if watch is None or watch.get("fingerprint") != fp:
+        # A loop that starts anew has not watched yet: quiet from now on.
+        watch = {"fingerprint": fp, "since": now}
+        save(os.path.join(lib, "backup-watch.json"), watch)
+
+last = load(os.path.join(lib, "backup-last.json"))
+last_at = last.get("at") if isinstance(last, dict) and isinstance(last.get("at"), int) and last["at"] <= now else None
+# A backup that failed, or one that never wrote how it ended (the VM went
+# down), is tried again sooner.
+failed = last_at is not None and last.get("status") not in ("done", "partial")
+
+# Unread (Paperless not up yet): nothing is due, and nothing is known.
+pending = bool(fp) and fp != backed_up
+next_backup = None
+if pending:
+    earliest = watch["since"] + QUIET
+    if last_at is not None:
+        earliest = max(earliest, last_at + (min(gap, RETRY) if failed else gap))
+    next_backup = earliest
+due = pending and now >= next_backup
+
+save(os.path.join(run, "backup-schedule.json"), {
+    "nextCheck": iso(now + check),
+    "everySeconds": check,
+    # When the next scheduled backup is due if Paperless stays quiet until
+    # then; null when nothing changed since the last backup.
+    "pending": pending,
+    "nextBackup": iso(next_backup),
+    "quietSince": iso(watch["since"]) if watch else None,
+    "quietSeconds": QUIET,
+    "minSeconds": gap,
+})
+print("due" if due else "wait")
+PY

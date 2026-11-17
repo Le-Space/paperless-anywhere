@@ -5,7 +5,8 @@
 # VM after their checks (remoteSigner).
 #
 #   check        back up if Paperless changed since the last backup or the restore
-#                (paperless-backup-loop runs this every two hours; stop runs it last)
+#                (paperless-backup-loop runs this when paperless-backup-due says
+#                a scheduled backup is due; stop runs it last)
 #   run          back up now
 #   fingerprint  print what "changed" compares (documents, trash, last change, labels)
 #
@@ -13,7 +14,9 @@
 #   /tmp/secrets/backup_config       paperless-backup-filecoin config.json: network,
 #                                    providers, ageRecipient (public), datasetMetadata,
 #                                    payer (the wallet the session key acts for, or
-#                                    Le Space's payer), and with Le Space Credits
+#                                    Le Space's payer), schedule.minHours (hours
+#                                    between scheduled backups, paperless-backup-due),
+#                                    and with Le Space Credits
 #                                    remoteSigner: { creditsUrl, product, account,
 #                                    payer, signer, tag, label }
 #   /tmp/secrets/backup_session_key  wallet path: a session key the wallet authorized
@@ -43,8 +46,8 @@
 #
 # No age identity is needed: backups are encrypted to ageRecipient. The session key
 # cannot delete pieces, so removing stays with the wallet; the tool's retention
-# plans after each complete backup and, with Le Space Credits, removes (see the
-# end). Outcome:
+# plans after a complete backup at most once a day and, with Le Space Credits,
+# removes (see the end). Outcome:
 # /run/paperless-anywhere/backup.json; the tool's log stays on the encrypted disk.
 # Exit 0: backed up (or unchanged); 2: "partial", fewer copies than requested;
 # anything else: failed, or "refused" after a failed restore (see below).
@@ -57,7 +60,7 @@ log_dir=/var/log/paperless-anywhere
 mkdir -p "$state_dir" "$lib" "$log_dir"
 chmod 700 "$lib" "$log_dir"
 cmd="${1:-check}"
-# One backup at a time: the two-hourly check and the stop's last backup.
+# One backup at a time: the scheduled check, a requested one and the stop's last backup.
 if [ "$cmd" != fingerprint ]; then
   exec 8>"$state_dir/backup.lock"
   flock 8
@@ -109,16 +112,50 @@ machine() {
 }
 fail() {
   echo "paperless-backup: $*" >&2
+  [ -n "${t0:-}" ] && last_backup failed
   status failed ",\"reason\":\"$(printf '%s' "$*" | tr -d '"\\\n' | cut -c1-200)\",\"log\":$(loglines 12)$(machine)"
   exit 1
 }
 
+# What "changed" compares; paperless-backup-loop reads it every ten minutes to
+# see whether Paperless changed and has stayed quiet since. Besides the
+# documents: a hash over the settings, mail accounts and rules, saved views,
+# custom fields and their values, storage paths, workflows, share links,
+# users (without their last login) and groups. A model this Paperless lacks
+# is left out, never a reason to fail.
 fingerprint() {
   paperless-manage shell -c '
 from documents.models import Document, Tag, Correspondent, DocumentType, Note
 from django.db.models import Max
-import json
+import hashlib, importlib, json
 d = Document.global_objects
+def settings_hash():
+    h = hashlib.sha256()
+    for mod, name, skip in (
+        ("paperless.models", "ApplicationConfiguration", ()),
+        ("documents.models", "UiSettings", ()),
+        ("documents.models", "SavedView", ()),
+        ("documents.models", "SavedViewFilterRule", ()),
+        ("documents.models", "CustomField", ()),
+        ("documents.models", "CustomFieldInstance", ()),
+        ("documents.models", "StoragePath", ()),
+        ("documents.models", "Workflow", ()),
+        ("documents.models", "WorkflowTrigger", ()),
+        ("documents.models", "WorkflowAction", ()),
+        ("documents.models", "ShareLink", ()),
+        ("paperless_mail.models", "MailAccount", ()),
+        ("paperless_mail.models", "MailRule", ()),
+        ("django.contrib.auth.models", "User", ("last_login",)),
+        ("django.contrib.auth.models", "Group", ()),
+    ):
+        try:
+            m = getattr(importlib.import_module(mod), name)
+            fields = [f.attname for f in m._meta.concrete_fields if f.attname not in skip]
+            for row in m.objects.order_by("pk").values_list(*fields):
+                h.update(repr((name, row)).encode())
+        except Exception:
+            h.update(("missing " + name).encode())
+    return h.hexdigest()[:32]
 print("FP" + json.dumps({
   "documents": d.filter(deleted_at__isnull=True).count(),
   "trash": d.filter(deleted_at__isnull=False).count(),
@@ -126,6 +163,7 @@ print("FP" + json.dumps({
   "notes": Note.objects.count(),
   "labels": [m.objects.count() for m in (Tag, Correspondent, DocumentType)],
   "labelIds": [m.objects.aggregate(m=Max("id"))["m"] for m in (Tag, Correspondent, DocumentType)],
+  "settings": settings_hash(),
 }, sort_keys=True))' 2>/dev/null | sed -n 's/^FP//p' | tail -1
 }
 
@@ -217,6 +255,12 @@ fi
 
 status running ",\"role\":\"$role\""
 t0=$(date +%s)
+# When this backup started and how it ended, for paperless-backup-due: the
+# next scheduled one waits schedule.minHours after it (after a failure, less).
+last_backup() {
+  printf '{"at":%s,"status":"%s"}\n' "$t0" "$1" > "$lib/backup-last.json.tmp" && mv "$lib/backup-last.json.tmp" "$lib/backup-last.json"
+}
+last_backup running
 oom0="$(oom_kills)"
 # What a run that failed left behind (its export folder, its zip, its sealed
 # file) goes first: it holds every document in the clear and takes the room
@@ -328,16 +372,20 @@ print("" if e.get("complete") is True and have >= want else f"{have} of {want}")
 if [ -n "$short" ]; then
   echo "paperless-backup: only $short copies" >&2
   case "$short" in
-    "0 of "*) status failed ",\"reason\":\"only $short copies reached the providers\",\"backup\":$entry,\"log\":$(loglines 12)$(machine)"; exit 1 ;;
+    "0 of "*) last_backup failed; status failed ",\"reason\":\"only $short copies reached the providers\",\"backup\":$entry,\"log\":$(loglines 12)$(machine)"; exit 1 ;;
   esac
+  last_backup partial
   status partial ",\"role\":\"$role\",\"reason\":\"only $short copies reached the providers\",\"backup\":$entry,\"seconds\":$(( $(date +%s) - t0 )),\"log\":$(loglines 12)"
   exit 2
 fi
 printf '%s\n' "$now" > "$lib/backed-up.fingerprint"
+last_backup done
 status done ",\"role\":\"$role\",\"backup\":$entry,\"seconds\":$(( $(date +%s) - t0 ))"
 echo "paperless-backup: done, $entry"
 
-# Retention, after a complete backup only: the tool keeps the last N and one
+# Retention, after a complete backup only, and at most once a day
+# (paperless-backup-due retain): each run schedules one removal per data set,
+# and each removal costs a fee. The tool keeps the last N and one
 # per day, week and month (backup_config's retention), the newest backup of
 # every data set, never the newest complete backup and never the one this VM
 # was restored from. With Le Space Credits it schedules the removal of the
@@ -345,10 +393,12 @@ echo "paperless-backup: done, $entry"
 # pieces: the tool only plans, and the wallet removes (the app says so). The
 # plan goes to retention.json, which the app shows. A failure here leaves the
 # backup as it is: it is logged, and the next complete backup tries again.
+[ "$(/usr/local/sbin/paperless-backup-due retain)" = due ] || exit 0
 protect="$(tr '\n' ' ' < "$lib/restored-from" 2>/dev/null)"
 if [ "$signing" = remote ]; then yes=--yes; else yes=; fi
 if RETAIN_PROTECT="$protect" RETAIN_REPORT="$state_dir/retention.json.tmp" node backup.mjs retain $yes >> "$log_dir/backup.log" 2>&1; then
   mv "$state_dir/retention.json.tmp" "$state_dir/retention.json"
+  /usr/local/sbin/paperless-backup-due retained
 else
   echo "paperless-backup: retention failed, see the backup log" >&2
   printf '{"failed":true,"at":"%s","log":%s}\n' "$(date -u +%FT%TZ)" "$(loglines 4)" > "$state_dir/retention.json"

@@ -1,10 +1,15 @@
 #!/bin/sh
-# paperless-backup-loop: every two hours, back up Paperless if it changed; and
-# a backup now when the app asks for one.
+# paperless-backup-loop: back up Paperless when it changed and has stayed
+# quiet, at most every few hours; and a backup now when the app asks for one.
+# Every CHECK seconds (ten minutes) it reads Paperless's fingerprint and asks
+# paperless-backup-due whether a scheduled backup is due: changed since the
+# last backup, unchanged for 30 minutes, and the last backup at least
+# backup_config's schedule.minHours ago (default 6). Each backup costs fees
+# per AddPieces call and piece, so a busy afternoon becomes one backup.
 # A plain loop instead of a .timer: the confidential guest has no systemd, and
 # its systemctl replacement ran the timer's oneshot service once and never
 # again (production, 2026-11-04: one check at 09:00, none at 11:00 or later).
-# First check 20 minutes after boot, as the timer did. paperless-backup takes a
+# First look 20 minutes after boot, as the timer did. paperless-backup takes a
 # lock, so a check, a requested backup and the stop's last backup never run at
 # the same time.
 #
@@ -14,18 +19,23 @@
 # the lock at that moment, or one finished since the request came, it runs
 # "check" (after it), so the same state is not uploaded twice. A stop's
 # backup still stops Paperless first, so a requested backup that runs then may
-# fail; the stop's own backup follows. The outcome goes to /run/paperless-anywhere/
-# backup-request.json, when the next check is due to backup-schedule.json
-# (paperless-status shows both to the app).
+# fail; the stop's own backup follows. Neither waits for the schedule, nor
+# does the last backup before the paid time ends (paperless-stop). The outcome
+# goes to /run/paperless-anywhere/backup-request.json, when the next look and
+# the next scheduled backup are due to backup-schedule.json (paperless-backup-due
+# writes it; paperless-status shows both to the app).
 set -u
 dir=/run/paperless-anywhere
 lib=/var/lib/paperless-anywhere
 mkdir -p "$dir" "$lib"
 chmod 700 "$lib"
-EVERY=7200
+CHECK=600
 FIRST=1200
 schedule() {
-  printf '{"nextCheck":"%s","everySeconds":%s}\n' "$(date -u -d "@$next" +%FT%TZ)" "$EVERY" > "$dir/backup-schedule.json.tmp" && mv "$dir/backup-schedule.json.tmp" "$dir/backup-schedule.json"
+  printf '{"nextCheck":"%s","everySeconds":%s,"pending":null,"nextBackup":null}\n' "$(date -u -d "@$next" +%FT%TZ)" "$CHECK" > "$dir/backup-schedule.json.tmp" && mv "$dir/backup-schedule.json.tmp" "$dir/backup-schedule.json"
+}
+due() {
+  printf '%s' "$1" | CHECK_SECONDS=$CHECK /usr/local/sbin/paperless-backup-due backup
 }
 request_status() {
   printf '{"status":"%s","mode":"%s","at":"%s"%s}\n' "$1" "$2" "$(date -u +%FT%TZ)" "${3:-}" > "$dir/backup-request.json.tmp" && mv "$dir/backup-request.json.tmp" "$dir/backup-request.json"
@@ -61,9 +71,13 @@ while :; do
     fi
   fi
   if [ "$(date +%s)" -ge "$next" ]; then
-    /usr/local/sbin/paperless-backup check || echo "paperless-backup-loop: the check failed; next try in two hours" >&2
-    next=$(( $(date +%s) + EVERY ))
-    schedule
+    fp="$(/usr/local/sbin/paperless-backup fingerprint)"
+    if [ "$(due "$fp")" = due ]; then
+      /usr/local/sbin/paperless-backup check || echo "paperless-backup-loop: the scheduled backup failed; paperless-backup-due says when it is tried again" >&2
+      # The schedule after it (nothing pending once it is backed up).
+      due "$fp" > /dev/null
+    fi
+    next=$(( $(date +%s) + CHECK ))
   fi
   sleep 5
 done
