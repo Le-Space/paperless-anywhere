@@ -21,6 +21,7 @@ import { pkg } from './package.js';
 import { buy } from './purchase.js';
 import { ownImage } from './own-image.js';
 import { setup } from './setup.js';
+import { v2 } from './v2.js';
 
 /** @typedef {'de' | 'en'} Lang */
 export const LANGS = /** @type {const} */ (['de', 'en']);
@@ -69,7 +70,8 @@ const AREAS = {
 	net,
 	ownImage,
 	pkg,
-	setup
+	setup,
+	v2
 };
 export const catalogue = {
 	de: /** @type {{ [K in keyof typeof AREAS]: (typeof AREAS)[K]['de'] }} */ (Object.fromEntries(Object.entries(AREAS).map(([name, area]) => [name, area.de]))),

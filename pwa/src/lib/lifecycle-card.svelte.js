@@ -485,7 +485,9 @@ export function createLifecycleCard(p) {
 	const startAgain = () => (profile.running ? undefined : profile.starting ? resume() : start());
 	const toPackage = () => {
 		unpaidBackup = false;
-		document.getElementById('paket')?.scrollIntoView({ behavior: 'smooth' });
+		// An interface that keeps the package elsewhere (v0.2) shows it itself.
+		if (p.onpackage) p.onpackage();
+		else document.getElementById('paket')?.scrollIntoView({ behavior: 'smooth' });
 	};
 	/**
 	 * Model A: ask Le Space Credits for this app's delegation on the account
