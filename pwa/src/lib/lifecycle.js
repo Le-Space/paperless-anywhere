@@ -437,9 +437,9 @@ export async function startPaperless(master, profile, onProgress, { onRequested,
  * @param {Uint8Array} master
  * @param {Record<string, any>} profile with `starting`
  * @param {(p: { step: string, detail?: string, instanceHash?: string }) => void} onProgress
- * @param {{ lookUpTries?: number, lookUpPauseMs?: number }} [options] how long an unknown or pending request is waited for
+ * @param {{ lookUpTries?: number, lookUpPauseMs?: number, unlockAgainMs?: number }} [options] how long an unknown or pending request is waited for; how long a second hand-over may take
  */
-export async function resumeStart(master, profile, onProgress, { lookUpTries = 24, lookUpPauseMs = 5000 } = {}) {
+export async function resumeStart(master, profile, onProgress, { lookUpTries = 24, lookUpPauseMs = 5000, unlockAgainMs = UNLOCK_AGAIN_MS } = {}) {
 	/** @type {Starting} */
 	const starting = profile.starting;
 	if (!starting?.instanceHash) throw new Error(tr().life.errors.noInterruptedStart);
@@ -457,7 +457,7 @@ export async function resumeStart(master, profile, onProgress, { lookUpTries = 2
 	// Rejected, forgotten or never arrived: nothing left to carry on with.
 	if (['rejected', 'forgotten', 'removed', 'removing'].includes(status) || res.status === 404) throw new StartGoneError(starting.instanceHash, status ?? res.status, missingOf(answer));
 	if (status !== 'processed') throw new Error(tr().life.errors.vmGone(starting.instanceHash.slice(0, 12), status ?? res.status));
-	return bringUp(master, { ...profile, restoreEntry: starting.restoreEntry }, starting, await loadWasm(), onProgress, { resumed: true });
+	return bringUp(master, { ...profile, restoreEntry: starting.restoreEntry }, starting, await loadWasm(), onProgress, { resumed: true, unlockAgainMs });
 }
 
 /** What the guest's agent takes at most in one hand-over (relay-button's attest agent). */
@@ -479,6 +479,9 @@ export function fitSecrets(secrets, max = MAX_GUEST_SECRETS) {
 	if (n > max) throw new Error(tr().life.errors.tooManySecrets(n, max));
 	return out;
 }
+
+/** How long a second hand-over of the secrets (start-watch.js) may take before the watch goes on. */
+export const UNLOCK_AGAIN_MS = 5 * 60_000;
 
 /** How long the start waits for a service it only asks for a better answer (credits, providers): then the recorded one. */
 export const ASK_MS = 30_000;
@@ -521,9 +524,9 @@ export async function findRunning({ instanceHash, crnUrl, fixedName, startedAt, 
  * set up or handed over again, and it goes straight to watching the start.
  * @param {Uint8Array} master @param {Record<string, any>} profile @param {Starting} starting @param {any} wasm
  * @param {(p: { step: string, detail?: string, instanceHash?: string }) => void} onProgress
- * @param {{ resumed?: boolean }} [options]
+ * @param {{ resumed?: boolean, unlockAgainMs?: number }} [options]
  */
-async function bringUp(master, profile, starting, wasm, onProgress, { resumed = false } = {}) {
+async function bringUp(master, profile, starting, wasm, onProgress, { resumed = false, unlockAgainMs = UNLOCK_AGAIN_MS } = {}) {
 	const app = privateKeyToAccount(alephPrivateKey(master));
 	const { instanceHash, payer, trustedExecution } = starting;
 	const crnUrl = await crnAddress(starting.crnHash);
@@ -568,7 +571,7 @@ async function bringUp(master, profile, starting, wasm, onProgress, { resumed = 
 
 	// The secrets, put together only when they are handed over: a VM that is
 	// up already needs none, and no slow service holds its start.
-	const gather = async () => {
+	const gather = async (/** @type {typeof onProgress} */ report) => {
 		const p = paperlessSecrets(master);
 		/** @type {Record<string, string>} */
 		const secrets = {
@@ -588,10 +591,10 @@ async function bringUp(master, profile, starting, wasm, onProgress, { resumed = 
 			// The key that names incremental backups' files is not sent: the VM
 			// derives it from the mark key (paperless-dedup-key), as backupDedupKey does.
 		}
-		if (profile.backupConfig && !own) onProgress({ step: 'unlock', detail: tr().life.progress.publicNoBackups });
+		if (profile.backupConfig && !own) report({ step: 'unlock', detail: tr().life.progress.publicNoBackups });
 		// An empty start while backups exist, not confirmed as a new beginning:
 		// this VM makes no backups, so an empty Paperless never becomes the newest.
-		if (profile.backupConfig && own && profile.holdBackups) onProgress({ step: 'unlock', detail: tr().life.progress.backupsHeld });
+		if (profile.backupConfig && own && profile.holdBackups) report({ step: 'unlock', detail: tr().life.progress.backupsHeld });
 		if (profile.backupConfig && own && !profile.holdBackups) {
 			// Through Le Space Credits: ask the service again (it may have a new
 			// payer or signer, which the profile then keeps); without an answer
@@ -611,7 +614,7 @@ async function bringUp(master, profile, starting, wasm, onProgress, { resumed = 
 				);
 			} catch (e) {
 				// Paperless starts anyway; the VM reports "no backup_config".
-				onProgress({ step: 'unlock', detail: tr().life.progress.withoutBackups(e instanceof Error ? e.message : String(e)) });
+				report({ step: 'unlock', detail: tr().life.progress.withoutBackups(e instanceof Error ? e.message : String(e)) });
 			}
 		}
 		// When the paid time ends: the VM backs up and stops an hour before (period-end.js).
@@ -639,9 +642,9 @@ async function bringUp(master, profile, starting, wasm, onProgress, { resumed = 
 		const relay = a ? relayUsed(transports.last(), profile) : null;
 		return a && relay ? { ...a, relay } : a;
 	};
-	const unlock = async () => {
-		const secrets = await gather();
-		onProgress({ step: 'unlock', detail: tr().life.progress.unlock });
+	const unlock = async (report = onProgress) => {
+		const secrets = await gather(report);
+		report({ step: 'unlock', detail: tr().life.progress.unlock });
 		const relays = await attestRelaysFor(profile);
 		transports = relayTransports(relays);
 		return unlockInstance({
@@ -654,7 +657,7 @@ async function bringUp(master, profile, starting, wasm, onProgress, { resumed = 
 			passphrase: profile.luksPassphrase,
 			secrets,
 			sign: (payload) => app.signMessage({ message: payload }),
-			onProgress: ({ detail, phase }) => onProgress({ step: 'unlock', detail, phase })
+			onProgress: ({ detail, phase }) => report({ step: 'unlock', detail, phase })
 		});
 	};
 	// A resumed start may find the VM unlocked already: its status page answers
@@ -689,9 +692,16 @@ async function bringUp(master, profile, starting, wasm, onProgress, { resumed = 
 		read: readStatus,
 		onProgress,
 		firstLookMs: fixed ? FIRST_LOOK_FIXED_MS : 0,
-		unlockAgain: () => unlock().then((unlocked) => {
-			attestation = kept(unlocked) ?? attestation;
-		})
+		// The second hand-over is part of waiting for the VM: said in the last
+		// step (the panel stays there), and given up after a while, so the
+		// watch goes on asking the status page instead of waiting without end.
+		unlockAgain: () =>
+			within(
+				unlock((p) => onProgress({ ...p, step: 'ready' })),
+				unlockAgainMs
+			).then((unlocked) => {
+				attestation = kept(unlocked) ?? attestation;
+			})
 	}).catch((e) => {
 		// The node could not seal the data area: said with the node, so the
 		// card notes it and offers a start on another one.

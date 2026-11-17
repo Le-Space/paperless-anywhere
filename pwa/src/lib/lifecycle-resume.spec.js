@@ -10,13 +10,14 @@ const net = vi.hoisted(() => ({
 	forward: vi.fn(async () => ({})),
 	unlock: vi.fn(async () => {
 		throw new Error('unlocked again');
-	})
+	}),
+	/** @type {(a: any) => Promise<any>} */ watch: async ({ host }) => ({ phase: 'ready', host })
 }));
 vi.mock('./attest-wasm-load.js', () => ({ loadAttestWasm: async () => ({}) }));
 vi.mock('./own-image-check.js', async (orig) => ({ ...(await orig()), ownImageVerified: () => true }));
 vi.mock('./relays.js', async (orig) => ({ ...(await orig()), attestRelaysFor: async () => ['wss://relay.example'] }));
 vi.mock('@le-space/attest-wasm/instance', async (orig) => ({ ...(await orig()), unlockInstance: (...a) => net.unlock(...a) }));
-vi.mock('./start-watch.js', async (orig) => ({ ...(await orig()), watchStart: async ({ host }) => ({ phase: 'ready', host }) }));
+vi.mock('./start-watch.js', async (orig) => ({ ...(await orig()), watchStart: (a) => net.watch(a) }));
 vi.mock('./vm.js', async (orig) => ({
 	...(await orig()),
 	crnAddress: async () => 'https://node.example',
@@ -48,6 +49,10 @@ describe('continuing a start whose VM is up already', () => {
 		net.mapped = () => new Promise(() => {});
 		net.forward.mockClear();
 		net.unlock.mockClear();
+		net.unlock.mockImplementation(async () => {
+			throw new Error('unlocked again');
+		});
+		net.watch = async ({ host }) => ({ phase: 'ready', host });
 	});
 
 	it('finds it on the fixed address while the node and the 2n6 name do not answer', async () => {
@@ -93,5 +98,28 @@ describe('continuing a start whose VM is up already', () => {
 		expect(e.message).toBe('unlocked again');
 		expect(net.forward).not.toHaveBeenCalled();
 		expect(net.unlock).toHaveBeenCalledTimes(1);
+	});
+
+	it('a second hand-over stays in the last step, and one that hangs does not hold the watch', async () => {
+		net.mapped = async () => 24000;
+		let calls = 0;
+		net.unlock.mockImplementation(async () => (++calls === 1 ? { injected: [] } : new Promise(() => {})));
+		let again = null;
+		net.watch = async ({ host, unlockAgain }) => {
+			again = await unlockAgain().then(() => 'done', (e) => e.message);
+			return { phase: 'ready', host };
+		};
+		const steps = [];
+		const f = processed();
+		const vm = await resumeStart(master, profile, (p) => steps.push(p), { unlockAgainMs: 20 });
+		f.mockRestore();
+		expect(vm.host).toMatch(/\.vm\.le-space\.de:24000$/);
+		expect(net.unlock).toHaveBeenCalledTimes(2);
+		expect(again).toMatch(/no answer within 20 ms/);
+		// After the step "ready" began, nothing moves the panel back to "unlock".
+		const ready = steps.findIndex((p) => p.step === 'ready');
+		expect(ready).toBeGreaterThan(0);
+		expect(steps.slice(ready).every((p) => p.step === 'ready')).toBe(true);
+		expect(steps.slice(ready).length).toBeGreaterThan(1);
 	});
 });
