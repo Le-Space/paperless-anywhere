@@ -95,11 +95,13 @@
 	{:else if status}
 		<!-- The check and the backup apart: most checks find nothing new and back up nothing. -->
 		<p class="summary" data-testid="backup-summary">
-			{#if view.check?.at}<span data-testid="backup-check">{t.checked} {when(view.check.at, lang)}, {t.checkOutcome(view.check.status)}</span>{#if view.last?.at || view.nextCheck}{' · '}{/if}{/if}
-			{#if view.last?.at}<span>{t.lastShort} {when(view.last.at, lang)}</span>{#if view.nextCheck}{' · '}{/if}{:else if earlier}<span>{t.lastShort} {when(earlier.at, lang)}</span>{#if view.nextCheck}{' · '}{/if}{/if}
-			{#if view.nextCheck}<span data-testid="backup-next">{t.nextShort} {when(view.nextCheck, lang)}</span>{/if}
+			{#if view.check?.at}<span data-testid="backup-check">{t.checked} {when(view.check.at, lang)}, {t.checkOutcome(view.check.status)}</span>{#if view.last?.at || view.next}{' · '}{/if}{/if}
+			{#if view.last?.at}<span>{t.lastShort} {when(view.last.at, lang)}</span>{#if view.next}{' · '}{/if}{:else if earlier}<span>{t.lastShort} {when(earlier.at, lang)}</span>{#if view.next}{' · '}{/if}{/if}
+			{#if view.next?.kind === 'backup' && view.next.at}<span data-testid="backup-next">{t.nextBackup} {when(view.next.at, lang)}</span>
+			{:else if view.next?.kind === 'onChange'}<span data-testid="backup-next">{t.nextOnChange}</span>
+			{:else if view.next?.at}<span data-testid="backup-next">{t.nextShort} {when(view.next.at, lang)}</span>{/if}
 		</p>
-		<p class="hint">{t.nextHint}</p>
+		<p class="hint">{view.minHours ? t.nextHintQuiet(view.minHours) : t.nextHint}</p>
 		<p data-testid="backup-last">
 			{t.last}:
 			{#if view.last}

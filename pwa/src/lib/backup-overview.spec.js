@@ -23,6 +23,29 @@ describe('backupOverview', () => {
 		expect(v.running).toBe(false);
 	});
 
+	it('says when the next backup is due on an image that waits for a quiet half hour', () => {
+		const base = { nextCheck: '2026-01-02T07:00:00Z', everySeconds: 600, quietSeconds: 1800, minSeconds: 6 * 3600 };
+		const due = backupOverview({ backupSchedule: { ...base, pending: true, nextBackup: '2026-01-02T12:00:00Z' } });
+		expect(due.next).toEqual({ kind: 'backup', at: new Date('2026-01-02T12:00:00Z') });
+		expect(due.minHours).toBe(6);
+		expect(backupOverview({ backupSchedule: { ...base, pending: false, nextBackup: null } }).next).toEqual({ kind: 'onChange', at: null });
+		// Before its first look it knows nothing yet: the look.
+		expect(backupOverview({ backupSchedule: { ...base, pending: null, nextBackup: null } }).next).toEqual({ kind: 'check', at: new Date('2026-01-02T07:00:00Z') });
+		expect(backupOverview({ backupSchedule: { ...base, minSeconds: 4.5 * 3600, pending: false } }).minHours).toBe(4.5);
+	});
+
+	it('an older image checks every two hours', () => {
+		const v = backupOverview({ backupSchedule: { nextCheck: '2026-01-02T07:00:00Z', everySeconds: 7200 } });
+		expect(v.next).toEqual({ kind: 'check', at: new Date('2026-01-02T07:00:00Z') });
+		expect(v.minHours).toBeNull();
+	});
+
+	it('the hint names the gap in both languages', () => {
+		expect(BACKUP_TEXTS.de.nextHintQuiet(4.5)).toContain('höchstens alle 4,5 Stunden');
+		expect(BACKUP_TEXTS.en.nextHintQuiet(6)).toContain('at most every 6 hours');
+		expect(BACKUP_TEXTS.en.nextBackup).toBe('next backup at the earliest');
+	});
+
 	it('a failed backup carries its reason and how many copies arrived', () => {
 		const v = backupOverview({ backupSchedule: {}, lastBackup: { status: 'failed', at: '2026-01-02T03:10:00Z', reason: 'only 1 of 2 copies reached the providers', backup: { ...entry, complete: false, copies: [{ providerId: 1 }] } } });
 		expect(v.last).toMatchObject({ ok: false, copies: 1, requested: 2, reason: 'only 1 of 2 copies reached the providers' });

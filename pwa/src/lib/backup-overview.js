@@ -11,6 +11,8 @@ import { currentLang, localeOf } from './i18n/index.js';
  *   last: null | { ok: boolean, at: Date | null, copies: number, providerIds: number[], requested: number, reason: string | null, seconds: number | null },
  *   check: null | { status: string, at: Date | null },
  *   nextCheck: Date | null,
+ *   next: null | { kind: 'backup' | 'onChange' | 'check', at: Date | null },
+ *   minHours: number | null,
  *   running: boolean,
  *   request: null | { status: string, mode: string, at: Date | null, outcome: string | null, reason: string | null },
  *   log: string | null
@@ -22,6 +24,27 @@ const date = (/** @type {unknown} */ s) => {
 	const d = new Date(s);
 	return Number.isNaN(d.getTime()) ? null : d;
 };
+
+/**
+ * What comes next. An image that backs up only after a change and 30 quiet
+ * minutes, at most every few hours (paperless-backup-due), says when the next
+ * backup is due ("backup", at the earliest), or that none is due until
+ * Paperless changes ("onChange"); until its first look, the look ("check").
+ * An older image checks every two hours ("check").
+ * @param {any} schedule the status page's backupSchedule
+ * @returns {{ next: BackupOverview['next'], minHours: number | null }}
+ */
+function nextBackup(schedule) {
+	const check = date(schedule?.nextCheck);
+	const fallback = check ? { kind: /** @type {const} */ ('check'), at: check } : null;
+	if (!schedule || !('pending' in schedule)) return { next: fallback, minHours: null };
+	const min = schedule.minSeconds;
+	const minHours = typeof min === 'number' && min > 0 ? Math.round(min / 360) / 10 : null;
+	const at = date(schedule.nextBackup);
+	if (schedule.pending === true && at) return { next: { kind: 'backup', at }, minHours };
+	if (schedule.pending === false) return { next: { kind: 'onChange', at: null }, minHours };
+	return { next: fallback, minHours };
+}
 
 /**
  * @param {any} status the VM's status page (v2), or null
@@ -66,6 +89,7 @@ export function backupOverview(status) {
 		last,
 		check,
 		nextCheck: date(status?.backupSchedule?.nextCheck),
+		...nextBackup(status?.backupSchedule),
 		running,
 		request,
 		log: typeof line === 'string' ? line.replace(/^\S+Z /, '') : null

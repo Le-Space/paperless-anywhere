@@ -20,6 +20,10 @@ export const backup = {
 			lastShort: 'letzte Sicherung',
 			nextShort: 'nächste Prüfung',
 			nextHint: 'Alle zwei Stunden wird geprüft; gesichert wird nur, wenn sich etwas geändert hat.',
+			nextBackup: 'nächste Sicherung frühestens',
+			nextOnChange: 'nächste Sicherung, sobald sich etwas ändert',
+			nextHintQuiet: (/** @type {number} */ h) =>
+				`Gesichert wird, wenn sich etwas geändert hat und danach 30 Minuten nichts mehr, höchstens alle ${h.toLocaleString('de')} Stunden. „Jetzt sichern“ und „Sichern und beenden“ sichern sofort.`,
 			now: 'Jetzt sichern',
 			running: 'Sicherung läuft …',
 			sending: 'Sicherung anfordern …',
@@ -294,6 +298,10 @@ export const backup = {
 			lastShort: 'last backup',
 			nextShort: 'next check',
 			nextHint: 'Checked every two hours; a backup is made only if something changed.',
+			nextBackup: 'next backup at the earliest',
+			nextOnChange: 'next backup once something changes',
+			nextHintQuiet: (/** @type {number} */ h) =>
+				`A backup is made when something changed and then nothing for 30 minutes, at most every ${h.toLocaleString('en')} hours. “Back up now” and “Back up and stop” back up at once.`,
 			now: 'Back up now',
 			running: 'Backing up …',
 			sending: 'Requesting a backup …',
