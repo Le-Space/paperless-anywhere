@@ -45,6 +45,15 @@ async function open(page, phrase) {
 	await page.getByTestId('open-phrase').click();
 }
 
+/** The same vault in the v0.2 interface, in "Standard". */
+async function openV2(page, phrase) {
+	await page.goto('/v0.2/');
+	await page.getByTestId('v2-have-vault').click();
+	await page.getByTestId('v2-words').fill(phrase);
+	await page.getByTestId('v2-open-words').click();
+	await expect(page.getByTestId('v2-state')).toHaveText('unlocked');
+}
+
 /** Aleph mock, the vault, nothing else on the network, and the VM's status page. */
 async function setUp(page, status, extra = {}) {
 	const install = alephMock();
@@ -265,6 +274,53 @@ test.describe('German', () => {
 		await expect(sealedRow.getByRole('link', { name: 'Spezifikation age v1' })).toHaveAttribute('href', 'https://age-encryption.org/v1');
 		// Only public keys in the page.
 		expect(await page.content()).not.toMatch(/AGE-SECRET-KEY-1[0-9A-Z]{20}/);
+	});
+
+	test('v0.2: "Standard" shows the stop as rows and lights in plain words, the facts on request; "Technisch" writes them out', async ({ page }) => {
+		test.setTimeout(60_000);
+		const at = new Date().toISOString();
+		const chainPiece = await calculate(new Uint8Array(4096).fill(9));
+		const cid = chainPiece.toString();
+		const partial = { status: 'partial', at, reason: 'only 1 of 2 copies reached the providers', log: [`${at.replace(/\.\d+Z$/, 'Z')} upload with primary 2 failed: made up`], backup: { name: 'paperless-made-up', date: at, pieceCid: cid, size: 52_000_000, requestedCopies: 2, complete: false, copies: [{ providerId: 1, dataSetId: 11, pieceId: 0, retrievalUrl: `https://sp1.example/piece/${cid}` }] } };
+		const { phrase } = await setUp(page, { v: 2, phase: 'stop-partial', paperless: false, backup: partial, lastBackup: partial, backupSchedule: { nextCheck: new Date(Date.now() + 3600_000).toISOString(), everySeconds: 7200 }, backupRequest: null, stop: { status: 'partial', request: '1', at, backup: partial } }, { ageIdentity: 'vault', payer: PAYER });
+		await page.context().route(calibration.rpcUrls.default.http[0], rpc(answers(chainPiece)));
+		await openV2(page, phrase);
+		await page.getByTestId('stop-partial-erase').click();
+		const panel = page.getByTestId('stop-panel');
+		await expect(panel).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByTestId('light-forgot')).toHaveAttribute('data-state', 'app', { timeout: 30_000 });
+		// Standard: the rows in plain words with their lights; no provider, data set or FORGET on screen.
+		await expect(panel).toContainText('Kopien ablegen');
+		await expect(panel).toContainText('Maschine löschen');
+		await expect(panel).not.toContainText('Hochladen');
+		await expect(page.getByTestId('light-copy-1')).toBeHidden();
+		// What failed is never a red light alone: its sentence shows without asking.
+		await expect(page.getByTestId('light-copy-2')).toBeVisible();
+		await expect(page.getByTestId('light-copy-2')).toHaveAttribute('data-state', 'failed');
+		await expect(page.getByTestId('panel-total')).toHaveCount(0);
+		// Each row still says its state to a screen reader.
+		await expect(page.getByTestId('panel-forget')).toContainText('Maschine löschen: fertig');
+		// The facts are one button away, and nothing is lost.
+		await page.getByTestId('panel-details').click();
+		await expect(page.getByTestId('light-copy-1')).toContainText('Datensatz 11');
+		await page.getByTestId('panel-details').click();
+		await expect(page.getByTestId('light-copy-1')).toBeHidden();
+		// Technisch: today's row names, every fact written out, the timings.
+		await page.getByRole('banner').getByTestId('view-technical').click();
+		await expect(panel).toContainText('Hochladen');
+		await expect(page.getByTestId('light-copy-1')).toContainText('Datensatz 11');
+		await expect(page.getByTestId('panel-details')).toHaveCount(0);
+		await expect(page.getByTestId('panel-total')).toBeVisible();
+	});
+
+	test('v0.2: an older image is said in plain words in "Standard", in today\'s words in "Technisch"', async ({ page }) => {
+		const { phrase } = await setUp(page, { v: 2, phase: 'ready', paperless: true });
+		await openV2(page, phrase);
+		await page.getByTestId('v2-area-backup').click();
+		await expect(page.getByTestId('backup-old-image')).toContainText('älteren Fassung');
+		await expect(page.getByTestId('backup-old-image')).not.toContainText('Image');
+		await page.getByRole('banner').getByTestId('view-technical').click();
+		await expect(page.getByTestId('backup-old-image')).toContainText('älteren Image');
 	});
 
 	test('an older image: no backup details, no button', async ({ page }) => {
