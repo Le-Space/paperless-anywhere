@@ -172,7 +172,7 @@
 {/snippet}
 
 {#snippet unmarkedWarning()}
-	{#if choice === 'any' && chosenBackup}
+	{#if k.chosenUnmarked && chosenBackup}
 		<div class="warn gap" data-testid="restore-unmarked">
 			<p>{c.unmarked.text(chosenBackup.pieceCid.slice(-12), whenOf(chosenBackup))}</p>
 			<label><input type="checkbox" data-testid="restore-unmarked-accept" checked={!unmarkedOpen} onchange={(e) => (k.unmarkedAccepted = e.currentTarget.checked ? (chosenBackup?.pieceCid ?? '') : '')} /> {c.unmarked.accept}</label>
@@ -353,6 +353,17 @@
 							<small>{c.advanced.otherHint(split.other.length)}</small>
 						</label>
 					{/if}
+					{#if backups?.length}
+						<label><input type="radio" bind:group={k.choice} value="pick" data-testid="restore-pick" /> {c.advanced.pickOne}</label>
+						{#if k.choice === 'pick'}
+							<ul class="backup-pick" data-testid="backup-pick-list">
+								{#each backups.slice(0, 12) as b, i (b.pieceCid)}
+									<li><label><input type="radio" name="backup-pick" value={b.pieceCid} checked={k.pickedCid === b.pieceCid} onchange={() => (k.pickedCid = b.pieceCid)} data-testid="backup-pick-{i}" />
+										<code>…{b.pieceCid.slice(-12)}</code>{whenOf(b)}{sizePart(b)}{b.parts?.length > 1 ? `, ${c.advanced.parts(b.parts.length)}` : ''}, {c.advanced.copiesAt(b.copies.length, wherePlaces(b))}, {k.marked(b) ? c.advanced.sealYes : c.advanced.sealNo}</label></li>
+								{/each}
+							</ul>
+						{/if}
+					{/if}
 					<label><input type="radio" bind:group={k.choice} value="empty" /> {c.advanced.empty}</label>
 					{#if k.choice === 'empty' && backups?.length}
 						<div class="warn" data-testid="empty-over-backups">
@@ -360,7 +371,7 @@
 							<label><input type="checkbox" bind:checked={k.freshConfirmed} data-testid="empty-fresh-confirm" /> {c.advanced.emptyFresh}</label>
 						</div>
 					{/if}
-					{#if k.tinyNewest && (k.choice === 'latest' || k.choice === 'own')}<p class="warn" data-testid="tiny-newest">{c.advanced.tinyNewest(backupSize(k.tinyNewest.newest.size), backupSize(k.tinyNewest.before.size), k.tinyNewest.before.pieceCid.slice(-12))}</p>{/if}
+					{#if k.tinyNewest && k.choice !== 'pick'}<p class="warn" data-testid="tiny-newest">{c.advanced.tinyNewest(backupSize(k.tinyNewest.newest.size), backupSize(k.tinyNewest.before.size), k.tinyNewest.before.pieceCid.slice(-12))} <button class="link" onclick={() => k.pickBackup(k.tinyNewest.before.pieceCid)} data-testid="tiny-pick-before">{c.advanced.pickBefore}</button></p>{/if}
 					{#if backupsError}<small class="hint">{backupsError}</small>{/if}
 				</fieldset>
 				{@render gapWarning()}
@@ -498,5 +509,8 @@
 	.interrupted { padding: 0.5rem 0.75rem; background: var(--warn-bg); border-radius: 4px; }
 	.quiet { background: none; border: none; color: var(--text-2); text-decoration: underline; padding: 0; }
 	.image-line { margin: 0.35rem 0 0; font-size: 0.9rem; color: var(--text-2); }
+	.backup-pick { list-style: none; margin: 0.25rem 0 0.5rem 1.4rem; padding: 0; display: grid; gap: 0.2rem; font-size: 0.88rem; }
+	.backup-pick input { width: auto; margin-right: 0.4rem; }
+	.warn .link { background: none; border: none; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
 	.image-line .link { background: none; border: none; padding: 0; color: var(--accent-2-text); text-decoration: underline; cursor: pointer; font: inherit; }
 </style>

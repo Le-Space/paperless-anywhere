@@ -132,6 +132,11 @@ export const card = {
 			noBackups: 'Die VM hat sich am Ende der Laufzeit angehalten, aber ohne Sicherungen kann die App nichts prüfen. Lösche sie selbst in der VM-Liste unter „Technisch“.'
 		},
 		advanced: {
+			pickOne: 'Eine bestimmte Sicherung wählen',
+			parts: (/** @type {number} */ n) => `${n} Teile`,
+			sealYes: 'mit Siegel',
+			sealNo: 'ohne Siegel',
+			pickBefore: 'Die vorige wählen',
 			emptyOverBackups: (/** @type {number} */ n) => `Es gibt ${n} Sicherungen. Ein leerer Start macht keine Sicherungen, damit die leere Paperless nicht zur neuesten wird.`,
 			emptyFresh: 'Ich will neu anfangen: Diese leere Paperless soll sichern und wird damit zur neuesten Sicherung.',
 			tinyNewest: (/** @type {string} */ newest, /** @type {string} */ before, /** @type {string} */ cid) => `Die neueste Sicherung ist sehr klein (${newest}), die vorige ${before} (…${cid}). Vermutlich ist die neueste leer: Prüfe, welche du wiederherstellen willst.`,
@@ -305,6 +310,11 @@ export const card = {
 			noBackups: 'The VM paused itself at the end of the paid time, but without backups the app has nothing to check. Delete it yourself in the VM list under “Technical”.'
 		},
 		advanced: {
+			pickOne: 'Choose a particular backup',
+			parts: (/** @type {number} */ n) => `${n} parts`,
+			sealYes: 'with the seal',
+			sealNo: 'without the seal',
+			pickBefore: 'Choose the one before',
 			emptyOverBackups: (/** @type {number} */ n) => `There are ${n} backups. An empty start makes no backups, so the empty Paperless does not become the newest.`,
 			emptyFresh: 'I want to begin anew: this empty Paperless backs up and so becomes the newest backup.',
 			tinyNewest: (/** @type {string} */ newest, /** @type {string} */ before, /** @type {string} */ cid) => `The newest backup is very small (${newest}), the one before it ${before} (…${cid}). The newest is probably empty: check which one you want to restore.`,
