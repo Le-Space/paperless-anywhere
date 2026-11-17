@@ -103,6 +103,8 @@ export const v2 = {
 			readingBackups: 'Die Sicherungen werden gelesen …',
 			again: 'Noch einmal lesen',
 			chooseBackup: 'Womit Paperless startet',
+			tinyNewest: (/** @type {string} */ newest, /** @type {string} */ before) => `Die neueste Sicherung ist auffallend klein (${newest}); die davor hatte ${before}. Vermutlich ist die neueste leer. Prüfe, welche du einspielen willst.`,
+			chooseInTechnical: 'Sicherung in der Ansicht „Technisch“ wählen',
 			login: 'Anmeldung',
 			user: 'Benutzer',
 			password: 'Passwort',
@@ -138,6 +140,61 @@ export const v2 = {
 			noBackupYet: 'Es gibt noch keine Sicherung zum Herunterladen.',
 			techChain: 'Nachweise auf der Chain',
 			techLast: 'Letzte Sicherung beim Beenden'
+		},
+		// Plain words for "Standard", laid over the texts of the parts v0.1 shares (lib/v2/plain.js).
+		plain: {
+			panel: {
+				title: 'Start: was gerade geschieht und was geprüft ist',
+				rows: { measure: 'Vorbereiten', instance: 'Maschine', network: 'Adresse', attestation: 'Echtheit', unlock: 'Aufschließen', restore: 'Sicherung holen', ready: 'Bereit' },
+				legend: 'Grün: von der App selbst geprüft. Blau: gemeldet.',
+				after: 'Jede einzelne Tatsache steht unter „Einzelheiten zeigen“.',
+				details: 'Einzelheiten zeigen',
+				hide: 'Einzelheiten ausblenden',
+				stop: {
+					title: 'Sichern und beenden: was gerade geschieht',
+					titleDiscard: 'Löschen ohne Sicherung: was gerade geschieht',
+					rows: { request: 'Auftrag', export: 'Dokumente sammeln', sealed: 'Verschlüsseln', upload: 'Kopien ablegen', piece: 'Kopien bestätigt', forget: 'Maschine löschen', listed: 'Eintragen' },
+					after: 'Jede einzelne Tatsache steht unter „Einzelheiten zeigen“.',
+					afterDiscard: 'Jede einzelne Tatsache steht unter „Einzelheiten zeigen“.'
+				}
+			},
+			first: {
+				title: 'Dein persönliches Paperless entsteht',
+				rebuildKicker: 'Dein Paperless wird erneuert · ca. 15 Minuten',
+				rebuildTitle: 'Dein erneuertes Paperless entsteht',
+				rebuildDoneTitle: 'Geschafft – dein Paperless ist erneuert!',
+				rebuildDoneText: 'Versiegelt mit einem Schlüssel, den nur dein Tresor kennt. Beim nächsten Start läuft dein Paperless darauf.',
+				stations: {
+					wake: { label: 'Aufwachen', title: 'Deine Werkstatt wacht auf', text: 'Eine geschützte Maschine startet nur für dich. Das dauert ein paar Minuten – genau richtig für einen Kaffee.', mini: 'Deine Werkstatt wacht auf' },
+					check: { text: 'Der Prozessor der Maschine bestätigt: Hier läuft genau das veröffentlichte Programm. Erst jetzt geht dein Schlüssel auf die Reise.' },
+					seal: { title: 'Dein Paperless wird versiegelt', text: 'Mit einem Schlüssel, den nur dein Tresor kennt. Nicht Le Space, nicht das Rechenzentrum – nur du.', mini: 'Dein Paperless wird versiegelt' },
+					fetch: { title: 'Dein Paperless kommt zu dir', mini: 'Dein Paperless kommt zu dir' },
+					store: { text: 'Dein versiegeltes Paperless wird jetzt abgelegt – bereit für jeden deiner Starts.', mini: 'Dein Paperless wird abgelegt' },
+					paperless: { text: 'Deine Maschine startet, ihre Echtheit wird geprüft, deine Daten werden aufgeschlossen – gleich ist alles bereit.' }
+				},
+				nodes: { relay: 'Vermittler', node: 'Geschützte Maschine', aleph: 'Ablage', filecoin: 'Sicherungen' },
+				flow: { program: 'Auftrag für deine Werkstatt', report: 'Bestätigung des Prozessors', passphrase: 'Dein Schlüssel, verschlüsselt', pieces: 'Stücke deines versiegelten Paperless', image: 'Dein versiegeltes Paperless', instance: 'Auftrag für deine Maschine', vmReport: 'Bestätigung des Prozessors deiner Maschine' },
+				retryNote: 'Die Verbindung ist abgerissen – kein Problem: Dein Paperless ist schon da, nur das Ablegen läuft noch einmal.',
+				tab: (/** @type {number} */ pct) => `${pct} % · Dein Paperless entsteht`,
+				leave: 'Dein Paperless entsteht gerade. Wenn du die Seite jetzt verlässt, bricht die Einrichtung ab.',
+				doneText: 'Versiegelt mit deinem ganz eigenen Schlüssel. Den kennt nur dein Tresor – nicht Le Space, nicht das Rechenzentrum, niemand sonst. Ab jetzt startest du in rund 10 Minuten.'
+			},
+			backupNow: {
+				oldImage: 'Dein Paperless läuft noch in einer älteren Fassung: Den Stand der Sicherung und „Jetzt sichern“ gibt es nach dem nächsten Erneuern.',
+				unreachable: 'Dein Paperless meldet den Stand der Sicherung gerade nicht.',
+				donePartial: (/** @type {number} */ copies, /** @type {number} */ requested) => `Gesichert, aber nur ${copies} von ${requested} Kopien: Ein Speicherort hat abgelehnt. Beim nächsten Mal wird es wieder bei allen versucht.`
+			},
+			places: {
+				down: (/** @type {number} */ n) => (n === 1 ? 'Ein Speicherort antwortet gerade nicht. Eine Sicherung dorthin würde scheitern.' : `${n} Speicherorte antworten gerade nicht. Eine Sicherung dorthin würde scheitern.`),
+				blocked: (/** @type {number} */ n) => (n === 1 ? 'Ein Speicherort wird für neue Kopien nicht mehr verwendet.' : `${n} Speicherorte werden für neue Kopien nicht mehr verwendet.`),
+				replace: 'Die App kann stattdessen einen anderen, unabhängigen Speicherort nehmen. Deine bisherigen Sicherungen bleiben, wo sie sind.',
+				noReplacement: 'Einen anderen Speicherort, der gerade antwortet, gibt es nicht.'
+			},
+			restore: {
+				unmarked: (/** @type {string} */ when) => `Die App kann nicht bestätigen, dass diese Sicherung${when ? ` ${when}` : ''} von deinem Paperless stammt: Entweder ist sie älter als diese Prüfung, oder sie kommt von woanders. Spiel sie nur ein, wenn du weißt, dass sie deine ist.`,
+				gapMissing: (/** @type {boolean} */ other) => `Die letzte Sicherung, die diese App kennt, steht gerade nicht in der Liste der Sicherungen. Ein Start jetzt beginnt ${other ? 'mit einem anderen Stand' : 'ohne Daten'}.`,
+				gapOlder: 'Die gewählte Sicherung ist älter als die letzte, die diese App kennt. Was danach dazukam, fehlt nach dem Start.'
+			}
 		},
 		confirmTitle: 'Bitte bestätigen',
 		confirmYes: 'Ja',
@@ -286,6 +343,8 @@ export const v2 = {
 			readingBackups: 'Reading the backups …',
 			again: 'Read again',
 			chooseBackup: 'What Paperless starts with',
+			tinyNewest: (/** @type {string} */ newest, /** @type {string} */ before) => `The newest backup is strikingly small (${newest}); the one before it had ${before}. The newest is probably empty. Check which one you want to restore.`,
+			chooseInTechnical: 'Choose the backup in the “Technical” view',
 			login: 'Sign-in',
 			user: 'User',
 			password: 'Password',
@@ -321,6 +380,61 @@ export const v2 = {
 			noBackupYet: 'There is no backup to download yet.',
 			techChain: 'Proofs on the chain',
 			techLast: 'Last backup at the stop'
+		},
+		// Plain words for "Standard", laid over the texts of the parts v0.1 shares (lib/v2/plain.js).
+		plain: {
+			panel: {
+				title: 'Start: what is happening and what has been checked',
+				rows: { measure: 'Prepare', instance: 'Machine', network: 'Address', attestation: 'Authenticity', unlock: 'Unlock', restore: 'Fetch backup', ready: 'Ready' },
+				legend: 'Green: checked by the app itself. Blue: reported.',
+				after: 'Every single fact is under “Show details”.',
+				details: 'Show details',
+				hide: 'Hide details',
+				stop: {
+					title: 'Back up and stop: what is happening',
+					titleDiscard: 'Delete without a backup: what is happening',
+					rows: { request: 'Request', export: 'Collect documents', sealed: 'Encrypt', upload: 'Store copies', piece: 'Copies confirmed', forget: 'Delete machine', listed: 'Record' },
+					after: 'Every single fact is under “Show details”.',
+					afterDiscard: 'Every single fact is under “Show details”.'
+				}
+			},
+			first: {
+				title: 'Your personal Paperless is being made',
+				rebuildKicker: 'Your Paperless is being renewed · about 15 minutes',
+				rebuildTitle: 'Your renewed Paperless is being made',
+				rebuildDoneTitle: 'Done – your Paperless is renewed!',
+				rebuildDoneText: 'Sealed with a key only your vault knows. At the next start your Paperless runs on it.',
+				stations: {
+					wake: { label: 'Waking', title: 'Your workshop is waking up', text: 'A protected machine starts just for you. That takes a few minutes – just right for a coffee.', mini: 'Your workshop is waking up' },
+					check: { text: 'The machine’s processor confirms: exactly the published program runs here. Only now does your key set off.' },
+					seal: { title: 'Your Paperless is being sealed', text: 'With a key only your vault knows. Not Le Space, not the data centre – only you.', mini: 'Your Paperless is being sealed' },
+					fetch: { title: 'Your Paperless is coming to you', mini: 'Your Paperless is coming to you' },
+					store: { text: 'Your sealed Paperless is now put away – ready for every start of yours.', mini: 'Your Paperless is being put away' },
+					paperless: { text: 'Your machine starts, its authenticity is checked, your data is unlocked – everything is ready in a moment.' }
+				},
+				nodes: { relay: 'Go-between', node: 'Protected machine', aleph: 'Store', filecoin: 'Backups' },
+				flow: { program: 'Order for your workshop', report: 'The processor’s confirmation', passphrase: 'Your key, encrypted', pieces: 'Pieces of your sealed Paperless', image: 'Your sealed Paperless', instance: 'Order for your machine', vmReport: 'The confirmation of your machine’s processor' },
+				retryNote: 'The connection dropped – no problem: your Paperless is already here, only putting it away runs once more.',
+				tab: (/** @type {number} */ pct) => `${pct} % · Your Paperless is being made`,
+				leave: 'Your Paperless is being made right now. If you leave the page now, the setup stops.',
+				doneText: 'Sealed with a key all of your own. Only your vault knows it – not Le Space, not the data centre, nobody else. From now on you start in about 10 minutes.'
+			},
+			backupNow: {
+				oldImage: 'Your Paperless still runs in an older edition: the state of the backup and “Back up now” come after the next renewal.',
+				unreachable: 'Your Paperless is not reporting the state of its backup right now.',
+				donePartial: (/** @type {number} */ copies, /** @type {number} */ requested) => `Backed up, but only ${copies} of ${requested} copies: a storage place refused. Next time all of them are tried again.`
+			},
+			places: {
+				down: (/** @type {number} */ n) => (n === 1 ? 'One storage place is not answering right now. A backup to it would fail.' : `${n} storage places are not answering right now. A backup to them would fail.`),
+				blocked: (/** @type {number} */ n) => (n === 1 ? 'One storage place is no longer used for new copies.' : `${n} storage places are no longer used for new copies.`),
+				replace: 'The app can use another, independent storage place instead. Your existing backups stay where they are.',
+				noReplacement: 'There is no other storage place that answers right now.'
+			},
+			restore: {
+				unmarked: (/** @type {string} */ when) => `The app cannot confirm that this backup${when ? ` ${when}` : ''} comes from your Paperless: either it is older than this check, or it comes from elsewhere. Restore it only if you know it is yours.`,
+				gapMissing: (/** @type {boolean} */ other) => `The last backup this app knows is not in the list of backups right now. A start now begins ${other ? 'from another state' : 'without data'}.`,
+				gapOlder: 'The chosen backup is older than the last one this app knows. What was added after it is missing after the start.'
+			}
 		},
 		confirmTitle: 'Please confirm',
 		confirmYes: 'Yes',

@@ -12,11 +12,12 @@
 	import { lang as appLang } from '$lib/i18n/index.js';
 
 	/** @type {{ master: Uint8Array, profile: Record<string, any>, known?: { at: string, copies?: number | null } | null, disabled?: boolean, guard?: ((then: () => unknown) => unknown) | null, onbusy?: (busy: boolean) => void, ongood?: (good: { at: string, copies: number, requested: number, providerIds: number[] }) => void }} */
-	let { master, profile, known = null, disabled = false, guard = null, onbusy = () => {}, ongood = () => {} } = $props();
+	let { master, profile, known = null, disabled = false, guard = null, onbusy = () => {}, ongood = () => {}, texts = null, simple = false } = $props();
 
 	// Follows the language switch in the header.
 	const lang = $derived($appLang);
-	const t = $derived(BACKUP_TEXTS[lang]);
+	// `texts`: other words (v0.2's "Standard"); `simple`: without the retention list and the log.
+	const t = $derived(texts ?? BACKUP_TEXTS[lang]);
 	/** @type {any} */
 	let status = $state(null);
 	let answered = $state(false);
@@ -115,7 +116,7 @@
 		{#if busy || view.running}
 			<p class="progress" role="status" data-testid="backup-progress">{stage === 'sending' ? t.sending : t.running}{view.log ? ` ${view.log}` : ''}</p>
 		{/if}
-		{#if kept}
+		{#if kept && !simple}
 			<details class="retention" data-testid="backup-retention">
 				<summary>{rt.title}{kept.failed ? '' : `: ${rt.summary(kept.keep, kept.remove)}`}</summary>
 				{#if kept.failed}<p class="warn">{rt.failed}</p>
@@ -136,12 +137,13 @@
 				{/if}
 			</details>
 		{/if}
+		{#if kept && simple && (kept.failed || kept.overBudget)}<p class="warn" data-testid="backup-retention-warning">{kept.failed ? rt.failed : rt.overBudget}</p>{/if}
 		<button type="button" class="small" onclick={() => (guard ? guard(backUpNow) : backUpNow())} disabled={disabled || busy || view.running} data-testid="backup-now">{t.now}</button>
 	{:else if answered}
 		<p class="hint" data-testid="backup-unreachable">{t.unreachable}</p>
 	{/if}
 	{#if result}<p class={resultOk ? 'ok' : resultWarn ? 'warn' : 'bad'} role="status" data-testid="backup-result">{result}</p>{/if}
-	{#if details.length}<details class="log"><summary>{t.reason}</summary><pre>{details.join('\n')}</pre><ProviderHealth network={profile.network ?? 'calibration'} ids={[...new Set([...providerIdsIn(details), ...(profile.backupConfig?.providerIds ?? [])])]} /></details>{/if}
+	{#if details.length && !simple}<details class="log"><summary>{t.reason}</summary><pre>{details.join('\n')}</pre><ProviderHealth network={profile.network ?? 'calibration'} ids={[...new Set([...providerIdsIn(details), ...(profile.backupConfig?.providerIds ?? [])])]} /></details>{/if}
 </div>
 
 <style>

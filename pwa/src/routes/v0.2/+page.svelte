@@ -315,7 +315,7 @@
 				{/if}
 
 				{#snippet lights()}<BackupLeds copies={ledCopies} remembered={ledRemembered} onreach={(l) => (reachLed = l)} />{/snippet}
-				<Paperless {master} technical={$technical} {area} version={profileVersion} reach={reachLed} confirm={ask} {lights} onchange={() => profileVersion++} onsetup={toSetup} onpackage={() => go('plan')} onmissing={(m) => { missing = m; if (m.length) setupOpen = true; }} onglance={(g) => (life = g)} onbusy={(b) => (acting = b)} oncopies={newestCopies} />
+				<Paperless {master} technical={$technical} {area} version={profileVersion} reach={reachLed} confirm={ask} {lights} onchange={() => profileVersion++} onsetup={toSetup} ontechnical={() => setView('technical')} onpackage={() => go('plan')} onmissing={(m) => { missing = m; if (m.length) setupOpen = true; }} onglance={(g) => (life = g)} onbusy={(b) => (acting = b)} oncopies={newestCopies} />
 
 				<section id="area-plan" hidden={area !== 'plan'} aria-labelledby="h-plan">
 					<h1 id="h-plan" tabindex="-1">{x.areas.plan}</h1>

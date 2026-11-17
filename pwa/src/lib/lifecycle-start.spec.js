@@ -182,3 +182,22 @@ describe('an empty start while backups exist', () => {
 		expect(view).toMatch(/data-testid="tiny-newest"/);
 	});
 });
+
+describe('choosing the backup a start restores', () => {
+	it('any backup can be picked from a list, unmarked ones with the confirmation; a tiny newest is never taken silently', async () => {
+		const { readFileSync } = await import('node:fs');
+		const card = readFileSync(new URL('./lifecycle-card.svelte.js', import.meta.url), 'utf8');
+		expect(card).toMatch(/choice === 'pick' \? \(\(backups \?\? \[\]\)\.find\(\(b\) => b\.pieceCid === pickedCid\)/);
+		expect(card).toMatch(/const chosenUnmarked = \$derived\(choice === 'any' \|\| \(choice === 'pick' && Boolean\(chosenBackup\) && !marked\(chosenBackup\)\)\)/);
+		expect(card).toMatch(/b\.size \* 100 < list\[i \+ 1\]\.size/);
+		const view = readFileSync(new URL('./Lifecycle.svelte', import.meta.url), 'utf8');
+		expect(view).toMatch(/data-testid="backup-pick-list"/);
+		expect(view).toMatch(/data-testid="tiny-pick-before"/);
+	});
+	it('the pick rule: the first backup not far smaller than the one after it', () => {
+		const pick = (list) => list.find((b, i) => !(b?.size != null && list[i + 1]?.size != null && b.size * 100 < list[i + 1].size)) ?? list[0];
+		expect(pick([{ pieceCid: 'empty', size: 3633 }, { pieceCid: 'good', size: 1_083_296_209 }, { pieceCid: 'older', size: 1_000_000_000 }]).pieceCid).toBe('good');
+		expect(pick([{ pieceCid: 'a', size: 900 }, { pieceCid: 'b', size: 1000 }]).pieceCid).toBe('a');
+		expect(pick([{ pieceCid: 'only', size: 10 }]).pieceCid).toBe('only');
+	});
+});

@@ -290,7 +290,12 @@ export function createLifecycleCard(p) {
 	// (the restore checks the piece itself); "complete" only compared the copies
 	// with every data set the wallet ever used, and a backup that went to a
 	// replacement provider never looked complete (2026-11-06).
-	const pick = (list) => list[0];
+	// A newest backup far smaller than the one after it in the list (an empty
+	// Paperless's, 2026-11-17) is never taken silently: the next one is.
+	const pick = (list) => list.find((b, i) => !(b?.size != null && list[i + 1]?.size != null && b.size * 100 < list[i + 1].size)) ?? list[0];
+	// A backup the person picked from the list (choice "pick"), by its piece CID.
+	let pickedCid = $state('');
+	const marked = (/** @type {any} */ b) => Boolean(b) && (profile.vaultBackups ?? []).includes(b.pieceCid);
 	// A production Paperless (role primary, mainnet) owns every backup in its
 	// wallet's data sets: the ones its stops made, and the two-hourly ones the
 	// app never hears of. It starts from the newest, whoever made it. A test
@@ -306,9 +311,11 @@ export function createLifecycleCard(p) {
 		return (production ? other.length : other.some((b) => (profile.ownBackups ?? []).includes(b.pieceCid))) ? 'any' : 'empty';
 	};
 	// "Latest" is the newest backup with this vault's mark: only those start without asking.
-	const chosenBackup = $derived(choice === 'latest' || choice === 'own' ? pick(split.own) : choice === 'any' ? unmarkedPick(split.other) : null);
+	const chosenBackup = $derived(choice === 'latest' || choice === 'own' ? pick(split.own) : choice === 'any' ? unmarkedPick(split.other) : choice === 'pick' ? ((backups ?? []).find((b) => b.pieceCid === pickedCid) ?? null) : null);
+	// Without this vault's mark: "any", or a picked backup that carries none.
+	const chosenUnmarked = $derived(choice === 'any' || (choice === 'pick' && Boolean(chosenBackup) && !marked(chosenBackup)));
 	// A backup without this vault's mark waits for the person's word.
-	const unmarkedOpen = $derived(choice === 'any' && Boolean(chosenBackup) && unmarkedAccepted !== chosenBackup?.pieceCid);
+	const unmarkedOpen = $derived(chosenUnmarked && Boolean(chosenBackup) && unmarkedAccepted !== chosenBackup?.pieceCid);
 	// The newest backup, for the lights at the top: this vault's own, else the newest listed.
 	// This vault's newest: one with its mark or one its stops made (ownBackups;
 	// a stop's backup may not carry the noted mark yet), else the newest listed.
@@ -525,7 +532,7 @@ export function createLifecycleCard(p) {
 		await revoking;
 		if (profile.leSpacePays) await leSpaceOwner();
 		const chosen = chosenBackup;
-		const unmarked = choice === 'any';
+		const unmarked = chosenUnmarked;
 		if (gapOpen) throw new Error(tr().card.errors.gapOpen);
 		if (unmarkedOpen) throw new Error(tr().card.errors.unmarkedOpen);
 		// No image yet: this vault's own one first (about 15 minutes; the page stays open),
@@ -1165,6 +1172,11 @@ export function createLifecycleCard(p) {
 		unmarkedPick,
 		get chosenBackup() { return chosenBackup; },
 		get unmarkedOpen() { return unmarkedOpen; },
+		get chosenUnmarked() { return chosenUnmarked; },
+		get pickedCid() { return pickedCid; },
+		set pickedCid(v) { pickedCid = v; },
+		pickBackup: (/** @type {string} */ cid) => ((pickedCid = cid), (choice = 'pick')),
+		marked,
 		get chainBackup() { return chainBackup; },
 		get known() { return known; },
 		get gap() { return gap; },
