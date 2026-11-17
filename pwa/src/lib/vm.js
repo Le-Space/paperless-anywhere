@@ -137,10 +137,22 @@ export async function notifyNode(crnUrl, itemHash) {
 	return result;
 }
 
-/** The instance's mapped 443, once the node has applied the forward. */
+/**
+ * How long one read from a node, from 2n6 or from a VM's status page may take:
+ * a connection that never answers would otherwise hold a start without end
+ * (2026-11-17: a resumed start sat at "Port 443" for over 20 minutes).
+ */
+export const READ_MS = 20_000;
+const inTime = () => ({ cache: /** @type {RequestCache} */ ('no-store'), signal: AbortSignal.timeout(READ_MS) });
+
+/**
+ * The instance's mapped 443, once the node has applied the forward; null
+ * while it has none. Throws when the node does not answer, so a node that
+ * cannot be read is never taken for one without the mapping.
+ */
 export async function mapped443(crnUrl, itemHash) {
-	const res = await fetch(`${crnUrl}/v2/about/executions/list`, { cache: 'no-store' });
-	if (!res.ok) return null;
+	const res = await fetch(`${crnUrl}/v2/about/executions/list`, inTime());
+	if (!res.ok) throw new Error(`the node's list of executions: ${res.status}`);
 	return (await res.json())?.[itemHash]?.networking?.mapped_ports?.['443']?.host ?? null;
 }
 
@@ -150,7 +162,7 @@ export async function mapped443(crnUrl, itemHash) {
  * @returns {Promise<{ ipv4: string, port: number } | null>}
  */
 export async function publicAddress(crnUrl, itemHash) {
-	const res = await fetch(`${crnUrl}/v2/about/executions/list`, { cache: 'no-store' });
+	const res = await fetch(`${crnUrl}/v2/about/executions/list`, inTime());
 	if (!res.ok) return null;
 	const net = (await res.json())?.[itemHash]?.networking;
 	const ipv4 = net?.host_ipv4;
@@ -194,7 +206,7 @@ export function twoN6Host(raw) {
 
 /** The instance's 2n6 hostname, once 2n6 knows it. */
 export async function hostname(itemHash) {
-	const access = await fetch2n6WebAccessUrl(itemHash, { fetch: (u, i) => fetch(u, i) }).catch(() => null);
+	const access = await fetch2n6WebAccessUrl(itemHash, { fetch: (u, i) => fetch(u, { ...i, signal: AbortSignal.timeout(READ_MS) }) }).catch(() => null);
 	return twoN6Host(access?.subdomain ?? access?.url ?? '');
 }
 
@@ -208,10 +220,10 @@ export async function vmStatus(host, token) {
 	// Nothing, the token least of all, goes to a host that is not a plain DNS name.
 	if (!validHost(host)) throw new Error(`not a host name: ${String(host).slice(0, 80)}`);
 	if (token) {
-		const res = await fetch(`https://${host}/anywhere/s/${token}.json`, { cache: 'no-store' }).catch(() => null);
+		const res = await fetch(`https://${host}/anywhere/s/${token}.json`, inTime()).catch(() => null);
 		if (res?.ok) return res.json();
 	}
-	const res = await fetch(`https://${host}/anywhere/status.json`, { cache: 'no-store' }).catch(() => null);
+	const res = await fetch(`https://${host}/anywhere/status.json`, inTime()).catch(() => null);
 	return res?.ok ? res.json() : null;
 }
 
