@@ -61,19 +61,22 @@ style, and the light/dark switch.
 - `Balances`, `VmList`, `Setup` and `Package` feed warnings even while hidden. Their data
   sources must stay alive in the standard view.
 
-## Findings for the parallel deploy (phase 4), to be verified
+## The parallel deploy (phase 4): a path, not a subdomain
 
-- `pwa/src/lib/keys/passkey.js` sets no `rp.id`, so today's passkeys belong to
-  `paperless.le-space.de`. A subdomain such as `v2.paperless.le-space.de` may name that
-  `rp.id` explicitly; the same credential and PRF salt then give the same key. This needs a
-  proof in a real browser before the target is fixed.
-- The vault record is in `localStorage` and also on Aleph, found through the passkey
-  (`keys/vault.js`). On a new origin the app fetches it from there.
-- A subdomain has its own browser storage, so the two versions cannot overwrite each
-  other's local records. The sealed profile on Aleph is shared; v0.2 must not change its
-  schema.
-- A path (`/v2/`) would share origin, storage and release with v0.1.
-- A new Aleph custom domain may wait up to two days for its certificate.
+Decided on 2026-11-17: v0.2 lives at `/v0.2/` on `paperless.le-space.de`, as a route of the
+same build.
+
+- Same origin: the same passkey opens (`pwa/src/lib/keys/passkey.js` sets no `rp.id`, so a
+  passkey belongs to the address), and the vault record in `localStorage` is the same one.
+- Both interfaces use the same modules for the vault and the sealed profile, so they read
+  and write the same records in the same way. v0.2 adds one key of its own,
+  `paperless-anywhere.view`.
+- The new interface is in chunks of its own, loaded only under `/v0.2/`. It ships with every
+  release, unlinked, until the switch.
+- A subdomain was set up first and dropped. What was learned: in Chromium, with a virtual
+  authenticator, a passkey made without `rp.id` opens on a subdomain that names the parent
+  `rp.id`, with the same PRF output, and not without it. Safari and real authenticators were
+  not tested.
 
 ## Open questions
 
