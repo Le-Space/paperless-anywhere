@@ -14,7 +14,7 @@ deployed beside v0.1 for testing before any switch.
 |---|---|
 | [`prototype.html`](prototype.html) | The concept page (German): a clickable prototype of eleven screens, each in both views side by side, then the architecture, the switch, the wording, the mapping summary and the open questions. Its source is written for the Artifact publisher, which adds the document skeleton. |
 | [`places.md`](places.md) | The information architecture of v0.2 as place codes (`S-STATUS`, `B-HEALTH`, `P-PAYER.T` ...). `.T` marks what only the technical view shows. |
-| [`inventory/`](inventory/) | Every control, label, light, dialog and text block of the app on `main` at 30f34f4, with file and line, state, audience and behaviour: 791 rows in three slices, plus duplicates, jargon, dead ends, persistence and component interfaces. `D-delta-since-30f34f4.md` adds the seven items main gained up to 91f682a, with their places. `E-brand-and-switch.md` holds the brand tokens and the simple/technical switch of simple-todo. |
+| [`inventory/`](inventory/) | Every control, label, light, dialog and text block of the app on `main` at 30f34f4, with file and line, state, audience and behaviour: 791 rows in three slices, plus duplicates, jargon, dead ends, persistence and component interfaces. `D-delta-since-30f34f4.md` adds the ten items main gained since (up to #357, the switch for incremental backups), with their places. `E-brand-and-switch.md` holds the brand tokens and the simple/technical switch of simple-todo. |
 | [`mapping/`](mapping/) | One row per inventory row: its place in v0.2, how "Standard" and "Technisch" show it, and what changes. |
 
 ## The architecture in short
