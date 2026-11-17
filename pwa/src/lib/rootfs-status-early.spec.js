@@ -24,7 +24,8 @@ function https({ mode = '--status', host = 'abc.vm.example.org', fixed = true, c
 		writeFileSync(join(root, 'tmp/secrets/https_port'), '24005');
 	}
 	if (cert) writeFileSync(join(root, 'var/lib/caddy/fixed/cert.pem'), 'pem');
-	writeFileSync(join(root, 'bin/systemctl'), `#!/bin/sh\necho "$@" >> "${root}/systemctl.log"\nexit 0\n`);
+	// Records whether it got the lock's fd 9: a Caddy it starts would keep it.
+	writeFileSync(join(root, 'bin/systemctl'), `#!/bin/sh\necho "$@" >> "${root}/systemctl.log"\nif (: >&9) 2>/dev/null; then echo "$1" >> "${root}/inherited.log"; fi\nexit 0\n`);
 	chmodSync(join(root, 'bin/systemctl'), 0o755);
 	const r = spawnSync('sh', [join(files, 'paperless-https'), ...(mode ? [mode] : []), host], {
 		encoding: 'utf8',
@@ -34,7 +35,8 @@ function https({ mode = '--status', host = 'abc.vm.example.org', fixed = true, c
 	return {
 		caddy: readFileSync(join(root, 'etc/caddy/Caddyfile'), 'utf8'),
 		hostnameWritten: existsSync(join(root, 'etc/paperless-anywhere/hostname')),
-		restarts: readFileSync(join(root, 'systemctl.log'), 'utf8').split('\n').filter((l) => l.startsWith('restart')).length
+		restarts: readFileSync(join(root, 'systemctl.log'), 'utf8').split('\n').filter((l) => l.startsWith('restart')).length,
+		inherited: existsSync(join(root, 'inherited.log')) ? readFileSync(join(root, 'inherited.log'), 'utf8').trim() : ''
 	};
 }
 
@@ -68,6 +70,13 @@ describe('paperless-https', { timeout: 30_000 }, () => {
 		expect(caddy).not.toContain('on_demand');
 		expect(caddy).not.toContain('https:// {');
 		expect(caddy).toContain('reverse_proxy 127.0.0.1:8000');
+	});
+	it('never hands its lock to systemctl: a Caddy started from there would hold it, and the next call (paperless-secrets, then sshd) would wait for good', () => {
+		for (const o of [{}, { mode: '--early', cert: true }, { mode: '--early', host: 'a-b-c-d.2n6.me', fixed: false }]) expect(https(o).inherited).toBe('');
+		const script = source('paperless-https');
+		expect(script).toMatch(/flock -w 60 9/);
+		expect(script).toMatch(/\nexec 9>&-\n/);
+		for (const line of script.split('\n').filter((l) => /^\s*[^#]*\bsystemctl (restart|is-active)/.test(l))) expect(line).toMatch(/9>&-/);
 	});
 	it('keeps what Caddy orders in memory', () => {
 		for (const o of [{}, { fixed: false }]) expect(https(o).caddy).toMatch(/storage file_system \{\n\s+root \/run\/caddy\n/);
