@@ -22,13 +22,16 @@ deployed beside v0.1 for testing before any switch.
 - Areas: **Start, Sicherung, Paket, Mehr**; the technical view adds **System**.
 - The technical view only adds: a mono line under a plain sentence, a "Technik" panel
   under a card, and the System area. Nothing moves or disappears when the switch flips.
+- What works stays: the panel of lights for start and stop and the full-screen first-start
+  journey (stations, lights, the "what flows where" diagram) are in both views, in German and
+  English; Einfach names rows and stations in plain words, Technisch writes every fact out.
 - Every warning carries its own button; no text points to another place by name.
 - One thing, one place, one name. 39 duplicate rows merge into their surviving place.
 - The nine native `confirm()` questions become designed dialogs.
 - Legal texts stay verbatim; the hard-coded German ones move into the catalogue unchanged.
 
-Counts from the mapping: Start 160 rows (113 also in Einfach), Sicherung 150 (69),
-Paket 184 (151), System 66 (17, as alerts with a button), Mehr 33 (26), before unlock
+Counts from the mapping: Start 160 rows (125 also in Einfach), Sicherung 150 (69),
+Paket 184 (151), System 66 (16, as alerts with a button), Mehr 33 (26), before unlock
 28 (26), global 130 (123), merged 39, test hook 1. Total 791.
 
 ## The switch

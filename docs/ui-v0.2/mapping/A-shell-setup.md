@@ -212,19 +212,19 @@ Technisch is a superset: "yes" alone means "same as Einfach, nothing added".
 | A-167 | Leiste "Dein Build-Dienst wacht auf" · "{pct} % · noch ca. …" | S-FIRST | plain: station texts without "Build-Dienst" / "Image" | yes; today's station texts | reworded; bar stays on failure with "Erneut versuchen" (DE 17) |
 | A-168 | "Ansehen" | S-FIRST | yes | yes | same |
 | A-169 | Vollbild-Dialog (dunkel) | S-FIRST | yes | yes | same |
-| A-170 | "Dein erster Start · ca. 25 Minuten insgesamt" + "Dein eigenes Image entsteht" | S-FIRST | plain: "Dein Paperless wird eingerichtet" | yes; today's heading as technical line | reworded |
+| A-170 | "Dein erster Start · ca. 25 Minuten insgesamt" + "Dein eigenes Image entsteht" | S-FIRST | plain: same full-screen journey; title without "Image" | yes; today's heading | kept as the full-screen journey in both views; reworded in Einfach |
 | A-171 | "Verkleinern" | S-FIRST | yes | yes | same |
 | A-172 | "Schließen" (bei Fehler) | S-FIRST | yes; next to "Erneut versuchen" | yes | fixed dead end: no longer the only button (DE 17) |
-| A-173 | Stationen "Build-Dienst" / "Echtheit" / "Siegel" / "Abholen" … | S-FIRST | plain: plain station names + durations | yes; today's labels | reworded |
-| A-174 | Lichterreihe (Zierde) | S-FIRST | yes | yes | same |
+| A-173 | Stationen "Build-Dienst" / "Echtheit" / "Siegel" / "Abholen" … | S-FIRST | yes; the six stations with circles, check marks and durations; plain labels | yes; today's labels | same stations and animation; plain labels in Einfach |
+| A-174 | Lichterreihe (Zierde) | S-FIRST | yes; the row of lights as today | yes | same |
 | A-175 | "Schritt {n} von {m} · {Dauer}" | S-FIRST | yes | yes | same |
 | A-176 | "Kurz innegehalten" · "Den Grund siehst du in der Karte …" | S-FIRST, G-ERR | plain: reason as a sentence + "Erneut versuchen" | yes; "Details" with the raw message/log | fixed dead end: reason and retry in the overlay (DE 17) |
-| A-177 | "Dein persönlicher Build-Dienst wacht auf" + Text | S-FIRST | plain: same warm tone, jargon replaced | yes; today's texts | reworded |
+| A-177 | "Dein persönlicher Build-Dienst wacht auf" + Text | S-FIRST | plain: today's warm texts, jargon words replaced | yes; today's texts | reworded in Einfach only |
 | A-178 | 19 Unterschritte ("… V-PROGRAM …", "Mit LUKS versiegelt …") | S-FIRST.T | no | yes | same, technical view only |
 | A-179 | "{n} Verbindungen bestätigt" · "{x} von {y} MiB" … | S-FIRST.T | no (percent stays, A-181) | yes | same, technical view only |
 | A-180 | "Die Verbindung ist abgerissen – kein Problem: …" | S-FIRST | plain: without "Image" | yes; adds attempt count | reworded |
 | A-181 | "{pct} % abgeholt" | S-FIRST | yes | yes | same |
-| A-182 | Schaubild "Was gerade wohin fließt: …" | S-FIRST.T | no | yes | same, technical view only |
+| A-182 | Schaubild "Was gerade wohin fließt: …" | S-FIRST | yes; the animated diagram with plain place names | yes; today's names, share in percent | kept in both views; plain names in Einfach |
 | A-183 | "Belege – zum Nachprüfen" (bis 11 Zeilen) | S-FIRST.T, S-PROOF | plain: one line "Geprüft: echte, verschlüsselte Maschine" | yes; all rows with links | same rows; Einfach gets the one-line proof |
 | A-184 | "Die Hardware dahinter": zwei AMD-Links | S-FIRST.T | no | yes | same, technical view only |
 | A-185 | "{pct} % geschafft" · "noch ca. {n} Min. …" · "Dein Bildschirm bleibt an. …" | S-FIRST | yes | yes | same |

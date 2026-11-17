@@ -43,8 +43,8 @@ Columns: ID | Today | v0.2 place | Einfach | Technisch | Change
 | B-024 | "Auf Filecoin liegt eine neuere ({n} Kopien) …" | B-CHAIN.T | no | yes | moved |
 | B-025 | "Noch keine erfolgreiche Sicherung bekannt" | B-LAST | yes; next to "Jetzt sichern" | yes | moved |
 | B-026 | Fortschrittsbalken | S-PROGRESS | yes | yes | same |
-| B-027 | "{Schritt} · noch etwa {N} min" | S-PROGRESS | plain: three plain steps and time left | yes; today's step label as technical line | reworded |
-| B-028 | StartPanel (Start/Stopp) in Übersicht | S-PROGRESS.T | no; three plain steps instead | yes; full panel | moved out of the simple view; merged with B-100 |
+| B-027 | "{Schritt} · noch etwa {N} min" | S-PROGRESS | plain: headline and time left above the light panel | yes; today's step label as technical line | reworded |
+| B-028 | StartPanel (Start/Stopp) in Übersicht | S-PROGRESS | yes; the light panel stays, rows with plain names and lights | yes; plus every fact written out, timings, legend | kept in both views; one panel, merged with B-100 |
 | B-029 | "Paperless-ngx öffnen" | S-ACCESS | yes | yes | same |
 | B-030 | "Mit der Sicherung kam ein weiterer Administrator …" | S-ACCESS | plain; with Knopf "Benutzer in Paperless ansehen" | yes | reworded; gets its own button |
 | B-031 | "Die Sicherung ließ sich nicht wiederherstellen …" | G-ERR | plain; Knöpfe "Andere Sicherung wählen", "Löschen ohne Sicherung" | yes; Details with reason and error | merged with B-073; reason in Details, no "siehe Erweitert" (DE 13) |
@@ -180,26 +180,26 @@ Columns: ID | Today | v0.2 place | Einfach | Technisch | Change
 
 | ID | Today | v0.2 place | Einfach | Technisch | Change |
 |---|---|---|---|---|---|
-| B-149 | Panel-Titel (nur aria) "Start der VM: …" | S-PROGRESS.T | no; plain steps carry their own label | yes | same |
-| B-150 | Zeile "{n} {Name}" + "{12 s} (üblich ca. 10 s)" | S-PROGRESS.T | no; time left only | yes | same |
-| B-151 | Lichterleiste je Zeile | S-PROGRESS.T | plain: one check mark per plain step | yes | same |
-| B-152 | Zeile "Messwerte" (2 Lichter) | S-PROGRESS.T | no; part of step "Vorbereiten" | yes | same |
-| B-153 | Zeile "Instanz" (2 Lichter) | S-PROGRESS.T | no; part of step "Vorbereiten" | yes | same |
-| B-154 | Zeile "Netz" (2 Lichter) | S-PROGRESS.T | no; part of step "Vorbereiten" | yes | same |
-| B-155 | Zeile "Attestierung" (2 Lichter) | S-PROGRESS.T | plain: step "Sicherheit prüfen" | yes | same |
-| B-156 | Zeile "Entsperren" (2 Lichter) | S-PROGRESS.T | no; part of step "Sicherheit prüfen" | yes | same |
-| B-157 | Zeile "Wiederherstellen": "Sicherung eingespielt" | S-PROGRESS.T | plain: "Sicherung wird eingespielt" inside step 3 | yes | same |
-| B-158 | Zeile "Bereit" (4 Lichter) | S-PROGRESS.T | plain: step "Paperless starten" | yes | same |
-| B-159 | Stopp-Zeile "Auftrag" (2 Lichter) | S-PROGRESS.T | no; part of step "Sichern" | yes | same |
-| B-160 | Stopp-Zeile "Export" (2 Lichter) | S-PROGRESS.T | plain: step "Sichern" | yes; file count | same |
-| B-161 | Stopp-Zeile "Archiv" (age, Kopf der Sicherung) | S-PROGRESS.T | plain: "verschlüsselt" inside step "Sichern" | yes | same |
-| B-162 | Stopp-Zeile "Hochladen" (Kopien bei Anbietern) | S-PROGRESS.T | plain: "{n} Kopien" inside step "Kopien bestätigen" | yes; provider ids, data sets | same |
-| B-163 | Stopp-Zeile "Bestätigt" (Piece-CID) | S-PROGRESS.T | no; part of step "Kopien bestätigen" | yes | same |
-| B-164 | Zeile "Löschen" (Knoten, FORGET, Widerruf) | S-PROGRESS.T | plain: step "Maschine ausschalten, kostet nichts mehr" | yes | same |
-| B-165 | Stopp-Zeile "Liste" | S-PROGRESS.T | no; result shows in B-LAST | yes | same |
+| B-149 | Panel-Titel (nur aria) "Start der VM: …" | S-PROGRESS | yes; aria title in plain words | yes | reworded |
+| B-150 | Zeile "{n} {Name}" + "{12 s} (üblich ca. 10 s)" | S-PROGRESS | yes; row number and plain name; no timings | yes; timings "(üblich ca. …)" | same panel, plain names in Einfach |
+| B-151 | Lichterleiste je Zeile | S-PROGRESS | yes; the lights as today | yes | same |
+| B-152 | Zeile "Messwerte" (2 Lichter) | S-PROGRESS | yes; row "Vorbereiten" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
+| B-153 | Zeile "Instanz" (2 Lichter) | S-PROGRESS | yes; row "Maschine" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
+| B-154 | Zeile "Netz" (2 Lichter) | S-PROGRESS | yes; row "Adresse" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
+| B-155 | Zeile "Attestierung" (2 Lichter) | S-PROGRESS | yes; row "Echtheit" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
+| B-156 | Zeile "Entsperren" (2 Lichter) | S-PROGRESS | yes; row "Aufschließen" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
+| B-157 | Zeile "Wiederherstellen": "Sicherung eingespielt" | S-PROGRESS | yes; row "Sicherung holen" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
+| B-158 | Zeile "Bereit" (4 Lichter) | S-PROGRESS | yes; row "Bereit" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
+| B-159 | Stopp-Zeile "Auftrag" (2 Lichter) | S-PROGRESS | yes; row "Auftrag" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
+| B-160 | Stopp-Zeile "Export" (2 Lichter) | S-PROGRESS | yes; row "Dokumente sammeln" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
+| B-161 | Stopp-Zeile "Archiv" (age, Kopf der Sicherung) | S-PROGRESS | yes; row "Verschlüsseln" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
+| B-162 | Stopp-Zeile "Hochladen" (Kopien bei Anbietern) | S-PROGRESS | yes; row "Kopien ablegen" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
+| B-163 | Stopp-Zeile "Bestätigt" (Piece-CID) | S-PROGRESS | yes; row "Kopien bestätigt" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
+| B-164 | Zeile "Löschen" (Knoten, FORGET, Widerruf) | S-PROGRESS | yes; row "Maschine löschen" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
+| B-165 | Stopp-Zeile "Liste" | S-PROGRESS | yes; row "Eintragen" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
 | B-166 | Live-Region "{Zeile}: {Zustand}" (sr-only) | S-PROGRESS | yes; announces the plain steps | yes; announces panel rows | same (a11y kept in both) |
 | B-167 | "Gesamt: {123 s} · üblich ca. {10 min}" | S-PROGRESS.T | no | yes | same |
-| B-168 | Legende "Grün: … Blau: …" + Verweis | S-PROGRESS.T | no | yes; reference becomes a link to S-PROOF.T | reworded: named place becomes a link |
+| B-168 | Legende "Grün: … Blau: …" + Verweis | S-PROGRESS | plain: "Grün: von der App geprüft. Blau: gemeldet." | yes; full legend, reference becomes a link to S-PROOF.T | reworded: named place becomes a link |
 
 ### 2.5 Evidence.svelte ("Nachweis dieser VM", "Nachweis: Sicherung und Löschen")
 

@@ -42,15 +42,18 @@ Before unlock (U)
 
 Start (S)
 - S-STATUS   status card: headline, one sentence, one primary action (start / open / resume)
-- S-PROGRESS progress while starting/stopping: Einfach = three plain steps + time left;
-             S-PROGRESS.T = the full step panel (rows, lights, timings, raw progress line)
+- S-PROGRESS progress while starting/stopping: headline, bar, time left, and the panel of lights in BOTH views
+             (one row per step, one light per fact, as today). Einfach names the rows in plain words and shows
+             the facts on tap; S-PROGRESS.T writes every fact out and adds timings, total and the raw progress line
 - S-ACCESS   running: "Paperless öffnen", login name and password (show/copy with feedback)
 - S-PROOF    Einfach: one line "Geprüft: echte, verschlüsselte Maschine" + "Was wurde geprüft?";
              S-PROOF.T = the full evidence rows, re-check, stop evidence, image certificate link
 - S-STOP     "Sichern und beenden" and its variants (delete without backup, keep/delete on partial)
 - S-RESTORE  what the start begins with: Einfach = one sentence + "Andere Sicherung wählen" (list by date);
              S-RESTORE.T = the full choice (own/unmarked/empty, snapshots, piece ids, sizes, copies)
-- S-FIRST    first start / image build screen: Einfach = plain stations + time; S-FIRST.T = sub-steps, evidence, diagram, certificate
+- S-FIRST    first start / image build: the full-screen journey stays in BOTH views (six stations, row of lights,
+             percent, time left, minimise, the animated "what flows where" diagram, the finale, the certificate).
+             Einfach uses plain station names and texts; S-FIRST.T adds the sub-steps, the evidence rows and the hardware links
 - S-NOTE     notes under the status card (role, data disk, image line, revoke pending, node refused ...): most are `.T`
 
 Sicherung (B)
