@@ -6,17 +6,17 @@
 	// profile as v0.1: both read and write the same records.
 	//
 	// The shell: the way into the vault in plain words, the switch, the areas.
-	// The cards of Paket, System and Mehr are still the ones of v0.1;
-	// Start and Sicherung have their own design (lib/v2/Paperless.svelte); the
-	// other areas follow. Every area stays mounted
-	// while another one shows, so a running start is never torn down.
+	// Start and Sicherung (lib/v2/Paperless.svelte) and Paket (lib/v2/Plan.svelte)
+	// have their own design; the cards of System and Mehr are still the ones of
+	// v0.1. Every area stays mounted while another one shows, so a running start
+	// is never torn down.
 	import { tick } from 'svelte';
 	import { refreshBalancesSoon } from '$lib/balance-refresh.js';
 	import Setup from '$lib/Setup.svelte';
 	import Paperless from '$lib/v2/Paperless.svelte';
 	import Balances from '$lib/Balances.svelte';
 	import VmList from '$lib/VmList.svelte';
-	import Package from '$lib/Package.svelte';
+	import Plan from '$lib/v2/Plan.svelte';
 	import BackupLeds from '$lib/BackupLeds.svelte';
 	import BuildInfo from '$lib/BuildInfo.svelte';
 	import Help from '$lib/Help.svelte';
@@ -319,7 +319,7 @@
 
 				<section id="area-plan" hidden={area !== 'plan'} aria-labelledby="h-plan">
 					<h1 id="h-plan" tabindex="-1">{x.areas.plan}</h1>
-					{#if CREDITS_URL}<Package {master} version={profileVersion} onglance={(g) => (pkg = g)} onprofile={() => profileVersion++} />{/if}
+					{#if CREDITS_URL}<Plan {master} technical={$technical} version={profileVersion} {acting} confirm={ask} onsetup={toSetup} onglance={(g) => (pkg = g)} onprofile={() => profileVersion++} />{/if}
 					<!-- Only where the person pays with crypto themselves; mounted in both views, since it feeds the warnings. -->
 					<details class="part" hidden={!$technical || !balancesShown} data-testid="v2-balances">
 						<summary>{$t.app.tech.wallet}{#if summary?.money} <span class="chip">{summary.money}</span>{/if}</summary>
