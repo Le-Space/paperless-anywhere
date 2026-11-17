@@ -3,7 +3,7 @@
 	import { amount } from '$lib/balances.js';
 	import { lang, t } from '$lib/i18n/index.js';
 
-	/** @type {{ network: string, payer?: string, config: { copies: number, providerIds: number[], regions: string[] }, busy?: boolean, onsave: (places: { copies: number, providerIds: number[], regions: string[] }) => void }} */
+	/** @type {{ network: string, payer?: string, config: { copies: number, providerIds: number[], regions: string[], incremental?: { enabled?: boolean } }, busy?: boolean, onsave: (places: { copies: number, providerIds: number[], regions: string[], incremental: { enabled: boolean } }) => void }} */
 	let { network, payer = '', config, busy = false, onsave } = $props();
 
 	const x = $derived($t.backup.places);
@@ -31,6 +31,8 @@
 	let countries = $state(storedRegion === 'custom' ? config.regions.join(', ') : '');
 	/** @type {number[]} */
 	let chosen = $state([...(config.providerIds ?? [])]);
+	// Incremental backups (snapshots): saved with the places, so saving them never drops it.
+	let incremental = $state(config.incremental?.enabled === true);
 
 	$effect(() => {
 		const net = network;
@@ -46,13 +48,13 @@
 	const regions = $derived(
 		region === 'custom' ? countries.split(/[\s,;]+/).map((c) => c.trim().toUpperCase()).filter((c) => /^[A-Z]{2}$/.test(c)) : region ? [region] : []
 	);
-	const places = $derived(mode === 'providers' ? { copies: chosen.length, providerIds: chosen, regions: [] } : { copies, providerIds: [], regions });
+	const places = $derived({ ...(mode === 'providers' ? { copies: chosen.length, providerIds: chosen, regions: [] } : { copies, providerIds: [], regions }), incremental: { enabled: incremental } });
 	// Problems and warnings are sentences: read again when the language changes.
 	const preview = $derived(($lang, providers ? pickProviders(providers, places) : null));
 	const warnings = $derived(($lang, preview ? sharedWarnings(preview.picked) : []));
 	const abroad = $derived(preview ? outsideEu(preview.picked) : []);
 	const cost = $derived(prices && preview ? monthlyCost(prices, preview.picked.length, bytes) : null);
-	const changed = $derived(JSON.stringify(places) !== JSON.stringify({ copies: config.copies, providerIds: config.providerIds ?? [], regions: config.regions ?? [] }));
+	const changed = $derived(JSON.stringify(places) !== JSON.stringify({ copies: config.copies, providerIds: config.providerIds ?? [], regions: config.regions ?? [], incremental: { enabled: config.incremental?.enabled === true } }));
 	const valid = $derived(!!preview && !preview.problems.length && preview.picked.length >= 1 && (mode === 'region' || chosen.length <= 3));
 
 	// A provider whose operator already holds a chosen copy: not offered (two copies there fail together).
@@ -125,6 +127,8 @@
 			{#if cost !== null && preview.picked.length}<p><small>{x.cost(amount(cost, 2, $lang), bytes ? amount(bytes / 1e9, 1, $lang) : null)}</small></p>{/if}
 		</div>
 	{/if}
+	<label class="check"><input type="checkbox" bind:checked={incremental} disabled={busy} data-testid="places-incremental" /> {x.incremental}</label>
+	<p class="hint">{x.incrementalHint}</p>
 	<button onclick={() => onsave($state.snapshot(places))} disabled={busy || !valid || !changed}>{x.save}</button>
 </fieldset>
 

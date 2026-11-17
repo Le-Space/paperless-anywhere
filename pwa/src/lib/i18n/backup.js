@@ -171,6 +171,9 @@ export const backup = {
 				`Kopien außerhalb der EU (${countries}). Elektronische Bücher und Aufzeichnungen erlaubt die Abgabenordnung ohne Antrag nur in EU-Mitgliedstaaten (§ 146 Abs. 2a AO); außerhalb braucht es eine Bewilligung des Finanzamts (§ 146 Abs. 2b AO). Für steuerlich relevante Belege mit dem Steuerberater klären.`,
 			cost: (/** @type {string} */ usdfc, /** @type {string | null} */ gbPerCopy) => `Kosten ca. ${usdfc} USDFC im Monat${gbPerCopy ? ` bei ${gbPerCopy} GB je Kopie` : ' (Grundgebühr, noch keine Daten)'}.`,
 			save: 'Sicherungsorte speichern',
+			incremental: 'Nur Änderungen sichern (inkrementell)',
+			incrementalHint:
+				'Jede Sicherung lädt nur neue und geänderte Dateien hoch, als ein verschlüsseltes Paket von wenigen MB statt des ganzen Archivs. Etwa alle 30 Tage folgt eine neue vollständige Grundsicherung. Bisherige vollständige Sicherungen bleiben erhalten, bis eine Wiederherstellung aus dem neuen Verfahren geprüft ist. Öffentlich sichtbar ist nur, dass es eine inkrementelle Sicherung ist, zu welcher Generation sie gehört und ihre Nummer – nichts über die Dokumente. Gilt ab der nächsten Sicherung der VM.',
 			problems: {
 				notApproved: (/** @type {number} */ id) => `Anbieter ${id} ist nicht (mehr) zugelassen.`,
 				notActive: (/** @type {number} */ id, /** @type {string} */ name) => `Anbieter ${id} (${name}) ist nicht aktiv.`,
@@ -449,6 +452,9 @@ export const backup = {
 				`Copies outside the EU (${countries}). The German Fiscal Code (Abgabenordnung) allows electronic books and records without an application only in EU member states (§ 146 (2a) AO); outside, it takes an approval from the tax office (§ 146 (2b) AO). For documents that matter for tax, clarify this with your tax adviser.`,
 			cost: (/** @type {string} */ usdfc, /** @type {string | null} */ gbPerCopy) => `Costs about ${usdfc} USDFC a month${gbPerCopy ? ` at ${gbPerCopy} GB per copy` : ' (base fee, no data yet)'}.`,
 			save: 'Save the backup places',
+			incremental: 'Back up only changes (incremental)',
+			incrementalHint:
+				'Each backup uploads only new and changed files, as one encrypted pack of a few MB instead of the whole archive. About every 30 days a new full baseline follows. Existing full backups stay until a restore from the new scheme has been checked. Publicly visible is only that it is an incremental backup, which generation it belongs to and its number – nothing about the documents. Applies from the VM\'s next backup.',
 			problems: {
 				notApproved: (/** @type {number} */ id) => `Provider ${id} is not approved (any more).`,
 				notActive: (/** @type {number} */ id, /** @type {string} */ name) => `Provider ${id} (${name}) is not active.`,
