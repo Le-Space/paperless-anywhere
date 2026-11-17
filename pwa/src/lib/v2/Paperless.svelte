@@ -21,7 +21,7 @@
 	import StartPanel from '$lib/StartPanel.svelte';
 	import Storage from '$lib/Storage.svelte';
 	import TrialRestore from '$lib/TrialRestore.svelte';
-	import { place } from '$lib/backups.js';
+	import { backupSize, place } from '$lib/backups.js';
 	import { CREDITS_URL } from '$lib/credits.js';
 	import { httpsUrl } from '$lib/evidence.js';
 	import { format, lang, t } from '$lib/i18n/index.js';
@@ -33,14 +33,14 @@
 	/**
 	 * @type {{
 	 *   master: Uint8Array, technical: boolean, area: string, version?: number, reach?: import('$lib/backup-status.js').Level,
-	 *   onchange?: () => void, onsetup?: () => void, onpackage?: () => void, onmissing?: (missing: string[]) => void,
+	 *   onchange?: () => void, onsetup?: () => void, ontechnical?: () => void, onpackage?: () => void, onmissing?: (missing: string[]) => void,
 	 *   onglance?: (g: any) => void, onbusy?: (busy: boolean) => void, oncopies?: (c: any) => void,
 	 *   confirm: (q: { title: string, text: string, yes: string, no: string, danger?: boolean }) => Promise<boolean>,
 	 *   lights?: import('svelte').Snippet
 	 * }}
-	 * confirm: the shell's dialog; lights: the two backup lights, drawn at the top of "Sicherung".
+	 * ontechnical: switches to the technical view (where a backup can be chosen); confirm: the shell's dialog; lights: the two backup lights, drawn at the top of "Sicherung".
 	 */
-	let { master, technical, area, version = 0, reach = 'unknown', onchange = () => {}, onsetup = () => {}, onpackage = () => {}, onmissing = () => {}, onglance = () => {}, onbusy = () => {}, oncopies = () => {}, confirm, lights } = $props();
+	let { master, technical, area, version = 0, reach = 'unknown', onchange = () => {}, onsetup = () => {}, ontechnical = () => {}, onpackage = () => {}, onmissing = () => {}, onglance = () => {}, onbusy = () => {}, oncopies = () => {}, confirm, lights } = $props();
 
 	const x = $derived($t.v2);
 	const s = $derived($t.v2.start);
@@ -231,6 +231,23 @@
 				{c.gap.later}
 			</p>
 			<label class="check"><input type="checkbox" data-testid="restore-gap-accept" checked={!k.gapOpen} onchange={(e) => (k.gapAccepted = e.currentTarget.checked ? k.gapKey : '')} /> <span>{c.gap.accept}</span></label>
+		</div>
+	{/if}
+	<!-- From v0.1 (#368), in both views: the newest backup may be an empty Paperless's, and an empty start must not bury the real ones. -->
+	{#if phase === 'off' && k.tinyNewest && (k.choice === 'latest' || k.choice === 'own')}
+		<div class="alert" data-testid="tiny-newest">
+			{#if technical}<p>{c.advanced.tinyNewest(backupSize(k.tinyNewest.newest.size), backupSize(k.tinyNewest.before.size), k.tinyNewest.before.pieceCid.slice(-12))}</p>
+			{:else}
+				<p>{s.tinyNewest(backupSize(k.tinyNewest.newest.size), backupSize(k.tinyNewest.before.size))}</p>
+				<button class="sec" onclick={ontechnical} data-testid="v2-choose-backup">{s.chooseInTechnical}</button>
+			{/if}
+		</div>
+	{/if}
+	{#if phase === 'off' && !k.missing.length && k.choice === 'empty' && k.backups?.length}
+		<div class="alert" data-testid="empty-over-backups">
+			<p>{c.advanced.emptyOverBackups(k.backups.length)}</p>
+			<label class="check"><input type="checkbox" bind:checked={k.freshConfirmed} data-testid="empty-fresh-confirm" /> <span>{c.advanced.emptyFresh}</span></label>
+			{#if !technical}<button class="sec" onclick={ontechnical} data-testid="v2-choose-backup-empty">{s.chooseInTechnical}</button>{/if}
 		</div>
 	{/if}
 	{#if phase === 'off' && k.choice === 'any' && k.chosenBackup}
