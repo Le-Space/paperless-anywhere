@@ -62,6 +62,8 @@ Sicherung (B)
 - B-TRIAL    "Sicherung ausprobieren" (trial restore)
 - B-EXPORT   "Dokumente herunterladen" (fetch and decrypt in the browser, guide); B-EXPORT.T = ledger.json, backup key reveal
 - B-STORAGE  storage meter
+- B-INCR     "Nur Änderungen sichern" (incremental backups): a switch in both views, saved with the places in one payload;
+             the backup list keeps the labels "Grundsicherung <gen>" / "Ergänzung n zu <gen>"
 - B-COPIES.T per copy: provider, domain, owner, answers/silent/blocked, same-operator pairs, provider health
 - B-CHAIN.T  "Was die Chain sagt"
 - B-PLACES.T where backups go (region/copies or providers, cost, push to the running VM)

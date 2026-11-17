@@ -297,7 +297,7 @@ ul.plain li { margin: 4px 0; }
 		<thead><tr><th>Platz in v0.2</th><th>Einträge</th><th>davon auch in Standard</th></tr></thead>
 		<tbody><tr><td>Start</td><td class="n">160</td><td class="n">125</td></tr><tr><td>Sicherung</td><td class="n">150</td><td class="n">69</td></tr><tr><td>Paket</td><td class="n">184</td><td class="n">151</td></tr><tr><td>System (in Standard: nur als Meldung mit Knopf)</td><td class="n">66</td><td class="n">16</td></tr><tr><td>Mehr: Schlüssel, Hilfe, Rechtliches</td><td class="n">33</td><td class="n">26</td></tr><tr><td>Vor dem Entsperren</td><td class="n">28</td><td class="n">26</td></tr><tr><td>Übergreifend: Kopf, Meldungen, Dialoge, Fuß</td><td class="n">130</td><td class="n">123</td></tr><tr><td>Zusammengelegt (Doppelung, bleibt an einem Ort)</td><td class="n">39</td><td class="n">–</td></tr><tr><td>Nur Testhaken</td><td class="n">1</td><td class="n">–</td></tr><tr><td><b>Summe</b></td><td class="n"><b>791</b></td><td class="n"><b>536</b></td></tr></tbody>
 	</table></div>
-	<p class="note" id="mapnote">Kein Eintrag blieb ohne Platz. Sieben Einträge, die seit der Inventur auf main dazukamen (drei unabhängige Betreiber in Europa, Anzeige der nächsten Sicherung, eine neue Fehlermeldung beim Start), sind in <code>inventory/D-delta-since-30f34f4.md</code> nachgetragen und zugeordnet. Vier unbenutzte Katalogtexte und ein doppelt definierter Schlüssel (<code>funds.refresh</code>) werden nicht übernommen; sie erscheinen heute nirgends. Dateien im Zweig: <code>docs/ui-v0.2/inventory/</code> (Bestand mit Datei und Zeile) und <code>docs/ui-v0.2/mapping/</code> (Zuordnung).</p>
+	<p class="note" id="mapnote">Kein Eintrag blieb ohne Platz. Zehn Einträge, die seit der Inventur auf main dazukamen (drei unabhängige Betreiber in Europa, Anzeige der nächsten Sicherung, eine neue Fehlermeldung beim Start, der Schalter für inkrementelle Sicherungen), sind in <code>inventory/D-delta-since-30f34f4.md</code> nachgetragen und zugeordnet. Vier unbenutzte Katalogtexte und ein doppelt definierter Schlüssel (<code>funds.refresh</code>) werden nicht übernommen; sie erscheinen heute nirgends. Dateien im Zweig: <code>docs/ui-v0.2/inventory/</code> (Bestand mit Datei und Zeile) und <code>docs/ui-v0.2/mapping/</code> (Zuordnung).</p>
 </section>
 
 <section>
@@ -490,6 +490,7 @@ const SCREENS = [
 		${t ? tech('Was die Chain sagt', dl([['Datensatz aktiv', '✓ von der App geprüft'], ['Letzter Beweis', '✓ heute, 13:40'], ['Nächste Stichprobe', '• vom Anbieter gemeldet'], ['Probeabruf', '✓']])) : ''}
 		<div class="card">
 			<div class="row chev"><span><b>Sicherung ausprobieren</b><br><span class="sub">Startet eine zweite Maschine aus der Sicherung, zum Nachsehen. Kostet Laufzeit.</span></span></div>
+			<div class="row"><span><b>Nur Änderungen sichern</b><br><span class="sub">Spart Zeit und Speicher bei jeder Sicherung.</span></span><span class="v">aus</span></div>
 			<div class="row chev"><span><b>Dokumente herunterladen</b><br><span class="sub">Holt die Sicherung in diesen Browser und entschlüsselt sie.</span></span></div>
 		</div>
 		<div class="card"><h4>Speicher</h4><div class="meter"><i style="width:26%"></i></div><p class="sub">2,1 GB von 8 GB belegt</p></div>
