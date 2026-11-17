@@ -2,11 +2,11 @@
 
 Source: `C-money-backups.md` (269 rows, C-001 … C-328). Place codes from `places.md`.
 "DE n" in the Change column = closes dead end n of section 3.3; "DUP n" = resolves duplicate n of section 3.1.
-Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" = what is added.
+Technisch is a superset: "yes" = everything Standard shows, same place; "+ …" = what is added.
 
 ### 2.1 Page-level items of this slice (routes/app/+page.svelte)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-001 | BackupLeds strip im Header | B-HEALTH, G-NAV | plain; one sentence + two lights, dot on "Sicherung" | yes; + per-provider detail in B-COPIES.T | moved out of header; locked state: open question 3 |
 | C-002 | "Deine bezahlte Laufzeit endet am …" | G-ALERT | yes | yes | same; the one surviving period-end warning (DUP 1) |
@@ -20,7 +20,7 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 
 ### 2.2 Package.svelte (card `#paket`, both tabs)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-010 | Karte ohne Titel | P-STATE | yes; visible heading "Dein Paket" | yes | fixed dead end: heading rendered, anchors match (DE 24) |
 | C-011 | "…" | P-STATE | plain; "Lese dein Paket …" | yes | reworded |
@@ -85,7 +85,7 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 
 ### 2.3 Terms.svelte (inside Package, top of card)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-070 | "Neue Bedingungen (AGB): bitte zustimmen" | P-LEGAL | yes; buy buttons disabled, each links here | yes | fixed dead end: link from blocked purchases (DE 12) |
 | C-071 | "Die Bedingungen liegen auf Deutsch vor." | P-LEGAL | yes | yes | same |
@@ -99,7 +99,7 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 
 ### 2.4 Waiver.svelte and HourQuote.svelte
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-080 | Widerrufserklärung (Checkbox, vier Kaufstellen) | P-LEGAL, P-MONEY | yes; verbatim, one per purchase | yes | same; deliberately repeated per purchase (DUP 13) |
 | C-082 | "Das Guthaben reicht nicht für 10 Stunden." | P-MONEY, G-DIALOG | yes; + button "Guthaben aufladen" | yes | fixed dead end: top-up button instead of hint (DE 11) |
@@ -113,7 +113,7 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 
 ### 2.5 TopUp.svelte (inside Package fold "Aufladen, …")
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-090 | "20 € aufladen" "50 € aufladen" | P-MONEY | yes | yes | same |
 | C-091 | "Für diesen Kauf: 20 € aufladen" | P-MONEY | yes | yes | same |
@@ -127,7 +127,7 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 
 ### 2.6 StripeCheckout.svelte (used by Package for the subscription and by BackupLine for the year)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-100 | Dialog "Abo abschließen" / "Bezahlen mit Stripe" | G-DIALOG | yes | yes | same; now also serves top-up (DUP 10) |
 | C-101 | "✕" (Schließen) | G-DIALOG | yes; labelled "Schließen" | yes | reworded: visible word, not only ✕ |
@@ -136,7 +136,7 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 
 ### 2.7 Cancel.svelte (all texts hard-coded German, legal)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-110 | "Vertrag kündigen" | P-LEGAL | yes | yes | moved to i18n unchanged |
 | C-111 | "Vertrag: Paperless anywhere, 15 Stunden im Monat" | P-LEGAL | yes | yes | moved to i18n unchanged |
@@ -156,7 +156,7 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 
 ### 2.8 Withdraw.svelte (all texts hard-coded German, legal)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-125 | "Vertrag widerrufen" | P-LEGAL | yes | yes | moved to i18n unchanged |
 | C-126 | "Paket im Monatsabo, geschlossen am …, Widerruf möglich bis …" | P-LEGAL | yes; verbatim | yes | moved to i18n unchanged |
@@ -173,11 +173,11 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 
 ### 2.9 BackupLine.svelte (backup payment, inside Package)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-140 | "Sicherung: bezahlst du aus deiner eigenen Wallet." | P-BACKUP | plain; "Die Sicherung bezahlst du selbst." | yes; + link to P-CRYPTO.T runway | reworded: named place becomes a link (DUP 4) |
 | C-141 | "Sicherung: nicht gebucht." | P-BACKUP | yes; + button "Sicherung buchen" | yes | fixed dead end: booking button for every billing kind (DE 8) |
-| C-142 | "Sicherung: Teil deines Abos, …" | P-BACKUP | yes | yes | same; the one "bezahlt bis" for Einfach (DUP 4) |
+| C-142 | "Sicherung: Teil deines Abos, …" | P-BACKUP | yes | yes | same; the one "bezahlt bis" for Standard (DUP 4) |
 | C-143 | "Sicherung: bezahlt bis zum 30.11.2026." | P-BACKUP | yes | yes | same |
 | C-144 | "Die Sicherung ist bis zum … bezahlt (noch 5 Tage)." | P-BACKUP, G-ALERT | yes; with button "Verlängern" | yes | same text; alert at ≤7 days carries the button |
 | C-145 | "Seit dem … entstehen keine neuen Sicherungen." | P-BACKUP, G-ALERT | yes; with button "Sicherung wieder buchen" | yes | same text; button added |
@@ -200,21 +200,21 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 
 ### 2.10 Balances.svelte, RefreshBalances.svelte, Addr.svelte
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-170 | "Adresse der App und deine Wallet" | P-CRYPTO.T | no | yes; section heading | moved from Technisch fold to Paket |
 | C-171 | "Aktualisieren" | P-CRYPTO.T | no; P-MONEY refresh covers it | yes; one refresh for the section | same; the one refresh here (DUP 5) |
 | C-172 | "Den Schlüssel der App-Adresse leitet dein Browser … ab" | M-KEYS.T, P-CRYPTO.T | no | yes; text in M-KEYS.T, link from P-CRYPTO.T | moved to key explanation |
 | C-173 | "Aleph-Credits (Adresse der App): 1.234.567 12,35 €" | P-CRYPTO.T | no | yes | moved |
 | C-174 | "reicht noch ca. 3 Tage 4 h (1.000/h …)" | P-CRYPTO.T | plain; "reicht ca. 3 Tage" in P-MONEY (C-007) | yes; + rates per hour | moved; runway sentence shared with P-MONEY |
-| C-175 | "Unter der Tagesreserve von 24.000 (0,24 €)" | P-CRYPTO.T, G-ALERT | plain; alert C-008 with button | yes; + reserve figure | moved; Einfach outcome via G-ALERT |
+| C-175 | "Unter der Tagesreserve von 24.000 (0,24 €)" | P-CRYPTO.T, G-ALERT | plain; alert C-008 with button | yes; + reserve figure | moved; Standard outcome via G-ALERT |
 | C-176 | "nicht lesbar" / "…" | P-CRYPTO.T | no | yes; + retry via section refresh | moved |
 | C-177 | "ALEPH: 12,00" | P-CRYPTO.T | no | yes | moved |
 | C-178 | "tFIL (Gas): 0,123" | P-CRYPTO.T | no | yes | moved |
-| C-179 | "Wenig Gas: Den Sitzungsschlüssel zu verlängern …" | P-CRYPTO.T, G-ALERT | plain; alert C-009 with button | yes; + gas figure, link P-GRANTS.T | moved; Einfach outcome via G-ALERT |
+| C-179 | "Wenig Gas: Den Sitzungsschlüssel zu verlängern …" | P-CRYPTO.T, G-ALERT | plain; alert C-009 with button | yes; + gas figure, link P-GRANTS.T | moved; Standard outcome via G-ALERT |
 | C-180 | "USDFC (Test) in deiner Wallet: 5,00" | P-CRYPTO.T | no | yes | moved |
 | C-181 | "Filecoin Pay (für Sicherungen): 4,20 verfügbar" | P-CRYPTO.T | no; P-BACKUP states paid-until | yes | moved (DUP 4: technical source kept) |
-| C-182 | "Reicht weniger als einen Monat: … auffüllen" | P-CRYPTO.T, G-ALERT | plain; alert C-009 with button | yes; + runway in days | moved; Einfach outcome via G-ALERT |
+| C-182 | "Reicht weniger als einen Monat: … auffüllen" | P-CRYPTO.T, G-ALERT | plain; alert C-009 with button | yes; + runway in days | moved; Standard outcome via G-ALERT |
 | C-183 | Auswahl "Credits auch in" | P-CRYPTO.T | no | yes | moved |
 | C-184 | "1 $ = 1.000.000 Credits (Aleph) · ALEPH 0,0512 €" | P-CRYPTO.T | no | yes | moved |
 | C-185 | zweites "Aktualisieren" / "Lese …" | MERGED→P-CRYPTO.T | no | MERGED→P-CRYPTO.T | merged into C-171; "Lese …" state kept there (DUP 5) |
@@ -223,7 +223,7 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 
 ### 2.11 Storage.svelte
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-190 | "Speicher 2,1 GB von 8,0 GB" | B-STORAGE | yes; running and off (off: state of last backup) | yes | moved from Start to Sicherung; now in both views |
 | C-191 | Balken "Belegter Speicher" | B-STORAGE | yes | yes | moved |
@@ -231,7 +231,7 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 
 ### 2.12 BackupLeds.svelte (header strip)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-200 | Gruppe "Zustand der Sicherungen" | B-HEALTH | yes; card heading | yes | moved from header |
 | C-201 | Licht "Sicherungen erreichbar" | B-HEALTH | yes; light + its meaning in the sentence | yes; + opens B-COPIES.T | moved; colours and levels same |
@@ -245,12 +245,12 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 | C-209 | "9 ezpdpz und 2 foo: selber Betreiber" | B-COPIES.T | no; B-HEALTH amber sentence covers it | yes | moved |
 | C-210 | "Geprüft um 14:03:22, von diesem Browser aus." | B-HEALTH, B-COPIES.T | plain; "Geprüft um 14:03" | yes; + full note in technical line | reworded |
 | C-211 | "Anbieter aus der zuletzt gelesenen Liste …" | B-COPIES.T, U-LOCKED | plain; locked: "Stand von 17.11., 09:12" (question 3) | yes; full note | moved; locked-state display is open question 3 |
-| C-212 | "Jetzt prüfen" / "Prüfe …" | B-HEALTH | yes; also triggers the chain read | yes | same; the one "Jetzt prüfen" in Einfach (DUP 3) |
+| C-212 | "Jetzt prüfen" / "Prüfe …" | B-HEALTH | yes; also triggers the chain read | yes | same; the one "Jetzt prüfen" in Standard (DUP 3) |
 | C-213 | "Schließen" | B-COPIES.T | no; no panel to close | yes; B-COPIES.T is a fold | merged: panel close becomes fold toggle |
 
 ### 2.13 BackupNow.svelte (Übersicht, running VM)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-220 | Box "Sicherung" | B-LAST | yes; running and off (off: last known backup) | yes; now also in Technisch | moved from Start to Sicherung; both views (DE 18) |
 | C-221 | "Diese VM läuft mit einem älteren Image" | B-LAST | plain; "erscheint nach dem nächsten Start" + button "Sichern und beenden" | yes; + image wording | fixed dead end: plain sentence + button to S-STOP (DE 16) |
@@ -266,7 +266,7 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 | C-231 | "Die Aufbewahrung konnte zuletzt nicht laufen" | B-RETAIN.T | no; heals itself, no action needed | yes | moved |
 | C-232 | "Es bleiben die letzten 3, dazu je eine pro Tag" | B-RETAIN.T | no | yes | moved |
 | C-233 | Liste "17.11. 12:00 · 1,2 GB · bleibt" | B-RETAIN.T | no | yes | moved |
-| C-234 | "Entfernen kann nur deine Wallet … retain --yes" | B-RETAIN.T, B-LAST | plain; sentence + button, no CLI (question 2) | yes; CLI command stays | fixed dead end: Einfach gets sentence + button (DE 17) |
+| C-234 | "Entfernen kann nur deine Wallet … retain --yes" | B-RETAIN.T, B-LAST | plain; sentence + button, no CLI (question 2) | yes; CLI command stays | fixed dead end: Standard gets sentence + button (DE 17) |
 | C-235 | "… lässt keinen Platz für eine weitere Sicherung" | B-RETAIN.T, B-STORAGE | plain; "Speicher für Sicherungen voll" + "Uns schreiben" | yes; "Kontingent" wording | fixed dead end: contact / plan button (DE 17) |
 | C-236 | "Jetzt sichern" | B-LAST | yes; off: disabled with "Erst starten" button | yes; now also in Technisch | moved; both views; off not possible, needs running machine (DE 18) |
 | C-237 | "Die VM meldet ihren Sicherungsstand gerade nicht." | B-LAST, G-ERR | plain; "Maschine" + "Noch einmal versuchen", auto-retry stated | yes; "VM" + raw error | fixed dead end: retry button (DE 16) |
@@ -275,7 +275,7 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 
 ### 2.14 BackupExport.svelte (Erweitert, VM off)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-250 | "Sicherung selbst holen (ohne laufende Instanz)" | B-EXPORT | plain; "Dokumente herunterladen", running and off | yes | moved, reworded; both views, running and off (DE 18) |
 | C-251 | "Die gewählte Sicherung (…abc123) liegt verschlüsselt …" | B-EXPORT | plain; no id, no curl/age | yes; + piece id, curl/age in technical line | reworded |
@@ -302,7 +302,7 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 
 ### 2.15 BackupChain.svelte ("Was die Chain sagt")
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-280 | "Was die Chain sagt" + Lichter je Kopie | B-CHAIN.T | plain; outcome folded into the B-HEALTH sentence | yes; running and off | moved out of the default view (DUP 3) |
 | C-281 | "Für jede Kopie liest die App selbst aus den Filecoin-Verträgen" | B-CHAIN.T | no | yes | moved |
@@ -323,7 +323,7 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 
 ### 2.16 BackupPlaces.svelte (Erweitert → Technisch → Einrichtung → Sicherungen)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-300 | "Wohin die Sicherungen gehen" | B-PLACES.T | no; defaults apply | yes; no extra "dev" fold | moved from Setup to Sicherung |
 | C-301 | "Region und Anzahl der Kopien" | B-PLACES.T | no | yes | moved |
@@ -346,7 +346,7 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 
 ### 2.17 Related items in Lifecycle.svelte that show or drive this slice (context; owned by the lifecycle slice)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | C-320 | "Letzte erfolgreiche Sicherung: 14:03 · 3 Kopien" | MERGED→B-LAST | yes; via B-LAST (C-226), stale = amber | MERGED→B-LAST | merged (DUP 2); "newerOnChain" note goes to B-CHAIN.T |
 | C-321 | "Gerade antwortet keine Kopie … (siehe Licht …)" | S-STOP | plain; no pointer to a light, + button "Jetzt prüfen" | yes | reworded; pointer becomes a button |
@@ -369,12 +369,12 @@ Technisch is a superset: "yes" = everything Einfach shows, same place; "+ …" =
 ## Open questions for Nico
 
 1. Cancel/Withdraw "Konto: 0x…" (C-113, C-127) and the refund id "Erstattung: re_…" inside C-133: are they legally part of the on-screen declaration, or is it enough that they stay in the saved receipt file? The map assumes: on screen only in Technisch, receipt file unchanged in both views.
-2. Several Einfach warnings can only be fixed in a `.T` place (independence amber → B-PLACES.T; wallet/gas/runway alerts C-009, C-179, C-182 → P-CRYPTO.T; retention removal by wallet C-234 → B-RETAIN.T). Should the Einfach button switch to Technisch at that place, or does Einfach get a small dialog of its own for each?
+2. Several Standard warnings can only be fixed in a `.T` place (independence amber → B-PLACES.T; wallet/gas/runway alerts C-009, C-179, C-182 → P-CRYPTO.T; retention removal by wallet C-234 → B-RETAIN.T). Should the Standard button switch to Technisch at that place, or does Standard get a small dialog of its own for each?
 3. Today the lights work while locked, from remembered providers (C-001, C-211). places.md keeps no lights in the header: should U-LOCKED show the B-HEALTH sentence "Stand von …", or is backup health shown only after unlocking?
-4. Extra hours "+5/+10/+30" (C-053 to C-055) and the self-payer lines (C-013 to C-017) only appear in payer modes that are set up in Technisch. The map shows them in Einfach whenever the condition holds (P-* rule, no dead end). Agreed, or Technisch only?
+4. Extra hours "+5/+10/+30" (C-053 to C-055) and the self-payer lines (C-013 to C-017) only appear in payer modes that are set up in Technisch. The map shows them in Standard whenever the condition holds (P-* rule, no dead end). Agreed, or Technisch only?
 5. Stripe portal has five entry points (section 3.1 no. 7). The map keeps all five as context links (C-022, C-057, C-066, C-123, C-152) behind one shared "Du verlässt die App" dialog instead of marking four as MERGED, because each is the only action in its context and C-123 sits in the verbatim Cancel text. OK, or reduce to "Abo verwalten" only?
 6. Voucher period (C-023, dead end 4): buttons "Paket wählen" / new voucher during a running period need the credits service to accept them (`PERIOD_RUNNING` today). Change the service, or should the app say from which date this is possible?
 7. Withdraw done (C-133, dead end 13): the map adds one non-legal sentence (what happens to the running machine and the documents) and a "Dokumente herunterladen" button below the verbatim text. May anything be added next to the legal text?
 8. "Sicherung buchen" for plans paid from balance or by voucher (C-141, dead end 8) means the monthly payment from the balance, today in Setup (SU:626), moves to P-BACKUP for both views. Does it then also stay in B-SETUP.T ("pay one month"), or is that MERGED→P-BACKUP?
-9. "Dokumente herunterladen" in Einfach needs the backup key in the profile and takes the newest backup by default. If the key is missing (C-271), Einfach has only a help button. Is that acceptable, and may the export run while the machine is running (the map assumes yes, it reads from the storage places only)?
+9. "Dokumente herunterladen" in Standard needs the backup key in the profile and takes the newest backup by default. If the key is missing (C-271), Standard has only a help button. Is that acceptable, and may the export run while the machine is running (the map assumes yes, it reads from the storage places only)?
 10. C-320 (last successful backup line on Start) is marked MERGED→B-LAST. Should S-STATUS still carry a short "Letzte Sicherung: …" line, and is the new low-balance-before-renewal warning (C-025, dead end 7) wanted, with which threshold?

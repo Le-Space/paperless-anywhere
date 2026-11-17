@@ -1,9 +1,9 @@
-# UI v0.2: "Einfach" and "Technisch"
+# UI v0.2: "Standard" and "Technisch"
 
 Working papers for the relaunch of the PWA's interface. Status: **concept, waiting for
 approval**. Nothing in `pwa/` has changed yet.
 
-The brief: one app for two audiences. "Einfach" must be usable by someone who knows
+The brief: one app for two audiences. "Standard" must be usable by someone who knows
 little about document management and nothing about confidential VMs; "Technisch" gives
 developers full detail and control. Nothing of today's interface may be dropped. v0.2 is
 deployed beside v0.1 for testing before any switch.
@@ -15,7 +15,7 @@ deployed beside v0.1 for testing before any switch.
 | [`prototype.html`](prototype.html) | The concept page (German): a clickable prototype of eleven screens, each in both views side by side, then the architecture, the switch, the wording, the mapping summary and the open questions. Its source is written for the Artifact publisher, which adds the document skeleton. |
 | [`places.md`](places.md) | The information architecture of v0.2 as place codes (`S-STATUS`, `B-HEALTH`, `P-PAYER.T` ...). `.T` marks what only the technical view shows. |
 | [`inventory/`](inventory/) | Every control, label, light, dialog and text block of the app on `main` at 30f34f4, with file and line, state, audience and behaviour: 791 rows in three slices, plus duplicates, jargon, dead ends, persistence and component interfaces. `E-brand-and-switch.md` holds the brand tokens and the simple/technical switch of simple-todo. |
-| [`mapping/`](mapping/) | One row per inventory row: its place in v0.2, how "Einfach" and "Technisch" show it, and what changes. |
+| [`mapping/`](mapping/) | One row per inventory row: its place in v0.2, how "Standard" and "Technisch" show it, and what changes. |
 
 ## The architecture in short
 
@@ -24,20 +24,20 @@ deployed beside v0.1 for testing before any switch.
   under a card, and the System area. Nothing moves or disappears when the switch flips.
 - What works stays: the panel of lights for start and stop and the full-screen first-start
   journey (stations, lights, the "what flows where" diagram) are in both views, in German and
-  English; Einfach names rows and stations in plain words, Technisch writes every fact out.
+  English; Standard names rows and stations in plain words, Technisch writes every fact out.
 - Every warning carries its own button; no text points to another place by name.
 - One thing, one place, one name. 39 duplicate rows merge into their surviving place.
 - The nine native `confirm()` questions become designed dialogs.
 - Legal texts stay verbatim; the hard-coded German ones move into the catalogue unchanged.
 
-Counts from the mapping: Start 160 rows (125 also in Einfach), Sicherung 150 (69),
+Counts from the mapping: Start 160 rows (125 also in Standard), Sicherung 150 (69),
 Paket 184 (151), System 66 (16, as alerts with a button), Mehr 33 (26), before unlock
 28 (26), global 130 (123), merged 39, test hook 1. Total 791.
 
 ## The switch
 
-Two segments, "Einfach | Technisch", in the header (also before unlock) and under Mehr.
-Default "Einfach". Remembered per device in `localStorage['paperless-anywhere.view']`;
+Two segments, "Standard | Technisch", in the header (also before unlock) and under Mehr.
+Default "Standard". Remembered per device in `localStorage['paperless-anywhere.view']`;
 a v0.1 choice of "Erweitert" (`paperless-anywhere.tab = advanced`) starts in "Technisch".
 A small store after simple-todo's `technical-view.js`; components read it and render
 additively. Flipping it re-mounts nothing, so a running start or purchase is not torn down.
@@ -59,7 +59,7 @@ style, and the light/dark switch.
   `inventory/B-lifecycle.md`, section 3.1). v0.2 has one template and settles each
   difference to the safer behaviour.
 - `Balances`, `VmList`, `Setup` and `Package` feed warnings even while hidden. Their data
-  sources must stay alive in the simple view.
+  sources must stay alive in the standard view.
 
 ## Findings for the parallel deploy (phase 4), to be verified
 

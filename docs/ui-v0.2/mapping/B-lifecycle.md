@@ -8,14 +8,14 @@ One template in v0.2. Divergences of section 3.1 are settled to the safer behavi
 - VM log sits closed under G-ERR "Details" with one summary (Übersicht behaviour).
 - Jetzt sichern, storage, trial restore: under Sicherung in both views. Certificate, export: reachable in both views.
 
-Plain steps in Einfach (S-PROGRESS): start = 1 "Vorbereiten", 2 "Sicherheit prüfen", 3 "Paperless starten"; stop = 1 "Sichern", 2 "Kopien bestätigen", 3 "Maschine ausschalten".
+Plain steps in Standard (S-PROGRESS): start = 1 "Vorbereiten", 2 "Sicherheit prüfen", 3 "Paperless starten"; stop = 1 "Sichern", 2 "Kopien bestätigen", 3 "Maschine ausschalten".
 "DE n" in the Change column = dead end n of section 3.3.
 
-Columns: ID | Today | v0.2 place | Einfach | Technisch | Change
+Columns: ID | Today | v0.2 place | Standard | Technisch | Change
 
 ### 2.1 Lifecycle.svelte — overlay and "Übersicht" template
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | B-001 | Vollbild "Erster Start" (FirstStart) | S-FIRST | plain: Stationen und Restzeit | yes; S-FIRST.T Teilschritte, Nachweis, Diagramm, Urkunde | same |
 | B-002 | "Eigenes Image bauen? {Preis} werden … abgebucht" | G-DIALOG | plain: Preis in Euro oder "enthalten", zwei Knöpfe | yes; Credits, Wort "Image" | dialog; decline shows "Nicht gestartet" + Start button (DE 5) |
@@ -87,7 +87,7 @@ Columns: ID | Today | v0.2 place | Einfach | Technisch | Change
 
 ### 2.2 Lifecycle.svelte — "Erweitert" template
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | B-068 | Überschrift "Paperless-ngx" | MERGED→S-STATUS | – | – | merged into the status headline |
 | B-069 | Chip "aus", "startet", "läuft" … | MERGED→S-STATUS | – | – | merged into headline B-004…B-010 |
@@ -96,7 +96,7 @@ Columns: ID | Today | v0.2 place | Einfach | Technisch | Change
 | B-072 | "Paperless-ngx läuft: {host}" | S-ACCESS | no | yes; technical line with host link | merged with B-014 |
 | B-073 | "Wiederherstellung fehlgeschlagen ({Grund}: …)" | G-ERR | no; plain form is B-031 | yes; reason under "Details" | merged with B-031 |
 | B-074 | "Was diese VM schreibt, liegt auf eigener Platte …" | S-NOTE | no | yes | same (.T note) |
-| B-075 | "Diese VM schreibt auf die gemeinsame Image-Platte …" | S-NOTE | plain: "Daten liegen nicht auf eigener Platte" + Knopf "Aktualisieren" | yes; full wording | reworded; warning now also in Einfach |
+| B-075 | "Diese VM schreibt auf die gemeinsame Image-Platte …" | S-NOTE | plain: "Daten liegen nicht auf eigener Platte" + Knopf "Aktualisieren" | yes; full wording | reworded; warning now also in Standard |
 | B-076 | Evidence (Erweitert) | MERGED→S-PROOF.T | – | – | merged with B-038 |
 | B-077 | "Anmeldung: admin, ••••••••" | MERGED→S-ACCESS | – | – | merged with B-032…B-034 |
 | B-078 | "Passwort anzeigen" / "Verbergen" | MERGED→S-ACCESS | – | – | merged with B-035 |
@@ -139,7 +139,7 @@ Columns: ID | Today | v0.2 place | Einfach | Technisch | Change
 
 ### 2.3 Lifecycle.svelte — snippets used in both templates
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | B-115 | "Deine Sicherungsorte nennen gesperrte Anbieter: …" | G-DIALOG, B-PLACES.T | plain: "Ein Speicherort wird ersetzt." | yes; names and reason | dialog; merged copies |
 | B-116 | "Diese Speicheranbieter antworten gerade nicht: …" | G-DIALOG | plain: "Ein Speicherort antwortet gerade nicht." | yes; provider ids and names | dialog |
@@ -178,34 +178,34 @@ Columns: ID | Today | v0.2 place | Einfach | Technisch | Change
 
 ### 2.4 StartPanel.svelte (used for start, stop and discard)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | B-149 | Panel-Titel (nur aria) "Start der VM: …" | S-PROGRESS | yes; aria title in plain words | yes | reworded |
-| B-150 | Zeile "{n} {Name}" + "{12 s} (üblich ca. 10 s)" | S-PROGRESS | yes; row number and plain name; no timings | yes; timings "(üblich ca. …)" | same panel, plain names in Einfach |
+| B-150 | Zeile "{n} {Name}" + "{12 s} (üblich ca. 10 s)" | S-PROGRESS | yes; row number and plain name; no timings | yes; timings "(üblich ca. …)" | same panel, plain names in Standard |
 | B-151 | Lichterleiste je Zeile | S-PROGRESS | yes; the lights as today | yes | same |
-| B-152 | Zeile "Messwerte" (2 Lichter) | S-PROGRESS | yes; row "Vorbereiten" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
-| B-153 | Zeile "Instanz" (2 Lichter) | S-PROGRESS | yes; row "Maschine" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
-| B-154 | Zeile "Netz" (2 Lichter) | S-PROGRESS | yes; row "Adresse" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
-| B-155 | Zeile "Attestierung" (2 Lichter) | S-PROGRESS | yes; row "Echtheit" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
-| B-156 | Zeile "Entsperren" (2 Lichter) | S-PROGRESS | yes; row "Aufschließen" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
-| B-157 | Zeile "Wiederherstellen": "Sicherung eingespielt" | S-PROGRESS | yes; row "Sicherung holen" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
-| B-158 | Zeile "Bereit" (4 Lichter) | S-PROGRESS | yes; row "Bereit" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
-| B-159 | Stopp-Zeile "Auftrag" (2 Lichter) | S-PROGRESS | yes; row "Auftrag" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
-| B-160 | Stopp-Zeile "Export" (2 Lichter) | S-PROGRESS | yes; row "Dokumente sammeln" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
-| B-161 | Stopp-Zeile "Archiv" (age, Kopf der Sicherung) | S-PROGRESS | yes; row "Verschlüsseln" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
-| B-162 | Stopp-Zeile "Hochladen" (Kopien bei Anbietern) | S-PROGRESS | yes; row "Kopien ablegen" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
-| B-163 | Stopp-Zeile "Bestätigt" (Piece-CID) | S-PROGRESS | yes; row "Kopien bestätigt" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
-| B-164 | Zeile "Löschen" (Knoten, FORGET, Widerruf) | S-PROGRESS | yes; row "Maschine löschen" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
-| B-165 | Stopp-Zeile "Liste" | S-PROGRESS | yes; row "Eintragen" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Einfach |
+| B-152 | Zeile "Messwerte" (2 Lichter) | S-PROGRESS | yes; row "Vorbereiten" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Standard |
+| B-153 | Zeile "Instanz" (2 Lichter) | S-PROGRESS | yes; row "Maschine" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Standard |
+| B-154 | Zeile "Netz" (2 Lichter) | S-PROGRESS | yes; row "Adresse" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Standard |
+| B-155 | Zeile "Attestierung" (2 Lichter) | S-PROGRESS | yes; row "Echtheit" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Standard |
+| B-156 | Zeile "Entsperren" (2 Lichter) | S-PROGRESS | yes; row "Aufschließen" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Standard |
+| B-157 | Zeile "Wiederherstellen": "Sicherung eingespielt" | S-PROGRESS | yes; row "Sicherung holen" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Standard |
+| B-158 | Zeile "Bereit" (4 Lichter) | S-PROGRESS | yes; row "Bereit" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Standard |
+| B-159 | Stopp-Zeile "Auftrag" (2 Lichter) | S-PROGRESS | yes; row "Auftrag" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Standard |
+| B-160 | Stopp-Zeile "Export" (2 Lichter) | S-PROGRESS | yes; row "Dokumente sammeln" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Standard |
+| B-161 | Stopp-Zeile "Archiv" (age, Kopf der Sicherung) | S-PROGRESS | yes; row "Verschlüsseln" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Standard |
+| B-162 | Stopp-Zeile "Hochladen" (Kopien bei Anbietern) | S-PROGRESS | yes; row "Kopien ablegen" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Standard |
+| B-163 | Stopp-Zeile "Bestätigt" (Piece-CID) | S-PROGRESS | yes; row "Kopien bestätigt" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Standard |
+| B-164 | Zeile "Löschen" (Knoten, FORGET, Widerruf) | S-PROGRESS | yes; row "Maschine löschen" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Standard |
+| B-165 | Stopp-Zeile "Liste" | S-PROGRESS | yes; row "Eintragen" with its lights, facts on tap | yes; today's row name and every fact written out | same row and lights; plain name in Standard |
 | B-166 | Live-Region "{Zeile}: {Zustand}" (sr-only) | S-PROGRESS | yes; announces the plain steps | yes; announces panel rows | same (a11y kept in both) |
 | B-167 | "Gesamt: {123 s} · üblich ca. {10 min}" | S-PROGRESS.T | no | yes | same |
 | B-168 | Legende "Grün: … Blau: …" + Verweis | S-PROGRESS | plain: "Grün: von der App geprüft. Blau: gemeldet." | yes; full legend, reference becomes a link to S-PROOF.T | reworded: named place becomes a link |
 
 ### 2.5 Evidence.svelte ("Nachweis dieser VM", "Nachweis: Sicherung und Löschen")
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
-| B-169 | "Nachweis dieser VM" / "Nachweis: Sicherung und Löschen" | S-PROOF | plain: one line + "Was wurde geprüft?" | yes; S-PROOF.T folded rows | reworded for Einfach |
+| B-169 | "Nachweis dieser VM" / "Nachweis: Sicherung und Löschen" | S-PROOF | plain: one line + "Was wurde geprüft?" | yes; S-PROOF.T folded rows | reworded for Standard |
 | B-170 | "Beispiel, keine echte VM" | S-PROOF.T | no; not rendered in the app | no in the app; landing page prop kept | same (see Unplaced) |
 | B-171 | "{n} von der App geprüft · {n} gemeldet · …" | S-PROOF.T | no | yes | same |
 | B-172 | Legende ✓ • – ○ | S-PROOF.T | no | yes | same |
@@ -229,7 +229,7 @@ Columns: ID | Today | v0.2 place | Einfach | Technisch | Change
 
 ### 2.6 TrialRestore.svelte ("Sicherung prüfen")
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | B-190 | "Sicherung prüfen" | B-TRIAL | plain: "Sicherung ausprobieren" | yes | reworded; moved to Sicherung |
 | B-191 | "Startet eine zweite Paperless-ngx-Instanz …" | B-TRIAL | plain: "zweites Paperless zum Ansehen, kostet Stunden" | yes; full wording | reworded |
@@ -247,14 +247,14 @@ Columns: ID | Today | v0.2 place | Einfach | Technisch | Change
 
 ### 2.7 ImageCertificate.svelte ("Urkunde", mounted by FirstStart.svelte:118) and VmList.svelte, ProviderHealth.svelte
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | B-203 | "Urkunde · Paperless anywhere" | S-PROOF, T-IMAGE | yes | yes | same; opener now in both views (DE 16) |
-| B-204 | "Dein eigenes Paperless-Image" | S-PROOF, T-IMAGE | plain: "Deine eigene, versiegelte Maschine" | yes; today's wording | reworded for Einfach |
+| B-204 | "Dein eigenes Paperless-Image" | S-PROOF, T-IMAGE | plain: "Deine eigene, versiegelte Maschine" | yes; today's wording | reworded for Standard |
 | B-205 | Siegel (Schloss-Symbol) | S-PROOF, T-IMAGE | yes | yes | same |
-| B-206 | "Dieses Image wurde nur für deinen Tresor versiegelt. …" | S-PROOF, T-IMAGE | plain | yes | reworded for Einfach |
+| B-206 | "Dieses Image wurde nur für deinen Tresor versiegelt. …" | S-PROOF, T-IMAGE | plain | yes | reworded for Standard |
 | B-207 | "Gebaut am — {Datum}" | S-PROOF, T-IMAGE | yes | yes | same |
-| B-208 | "Passphrase — nur in deinem Tresor" | S-PROOF, T-IMAGE | plain: "Schlüssel — nur in deinem Tresor" | yes | reworded for Einfach |
+| B-208 | "Passphrase — nur in deinem Tresor" | S-PROOF, T-IMAGE | plain: "Schlüssel — nur in deinem Tresor" | yes | reworded for Standard |
 | B-209 | "Ausgangs-Image (SHA-256) — {hash}" | T-IMAGE, S-FIRST.T | no | yes | same |
 | B-210 | "Build-Dienst (von AMD bestätigt) — {Messwert}" | T-IMAGE, S-FIRST.T | no | yes | same |
 | B-211 | "Dein Image bei Aleph (STORE) — {hash}" | T-IMAGE, S-FIRST.T | no | yes | same |
@@ -275,7 +275,7 @@ Columns: ID | Today | v0.2 place | Einfach | Technisch | Change
 | B-226 | Confirm "{Name} als laufende Instanz übernehmen? …" | G-DIALOG | plain | yes; VM name | dialog |
 | B-227 | "Löschen" | T-VMS, G-ALERT | plain: alert button "Maschine löschen" | yes; per row | fixed dead end: reachable from the alert (DE 3, DE 4) |
 | B-228 | Confirm "{Name} löschen, ohne letzte Sicherung? …" | G-DIALOG | plain; "Sichern und beenden" offered as a button | yes; VM name | dialog; named place becomes a button |
-| B-229 | "VM gelöscht; den Schlüssel … nimmt die App zurück" | T-VMS | plain: "Maschine gelöscht. Kostet nichts mehr." | yes; revoke reason | reworded for Einfach |
+| B-229 | "VM gelöscht; den Schlüssel … nimmt die App zurück" | T-VMS | plain: "Maschine gelöscht. Kostet nichts mehr." | yes; revoke reason | reworded for Standard |
 | B-230 | Fehler der VM-Liste (9 Texte) | G-ERR | plain: one sentence + "Noch einmal" | yes; specific text in Details | same; gets retry |
 | B-231 | "Speicheranbieter jetzt" [neu prüfen] | B-COPIES.T, G-ERR | no; B-HEALTH lights cover it | yes | moved; also inside error Details |
 | B-232 | "Die Anbieterliste ließ sich gerade nicht lesen." | B-COPIES.T | no | yes; with "neu prüfen" | moved |
@@ -287,23 +287,23 @@ Columns: ID | Today | v0.2 place | Einfach | Technisch | Change
 
 ### 2.8 HourQuote.svelte (purchase confirmation inside the fund offer)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | B-238 | "Das Guthaben reicht nicht für {n} Stunden." | P-MONEY | yes | yes | same |
 | B-239 | "Erst Guthaben aufladen, unter „Aufladen, …“" | P-MONEY | plain: Knopf "Guthaben aufladen" | yes | fixed dead end: named section becomes a button |
 | B-240 | "Schließen" | P-MONEY | yes | yes | same |
 | B-241 | "{n} Stunden kaufen?" | P-MONEY | yes | yes | same |
-| B-242 | "Bezahlt aus — deinem Le-Space-Credits-Guthaben" | P-MONEY | plain: "aus deinem Guthaben" | yes | reworded for Einfach |
-| B-243 | "Kosten — {n} Credits (≈ {x} €)" | P-MONEY | plain: euros only | yes; credits | reworded for Einfach |
+| B-242 | "Bezahlt aus — deinem Le-Space-Credits-Guthaben" | P-MONEY | plain: "aus deinem Guthaben" | yes | reworded for Standard |
+| B-243 | "Kosten — {n} Credits (≈ {x} €)" | P-MONEY | plain: euros only | yes; credits | reworded for Standard |
 | B-244 | "Guthaben — {x} € → {y} €" | P-MONEY | yes | yes | same |
-| B-245 | "VM-Stunden — {a} h → {b} h, nutzbar bis {Tag}" | P-MONEY | plain: "Stunden" | yes | reworded for Einfach |
+| B-245 | "VM-Stunden — {a} h → {b} h, nutzbar bis {Tag}" | P-MONEY | plain: "Stunden" | yes | reworded for Standard |
 | B-246 | "Nutzbar bis — {Tag}" | P-MONEY | yes | yes | same |
 | B-247 | "Kaufen und starten" | P-MONEY | yes | yes | same |
 | B-248 | "Abbrechen" | P-MONEY | yes | yes | same |
 
 ### 2.9 Raw progress texts
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | B-249 | "Le Space bezahlt die VM jetzt aus deinem Paket" | S-PROGRESS.T | plain: "Bezahlt aus deinem Paket" under step 1 | yes; raw line | same |
 | B-250 | "Le Space Credits: Freigabe für die VM holen" | S-PROGRESS.T | no; part of step "Vorbereiten" | yes | same |
@@ -322,7 +322,7 @@ Columns: ID | Today | v0.2 place | Einfach | Technisch | Change
 
 ### 2.10 Error texts that land in the error box (B-125) — one row each
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | B-263 | "Die letzte Sicherung ist fehlgeschlagen; die VM bleibt." | G-ERR, S-STOP | plain; Knöpfe "Noch einmal sichern", "Ohne Sicherung löschen" | yes; reason, log, provider health in Details | fixed dead end: explicit delete button via G-DIALOG (DE 7) |
 | B-264 | "Für den Start fehlt: {…}" | G-ERR | plain; Knopf "Einrichtung öffnen" | yes; items as links | fixed dead end: button to the setup (DE 6) |
@@ -366,13 +366,13 @@ Not rows, listed so the decision is visible (DEAD, not carried over): catalogue 
 
 ## Open questions for Nico
 
-1. B-047 / B-095: in Einfach "Verwerfen" becomes "Abbrechen und Maschine löschen" (deletes the VM). Should Technisch keep the old "nur vergessen, VM läuft weiter" at all?
-2. B-225: should the stray-machine alert in Einfach offer "Wieder verbinden" (adopt) before "Löschen", or only delete? Delete alone could lose unsaved documents.
-3. B-021 / B-260: can an Einfach user be on the public image at all? If yes, is the lasting note "Läuft ohne Sicherung" with a button the right weight, or should it be a G-ALERT?
-4. B-075 (data on the shared image disk, no own key): I gave Einfach a plain warning with an update button. Or is this Technisch-only?
-5. B-088: may Einfach restore a backup without the vault mark (under "Weitere anzeigen"), or is that Technisch-only?
-6. B-263 / B-279: a failed or unconfirmed stop backup gets an explicit "Trotzdem löschen" in both views behind a G-DIALOG. Is that wanted, or should the delete stay hidden from Einfach?
+1. B-047 / B-095: in Standard "Verwerfen" becomes "Abbrechen und Maschine löschen" (deletes the VM). Should Technisch keep the old "nur vergessen, VM läuft weiter" at all?
+2. B-225: should the stray-machine alert in Standard offer "Wieder verbinden" (adopt) before "Löschen", or only delete? Delete alone could lose unsaved documents.
+3. B-021 / B-260: can an Standard user be on the public image at all? If yes, is the lasting note "Läuft ohne Sicherung" with a button the right weight, or should it be a G-ALERT?
+4. B-075 (data on the shared image disk, no own key): I gave Standard a plain warning with an update button. Or is this Technisch-only?
+5. B-088: may Standard restore a backup without the vault mark (under "Weitere anzeigen"), or is that Technisch-only?
+6. B-263 / B-279: a failed or unconfirmed stop backup gets an explicit "Trotzdem löschen" in both views behind a G-DIALOG. Is that wanted, or should the delete stay hidden from Standard?
 7. B-147 / B-148 (partial): keep exactly two consequential buttons with the error shown inside the dialog, or add a neutral third "Später entscheiden" although the machine keeps costing?
 8. B-022 / B-037 / B-044: last backup, "Jetzt sichern" and storage leave the Start page entirely. Should S-STATUS keep one short line "Letzte Sicherung: …" as a link to Sicherung?
-9. B-203…B-214: the certificate in Einfach hides the four hash rows. Should "Als PDF speichern" print them anyway, so the PDF is the same in both views?
+9. B-203…B-214: the certificate in Standard hides the four hash rows. Should "Als PDF speichern" print them anyway, so the PDF is the same in both views?
 10. B-170: where does the Evidence sample of the landing page belong in v0.2 (no place code yet)?

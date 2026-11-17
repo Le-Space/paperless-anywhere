@@ -1,25 +1,25 @@
 # v0.2 places (information architecture)
 
-Two views of one app, chosen by a switch "Einfach | Technisch" (simple | technical).
-The technical view is additive: it shows everything the simple view shows, in the same
+Two views of one app, chosen by a switch "Standard | Technisch" (standard | technical).
+The technical view is additive: it shows everything the standard view shows, in the same
 place and the same order, plus (a) a mono "technical line" under plain sentences,
-(b) "Technik" panels below a simple card, (c) extra sections marked `.T` below, and
-(d) one extra area, "System". Nothing in the simple flow is hidden or moved when the
+(b) "Technik" panels below a standard card, (c) extra sections marked `.T` below, and
+(d) one extra area, "System". Nothing in the standard flow is hidden or moved when the
 switch flips.
 
-Navigation: Einfach has four areas: Start, Sicherung, Paket, Mehr.
+Navigation: Standard has four areas: Start, Sicherung, Paket, Mehr.
 Technisch has five: Start, Sicherung, Paket, System, Mehr.
 
 Rules that apply to every item:
-- A warning or error in Einfach carries its own button. No text may point to another
+- A warning or error in Standard carries its own button. No text may point to another
   place by name without being a link/button to it.
 - Native `confirm()` becomes a designed dialog (G-DIALOG).
-- One name per thing (see glossary): Maschine (simple) / VM (technical); "die 24 Wörter"
-  (simple) / Wiederherstellungsphrase (technical); Speicherort (simple) / Anbieter,
-  Provider-ID (technical); Echtheitsprüfung (simple) / Attestierung (technical);
-  Guthaben, Stunden (simple) / Credits (technical); "Adresse deines Paperless" (simple) /
+- One name per thing (see glossary): Maschine (standard) / VM (technical); "die 24 Wörter"
+  (standard) / Wiederherstellungsphrase (technical); Speicherort (standard) / Anbieter,
+  Provider-ID (technical); Echtheitsprüfung (standard) / Attestierung (technical);
+  Guthaben, Stunden (standard) / Credits (technical); "Adresse deines Paperless" (standard) /
   Host (technical). Raw hashes, CIDs, 0x addresses, provider ids, network names and raw
-  logs never show in Einfach.
+  logs never show in Standard.
 - Legal texts (terms, waiver, cancel, withdraw) stay verbatim in both views.
 
 ## Place codes
@@ -31,7 +31,7 @@ Global
            (period end, a second machine that costs money, no copy reachable, start not affordable)
 - G-DIALOG designed dialog replacing a native confirm, or a question asked during start/stop
 - G-STOP   safety stops (framed, shared origin)
-- G-FOOT   footer: Einfach = legal links + version; Technisch adds commit and IPFS CID
+- G-FOOT   footer: Standard = legal links + version; Technisch adds commit and IPFS CID
 - G-ERR    error presentation: plain sentence + next-step button; Technisch adds "Details" with the raw message/log
 
 Before unlock (U)
@@ -43,17 +43,17 @@ Before unlock (U)
 Start (S)
 - S-STATUS   status card: headline, one sentence, one primary action (start / open / resume)
 - S-PROGRESS progress while starting/stopping: headline, bar, time left, and the panel of lights in BOTH views
-             (one row per step, one light per fact, as today). Einfach names the rows in plain words and shows
+             (one row per step, one light per fact, as today). Standard names the rows in plain words and shows
              the facts on tap; S-PROGRESS.T writes every fact out and adds timings, total and the raw progress line
 - S-ACCESS   running: "Paperless öffnen", login name and password (show/copy with feedback)
-- S-PROOF    Einfach: one line "Geprüft: echte, verschlüsselte Maschine" + "Was wurde geprüft?";
+- S-PROOF    Standard: one line "Geprüft: echte, verschlüsselte Maschine" + "Was wurde geprüft?";
              S-PROOF.T = the full evidence rows, re-check, stop evidence, image certificate link
 - S-STOP     "Sichern und beenden" and its variants (delete without backup, keep/delete on partial)
-- S-RESTORE  what the start begins with: Einfach = one sentence + "Andere Sicherung wählen" (list by date);
+- S-RESTORE  what the start begins with: Standard = one sentence + "Andere Sicherung wählen" (list by date);
              S-RESTORE.T = the full choice (own/unmarked/empty, snapshots, piece ids, sizes, copies)
 - S-FIRST    first start / image build: the full-screen journey stays in BOTH views (six stations, row of lights,
              percent, time left, minimise, the animated "what flows where" diagram, the finale, the certificate).
-             Einfach uses plain station names and texts; S-FIRST.T adds the sub-steps, the evidence rows and the hardware links
+             Standard uses plain station names and texts; S-FIRST.T adds the sub-steps, the evidence rows and the hardware links
 - S-NOTE     notes under the status card (role, data disk, image line, revoke pending, node refused ...): most are `.T`
 
 Sicherung (B)

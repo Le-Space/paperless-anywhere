@@ -2,11 +2,11 @@
 
 Source: `A-shell-setup.md` (rows A-001 … A-231). Place codes: `places.md`.
 "DE n" in the Change column = dead end n of section 3.3 of the source; "Dup n" = duplicate n of section 3.1.
-Technisch is a superset: "yes" alone means "same as Einfach, nothing added".
+Technisch is a superset: "yes" alone means "same as Standard, nothing added".
 
 ### 2.1 Header (P:258-273)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | A-001 | Logo "LE SPACE Paperless anywhere", "Zur Startseite" | G-HEAD | yes | yes | same; leaving while unlocked always asks via G-DIALOG (DE 1, DE 18) |
 | A-002 | "Paperless-ngx in vertraulichen VMs · ein Angebot …" | G-HEAD | plain: "Deine Dokumente, sicher verwahrt · ein Angebot von Le Space" | yes; today's wording with Paperless-ngx link as technical line | reworded |
@@ -20,14 +20,14 @@ Technisch is a superset: "yes" alone means "same as Einfach, nothing added".
 
 ### 2.2 Framed / shared origin (P:278-285)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | A-010 | "Die App ist hier … eingebettet." | G-STOP | plain: "Hier ist die App nicht sicher." + button "Direkt öffnen" | yes; adds the reason (iframe) as technical line | fixed dead end: button, shows the right address to compare (DE 5) |
 | A-011 | "Diese Adresse teilen sich alle Seiten …" | G-STOP | plain: without "IPFS-Gateway"; button "Sichere Adresse öffnen" | yes; adds gateway/shared-storage explanation | reworded; fixed dead end: button + address to compare (DE 5) |
 
 ### 2.3 No vault: create and open (P:286-311)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | A-012 | "Neu hier? Tresor anlegen" | U-NEW | yes | yes | same; becomes title of the three-step first visit |
 | A-013 | "Deine Dokumente in Paperless-ngx, auf einer eigenen …" | U-NEW | plain: Passkey explained as "Fingerabdruck, Gesicht oder Geräte-PIN" | yes; technical line names Passkey and Paperless-ngx | reworded (step 1 "what you get") |
@@ -45,7 +45,7 @@ Technisch is a superset: "yes" alone means "same as Einfach, nothing added".
 
 ### 2.4 Locked (P:312-324)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | A-025 | "Willkommen zurück" | U-LOCKED | yes | yes | same |
 | A-026 | "Entsperre mit deinem Passkey, dann siehst du …" | U-LOCKED | yes | yes | same |
@@ -59,7 +59,7 @@ Technisch is a superset: "yes" alone means "same as Einfach, nothing added".
 
 ### 2.5 Recovery phrase shown / confirmed (P:326-341)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | A-034 | "Wiederherstellungsphrase" | U-PHRASE | plain: "Deine 24 Wörter" | yes; technical line "Wiederherstellungsphrase" | reworded |
 | A-035 | "Schreib sie auf Papier … nur jetzt angezeigt." | U-PHRASE | yes | yes | fixed dead end: lock, home link and reload ask first (DE 1) |
@@ -72,9 +72,9 @@ Technisch is a superset: "yes" alone means "same as Einfach, nothing added".
 
 ### 2.6 Unlocked: tabs, banner, glance, cards (P:343-423)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
-| A-042 | Reiter "Übersicht" / "Erweitert" | G-HEAD, M-SET | yes: switch "Einfach / Technisch" | yes | reworded; additive switch instead of two tabs with different layout |
+| A-042 | Reiter "Übersicht" / "Erweitert" | G-HEAD, M-SET | yes: switch "Standard / Technisch" | yes | reworded; additive switch instead of two tabs with different layout |
 | A-043 | "Deine bezahlte Laufzeit endet am {Datum}. …" | G-ALERT, P-STATE | yes | yes; exact end time as technical line | same text; alert carries its own button (Dup 7: detail only at P-STATE) |
 | A-044 | "Zum Paket" | G-ALERT | yes; as the alert's button | yes | merged into the alert A-043 as its button |
 | A-045 | "Auf einen Blick" | T-GLANCE | no (status is at S-STATUS) | yes; one overview table in System | moved; merged with the setup overview A-077 (Dup 1) |
@@ -86,14 +86,14 @@ Technisch is a superset: "yes" alone means "same as Einfach, nothing added".
 | A-051 | Einbindung `Lifecycle` (Karte Paperless) | S-STATUS | yes | yes; .T panels below the same card | same component; additive panels instead of the `simple` layout switch |
 | A-052 | Einbindung `Package` (Karte Paket) | P-STATE | yes | yes | moved into its own area "Paket" |
 | A-053 | "Technisch" · "Für Fortgeschrittene. …" | G-NAV, T-GLANCE | no | yes; becomes the area "System" with the purpose line | moved; card becomes a navigation area |
-| A-054 | Aufklapper "Schlüssel und Passkeys" | M-KEYS | yes: "Schlüssel & Geräte" | yes; M-KEYS.T adds address and derivation | moved; fixed dead end: reachable in Einfach (DE 9) |
+| A-054 | Aufklapper "Schlüssel und Passkeys" | M-KEYS | yes: "Schlüssel & Geräte" | yes; M-KEYS.T adds address and derivation | moved; fixed dead end: reachable in Standard (DE 9) |
 | A-055 | "Entsperrt. Schlüssel dieser App für Aleph:" 0x… | M-KEYS.T | no | yes; with copy button, the one place for this address | moved; name "Adresse der App"; survivor of Dup 3 |
 | A-056 | "Dein Browser leitet diesen Schlüssel … ab" | M-KEYS.T | no (plain form is A-014 "Nur du hast den Schlüssel") | yes | same; survivor of Dup 4 |
-| A-057 | Aufklapper "Weiteren Passkey hinzufügen" | M-KEYS | yes: "Weiteres Gerät hinzufügen", visible card | yes | reworded; fixed dead end: no fold-in-fold, in Einfach (DE 9) |
+| A-057 | Aufklapper "Weiteren Passkey hinzufügen" | M-KEYS | yes: "Weiteres Gerät hinzufügen", visible card | yes | reworded; fixed dead end: no fold-in-fold, in Standard (DE 9) |
 | A-058 | "Ein Passkey gehört zu einer Adresse ({host}). …" | M-KEYS | plain: "Am neuen Gerät mit den 24 Wörtern öffnen, dann hier" | yes; adds host/address explanation | reworded |
 | A-059 | "Passkey für {host} anlegen" | M-KEYS | plain: "Passkey für dieses Gerät anlegen" | yes; host in the technical line | reworded |
 | A-060 | "Neuer Passkey für {host} angelegt; …" | M-KEYS | plain: "Neuer Passkey angelegt. Dieser Browser nutzt ihn ab jetzt." | yes; adds host | reworded |
-| A-061 | "Deine Wallet bei Aleph und Filecoin" | P-CRYPTO.T | no (its warnings reach Einfach via A-064 … A-066) | yes | moved to Paket |
+| A-061 | "Deine Wallet bei Aleph und Filecoin" | P-CRYPTO.T | no (its warnings reach Standard via A-064 … A-066) | yes | moved to Paket |
 | A-062 | "Meine VMs" | T-VMS, G-ALERT | plain: only the alert "Eine zweite Maschine kostet Geld" + button | yes; full list, adopt, delete | moved; stray machine raises G-ALERT in both views |
 | A-063 | "Einrichtung" + "es fehlt etwas" / "vollständig" | T-GLANCE, S-STATUS | plain: missing item as a task with button at S-STATUS | yes; chip on the System table | moved; fold dissolved into System sections (Dup 2) |
 | A-064 | "Guthaben {money}" · "reicht ca. {time}" | P-STATE, P-CRYPTO.T | plain: "Dein Guthaben reicht noch ca. {time}" | yes; amounts and unit at P-CRYPTO.T | moved to Paket |
@@ -105,14 +105,14 @@ Technisch is a superset: "yes" alone means "same as Einfach, nothing added".
 
 ### 2.7 Setup (S), only under Erweitert → Technisch → Einrichtung
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | A-070 | Überschrift "Einrichtung" | MERGED→T-GLANCE | no | no (duplicate of A-063) | merged (Dup 2) |
 | A-071 | "Wo die Einrichtung liegt: verschlüsselt auf Aleph …" | T-PROFILE, M-SET | plain: one line "Deine Einstellungen sind auf jedem Gerät da" | yes; full section | moved; fold becomes a System section |
 | A-072 | "Jede Änderung hier wird in diesem Browser verschlüsselt …" | T-PROFILE | no | yes | same |
 | A-073 | "Drin sind: zahlendes Konto, Netz, Relays …" | T-PROFILE | no | yes | same |
 | A-074 | "Aleph sieht nur einen verschlüsselten Block … Mehr: …" | T-PROFILE | no | yes | same |
-| A-075 | "Warte auf MetaMask …" | P-PAYER.T | no (no wallet in Einfach) | yes; with "Abbrechen" | fixed dead end: cancel button re-enables the wallet buttons (DE 11) |
+| A-075 | "Warte auf MetaMask …" | P-PAYER.T | no (no wallet in Standard) | yes; with "Abbrechen" | fixed dead end: cancel button re-enables the wallet buttons (DE 11) |
 | A-076 | "Lade Einstellungen …" | T-GLANCE, G-ERR | plain: on failure "Einstellungen nicht geladen" + "Erneut versuchen" | yes; Details with the raw error | fixed dead end: retry button (DE 10) |
 | A-077 | zweites "Auf einen Blick" | MERGED→T-GLANCE | no | no (duplicate of A-045) | merged (Dup 1) |
 | A-078 | Zeile "Zahlung" → "Le Space, aus deinem Paket" … | MERGED→T-GLANCE | plain: via A-050 at P-STATE | no (duplicate of A-050) | merged, wording of A-050 (Dup 1) |
@@ -159,7 +159,7 @@ Technisch is a superset: "yes" alone means "same as Einfach, nothing added".
 | A-119 | "Bezahlt bis {Datum}" · "{n} Datensätze" · VM-Schlüssel | B-SETUP.T, P-BACKUP | plain: "Sicherung bezahlt bis {Datum}" at P-BACKUP | yes; data sets and key state | moved; the one place for "bezahlt bis" (Dup 13) |
 | A-120 | "Einen Monat Sicherungen bezahlen" | B-SETUP.T, G-DIALOG | plain: via the booking line at P-BACKUP, price shown | yes; button with price | dialog; fixed dead end: price + confirm before spending (DE 16) |
 | A-121 | "Nur ohne Paket nötig: In jedem Paket …" | B-SETUP.T | no | yes | moved |
-| A-122 | "VM-Schlüssel freigeben" | B-SETUP.T, B-HEALTH | plain: task "Sicherung fertig einrichten" + button at B-HEALTH | yes; named button | moved; Einfach gets a plain task so backups cannot stay off |
+| A-122 | "VM-Schlüssel freigeben" | B-SETUP.T, B-HEALTH | plain: task "Sicherung fertig einrichten" + button at B-HEALTH | yes; named button | moved; Standard gets a plain task so backups cannot stay off |
 | A-123 | Feld "Wallet, dem die Sicherungen gehören (0x…)" | B-SETUP.T | no | yes | moved |
 | A-124 | "Wallet der Sicherungen speichern" | B-SETUP.T | no | yes | moved |
 | A-125 | "Mehr dazu": "Schlüssel der Sicherungen (age): …" | B-SETUP.T | no | yes; visible text, no fold | moved; "Mehr dazu" fold removed (Dup 15) |
@@ -183,16 +183,16 @@ Technisch is a superset: "yes" alone means "same as Einfach, nothing added".
 | A-143 | Feld "SEV-SNP-Knoten (Hash, 64 Zeichen)" | T-IMAGE | no | yes | moved |
 | A-144 | Feld "Passphrase des Images" (leer = behalten) | T-IMAGE | no | yes; explicit "Behalten" / "Ändern" | fixed dead end: empty field no longer carries a meaning (DE 14) |
 | A-145 | "Image und Knoten speichern" / "Knoten speichern" | T-IMAGE | no | yes | moved |
-| A-146 | "Wird beim ersten Start gebaut (etwa 15 Minuten …)" | T-IMAGE, S-STATUS | plain: once before the first start: duration, keep window open | yes; plus "jetzt schon bauen" | moved; Einfach hears it at S-STATUS |
+| A-146 | "Wird beim ersten Start gebaut (etwa 15 Minuten …)" | T-IMAGE, S-STATUS | plain: once before the first start: duration, keep window open | yes; plus "jetzt schon bauen" | moved; Standard hears it at S-STATUS |
 | A-147 | "Noch nicht gebaut: Bau es hier mit …" | T-IMAGE | no | yes; warning carries the build button | reworded; quoted button name becomes a real button |
 | A-148 | "Mehr dazu": "Ein Image nur für diesen Tresor: …" | T-IMAGE | no | yes; visible text; address is a link to M-KEYS.T | moved; address merged (Dup 3), fold removed (Dup 15) |
 | A-149 | "Woraus und womit wird gebaut?" (fünf Werte) | T-IMAGE | no | yes | moved |
 | A-150 | "Geschafft: Dein Image ist nur für deinen Tresor …" | MERGED→S-FIRST | plain: via the finale A-186 | no (duplicate of A-186; date stays in A-083) | merged (Dup 12) |
-| A-151 | "Ein altes eigenes Image ist noch nicht entfernt …" | T-IMAGE | no; removing an image is never offered in Einfach (a sealed profile may still point at it) | yes; count, hashes, guarded "Jetzt entfernen" | moved; stays a deliberate, technical action |
+| A-151 | "Ein altes eigenes Image ist noch nicht entfernt …" | T-IMAGE | no; removing an image is never offered in Standard (a sealed profile may still point at it) | yes; count, hashes, guarded "Jetzt entfernen" | moved; stays a deliberate, technical action |
 | A-152 | "Guthaben der App-Adresse wird geprüft …" | T-IMAGE | no | yes | moved |
 | A-153 | "Ein Bau kostet {Preis} … Es fehlen {Betrag}." | G-ALERT, T-IMAGE | plain: "Guthaben reicht nicht" + "Aufladen" / "Neu prüfen" | yes; price, shortfall, raw reason | moved; "start not affordable" alert with buttons |
 | A-154 | "Ein eigenes Image braucht derzeit Aleph-Guthaben …" | G-ALERT, T-IMAGE | plain: "Guthaben fehlt" + "So lade ich auf" / "Neu prüfen" | yes; need/have, link to M-KEYS.T and P-CRYPTO.T | fixed dead end: button to where to top up (DE 15) |
-| A-155 | "Dieser Bau ist enthalten …" / "Ein Bau kostet {Preis} …" | T-IMAGE, S-STATUS | plain: cost sentence before the first start | yes; attempts and build-service detail | moved; money sentence kept in Einfach |
+| A-155 | "Dieser Bau ist enthalten …" / "Ein Bau kostet {Preis} …" | T-IMAGE, S-STATUS | plain: cost sentence before the first start | yes; attempts and build-service detail | moved; money sentence kept in Standard |
 | A-156 | "Mein Image bauen" / "Mein Image neu bauen" | T-IMAGE, G-DIALOG | plain: built at the first start; price question as dialog | yes; build and rebuild button | dialog replaces the native confirm |
 | A-157 | "Erst möglich, wenn Paperless gestoppt ist. …" | T-IMAGE | no | yes; with button "Sichern und beenden" (S-STOP) | reworded; quoted action becomes a button |
 | A-158 | Statuszeile "{Schritt} …" beim Bau | MERGED→S-FIRST.T | plain: via the stations A-173 | no (duplicate of A-178) | merged: one progress display for a build (Dup 12) |
@@ -207,25 +207,25 @@ Technisch is a superset: "yes" alone means "same as Einfach, nothing added".
 
 ### 2.8 FirstStart overlay (F), mounted from Lifecycle, both tabs
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | A-167 | Leiste "Dein Build-Dienst wacht auf" · "{pct} % · noch ca. …" | S-FIRST | plain: station texts without "Build-Dienst" / "Image" | yes; today's station texts | reworded; bar stays on failure with "Erneut versuchen" (DE 17) |
 | A-168 | "Ansehen" | S-FIRST | yes | yes | same |
 | A-169 | Vollbild-Dialog (dunkel) | S-FIRST | yes | yes | same |
-| A-170 | "Dein erster Start · ca. 25 Minuten insgesamt" + "Dein eigenes Image entsteht" | S-FIRST | plain: same full-screen journey; title without "Image" | yes; today's heading | kept as the full-screen journey in both views; reworded in Einfach |
+| A-170 | "Dein erster Start · ca. 25 Minuten insgesamt" + "Dein eigenes Image entsteht" | S-FIRST | plain: same full-screen journey; title without "Image" | yes; today's heading | kept as the full-screen journey in both views; reworded in Standard |
 | A-171 | "Verkleinern" | S-FIRST | yes | yes | same |
 | A-172 | "Schließen" (bei Fehler) | S-FIRST | yes; next to "Erneut versuchen" | yes | fixed dead end: no longer the only button (DE 17) |
-| A-173 | Stationen "Build-Dienst" / "Echtheit" / "Siegel" / "Abholen" … | S-FIRST | yes; the six stations with circles, check marks and durations; plain labels | yes; today's labels | same stations and animation; plain labels in Einfach |
+| A-173 | Stationen "Build-Dienst" / "Echtheit" / "Siegel" / "Abholen" … | S-FIRST | yes; the six stations with circles, check marks and durations; plain labels | yes; today's labels | same stations and animation; plain labels in Standard |
 | A-174 | Lichterreihe (Zierde) | S-FIRST | yes; the row of lights as today | yes | same |
 | A-175 | "Schritt {n} von {m} · {Dauer}" | S-FIRST | yes | yes | same |
 | A-176 | "Kurz innegehalten" · "Den Grund siehst du in der Karte …" | S-FIRST, G-ERR | plain: reason as a sentence + "Erneut versuchen" | yes; "Details" with the raw message/log | fixed dead end: reason and retry in the overlay (DE 17) |
-| A-177 | "Dein persönlicher Build-Dienst wacht auf" + Text | S-FIRST | plain: today's warm texts, jargon words replaced | yes; today's texts | reworded in Einfach only |
+| A-177 | "Dein persönlicher Build-Dienst wacht auf" + Text | S-FIRST | plain: today's warm texts, jargon words replaced | yes; today's texts | reworded in Standard only |
 | A-178 | 19 Unterschritte ("… V-PROGRAM …", "Mit LUKS versiegelt …") | S-FIRST.T | no | yes | same, technical view only |
 | A-179 | "{n} Verbindungen bestätigt" · "{x} von {y} MiB" … | S-FIRST.T | no (percent stays, A-181) | yes | same, technical view only |
 | A-180 | "Die Verbindung ist abgerissen – kein Problem: …" | S-FIRST | plain: without "Image" | yes; adds attempt count | reworded |
 | A-181 | "{pct} % abgeholt" | S-FIRST | yes | yes | same |
-| A-182 | Schaubild "Was gerade wohin fließt: …" | S-FIRST | yes; the animated diagram with plain place names | yes; today's names, share in percent | kept in both views; plain names in Einfach |
-| A-183 | "Belege – zum Nachprüfen" (bis 11 Zeilen) | S-FIRST.T, S-PROOF | plain: one line "Geprüft: echte, verschlüsselte Maschine" | yes; all rows with links | same rows; Einfach gets the one-line proof |
+| A-182 | Schaubild "Was gerade wohin fließt: …" | S-FIRST | yes; the animated diagram with plain place names | yes; today's names, share in percent | kept in both views; plain names in Standard |
+| A-183 | "Belege – zum Nachprüfen" (bis 11 Zeilen) | S-FIRST.T, S-PROOF | plain: one line "Geprüft: echte, verschlüsselte Maschine" | yes; all rows with links | same rows; Standard gets the one-line proof |
 | A-184 | "Die Hardware dahinter": zwei AMD-Links | S-FIRST.T | no | yes | same, technical view only |
 | A-185 | "{pct} % geschafft" · "noch ca. {n} Min. …" · "Dein Bildschirm bleibt an. …" | S-FIRST | yes | yes | same |
 | A-186 | "Geschafft – deine Paperless läuft!" + Text | S-FIRST | plain: without "Passphrase": "Nur dein Tresor kann sie öffnen" | yes; today's text | reworded; the one success message (Dup 12) |
@@ -239,23 +239,23 @@ Technisch is a superset: "yes" alone means "same as Einfach, nothing added".
 
 ### 2.9 Help (H), at the foot of the app, all states
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | A-194 | "Hilfe & Support" | M-HELP | yes | yes | moved to Mehr; before unlock reachable from G-FOOT |
 | A-195 | "Fragen, ein Problem, etwas klemmt? Schreib uns:" | M-HELP | yes | yes | same |
 | A-196 | "Zu Zahlung, Rechnung, Gutschein und Credits:" | M-HELP | plain: "Guthaben" statt "Credits" | yes | reworded |
 | A-197 | "Rechtliches (Widerruf, Kündigung, Anbieter) …" | M-HELP, M-LEGAL | yes | yes | same |
-| A-198 | "Le Space fragt nie nach deinen Geheimnissen" | M-HELP | plain: short list (24 Wörter, Passwörter, Codes) | yes; full list (Seed-Phrase, Passphrase, DNS-Token) | reworded for Einfach, full text in Technisch |
+| A-198 | "Le Space fragt nie nach deinen Geheimnissen" | M-HELP | plain: short list (24 Wörter, Passwörter, Codes) | yes; full list (Seed-Phrase, Passphrase, DNS-Token) | reworded for Standard, full text in Technisch |
 | A-199 | "Was du mitschickst" · "… Dazu die Diagnose der App" | M-HELP | plain: "Fehlerbericht" statt "Diagnose" | yes | reworded |
 | A-200 | "Diagnose kopieren" | M-HELP | yes: "Fehlerbericht kopieren" | yes | reworded |
 | A-201 | "Kopiert. Füg sie in deine Mail ein." / "Kopieren ging nicht …" | M-HELP | yes | yes | same; failure shows the text to mark |
-| A-202 | "Was die Diagnose enthält" + Diagnosetext | M-HELP | plain: one sentence; raw text only if copying fails | yes; text always viewable | reworded; raw text hidden in Einfach except as fallback |
+| A-202 | "Was die Diagnose enthält" + Diagnosetext | M-HELP | plain: one sentence; raw text only if copying fails | yes; text always viewable | reworded; raw text hidden in Standard except as fallback |
 | A-203 | "Selbst nachlesen": "Häufige Fragen" · "Eine Sicherung selbst holen …" | M-HELP, B-EXPORT | plain: FAQ here; restore guide at "Dokumente herunterladen" | yes; both links | fixed dead end: FAQ opens in a new tab, vault stays open (DE 18) |
 | A-204 | "Sicherheitslücken melden" + drei Links | M-HELP | no | yes | same, technical view only |
 
 ### 2.10 Footer BuildInfo (B), all states
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | A-205 | "Quelltext von Paperless anywhere auf GitHub" | M-BUILD.T | no | yes | moved; the one source link (Dup 5) |
 | A-206 | "Über Paperless anywhere" | M-LEGAL | yes | yes | fixed dead end: opens in a new tab, vault stays open (DE 18) |
@@ -269,7 +269,7 @@ Technisch is a superset: "yes" alone means "same as Einfach, nothing added".
 
 ### 2.11 Terms (T) and Waiver (W), inside the Package card (both tabs)
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | A-214 | "Neue Bedingungen (AGB): bitte zustimmen" | P-LEGAL | yes (verbatim) | yes | fixed dead end: if loading fails, sentence + "Erneut laden" (DE 19) |
 | A-215 | "Die Bedingungen liegen auf Deutsch vor." | P-LEGAL | yes | yes | same |
@@ -284,7 +284,7 @@ Technisch is a superset: "yes" alone means "same as Einfach, nothing added".
 
 ### 2.12 Licences page (L), `/lizenzen/`, standalone
 
-| ID | Today | v0.2 place | Einfach | Technisch | Change |
+| ID | Today | v0.2 place | Standard | Technisch | Change |
 |---|---|---|---|---|---|
 | A-224 | Logo "LE SPACE Paperless anywhere" | M-LEGAL | yes | yes | same |
 | A-225 | "DE" / "EN" (Gruppe "Language") | M-LEGAL, M-SET | yes; group label translated ("Sprache") | yes | merged: one shared language switch (Dup 10) |
@@ -329,12 +329,12 @@ None. Three rows have no natural place code and were put at the nearest one; the
 ## Open questions for Nico
 
 1. **Showing the 24 words again later (DE 1).** The table only guards the screen against leaving. Can the app show the words again after unlock (M-KEYS "about the 24 words"), or is "only now" a hard property of the vault? If it is hard, should a vault whose words were never confirmed raise a lasting G-ALERT?
-2. **People who pay with crypto, in Einfach.** A-064, A-066, A-098, A-154 concern self-payers whose details live only in `.T` places (P-CRYPTO.T, P-PAYER.T). Should their Einfach buttons switch the view to Technisch at the right place, or does a self-payer always start in Technisch?
+2. **People who pay with crypto, in Standard.** A-064, A-066, A-098, A-154 concern self-payers whose details live only in `.T` places (P-CRYPTO.T, P-PAYER.T). Should their Standard buttons switch the view to Technisch at the right place, or does a self-payer always start in Technisch?
 3. **App address "shown once" (Dup 3).** I made M-KEYS.T the only place and turned A-098, A-103, A-148 into links. For "Diese App selbst zahlt" the person must send credits to exactly this address; is a link enough there, or should P-PAYER.T keep the address with a copy button?
 4. **Overview rows versus their detail (Dup 1, 12, 13).** I treated T-GLANCE rows as an index (state word + link) and merged only the truly doubled rows (A-078, A-082, A-084) and A-150 / A-158 / A-164. Is that reading right, or should rows such as A-081 and A-083 also disappear in favour of T-RELAY / T-IMAGE?
 5. **Backup lights before unlock (A-007).** Today they show on the locked screen from remembered provider ids. places.md moves them to B-HEALTH and a dot on G-NAV, and neither exists before unlock. Drop them while locked, or one sentence on U-LOCKED?
 6. **Help before unlock (A-068, A-194, A-210).** Mehr → Hilfe exists only with the navigation. I assumed the footer link opens help directly while locked, and "Probleme beim Entsperren?" leads there too. Agreed?
-7. **Old own image that costs storage (A-151).** I gave Einfach a plain note with "Jetzt entfernen" because it costs storage. Does it cost a package customer anything at all? If not, it could be Technisch only. I did not propose automatic removal.
-8. **Tagline in the header (A-002).** places.md lists logo, view switch and "Sperren" for G-HEAD, no tagline. Keep a plain tagline in Einfach as mapped, or move it to M-LEGAL ("Über") on phones?
-9. **Security reports (A-204) and vault-wide warnings in Einfach.** I set "Sicherheitslücken melden" to Technisch only. places.md lists it under M-HELP without a `.T`; should Einfach show a one-line version?
+7. **Old own image that costs storage (A-151).** I gave Standard a plain note with "Jetzt entfernen" because it costs storage. Does it cost a package customer anything at all? If not, it could be Technisch only. I did not propose automatic removal.
+8. **Tagline in the header (A-002).** places.md lists logo, view switch and "Sperren" for G-HEAD, no tagline. Keep a plain tagline in Standard as mapped, or move it to M-LEGAL ("Über") on phones?
+9. **Security reports (A-204) and vault-wide warnings in Standard.** I set "Sicherheitslücken melden" to Technisch only. places.md lists it under M-HELP without a `.T`; should Standard show a one-line version?
 10. **Leaving the app by FAQ / "Über" (DE 18).** I chose "open in a new tab, vault stays open" for A-203 and A-206 and the dialog for the logo. Would you rather have the same dialog everywhere and stay in one tab (installed PWA on phones)?
