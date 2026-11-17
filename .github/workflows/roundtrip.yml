@@ -367,8 +367,12 @@ jobs:
             echo "$fixed" | jq -c .
             serial="$($SSH "openssl x509 -noout -serial -in /etc/paperless-anywhere/tls/certificates/$FIXED_NAME.crt" | sed 's/^serial=//')"
             echo "certificate serial: VM 1 $VM1_SERIAL, VM 2 $serial"
-            [ "$serial" = "$VM1_SERIAL" ] || { echo "::error::VM 2 did not reuse the certificate from the backup"; exit 1; }
-            echo "CERT_REUSED=yes" >> "$GITHUB_ENV"
+            # Since #364 the VM orders a certificate of its own right away; the
+            # backup's one is used when that order is refused (five per name and
+            # week). Either way the fixed address must be ready with a valid one.
+            [ "$(jq -r '.status // empty' <<<"$fixed" 2>/dev/null)" = ready ] || { echo "::error::VM 2's fixed address is not ready"; exit 1; }
+            $SSH "openssl x509 -checkend 86400 -noout -in /etc/paperless-anywhere/tls/certificates/$FIXED_NAME.crt" >/dev/null || { echo "::error::VM 2 has no valid certificate for the fixed address"; exit 1; }
+            if [ -n "$serial" ] && [ "$serial" = "$VM1_SERIAL" ]; then echo "CERT_REUSED=yes" >> "$GITHUB_ENV"; else echo "CERT_REUSED=no (a new one)" >> "$GITHUB_ENV"; fi
           fi
           echo "round trip: 5 made-up documents backed up from VM 1 and restored in VM 2"
 
@@ -391,7 +395,7 @@ jobs:
             echo "| VM 1 up (create + unlock) | ${VM1_UP:-?} s |"
             echo "| Backup with the session key | ${BACKUP_SECONDS:-?} s |"
             echo "| Restore in VM 2 | \`${RESTORE:-none}\` |"
-            [ -z "$FIXED_ADDRESS" ] || echo "| Fixed address: certificate reused from the backup | ${CERT_REUSED:-no} |"
+            [ -z "$FIXED_ADDRESS" ] || echo "| Fixed address: certificate from the backup | ${CERT_REUSED:-no} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Runs even when the round trip was cancelled or timed out.
