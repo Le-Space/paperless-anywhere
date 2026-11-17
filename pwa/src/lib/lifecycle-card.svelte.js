@@ -276,6 +276,16 @@ export function createLifecycleCard(p) {
 	const split = $derived(splitOwn(backups ?? [], profile.vaultBackups ?? []));
 	// The piece the person confirmed: another backup asks again.
 	let unmarkedAccepted = $state('');
+	// An empty start while backups are on the chain: its own backups would
+	// become the newest, ahead of the real ones (2026-11-17). Such a start
+	// makes no backups unless the person says to begin anew.
+	let freshConfirmed = $state(false);
+	/** The newest backup is far smaller than the one before it: likely an empty Paperless's. */
+	const tinyNewest = $derived.by(() => {
+		const list = (backups ?? []).filter((b) => b.size != null);
+		const [first, second] = list;
+		return first && second && first.size * 100 < second.size ? { newest: first, before: second } : null;
+	});
 	// The newest one: a backup counts once it reached at least one provider
 	// (the restore checks the piece itself); "complete" only compared the copies
 	// with every data set the wallet ever used, and a backup that went to a
@@ -614,6 +624,8 @@ export function createLifecycleCard(p) {
 		const fixed = profile.crnHash && !nodeBlockedReason(profile.crnHash) ? profile.crnHash : null;
 		const restore = chosen ? { ...restoreEntry(chosen), ...(unmarked ? { unmarked: true } : {}) } : null;
 		startRestores = Boolean(restore);
+		// Empty although backups are there, and not confirmed: no backups from this VM.
+		const holdBackups = !restore && (backups?.length ?? 0) > 0 && !freshConfirmed;
 		const pick = () => {
 			progress = tr().card.progress[nodeNote ? 'otherNode' : 'pickNode'];
 			return pickNode({ avoid: avoidedNodes(profile), proven: provenNodes(profile, { builder: BUILDER }) });
@@ -638,7 +650,7 @@ export function createLifecycleCard(p) {
 			startElsewhere({
 				fixed,
 				pick,
-				start: (crnHash) => startPaperless(master, { ...$state.snapshot(profile), crnHash, restoreEntry: restore }, step, { onRequested }),
+				start: (crnHash) => startPaperless(master, { ...$state.snapshot(profile), crnHash, restoreEntry: restore, holdBackups }, step, { onRequested }),
 				onRefused: async (e) => {
 					nodeNote = tr().card.nodeRefused[e.kind];
 					await dropRefused(e);
@@ -1143,6 +1155,9 @@ export function createLifecycleCard(p) {
 		get choice() { return choice; },
 		set choice(v) { choice = v; },
 		get split() { return split; },
+		get freshConfirmed() { return freshConfirmed; },
+		set freshConfirmed(v) { freshConfirmed = v; },
+		get tinyNewest() { return tinyNewest; },
 		get unmarkedAccepted() { return unmarkedAccepted; },
 		set unmarkedAccepted(v) { unmarkedAccepted = v; },
 		pick,

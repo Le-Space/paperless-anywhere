@@ -132,6 +132,9 @@ export const card = {
 			noBackups: 'Die VM hat sich am Ende der Laufzeit angehalten, aber ohne Sicherungen kann die App nichts prüfen. Lösche sie selbst in der VM-Liste unter „Technisch“.'
 		},
 		advanced: {
+			emptyOverBackups: (/** @type {number} */ n) => `Es gibt ${n} Sicherungen. Ein leerer Start macht keine Sicherungen, damit die leere Paperless nicht zur neuesten wird.`,
+			emptyFresh: 'Ich will neu anfangen: Diese leere Paperless soll sichern und wird damit zur neuesten Sicherung.',
+			tinyNewest: (/** @type {string} */ newest, /** @type {string} */ before, /** @type {string} */ cid) => `Die neueste Sicherung ist sehr klein (${newest}), die vorige ${before} (…${cid}). Vermutlich ist die neueste leer: Prüfe, welche du wiederherstellen willst.`,
 			purpose: 'Deine Paperless-ngx-Maschine: starten, öffnen, sichern und beenden.',
 			runs: 'Paperless-ngx läuft:',
 			restoreFailed: (/** @type {string} */ reason) => `Wiederherstellung fehlgeschlagen (${reason}). Paperless-ngx läuft leer. Diese VM legt keine Sicherung an, auch nicht von dem, was du hier neu ablegst, damit die leere Paperless nicht zur neuesten Sicherung wird; lösche sie ohne Sicherung und starte neu.`,
@@ -302,6 +305,9 @@ export const card = {
 			noBackups: 'The VM paused itself at the end of the paid time, but without backups the app has nothing to check. Delete it yourself in the VM list under “Technical”.'
 		},
 		advanced: {
+			emptyOverBackups: (/** @type {number} */ n) => `There are ${n} backups. An empty start makes no backups, so the empty Paperless does not become the newest.`,
+			emptyFresh: 'I want to begin anew: this empty Paperless backs up and so becomes the newest backup.',
+			tinyNewest: (/** @type {string} */ newest, /** @type {string} */ before, /** @type {string} */ cid) => `The newest backup is very small (${newest}), the one before it ${before} (…${cid}). The newest is probably empty: check which one you want to restore.`,
 			purpose: 'Your Paperless-ngx machine: start, open, back up and stop.',
 			runs: 'Paperless-ngx is running:',
 			restoreFailed: (/** @type {string} */ reason) => `Restore failed (${reason}). Paperless-ngx runs empty. This VM makes no backup, not even of what you add here, so the empty Paperless does not become the newest one; delete it without a backup and start again.`,
