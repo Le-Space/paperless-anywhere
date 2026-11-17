@@ -61,6 +61,7 @@ export const life = {
 			primaryForMainnet: 'Rolle „Produktiv“ für Sicherungen auf Mainnet (oder Sicherungen aus)'
 		},
 		progress: {
+			backupsHeld: 'Leer gestartet, obwohl Sicherungen da sind: Diese VM macht keine Sicherungen',
 			checkCopies: 'Prüfe, ob die Kopien deiner Sicherung ausliefern',
 			publicNoFixed: 'Öffentliches Image: ohne feste Adresse (das DNS-Token geht nur an dein eigenes Image)',
 			publicNoBackups: 'Öffentliches Image: ohne Sicherungen (deren Schlüssel gehen nur an dein eigenes Image)',
@@ -209,6 +210,7 @@ export const life = {
 			primaryForMainnet: 'role “Productive” for backups on mainnet (or backups off)'
 		},
 		progress: {
+			backupsHeld: 'Started empty although backups exist: this VM makes no backups',
 			checkCopies: 'Checking that the copies of your backup deliver',
 			publicNoFixed: 'Public image: without the fixed address (the DNS token goes only to your own image)',
 			publicNoBackups: 'Public image: without backups (their keys go only to your own image)',
