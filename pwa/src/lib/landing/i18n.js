@@ -50,7 +50,7 @@ export const texts = {
 			before: 'Paperless anywhere läuft',
 			words: ['ausfallsicher.', 'vertraulich.', 'nach deinem Takt.'],
 			full: 'Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt.',
-			lead: 'Dein papierloses Büro: Paperless-ngx, das beliebte Open-Source-Programm für Dokumente, liest deine Scans und PDFs, ordnet sie und findet jedes in Sekunden. Paperless anywhere betreibt es für dich, auf vertraulichen Knoten mehrerer Betreiber und mit Sicherungen bei mehreren unabhängigen Speicheranbietern: kein einzelnes Rechenzentrum. Du wählst, wie es läuft: im Dauerbetrieb rund um die Uhr oder auf Abruf, wenn du es brauchst, etwa für die Buchhaltung.'
+			lead: 'Dein papierloses Büro mit Paperless-ngx: Es liest deine Scans und PDFs, ordnet sie und findet jedes in Sekunden. Wir betreiben es vertraulich und ausfallsicher – rund um die Uhr oder nur, wenn du es brauchst.'
 		},
 		points: [
 			{ t: 'Ausfallsicher', d: 'Kein einzelnes Rechenzentrum: Gerechnet wird auf Knoten mehrerer Betreiber, gesichert bei mehreren unabhängigen Speicheranbietern. Fällt ein Knoten aus, startest du auf einem anderen.' },
@@ -433,7 +433,7 @@ export const texts = {
 			before: 'Paperless anywhere runs',
 			words: ['resilient.', 'confidential.', 'on your schedule.'],
 			full: 'Paperless anywhere runs resilient, confidential and on your schedule.',
-			lead: 'Your paperless office: Paperless-ngx, the popular open source program for documents, reads your scans and PDFs, sorts them and finds any of them in seconds. Paperless anywhere runs it for you, on confidential nodes of several operators and with backups at several independent storage providers: no single data centre. You choose how it runs: always on, around the clock, or on demand when you need it, for the bookkeeping, say.'
+			lead: 'Your paperless office with Paperless-ngx: it reads your scans and PDFs, sorts them and finds any of them in seconds. We run it confidentially and resiliently – around the clock, or only when you need it.'
 		},
 		points: [
 			{ t: 'Resilient', d: 'No single data centre: it computes on nodes of several operators and backs up to several independent storage providers. If a node fails, you start on another.' },

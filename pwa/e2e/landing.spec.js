@@ -69,11 +69,11 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.getByRole('link', { name: 'Datenschutz' })).toHaveAttribute('href', 'https://credits.le-space.de/datenschutz');
 	// Brand: the product is "Paperless anywhere"; Paperless-ngx is the software,
 	// linked at its first mention (the line under the name), with the notice in
-	// the footer, the FAQ and under the start button.
+	// the footer, the FAQ and in the section on what Paperless-ngx is.
 	await expect(page.getByTestId('brand')).toContainText('Paperless anywhere');
 	await expect(page.getByTestId('brand').getByRole('link', { name: 'Paperless-ngx' })).toHaveAttribute('href', 'https://github.com/paperless-ngx/paperless-ngx');
 	const notice = 'Paperless-ngx ist ein unabhängiges Open-Source-Projekt (GPL-3.0). Paperless anywhere ist ein Angebot von Le Space, nicht mit dem Projekt verbunden und wird von ihm weder unterstützt noch gesponsert.';
-	await expect(page.getByTestId('hero-disclaimer')).toHaveText(notice);
+	await expect(page.getByTestId('ngx-disclaimer')).toHaveText(notice);
 	await expect(page.getByTestId('footer-disclaimer')).toContainText(notice);
 	await expect(page.locator('#faq details').first()).toContainText(notice);
 	await expect(page.getByRole('link', { name: 'Paperless anywhere starten' }).first()).toHaveAttribute('href', '/app/');
@@ -105,7 +105,7 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await page.locator('nav a[href="#trust"]').click();
 	await expect(page).toHaveURL(/\/en\/#trust$/);
 	await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', 'https://credits.le-space.de/datenschutz');
-	await expect(page.getByTestId('hero-disclaimer')).toHaveText('Paperless-ngx is an independent open source project (GPL-3.0). Paperless anywhere is offered by Le Space, is not affiliated with the project and is neither endorsed nor sponsored by it.');
+	await expect(page.getByTestId('ngx-disclaimer')).toHaveText('Paperless-ngx is an independent open source project (GPL-3.0). Paperless anywhere is offered by Le Space, is not affiliated with the project and is neither endorsed nor sponsored by it.');
 	await expect(page.getByTestId('brand')).toContainText('Paperless-ngx in confidential VMs · offered by Le Space');
 	await page.reload();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveAccessibleName('Paperless anywhere runs resilient, confidential and on your schedule.');
@@ -499,7 +499,7 @@ test('the FAQ says what happens when a voucher or package ends, in both language
 test('the landing page says what Paperless-ngx is, and links its own source in the header and the footer', async ({ page }) => {
 	await page.context().route(/crns-list\.aleph\.sh|filecoin|glif|chain\.love/, (route) => route.abort());
 	await page.goto('/');
-	await expect(page.locator('.hero .lead')).toContainText('Dein papierloses Büro: Paperless-ngx');
+	await expect(page.locator('.hero .lead')).toContainText('Dein papierloses Büro mit Paperless-ngx');
 	await expect(page.locator('#paperless-ngx h2')).toHaveText('Was ist Paperless-ngx?');
 	await expect(page.getByTestId('ngx-features').locator('h3')).toHaveText(['Hineingeben', 'Ordnet von selbst', 'Findet in Sekunden', 'Holt Post aus dem Postfach']);
 	await expect(page.locator('#paperless-ngx').getByRole('link', { name: 'Paperless-ngx auf GitHub' })).toHaveAttribute('href', 'https://github.com/paperless-ngx/paperless-ngx');

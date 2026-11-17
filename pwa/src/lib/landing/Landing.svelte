@@ -144,7 +144,6 @@
 		</h1>
 		<p class="lead">{t.hero.lead}</p>
 		<p class="actions"><a class="cta" href={APP}>{t.open} →</a><span class="hint">{t.openHint}</span></p>
-		<p class="disclaimer" data-testid="hero-disclaimer">{t.disclaimer}</p>
 		<ul class="points">
 			{#each t.points as p}<li><h3>{p.t}</h3><p>{p.d}</p></li>{/each}
 		</ul>
@@ -158,6 +157,7 @@
 			{#each t.ngx.items as item}<li><h3>{item.t}</h3><p>{item.d}</p></li>{/each}
 		</ul>
 		<p class="ngx-after">{t.ngx.after} <a href={NGX_URL} rel="noopener">{t.ngx.links.project}</a> · <a href="https://docs.paperless-ngx.com/#features" rel="noopener">{t.ngx.links.docs}</a></p>
+		<p class="disclaimer" data-testid="ngx-disclaimer">{t.disclaimer}</p>
 	</section>
 
 	<section id="audience">
@@ -326,6 +326,8 @@
 	.audience strong { color: var(--text); }
 
 	.hero { padding-top: 3rem; }
+	/* The hero's lead: two sentences, short lines. */
+	.hero .lead { max-width: 38rem; font-size: 1.2rem; line-height: 1.6; }
 	.kicker { color: var(--accent-text); text-transform: uppercase; letter-spacing: 0.12em; margin: 0 0 1rem; }
 	h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.08; letter-spacing: -0.03em; margin: 0 0 1.25rem; max-width: 22ch; }
 	/* The three words lie on top of each other in one cell, which is as wide and
@@ -350,7 +352,7 @@
 	.cta { display: inline-block; padding: 0.85rem 1.5rem; border-radius: 999px; background: var(--cta-bg); color: var(--cta-text); font-weight: 600; text-decoration: none; }
 	.cta:hover { filter: brightness(1.08); }
 	.hint { color: var(--text-2); font-size: 0.9rem; }
-	.disclaimer { color: var(--text-2); font-size: 0.8rem; max-width: 46rem; margin: -1.25rem 0 2rem; }
+	.disclaimer { color: var(--text-2); font-size: 0.8rem; max-width: 46rem; margin: 0.75rem 0 0; }
 
 	.faq { display: grid; gap: 0.6rem; max-width: 46rem; }
 	.faq details { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.9rem 1.1rem; }
