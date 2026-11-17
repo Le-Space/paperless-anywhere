@@ -138,3 +138,33 @@ describe('handing backup places to the running VM', () => {
 		expect(JSON.parse(got.backup_config)).toMatchObject({ copies: 3, providerIds: [43, 1, 38], regions: ['EUROPE'] });
 	});
 });
+
+describe('the secrets of a start fit what the guest takes', () => {
+	it('the largest start (fixed address, backups through Credits, a restore of an unmarked backup, an end, debug keys) fits after the optional ones go', async () => {
+		const { fitSecrets, MAX_GUEST_SECRETS } = await import('./lifecycle.js');
+		const largest = Object.fromEntries(
+			[
+				'dns_cloudflare_token', 'https_ipv4', 'https_port',
+				'https_hostname', 'paperless_role', 'paperless_admin_password', 'paperless_db_password', 'paperless_secret_key', 'status_token',
+				'backup_mark_key', 'backup_config', 'backup_key',
+				'restore_ledger_entry', 'age_identity', 'restore_unmarked',
+				'period_end', 'authorized_keys'
+			].map((k) => [k, 'x'])
+		);
+		const fit = fitSecrets(largest);
+		expect(Object.keys(fit).length).toBeLessThanOrEqual(MAX_GUEST_SECRETS);
+		// What a start needs stays; the end goes first.
+		for (const k of ['dns_cloudflare_token', 'backup_config', 'backup_key', 'restore_ledger_entry', 'age_identity', 'restore_unmarked', 'backup_mark_key']) expect(fit).toHaveProperty(k);
+		expect(fit).not.toHaveProperty('period_end');
+	});
+	it('says so plainly instead of the guest refusing', async () => {
+		const { fitSecrets } = await import('./lifecycle.js');
+		const tooMany = Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`s${i}`, 'x']));
+		expect(() => fitSecrets(tooMany)).toThrow(/höchstens 16/);
+	});
+	it('a start no longer sends the dedup key, nor an end that renews', async () => {
+		const src = (await import('node:fs')).readFileSync(new URL('./lifecycle.js', import.meta.url), 'utf8');
+		expect(src).not.toMatch(/secrets\.backup_dedup_key/);
+		expect(src).toMatch(/periodEnd !== '0'/);
+	});
+});
