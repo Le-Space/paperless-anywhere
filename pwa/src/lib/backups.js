@@ -424,6 +424,29 @@ export function retentionFor(network, set) {
 }
 
 /**
+ * The plain images (SHA-256, as BUILDER.plain.sha256 and a profile's
+ * ownImage.plainSha256 name them) whose backup tool makes incremental backups
+ * the way the app and the chain read them: paperless-backup-filecoin from
+ * f4df5d7 (#17, packs with the public PA-SNAP/1 prefix) on. Older images
+ * ignore the switch (before #16) or make packs without that prefix (#16
+ * alone), which `retain` and this app cannot tell from full backups. Add an
+ * image here once it is built with such a tool; until then the switch stays
+ * off and greyed out.
+ * @type {readonly string[]}
+ */
+export const INCREMENTAL_IMAGES = Object.freeze([]);
+
+/**
+ * Can the image the VM starts from make incremental backups? Its own image
+ * (built from a plain image) must be one of INCREMENTAL_IMAGES.
+ * @param {Record<string, any> | null | undefined} profile @param {readonly string[]} [images]
+ */
+export const supportsIncremental = (profile, images = INCREMENTAL_IMAGES) => {
+	const plain = profile?.ownImage?.plainSha256;
+	return typeof plain === 'string' && images.includes(plain);
+};
+
+/**
  * The piece CIDs of every part of the backup a VM is restored from: the tool
  * never removes it (retention.protect).
  * @param {any} entry the restore entry (restoreEntry())
@@ -448,11 +471,17 @@ export function protectedPieces(entry) {
  * Empty without a backup configuration. Throws when the credits path lacks
  * the service's answer or it is for another network.
  * @param {Record<string, any>} profile
- * @param {{ sessionKey?: string, backupKey?: string, signer?: { payer: string, signer: string, tag: string, label: string, network: string } | null, creditsUrl?: string, product?: string, account?: string }} k
+ * @param {{ sessionKey?: string, backupKey?: string, signer?: { payer: string, signer: string, tag: string, label: string, network: string } | null, creditsUrl?: string, product?: string, account?: string, incrementalImages?: readonly string[] }} k
  * @returns {Record<string, string>}
  */
-export function vmBackupSecrets(profile, { sessionKey, backupKey, signer, creditsUrl, product, account }) {
+export function vmBackupSecrets(profile, { sessionKey, backupKey, signer, creditsUrl, product, account, incrementalImages = INCREMENTAL_IMAGES }) {
 	if (!profile.backupConfig) return {};
+	// Incremental backups only reach a VM whose image brings a tool that can
+	// make them (supportsIncremental); any other keeps making full backups.
+	if (profile.backupConfig.incremental && !supportsIncremental(profile, incrementalImages)) {
+		const { incremental: _, ...full } = profile.backupConfig;
+		profile = { ...profile, backupConfig: full };
+	}
 	const network = profile.network === 'mainnet' ? 'mainnet' : 'calibration';
 	if (!profile.backupsByCredits) {
 		// The tool plans retention here and reports it; only the wallet removes.
