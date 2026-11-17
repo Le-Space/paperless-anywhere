@@ -535,7 +535,10 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 		// derives it from the mark key (paperless-dedup-key), as backupDedupKey does.
 	}
 	if (profile.backupConfig && !own) onProgress({ step: 'unlock', detail: tr().life.progress.publicNoBackups });
-	if (profile.backupConfig && own) {
+	// An empty start while backups exist, not confirmed as a new beginning:
+	// this VM makes no backups, so an empty Paperless never becomes the newest.
+	if (profile.backupConfig && own && profile.holdBackups) onProgress({ step: 'unlock', detail: tr().life.progress.backupsHeld });
+	if (profile.backupConfig && own && !profile.holdBackups) {
 		// Through Le Space Credits: ask the service again (it may have a new
 		// payer or signer, which the profile then keeps); without an answer,
 		// what the setup recorded.
