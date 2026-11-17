@@ -92,20 +92,20 @@
 
 	// The lights at the top (BackupLeds): the newest backup's copies as the
 	// card read them, or, while locked, the provider ids kept from that list.
-	/** @type {{ network: string, copies: { providerId: number, url?: string }[] } | null} */
+	/** @type {{ network: string, copies: { providerId: number, url?: string }[], wanted?: number | null } | null} */
 	let ledCopies = $state(null);
 	let ledRemembered = $state('');
 	/** @type {import('$lib/backup-status.js').Level} */
 	let reachLed = $state('unknown');
 	function fromMemory() {
 		const k = knownCopies();
-		ledCopies = k ? { network: k.network, copies: k.providerIds.map((providerId) => ({ providerId })) } : null;
+		ledCopies = k ? { network: k.network, copies: k.providerIds.map((providerId) => ({ providerId })), wanted: k.wanted } : null;
 		ledRemembered = k?.at ?? '';
 	}
 	fromMemory();
-	/** @param {{ network: string, copies: { providerId: number, url?: string }[] }} c */
+	/** @param {{ network: string, copies: { providerId: number, url?: string }[], wanted: number | null }} c */
 	function newestCopies(c) {
-		rememberCopies(c.network, c.copies.map((x) => x.providerId));
+		rememberCopies(c.network, c.copies.map((x) => x.providerId), c.wanted);
 		ledCopies = c;
 		ledRemembered = '';
 	}

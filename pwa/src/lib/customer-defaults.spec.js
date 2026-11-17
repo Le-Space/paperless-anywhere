@@ -1,7 +1,7 @@
 // A Paperless that Le Space pays for starts with defaults, once, and only
 // while nobody has chosen who pays.
 import { describe, expect, it } from 'vitest';
-import { applyCustomerDefaults, CUSTOMER_PLACES, customerDefaults, undecided } from './customer-defaults.js';
+import { applyCustomerDefaults, CUSTOMER_PLACES, customerDefaults, customerPlacesPatch, undecided } from './customer-defaults.js';
 import { ageIdentityFromMaster, ageRecipient } from './keys/age.js';
 import { buildsImageFirst, pickNode, startRequirements } from './lifecycle.js';
 
@@ -25,12 +25,27 @@ describe('defaults for a Paperless Le Space pays for', () => {
 		expect(customerDefaults({ appPays: true }, { network: 'mainnet', vaultAge })).toBeNull();
 	});
 
-	it('let Le Space pay, back up through Le Space Credits to three copies in the EU, on the service’s network', () => {
+	it('let Le Space pay, back up through Le Space Credits to three copies in Europe, on the service’s network', () => {
 		const d = customerDefaults({}, { network: 'mainnet', vaultAge });
 		expect(d).toMatchObject({ leSpacePays: true, appPays: false, backupsByCredits: true, network: 'mainnet', role: 'primary', ageIdentity: vaultAge });
-		expect(d?.backupConfig).toMatchObject({ copies: 3, providerIds: [], regions: ['EU'], ageRecipient: ageRecipient(vaultAge) });
-		expect(CUSTOMER_PLACES.regions).toEqual(['EU']);
+		expect(d?.backupConfig).toMatchObject({ copies: 3, providerIds: [], regions: ['EUROPE'], ageRecipient: ageRecipient(vaultAge) });
+		expect(CUSTOMER_PLACES.regions).toEqual(['EUROPE']);
 		expect(customerDefaults({}, { network: 'calibration', vaultAge })?.role).toBe('test');
+	});
+
+	it('move a Le-Space-paid profile from the old places (three copies, EU) to Europe, and nothing else', () => {
+		const old = { copies: 3, providerIds: [], regions: ['EU'], keepWeeks: 12 };
+		expect(customerPlacesPatch({ leSpacePays: true, backupConfig: old })).toEqual({ backupConfig: { ...old, regions: ['EUROPE'] } });
+		expect(customerPlacesPatch({ leSpacePays: false, backupConfig: old })).toBeNull();
+		expect(customerPlacesPatch({ leSpacePays: true, backupConfig: { ...old, regions: ['DE'] } })).toBeNull();
+		expect(customerPlacesPatch({ leSpacePays: true, backupConfig: { ...old, providerIds: [36, 43, 1] } })).toBeNull();
+	});
+
+	it('move the old places when the profile is opened, even after the defaults were set', async () => {
+		const s = store({ leSpacePays: true, appPays: false, backupConfig: { copies: 3, providerIds: [], regions: ['EU'] } });
+		expect(await applyCustomerDefaults(master, { network: 'mainnet' }, { load: s.load, update: s.update, authorize: async () => { throw new Error('no'); } })).toBe(true);
+		expect(s.get().backupConfig.regions).toEqual(['EUROPE']);
+		expect(await applyCustomerDefaults(master, { network: 'mainnet' }, { load: s.load, update: s.update, authorize: async () => { throw new Error('no'); } })).toBe(false);
 	});
 
 	it('are written once, release the VM’s backup key, and then leave the start only the image', async () => {

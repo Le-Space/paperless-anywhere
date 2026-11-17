@@ -3,7 +3,9 @@
 // now. The person confirms; then the new places go to the running VM
 // (pushBackupPlaces in lifecycle.js) and the backup goes on.
 import { copyAnswers } from './restore-reach.js';
-import { oneOperator, regionCodes } from './providers.js';
+import { oneOperator, regionCodes, REGION_PRESETS } from './providers.js';
+
+const EU_CODES = REGION_PRESETS.EU;
 
 /**
  * @param {{
@@ -17,6 +19,9 @@ import { oneOperator, regionCodes } from './providers.js';
  */
 export async function replacementPlan({ providers, ids, down, regions = [], answers = (url) => copyAnswers(url, { timeoutMs: 8000 }) }) {
 	const codes = regionCodes(regions);
+	// EU first within a wider region (as pickProviders), else the list's order.
+	const eu = (/** @type {import('./providers.js').Provider} */ p) => EU_CODES.includes(p.country ?? '');
+	const candidates = codes.length ? [...providers].sort((a, b) => Number(eu(b)) - Number(eu(a))) : providers;
 	const byId = new Map(providers.map((p) => [p.id, p]));
 	const kept = ids.filter((id) => !down.includes(id)).map((id) => byId.get(id)).filter(Boolean);
 	/** @type {{ from: any, to: any }[]} */
@@ -25,7 +30,7 @@ export async function replacementPlan({ providers, ids, down, regions = [], answ
 	for (const id of down) {
 		const from = byId.get(id) ?? { id };
 		let to = null;
-		for (const p of providers) {
+		for (const p of candidates) {
 			if (!p.active || p.blocked || !p.url || ids.includes(p.id) || chosen.some((q) => q.id === p.id)) continue;
 			if (codes.length && !codes.includes(p.country ?? '')) continue;
 			// Not at the operator of a copy that stays, nor of the one that failed.

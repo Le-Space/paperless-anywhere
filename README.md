@@ -22,7 +22,7 @@ Paperless-ngx usually lives on one machine at home. Paperless anywhere runs it o
    ├─ image passphrase                         Paperless-ngx · Postgres · Valkey · Tika · Gotenberg
    ├─ Paperless passwords                    data area: a new random key at every start
    └─ backup key (age)                       restore ◄── Filecoin Onchain Cloud ──► backups
-                                                          (several independent providers)
+                                                          (3 independent providers, Europe)
  [Start] ─► request VM ─► check AMD report ─► send secrets ─► https://…/ ─► [Back up and stop] ─► erase
 ```
 

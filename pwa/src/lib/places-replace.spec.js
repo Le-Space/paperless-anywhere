@@ -26,6 +26,11 @@ describe('a replacement for a provider that does not answer', () => {
 		const r = await replacementPlan({ providers, ids: [36, 37], down: [36, 37], answers: up(['probe', 'brown', 'viola']) });
 		expect(r.ids).toEqual([43, 38]);
 	});
+	it('in Europe, the EU before GB', async () => {
+		const gbFirst = [providers[4], ...providers.filter((x) => x.id !== 38)];
+		const r = await replacementPlan({ providers: gbFirst, ids: [36, 37], down: [37], regions: ['EUROPE'], answers: up(['probe', 'brown']) });
+		expect(r.replaced[0].to?.id).toBe(43);
+	});
 	it('none to be had: the copy is dropped from the places and said so', async () => {
 		const r = await replacementPlan({ providers, ids: [36, 37], down: [37], regions: ['EU'], answers: up([]) });
 		expect(r.replaced[0].to).toBeNull();

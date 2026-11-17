@@ -63,7 +63,8 @@ export const oneOperator = (a, b) => sameOperator(entry(a), entry(b));
  * while another operator in the region could take the copy (on Calibration
  * one operator holds every approved provider: there it is only warned of),
  * and so is a blocked provider (blocked-providers.js). A region gets one
- * copy per operator and none that is blocked; `operators` is how many.
+ * copy per operator, EU first, and none that is blocked; `operators` is how
+ * many copies that makes.
  * @param {Provider[]} providers @param {{ copies?: number, providerIds?: number[], regions?: string[] }} config
  * @returns {{ picked: Provider[], problems: string[], operators?: number }}
  */
@@ -89,10 +90,11 @@ export function pickProviders(providers, { copies = 2, providerIds = [], regions
 		}
 		return { picked, problems };
 	}
-	const candidates = providers.filter((p) => p.active && !p.blocked && inRegion(p));
-	// One copy per operator, endorsed first (the list's order), never two at
-	// one operator: with fewer operators than copies, fewer copies, and
-	// `operators` says how many ("nur N unabhängige Betreiber verfügbar").
+	// EU first, then the rest of the region (GB, CH …), each endorsed first (the list's order).
+	const eu = (p) => EU.includes(p.country ?? '');
+	const candidates = providers.filter((p) => p.active && !p.blocked && inRegion(p)).sort((a, b) => (codes.length ? Number(eu(b)) - Number(eu(a)) : 0));
+	// One copy per operator, never two: with fewer operators than copies,
+	// fewer copies, and `operators` says how many ("nur N unabhängige Betreiber verfügbar").
 	const picked = [];
 	for (const p of candidates) if (picked.length < copies && !picked.some((q) => oneOperator(q, p))) picked.push(p);
 	const problems = picked.length ? [] : [say.tooFew(copies, 0)];

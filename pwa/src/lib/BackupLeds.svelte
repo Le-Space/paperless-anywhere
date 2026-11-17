@@ -8,8 +8,9 @@
 	import { lang, format, t } from '$lib/i18n/index.js';
 	import { untrack } from 'svelte';
 	import { checkCopies, checkDue, independenceLevel, reachLevel } from '$lib/backup-status.js';
+	import { operatorCount } from '$lib/operators.js';
 
-	/** @type {{ copies: { network: string, copies: { providerId: number, url?: string }[] } | null, remembered?: string, onreach?: (level: import('$lib/backup-status.js').Level) => void }} copies: the newest backup's copies (null: none known); remembered: when they were kept, while the vault is locked */
+	/** @type {{ copies: { network: string, copies: { providerId: number, url?: string }[], wanted?: number | null } | null, remembered?: string, onreach?: (level: import('$lib/backup-status.js').Level) => void }} copies: the newest backup's copies (null: none known); remembered: when they were kept, while the vault is locked */
 	let { copies, remembered = '', onreach = () => {} } = $props();
 
 	const x = $derived($t.app.leds);
@@ -58,8 +59,11 @@
 	});
 
 	const reach = $derived(reachLevel(result));
+	const wanted = $derived(copies?.wanted ?? null);
 	// Only the copies at providers Le Space still uses count (blocked-providers.js).
-	const independent = $derived(independenceLevel(result ? result.copies.filter((c) => !c.blocked) : null));
+	const usable = $derived(result ? result.copies.filter((c) => !c.blocked) : null);
+	const independent = $derived(independenceLevel(usable, wanted));
+	const operators = $derived(usable ? operatorCount(usable) : 0);
 	$effect(() => onreach(reach));
 	const time = (/** @type {Date} */ d) => format.dateTime(d.toISOString(), { hour: '2-digit', minute: '2-digit', second: '2-digit' }, $lang);
 	const short = (/** @type {string | null} */ a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '–');
@@ -90,7 +94,7 @@
 				{#if open === 'reach'}
 					{!result.total ? x.allBlocked : reach === 'ok' ? x.reachSays.ok(result.answering, result.total) : reach === 'warn' ? x.reachSays.warn(result.total) : reach === 'bad' ? x.reachSays.bad(result.total) : x.reachSays.unknown}
 				{:else}
-					{!result.total ? x.allBlocked : independent === 'ok' ? x.independentSays.ok(result.total) : result.total < 2 ? x.independentSays.one : x.independentSays.warn}
+					{!result.total ? x.allBlocked : independent === 'ok' ? x.independentSays.ok(result.total) : result.total < 2 ? x.independentSays.one : operators < result.total ? x.independentSays.warn : x.independentSays.few(operators, wanted ?? operators)}
 				{/if}
 			</p>
 			<ul>

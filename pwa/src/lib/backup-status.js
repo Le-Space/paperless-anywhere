@@ -20,22 +20,22 @@ import { blockedReason } from './blocked-providers.js';
 
 const KEY = 'paperless-anywhere.backup-copies';
 
-/** @typedef {{ network: string, providerIds: number[], at: string }} KnownCopies */
+/** @typedef {{ network: string, providerIds: number[], wanted: number | null, at: string }} KnownCopies wanted: how many copies the backup config asks for */
 
 /** The copies kept from the last list, or null. @returns {KnownCopies | null} */
 export function knownCopies() {
 	try {
 		const v = JSON.parse(globalThis.localStorage?.getItem(KEY) ?? 'null');
 		if (!v || typeof v.network !== 'string' || !Array.isArray(v.providerIds)) return null;
-		return { network: v.network, providerIds: v.providerIds.map(Number).filter((n) => Number.isInteger(n) && n >= 0), at: String(v.at ?? '') };
+		return { network: v.network, providerIds: v.providerIds.map(Number).filter((n) => Number.isInteger(n) && n >= 0), wanted: Number.isInteger(v.wanted) ? v.wanted : null, at: String(v.at ?? '') };
 	} catch {
 		return null;
 	}
 }
 
-/** Keeps the provider ids of the newest backup's copies (and nothing else). @param {string} network @param {number[]} providerIds */
-export function rememberCopies(network, providerIds) {
-	const v = { network, providerIds: [...new Set(providerIds.map(Number))], at: new Date().toISOString() };
+/** Keeps the provider ids of the newest backup's copies and how many are wanted (and nothing else). @param {string} network @param {number[]} providerIds @param {number | null} [wanted] */
+export function rememberCopies(network, providerIds, wanted = null) {
+	const v = { network, providerIds: [...new Set(providerIds.map(Number))], wanted: Number.isInteger(wanted) ? wanted : null, at: new Date().toISOString() };
 	try {
 		globalThis.localStorage?.setItem(KEY, JSON.stringify(v));
 	} catch {
@@ -59,14 +59,21 @@ export function forgetCopies() {
 export const reachLevel = (r) => (!r || (!r.total && !(/** @type {any} */ (r).blocked > 0)) ? 'unknown' : r.answering >= 2 ? 'ok' : r.answering === 1 ? 'warn' : 'bad');
 
 /**
- * Green when every copy is at another operator, yellow when two share one
- * (or there is only one copy); grey without the registry's answer, also for
- * a provider it does not name (nothing to compare).
+ * Green when every copy is at another operator and there are as many
+ * operators as copies wanted; yellow when two copies share one, when there
+ * is only one copy, or fewer operators than wanted ("nur N unabhängige
+ * Betreiber"); grey without the registry's answer, also for a provider it
+ * does not name (nothing to compare).
  * @param {import('./operators.js').RegistryEntry[] | null} providers
+ * @param {number | null} [wanted]
  * @returns {Level}
  */
-export const independenceLevel = (providers) =>
-	!providers?.length ? 'unknown' : operatorCount(providers) < providers.length || providers.length < 2 ? 'warn' : providers.some((p) => /** @type {any} */ (p).listed === false) ? 'unknown' : 'ok';
+export function independenceLevel(providers, wanted = null) {
+	if (!providers?.length) return 'unknown';
+	const operators = operatorCount(providers);
+	if (operators < providers.length || providers.length < 2 || (wanted != null && operators < wanted)) return 'warn';
+	return providers.some((p) => /** @type {any} */ (p).listed === false) ? 'unknown' : 'ok';
+}
 
 /**
  * @typedef {{ id: number, name: string, place: string, domain: string | null, url: string, owner: string | null, payee: string | null, listed: boolean, answers: boolean, blocked: import('./blocked-providers.js').BlockReason | null }} CheckedCopy listed: whether the registry named the provider; blocked: taken out by Le Space (not asked, does not count)

@@ -10,7 +10,9 @@
 // - the network the service backs up on (mainnet) and the role that backs up
 //   there (primary; a customer has this one instance);
 // - backups on, encrypted for the vault's own key (the 24 words restore
-//   them), three copies with providers in the EU (§ 146 Abs. 2a AO);
+//   them), three copies at three independent operators in Europe (EU and
+//   EEA, then the United Kingdom and Switzerland, which have an adequacy
+//   decision), EU first;
 // - the VM's backup key released at the service, as the setup would.
 // The image and the node are not set here: the node is chosen at the start,
 // and the image is built for this vault at the first start.
@@ -20,14 +22,29 @@ import { ageIdentityFromMaster, ageRecipient } from './keys/age.js';
 import { loadProfile, updateProfile } from './profile.js';
 
 /**
- * Where a customer's backups go: three copies wanted, providers in the EU,
- * one per operator and none blocked (pickProviders, blocked-providers.js).
- * Since 36 and 37 (FIDL) are blocked, the EU has one operator left (43
- * ProbeLab, 2026-11-16): one copy, and the places form says "nur 1
- * unabhängiger Betreiber verfügbar". The start resolves the region to named
- * providers (placedConfig), so the VM follows the same rule.
+ * Where a customer's backups go: three copies, one per operator (operators.js)
+ * and none blocked (blocked-providers.js), in Europe (EU/EEA, GB, CH), EU
+ * first (pickProviders). With 36 and 37 (FIDL) blocked, the EU has one
+ * operator left (43 ProbeLab, 2026-11-16), so the others are in GB (ezpdpz,
+ * Brown Storage) as things stand. Where fewer operators are there, fewer
+ * copies, never two at one operator; the form and the lights say so.
+ * The start resolves the region to named providers (placedConfig).
  */
-export const CUSTOMER_PLACES = Object.freeze({ copies: 3, providerIds: [], regions: ['EU'] });
+export const CUSTOMER_PLACES = Object.freeze({ copies: 3, providerIds: [], regions: ['EUROPE'] });
+
+/** The customer places set before 2026-11-16 (EU only), to be moved to CUSTOMER_PLACES. @param {any} c */
+const oldCustomerPlaces = (c) => c?.copies === 3 && !(c.providerIds ?? []).length && JSON.stringify(c.regions ?? []) === '["EU"]';
+
+/**
+ * A Le-Space-paid profile still on the old customer places (three copies in
+ * the EU only) moves to the new ones; new copies follow it, the existing
+ * backups stay where they are. Null when there is nothing to move.
+ * @param {Record<string, any>} profile
+ */
+export function customerPlacesPatch(profile) {
+	if (!profile?.leSpacePays || !oldCustomerPlaces(profile.backupConfig)) return null;
+	return { backupConfig: { ...profile.backupConfig, regions: [...CUSTOMER_PLACES.regions] } };
+}
 
 /** Nobody has chosen who pays yet. @param {Record<string, any>} profile */
 export const undecided = (profile) => !profile?.payer && profile?.appPays === undefined && profile?.leSpacePays === undefined;
@@ -63,8 +80,10 @@ export function customerDefaults(profile, { network, vaultAge }) {
 export async function applyCustomerDefaults(master, { network }, { load = loadProfile, update = updateProfile, authorize = backupAuthorize } = {}) {
 	if (network !== 'mainnet' && network !== 'calibration') return false;
 	const before = await load(master);
+	const moved = customerPlacesPatch(before);
+	if (moved) await update(master, (now) => (customerPlacesPatch(now) ? { ...now, ...customerPlacesPatch(now) } : now));
 	const patch = customerDefaults(before, { network, vaultAge: ageIdentityFromMaster(master) });
-	if (!patch) return false;
+	if (!patch) return Boolean(moved);
 	// Written only if still nobody chose in the meantime (another device, the setup).
 	await update(master, (now) => (undecided(now) ? { ...now, ...patch } : now));
 	try {

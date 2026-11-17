@@ -149,7 +149,8 @@ are what the German app and landing page say:
 
 - **That the provider hands the data out.** PDP proves possession, not
   retrieval. That is why Paperless anywhere keeps several copies with different
-  providers (with a package or a voucher three by default, with providers in the EU), and why you can fetch
+  providers (with a package or a voucher three by default, at three independent
+  providers in Europe: EU, United Kingdom, Switzerland), and why you can fetch
   a backup yourself at any time ([fetching a backup yourself](restore-yourself.md)).
 - **Anything in between two proofs.** A loss is found by the challenges that
   follow it, as the table above shows; not at the moment it happens.
