@@ -48,6 +48,23 @@ dig +short CNAME _dnslink.paperless.le-space.de   # _dnslink.paperless.le-space.
 dig +short TXT _control.paperless.le-space.de     # "0x28129bdDa64310221480d4eF903446b0cdFD4BEb"
 ```
 
+### The parallel address for v0.2
+
+`v2.paperless.le-space.de` serves the v0.2 interface beside the live app until the main
+domain switches. It needs the same three records, one level down, with the same
+`_control` address:
+
+| Type  | Name                    | Value                                                      | Proxy    |
+| ----- | ----------------------- | ---------------------------------------------------------- | -------- |
+| CNAME | `v2.paperless`          | `ipfs.public.aleph.sh`                                     | DNS only |
+| CNAME | `_dnslink.v2.paperless` | `_dnslink.v2.paperless.le-space.de.static.public.aleph.sh` | DNS only |
+| TXT   | `_control.v2.paperless` | `0x28129bdDa64310221480d4eF903446b0cdFD4BEb`               | –        |
+
+A release never touches it. It is linked by a manual run of the deploy workflow with
+`site_domain: v2.paperless.le-space.de` and `link_domain` on (or with `item_hash` and
+`ipfs_cid` of an upload that is on Aleph already). Aleph's gateway may need up to two
+days for the certificate of a new domain.
+
 ## What the gateway sees
 
 Aleph's IPFS gateway ends TLS for the site, as it does for Belege. It serves the PWA's
