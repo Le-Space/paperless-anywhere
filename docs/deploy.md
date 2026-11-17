@@ -48,22 +48,15 @@ dig +short CNAME _dnslink.paperless.le-space.de   # _dnslink.paperless.le-space.
 dig +short TXT _control.paperless.le-space.de     # "0x28129bdDa64310221480d4eF903446b0cdFD4BEb"
 ```
 
-### The parallel address for v0.2
+### v0.2 beside v0.1
 
-`v2.paperless.le-space.de` serves the v0.2 interface beside the live app until the main
-domain switches. It needs the same three records, one level down, with the same
-`_control` address:
-
-| Type  | Name                    | Value                                                      | Proxy    |
-| ----- | ----------------------- | ---------------------------------------------------------- | -------- |
-| CNAME | `v2.paperless`          | `ipfs.public.aleph.sh`                                     | DNS only |
-| CNAME | `_dnslink.v2.paperless` | `_dnslink.v2.paperless.le-space.de.static.public.aleph.sh` | DNS only |
-| TXT   | `_control.v2.paperless` | `0x28129bdDa64310221480d4eF903446b0cdFD4BEb`               | –        |
-
-A release never touches it. It is linked by a manual run of the deploy workflow with
-`site_domain: v2.paperless.le-space.de` and `link_domain` on (or with `item_hash` and
-`ipfs_cid` of an upload that is on Aleph already). Aleph's gateway may need up to two
-days for the certificate of a new domain.
+The v0.2 interface is tested beside the live app under a path on the same domain,
+`https://paperless.le-space.de/v0.2/`: a route of the same build, so the same origin, the
+same passkey and the same vault record in the browser. It ships with every release and is
+not linked from the app until the switch. A subdomain was tried first
+(`v2.paperless.le-space.de`, linked once on 2026-11-17) and dropped: a passkey belongs to
+its address, and a second address needs `rp.id` handling that a path does not. Its three
+DNS records can be removed.
 
 ## What the gateway sees
 
