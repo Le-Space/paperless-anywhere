@@ -1,0 +1,11 @@
+[Unit]
+Description=paperless-2n6-ask (see /usr/local/sbin/paperless-2n6-ask)
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/paperless-2n6-ask
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

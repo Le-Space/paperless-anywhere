@@ -32,13 +32,16 @@ ipv4="$(head -c 15 "$s/https_ipv4" | tr -d '\r\n')"
 port="$(head -c 5 "$s/https_port" | tr -d '\r\n')"
 case "$host" in *[!a-z0-9.-]*|"") echo "paperless-fixed-address: not a hostname" >&2; exit 1 ;; esac
 case "$port" in *[!0-9]*|"") echo "paperless-fixed-address: not a port" >&2; exit 1 ;; esac
-# The certificate and the ACME account go into the sealed area only.
-/usr/local/sbin/paperless-require-sealed paperless-fixed-address || exit 1
 started=$(date +%s)
 report() {
   printf '{"status":"%s","host":"%s","port":%s,"seconds":%s%s}\n' "$1" "$host" "$port" "$(( $(date +%s) - started ))" "${2:-}" > "$state/fixed-address.json.tmp" \
     && mv "$state/fixed-address.json.tmp" "$state/fixed-address.json"
 }
+# The certificate and the ACME account go into the sealed area only. Without
+# it, the address is given up at once, and the status page (over the 2n6
+# name, paperless-https --status) says why instead of a closed port.
+report waiting ',"step":"data-area"'
+/usr/local/sbin/paperless-require-sealed paperless-fixed-address || { report failed ',"step":"data-area","final":true'; exit 1; }
 attempt() {
 report dns
 paperless-dns-records "$host" "$ipv4" || { report failed ',"step":"dns"'; return 1; }
@@ -52,25 +55,36 @@ tr -d '\r\n' < "$s/dns_cloudflare_token" > "$state/cf-token"
 email="$(head -c 254 "$s/acme_email" 2>/dev/null | tr -d '\r\n')"
 case "$email" in *@*.*) ;; *) email="paperless-anywhere@le-space.de" ;; esac
 case "$email" in *[!A-Za-z0-9.@_+-]*) email="paperless-anywhere@le-space.de" ;; esac
-# A backup to restore may carry this name's certificate (paperless-backup puts
-# it beside the export): fetch it first, so the start reuses it instead of
-# ordering a new one (Let's Encrypt issues at most five per name and week).
-if ! [ -s "$dir/certificates/$host.crt" ] && [ -s "$s/restore_ledger_entry" ]; then
-  report restore
-  paperless-restore fetch || echo "paperless-fixed-address: no certificate from the backup" >&2
-fi
-report certificate
 crt="$dir/certificates/$host.crt"
 key="$dir/certificates/$host.key"
-if [ -s "$crt" ] && [ -s "$key" ]; then
-  action="renew --days 30 --no-random-sleep"
-else
-  action=run
-fi
 # shellcheck disable=SC2086
-CLOUDFLARE_DNS_API_TOKEN_FILE="$state/cf-token" lego --accept-tos --email "$email" --dns cloudflare \
-  --domains "$host" --path "$dir" --pem $action >"$state/lego.log" 2>&1 \
-  || { rm -f "$state/cf-token"; report failed ',"step":"certificate"'; tail -5 "$state/lego.log" >&2; return 1; }
+order() {
+  CLOUDFLARE_DNS_API_TOKEN_FILE="$state/cf-token" lego --accept-tos --email "$email" --dns cloudflare \
+    --domains "$host" --path "$dir" --pem $1 >"$state/lego.log" 2>&1
+}
+# A certificate this VM has: renewed when it has less than 30 days left.
+# Otherwise a new one is ordered over DNS right away: the address answers
+# within minutes, not after the whole backup to restore was downloaded (the
+# old certificate is inside it; a start with a 1.1 GB backup sat on a closed
+# port for over 20 minutes). Only when that order fails (Let's Encrypt issues
+# at most five per name and week) is the backup's certificate waited for.
+report certificate
+if [ -s "$crt" ] && [ -s "$key" ]; then
+  order "renew --days 30 --no-random-sleep" || { rm -f "$state/cf-token"; report failed ',"step":"certificate"'; tail -5 "$state/lego.log" >&2; return 1; }
+elif ! order run; then
+  tail -5 "$state/lego.log" >&2
+  if [ -s "$s/restore_ledger_entry" ] || [ -s "$state/restore-entry.env" ]; then
+    report restore
+    paperless-restore fetch || echo "paperless-fixed-address: no certificate from the backup" >&2
+    report certificate
+  fi
+  # The backup's certificate, while it is still valid (renewed when due).
+  if [ -s "$crt" ] && [ -s "$key" ] && openssl x509 -checkend 3600 -noout -in "$crt" >/dev/null 2>&1; then
+    order "renew --days 30 --no-random-sleep" || echo "paperless-fixed-address: renewal refused; the backup's certificate is used as it is" >&2
+  else
+    rm -f "$state/cf-token"; report failed ',"step":"certificate"'; return 1
+  fi
+fi
 rm -f "$state/cf-token"
 
 # Caddy runs as its own user: it gets a copy it can read.
@@ -91,6 +105,10 @@ for i in 1 2 3 4; do
   ok=$?
   set -e
   [ "$ok" = 0 ] && exit 0
-  sleep 60
+  [ "$i" = 4 ] || sleep 60
 done
+# Given up: "final" tells the status page (and the app) that the fixed name
+# will not answer on this start; until then a failed try is retried.
+step="$(sed -n 's/.*"step":"\([a-z-]*\)".*/\1/p' "$state/fixed-address.json" 2>/dev/null)"
+report failed ",\"step\":\"${step:-certificate}\",\"final\":true"
 exit 1

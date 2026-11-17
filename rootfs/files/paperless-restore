@@ -432,6 +432,8 @@ printf 'kind=%s\nname=%s\ngot=%s\nt0=%s\nt1=%s\nt2=%s\nt3=%s\nmark=%s\n' "$kind"
 fetch
 [ "$cmd" = fetch ] && exit 0
 . "$entry_env"
+# Downloaded, checked and decrypted: the status page now says the import waits.
+status running ',"stage":"import"'
 role="$(cat "$secrets/paperless_role" 2>/dev/null || echo test)"
 
 # Paperless must be up and empty: an import over existing documents mixes two archives.
