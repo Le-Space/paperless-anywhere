@@ -1,7 +1,7 @@
 /*
  * The look of Le Space Belege (Brand & Style Guide v1), as on belege.le-space.de:
  * warm paper with amber by day, deep night with lime at night. The mode follows
- * the system. Fonts are self-hosted (@fontsource), nothing is loaded from elsewhere.
+ * the system unless <html data-theme> names one (v0.2 lets the person choose). Fonts are self-hosted (@fontsource), nothing is loaded from elsewhere.
  *
  * Amber and lime are fills with ink/night text on them, never text on the page
  * background; --accent-text is the readable variant for small labels.
@@ -38,8 +38,9 @@
 	color-scheme: light;
 }
 
+/* Night: when the system asks for it and the person has not chosen light … */
 @media (prefers-color-scheme: dark) {
-	:root {
+	:root:not([data-theme='light']) {
 		--bg: #0b0e15; /* night */
 		--surface: #161b26; /* panel */
 		--surface-2: #1d2331;
@@ -62,6 +63,32 @@
 		--shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.35);
 		color-scheme: dark;
 	}
+}
+
+/* … and when the person chose it (v0.2, "Mehr"), whatever the system says. The
+   same values as above: CSS cannot share them, a unit test keeps them equal. */
+:root[data-theme='dark'] {
+	--bg: #0b0e15; /* night */
+	--surface: #161b26; /* panel */
+	--surface-2: #1d2331;
+	--text: #f4f6fb; /* snow */
+	--text-2: #8a94a6; /* muted */
+	--line: #2a3140;
+	--accent: #c6f24e; /* lime */
+	--accent-ink: #0b0e15;
+	--accent-text: #c6f24e;
+	--accent-2-text: #a893ff;
+	--cta-bg: var(--accent);
+	--cta-text: var(--accent-ink);
+	--ok: #7fd99a;
+	--ok-bg: #16281d;
+	--warn: #ffc65c;
+	--warn-bg: #2b2414;
+	--danger: #ff8a80;
+	--danger-bg: #2e1715;
+	--focus: #c6f24e;
+	--shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.35);
+	color-scheme: dark;
 }
 
 @media (max-width: 720px) {

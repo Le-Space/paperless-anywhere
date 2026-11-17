@@ -89,8 +89,11 @@ same build.
 - **The alert for a VM no card knows leads to the list**, in both views, instead of offering
   "Wieder verbinden" and "Beenden" inside the alert: adopting and deleting stay where the VM is
   shown with its state.
-- **Light and dark still follow the system.** The switch the style guide names needs
-  `theme.css` to take a chosen theme, which touches every page of the app; not done yet.
+- **Light and dark can be chosen under "Mehr", for v0.2 only.** "Wie das Gerät", "Hell",
+  "Dunkel": the choice is `data-theme` on `<html>`, which `theme.css` reads; it is kept in
+  `localStorage` (`paperless-anywhere.theme`; no entry means the device decides) and put on
+  the page before the first paint by `static/theme.js`, which the build loads in the head of
+  `/v0.2/` only. `/app/` and the landing pages have no switch and follow the device.
 - **Shared parts keep v0.1's control sizes** (`TopUp`, `BackupLine`, `Cancel`, `Withdraw`,
   `BackupPlaces`, `Addr`): below the 44 px used elsewhere in v0.2.
 

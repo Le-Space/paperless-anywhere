@@ -30,6 +30,8 @@
 	import { LANGS, format, lang, setLang, t } from '$lib/i18n/index.js';
 	import { HOME } from '$lib/shared-origin.js';
 	import { VIEWS, setView, technical, view } from '$lib/v2/view.js';
+	import { THEMES, releaseTheme, setTheme, theme } from '$lib/v2/theme.js';
+	import { onDestroy } from 'svelte';
 	import { createVaultSession } from '$lib/v2/vault-session.svelte.js';
 
 	/* global __BUILD__ */
@@ -194,20 +196,28 @@
 			] : [])
 		];
 	});
+	// The chosen look belongs to this interface: /app/ and the landing page follow the system.
+	onDestroy(releaseTheme);
 	const master = $derived(/** @type {Uint8Array} */ (session.master));
 	const unlocked = $derived(session.state === 'unlocked');
 </script>
 
-<!-- A preview beside the app: not for search engines until the switch. -->
+<!-- The build keeps this preview out of search engines and loads its early theme script (hooks.server.js). -->
 <svelte:head>
 	<title>Paperless anywhere</title>
-	<meta name="robots" content="noindex" />
 </svelte:head>
 
 {#snippet viewSwitch()}
 	<div class="seg" role="group" aria-label={x.view.label}>
 		{#each VIEWS as v (v)}
 			<button aria-pressed={$view === v} onclick={() => setView(v)} data-testid={`view-${v}`}>{x.view[v]}</button>
+		{/each}
+	</div>
+{/snippet}
+{#snippet themeSwitch()}
+	<div class="seg" role="group" aria-label={x.more.theme.label}>
+		{#each THEMES as th (th)}
+			<button aria-pressed={$theme === th} onclick={() => setTheme(th)} data-testid={`theme-${th}`}>{x.more.theme[th]}</button>
 		{/each}
 	</div>
 {/snippet}
@@ -385,6 +395,7 @@
 					<div class="card">
 						<h2>{x.more.settings}</h2>
 						<div class="setrow"><span>{x.view.label}</span>{@render viewSwitch()}</div>
+						<div class="setrow"><span>{x.more.theme.label}</span>{@render themeSwitch()}</div>
 						<div class="setrow"><span>{x.more.language}</span>{@render langs()}</div>
 					</div>
 				</section>

@@ -112,3 +112,43 @@ test('Mehr: the app\'s address with a copy button in the technical view only, a 
 	await expect(page.getByTestId('v2-state')).toHaveText('new');
 	expect(await page.evaluate(() => localStorage.getItem('paperless-anywhere.vault'))).toBeNull();
 });
+
+test('Mehr: light or dark can be chosen against the device, holds over a reload from the first paint, and stays inside v0.2', async ({ page }) => {
+	const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+	const chosen = () => page.evaluate(() => document.documentElement.getAttribute('data-theme'));
+	const PAPER = 'rgb(250, 246, 238)';
+	const NIGHT = 'rgb(11, 14, 21)';
+	await page.emulateMedia({ colorScheme: 'light' });
+	await open(page, { network: 'calibration', role: 'test' });
+	await page.getByTestId('v2-area-more').click();
+	// Without a choice the device decides.
+	await expect(page.getByTestId('theme-system')).toHaveAttribute('aria-pressed', 'true');
+	expect(await bg()).toBe(PAPER);
+	// Dark on a light device.
+	await page.getByTestId('theme-dark').click();
+	await expect(page.getByTestId('theme-dark')).toHaveAttribute('aria-pressed', 'true');
+	expect(await bg()).toBe(NIGHT);
+	expect(await page.locator('meta[name="theme-color"]').first().getAttribute('content')).toBe('#0b0e15');
+	await accessible(page, 'Mehr, chosen dark');
+	// Light on a dark device.
+	await page.emulateMedia({ colorScheme: 'dark' });
+	await page.getByTestId('theme-light').click();
+	expect(await bg()).toBe(PAPER);
+	await accessible(page, 'Mehr, chosen light');
+	// Back to the device: nothing stays in the browser.
+	await page.getByTestId('theme-system').click();
+	expect(await bg()).toBe(NIGHT);
+	expect(await chosen()).toBeNull();
+	expect(await page.evaluate(() => localStorage.getItem('paperless-anywhere.theme'))).toBeNull();
+	// A choice is there before the app starts: the delivered page carries it.
+	await page.getByTestId('theme-light').click();
+	await page.reload({ waitUntil: 'commit' });
+	await page.waitForFunction(() => document.body !== null);
+	expect(await chosen()).toBe('light');
+	await expect(page.getByTestId('v2-state')).not.toHaveText('unlocked');
+	expect(await bg()).toBe(PAPER);
+	// /app/ has no switch and follows the device.
+	await page.goto('/app/');
+	await expect.poll(bg).toBe(NIGHT);
+	expect(await chosen()).toBeNull();
+});

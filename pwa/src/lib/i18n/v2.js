@@ -251,6 +251,7 @@ export const v2 = {
 			forgetText: 'Entfernt den Zugang auf diesem Gerät und sperrt die App. Dein Tresor bleibt bestehen.',
 			settings: 'Einstellungen',
 			language: 'Sprache',
+			theme: { label: 'Darstellung', system: 'Wie das Gerät', light: 'Hell', dark: 'Dunkel' },
 			legal: 'Rechtliches und Version'
 		}
 	},
@@ -503,6 +504,7 @@ export const v2 = {
 			forgetText: 'Removes the way in on this device and locks the app. Your vault stays.',
 			settings: 'Settings',
 			language: 'Language',
+			theme: { label: 'Appearance', system: 'Like the device', light: 'Light', dark: 'Dark' },
 			legal: 'Legal and version'
 		}
 	}
