@@ -35,8 +35,9 @@ describe('the incremental switch', () => {
 		expect(JSON.parse(credits.backup_config).incremental).toEqual({ enabled: true });
 	});
 
-	it('no image built so far makes them: the list starts empty, the switch stays greyed out', () => {
-		expect(INCREMENTAL_IMAGES).toEqual([]);
+	it('only the image of 2026-11-17 (main 34a3100, backup tool f4df5d7) makes them; older images keep the switch greyed out', () => {
+		expect(INCREMENTAL_IMAGES).toEqual(['bf013d4fada793b2e92fc5d6e81c9ad09e9cab813ff5fbcf63c5c0b04ddb1b45']);
+		expect(supportsIncremental({ ownImage: { plainSha256: 'bf013d4fada793b2e92fc5d6e81c9ad09e9cab813ff5fbcf63c5c0b04ddb1b45' } })).toBe(true);
 		expect(supportsIncremental({ ownImage: { plainSha256: 'f08aeec9d1d37bb9a79e4cbe8d7614d58dadca0b527fb4027503313a02610753' } })).toBe(false);
 		expect(supportsIncremental({})).toBe(false);
 		expect(supportsIncremental({ ownImage: { plainSha256: 'c'.repeat(64) } }, ['c'.repeat(64)])).toBe(true);
