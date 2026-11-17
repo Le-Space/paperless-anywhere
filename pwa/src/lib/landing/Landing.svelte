@@ -14,9 +14,12 @@
 	import Trust from '$lib/landing/Trust.svelte';
 	import BuildLine from '$lib/landing/BuildLine.svelte';
 	import Help from '$lib/Help.svelte';
+	import GitHubMark from '$lib/GitHubMark.svelte';
 	import { help } from '$lib/i18n/help.js';
 
 	const APP = '/app/';
+	// Paperless anywhere's own source.
+	const REPO = 'https://github.com/Le-Space/paperless-anywhere';
 	/** @type {{ lang: 'de' | 'en' }} */
 	let { lang } = $props();
 	// Link previews need absolute addresses.
@@ -115,6 +118,10 @@
 		<a href="#prices">{t.nav.prices}</a>
 		<a href="#faq">{t.nav.faq}</a>
 	</nav>
+	<!-- Our own source, next to the languages; Paperless-ngx stays linked under the logo. -->
+	<a class="gh" href={REPO} rel="noopener" aria-label={t.footer.source} title={t.footer.source} data-testid="header-source">
+		<GitHubMark size={20} />
+	</a>
 	<div class="langs" role="group" aria-label="Language">
 		<!-- Real links: each language has its own address. -->
 		{#each LANGS as l}
@@ -142,6 +149,15 @@
 			{#each t.points as p}<li><h3>{p.t}</h3><p>{p.d}</p></li>{/each}
 		</ul>
 		<p class="trust-hint"><a href="#trust" data-testid="trust-hint">{t.trustHint} →</a></p>
+	</section>
+
+	<section id="paperless-ngx">
+		<h2>{t.ngx.title}</h2>
+		<p class="lead">{t.ngx.lead}</p>
+		<ul class="cards" data-testid="ngx-features">
+			{#each t.ngx.items as item}<li><h3>{item.t}</h3><p>{item.d}</p></li>{/each}
+		</ul>
+		<p class="ngx-after">{t.ngx.after} <a href={NGX_URL} rel="noopener">{t.ngx.links.project}</a> · <a href="https://docs.paperless-ngx.com/#features" rel="noopener">{t.ngx.links.docs}</a></p>
 	</section>
 
 	<section id="audience">
@@ -251,6 +267,7 @@
 <footer>
 	<p class="built">{t.footer.built}</p>
 	<p class="built" data-testid="footer-disclaimer">{t.disclaimer} <a href={NGX_URL}>{t.footer.ngxLink}</a></p>
+	<a class="source" href={REPO} rel="noopener" data-testid="footer-source"><GitHubMark />{t.footer.source}</a>
 	<span>{t.footer.by}</span>
 	<a href="https://www.belege.le-space.de">{t.footer.belege}</a>
 	<a href="https://le-space.de/">le-space.de</a>
@@ -283,6 +300,10 @@
 	nav a { color: var(--text-2); text-decoration: none; white-space: nowrap; }
 	nav a:hover { color: var(--text); }
 	.langs { display: flex; gap: 0.25rem; }
+	.gh { display: inline-flex; align-items: center; color: var(--text-2); padding: 0.25rem; border-radius: 999px; }
+	.gh:hover { color: var(--text); }
+	.source { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--text); font-weight: 600; }
+	.ngx-after { margin: 1rem 0 0; color: var(--text-2); font-size: 0.95rem; }
 	.lang { font-family: var(--mono); font-size: 0.75rem; padding: 0.25rem 0.55rem; background: transparent; color: var(--text-2); border: 1px solid var(--line); border-radius: 999px; text-decoration: none; }
 	.lang.on { background: var(--cta-bg); color: var(--cta-text); border-color: var(--cta-bg); }
 
@@ -362,6 +383,6 @@
 
 	@media (max-width: 980px) {
 		nav { display: none; }
-		.langs { margin-left: auto; }
+		.gh { margin-left: auto; }
 	}
 </style>

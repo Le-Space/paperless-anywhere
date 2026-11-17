@@ -251,6 +251,8 @@
 	const pushPlaces = () => run('places-push', async () => {
 		await pushBackupPlaces(master, profile);
 		placesPending = false;
+		// The card reads the backup list again, and the lights at the top with it.
+		onsaved();
 	});
 	const recipient = $derived.by(() => {
 		try {
@@ -268,7 +270,7 @@
 		await save(imageFields({ kind: publicImage ? 'public' : 'own', image: imageInput, crn: crnInput, pass: passInput, profile }));
 		passInput = '';
 	});
-	// "Mein Image bauen": this vault's own copy of the public image, sealed by
+	// "Mein Image bauen": this vault's own copy of the base image, sealed by
 	// the attested builder with a passphrase derived from the master secret
 	// (own-image.js). Shown only when a builder is fixed in the app.
 	let ownStep = $state('');

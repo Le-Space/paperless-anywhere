@@ -7,7 +7,7 @@ const because = (/** @type {string | undefined} */ reason) => (reason ? `: ${rea
 export const ownImage = {
 	de: {
 		intro: {
-			before: 'Ein Image nur für diesen Tresor: Ein geprüfter Build-Dienst versiegelt das öffentliche Image mit einer Passphrase, die aus deinem Tresor abgeleitet wird. Die App prüft den Hardware-Nachweis des Dienstes, bevor sie die Passphrase schickt, holt das versiegelte Image in Stücken über ebenso geprüfte Verbindungen zurück und lädt es selbst zu Aleph hoch (knapp 900 MiB; das dauert und braucht eine stabile Verbindung). Das Image liegt danach bei Aleph auf der Adresse dieser App (',
+			before: 'Ein Image nur für diesen Tresor: Ein geprüfter Build-Dienst versiegelt das Ausgangs-Image (unverschlüsselt, für alle gleich) mit einer Passphrase, die aus deinem Tresor abgeleitet wird. Die App prüft den Hardware-Nachweis des Dienstes, bevor sie die Passphrase schickt, holt das versiegelte Image in Stücken über ebenso geprüfte Verbindungen zurück und lädt es selbst zu Aleph hoch (knapp 900 MiB; das dauert und braucht eine stabile Verbindung). Das Image liegt danach bei Aleph auf der Adresse dieser App (',
 			after: '), die auch den Speicher bezahlt. Mit einem Le-Space-Paket oder Gutschein liegt es stattdessen auf deinem Aleph-Konto bei Le Space, und der Bau ist enthalten: bis einer gelingt (höchstens 3 Versuche), und wieder bei jeder neuen Image-Version. Der Speicher des Images ist ebenfalls enthalten. Nur wenn der Dienst einen Bau nicht einschließt, siehst du vorher seinen Preis.'
 		},
 		overview: {
@@ -19,10 +19,10 @@ export const ownImage = {
 			publicImage: 'Öffentliches Image, zum Ausprobieren.'
 		},
 		sourcesFold: 'Woraus und womit wird gebaut?',
-		sourcesHint: 'Diese Werte sind in der App festgelegt und für alle gleich. Das öffentliche Image kann jeder laden und den Hash vergleichen; den Messwert bestätigt die Hardware, bevor die App die Passphrase schickt.',
+		sourcesHint: 'Diese Werte sind in der App festgelegt und für alle gleich. Das Ausgangs-Image kann jeder laden und den Hash vergleichen; den Messwert bestätigt die Hardware, bevor die App die Passphrase schickt.',
 		sources: {
-			plainSha256: 'Öffentliches Image, SHA-256',
-			plainStore: 'Öffentliches Image bei Aleph',
+			plainSha256: 'Ausgangs-Image, SHA-256',
+			plainStore: 'Ausgangs-Image bei Aleph',
 			commit: 'Gebaut aus dem Quelltext-Stand',
 			vprogram: 'Build-Dienst bei Aleph',
 			measurement: 'Messwert des Build-Dienstes'
@@ -78,7 +78,7 @@ export const ownImage = {
 		error: {
 			noBuilder: 'Der Build-Dienst ist in dieser App nicht festgelegt.',
 			builderRefused: (/** @type {number} */ status) => `Aleph hat den Build-Dienst nicht angenommen (${status}). Reicht das Guthaben der App-Adresse?`,
-			noPlain: 'Das öffentliche Image ist in dieser App nicht festgelegt.',
+			noPlain: 'Das Ausgangs-Image ist in dieser App nicht festgelegt.',
 			badCid: 'Der Build-Dienst hat keine gültige Adresse für das Image genannt.',
 			badSize: 'Der Build-Dienst nennt keine gültige Größe für das Image.',
 			busy: 'Der Build-Dienst baut gerade ein anderes Image. Bitte in ein paar Minuten noch einmal versuchen.',
@@ -101,7 +101,7 @@ export const ownImage = {
 	},
 	en: {
 		intro: {
-			before: 'An image for this vault only: a verified build service seals the public image with a passphrase derived from your vault. The app checks the service\'s hardware attestation before it sends the passphrase, fetches the sealed image back in pieces over connections verified the same way, and uploads it to Aleph itself (just under 900 MiB; this takes a while and needs a stable connection). The image then lies on Aleph under this app\'s address (',
+			before: 'An image for this vault only: a verified build service seals the base image (unencrypted, the same for everyone) with a passphrase derived from your vault. The app checks the service\'s hardware attestation before it sends the passphrase, fetches the sealed image back in pieces over connections verified the same way, and uploads it to Aleph itself (just under 900 MiB; this takes a while and needs a stable connection). The image then lies on Aleph under this app\'s address (',
 			after: '), which also pays for the storage. With a Le Space package or a voucher it lies on your Aleph account at Le Space instead, and the build is included: until one succeeds (at most 3 tries), and again for each new image version. Storing the image is included too. Only when the service does not include a build do you see its price first.'
 		},
 		overview: {
@@ -113,10 +113,10 @@ export const ownImage = {
 			publicImage: 'Public image, for trying out.'
 		},
 		sourcesFold: 'What is it built from, and by what?',
-		sourcesHint: 'These values are fixed in the app and the same for everyone. Anyone can download the public image and compare the hash; the hardware confirms the measurement before the app sends the passphrase.',
+		sourcesHint: 'These values are fixed in the app and the same for everyone. Anyone can download the base image and compare the hash; the hardware confirms the measurement before the app sends the passphrase.',
 		sources: {
-			plainSha256: 'Public image, SHA-256',
-			plainStore: 'Public image on Aleph',
+			plainSha256: 'Base image, SHA-256',
+			plainStore: 'Base image on Aleph',
 			commit: 'Built from this state of the source',
 			vprogram: 'Build service on Aleph',
 			measurement: 'Measurement of the build service'
@@ -172,7 +172,7 @@ export const ownImage = {
 		error: {
 			noBuilder: 'No build service is fixed in this app.',
 			builderRefused: (/** @type {number} */ status) => `Aleph did not accept the build service (${status}). Does the app address have enough credits?`,
-			noPlain: 'No public image is fixed in this app.',
+			noPlain: 'No base image is fixed in this app.',
 			badCid: 'The build service named no valid address for the image.',
 			badSize: 'The build service names no valid size for the image.',
 			busy: 'The build service is building another image right now. Please try again in a few minutes.',

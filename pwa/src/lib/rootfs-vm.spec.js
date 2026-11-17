@@ -194,8 +194,10 @@ describe("the public status page", { timeout: 30_000 }, () => {
     );
     expect(r.status, r.stderr).toBe(0);
     const page = JSON.parse(r.stdout);
-    expect(Object.keys(page).sort()).toEqual(["at", "paperless", "phase", "v"]);
+    expect(Object.keys(page).sort()).toEqual(["at", "paperless", "phase", "stopReason", "v"]);
     expect(page.phase).toBe("stopped");
+    // A stop.json from an older image names no reason: the app's stop.
+    expect(page.stopReason).toBe("app");
   });
 });
 

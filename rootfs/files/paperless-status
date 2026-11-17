@@ -139,7 +139,20 @@ elif up:
     phase = "ready"
 else:
     phase = "starting"
-full = {"v": 2, "phase": phase, "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "lastBackup": last, "backupSchedule": schedule, "backupRequest": request, "backupMarks": marks, "retention": retention, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "netHardening": net, "disks": disks, "memory": memory(), "storage": storage(), "at": now}
+# The end of the paid period the app handed over (paperless-period-end), Unix
+# seconds or null; and why a stop ran: "app" (Sichern und beenden) or
+# "period-end" (the VM's own stop before the end). The public page names the
+# reason too, never the backup: the app erases a VM stopped at the period's
+# end at its next opening, and Le Space Credits may read it as a hint.
+def period_end():
+    try:
+        v = re.sub(r"[^0-9]", "", open("/tmp/secrets/period_end").read(32))
+        return int(v) if v and int(v) > 0 else None
+    except (OSError, ValueError):
+        return None
+stop_reason = (stop.get("reason") if stop.get("reason") in ("app", "period-end") else "app") if stop and phase in ("stopping", "stopped", "stop-partial", "stop-failed") else None
+public = {"v": 2, "phase": phase, "paperless": up, **({"stopReason": stop_reason} if stop_reason else {}), "at": now}
+full = {"v": 2, "phase": phase, "stopReason": stop_reason, "periodEnd": period_end(), "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "lastBackup": last, "backupSchedule": schedule, "backupRequest": request, "backupMarks": marks, "retention": retention, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "netHardening": net, "disks": disks, "memory": memory(), "storage": storage(), "at": now}
 # The details only at a path the app that started this VM derives from its
 # vault (the status_token secret); the public page says no more than the phase.
 token = ""
@@ -159,11 +172,11 @@ if re.fullmatch(r"[0-9a-f]{32}", token):
         json.dump(full, f)
     os.chmod(tmp, 0o644)
     os.replace(tmp, os.path.join(sdir, token + ".json"))
-    print(json.dumps({"v": 2, "phase": phase, "paperless": up, "at": now}))
+    print(json.dumps(public))
 else:
     # Without a token there is no private page, and the public one still says
     # no more than the phase: the details stay on the VM.
-    print(json.dumps({"v": 2, "phase": phase, "paperless": up, "at": now}))
+    print(json.dumps(public))
 PY
   chmod 644 "$pub/status.json" 2>/dev/null
   sleep 5

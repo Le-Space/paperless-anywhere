@@ -26,12 +26,14 @@
 	import Help from '$lib/Help.svelte';
 	import { diagnosisText, noteError } from '$lib/diagnosis.js';
 	import Logo from '$lib/Logo.svelte';
+	import GitHubMark from '$lib/GitHubMark.svelte';
 	import NgxText from '$lib/NgxText.svelte';
 	import { texts } from '$lib/landing/i18n.js';
 	import { LANGS, format, lang, setLang, t, tr } from '$lib/i18n/index.js';
 	import { HOME, framed, sharedOrigin } from '$lib/shared-origin.js';
 	import BackupLeds from '$lib/BackupLeds.svelte';
 	import { forgetCopies, knownCopies, rememberCopies } from '$lib/backup-status.js';
+	import { endWarning } from '$lib/period-end.js';
 
 	// On a path-style gateway the origin is shared: no vault, no passkey there.
 	const shared = sharedOrigin();
@@ -214,14 +216,23 @@
 	// "Auf einen Blick" (#105): one row per card, each with its state.
 	/** @type {import('$lib/Lifecycle.svelte').Glance | null} */
 	let life = $state(null);
-	/** @type {{ plan: boolean, hoursLeft: number | null, pays: string | null, low: boolean } | null} */
+	/** @type {{ plan: boolean, hoursLeft: number | null, pays: string | null, low: boolean, endsAt: number | null } | null} */
 	let pkg = $state(null);
+	// The end of the paid time, shortly before it (period-end.js): a warning in
+	// both views, above everything else. The clock moves on once a minute.
+	let clock = $state(Date.now());
+	$effect(() => {
+		const id = setInterval(() => (clock = Date.now()), 60_000);
+		return () => clearInterval(id);
+	});
+	const ending = $derived(CREDITS_URL && pkg?.endsAt != null ? endWarning(pkg.endsAt, clock) : null);
+	const endsAtText = $derived(pkg?.endsAt != null ? format.dateTime(pkg.endsAt, undefined, $lang) : '');
 	const when = (/** @type {string} */ at) => format.dateTime(at, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }, $lang);
 	// `key` names a row whatever the language (tests and anchors use it).
 	const glance = $derived.by(() => {
 		const g = $t.app.glance;
 		return [
-			...(CREDITS_URL && pkg ? [{ key: 'package', id: 'paket', label: g.package, state: !pkg.plan ? g.noPackage : pkg.pays === 'app' || pkg.pays === 'wallet' ? g.notInUse : pkg.hoursLeft != null ? g.hoursLeft(pkg.hoursLeft) : g.active, tone: !pkg.plan || pkg.low ? 'warn' : pkg.pays === 'app' || pkg.pays === 'wallet' ? '' : 'ok' }] : []),
+			...(CREDITS_URL && pkg ? [{ key: 'package', id: 'paket', label: g.package, state: !pkg.plan ? g.noPackage : pkg.pays === 'app' || pkg.pays === 'wallet' ? g.notInUse : ending && ending !== 'ended' ? $t.pkg.ending.chip(endsAtText) : pkg.hoursLeft != null ? g.hoursLeft(pkg.hoursLeft) : g.active, tone: !pkg.plan || pkg.low || ending ? 'warn' : pkg.pays === 'app' || pkg.pays === 'wallet' ? '' : 'ok' }] : []),
 			...(life ? [
 				{ key: 'paperless', id: 'paperless', label: 'Paperless-ngx', state: /** @type {Record<string, string>} */ (g.phases)[life.phase] ?? life.phase, tone: life.phase === 'running' ? 'ok' : life.phase === 'interrupted' ? 'warn' : '' },
 				{ key: 'backups', id: 'paperless', label: g.backups, state: !life.backupsOn ? g.backupsOff : life.lastGood ? `${when(life.lastGood.at)}${life.lastGood.copies ? ` · ${g.copies(life.lastGood.copies)}` : ''}` : g.noneYet, tone: !life.backupsOn || !life.lastGood ? 'warn' : 'ok' },
@@ -248,6 +259,7 @@
 	<div class="bar">
 		<Logo href={LANDING} label={state === 'unlocked' ? $t.app.homeLocks : $t.app.home} onnavigate={leave}>{#snippet sub()}<NgxText text={texts[$lang].tagline} link />{/snippet}</Logo>
 		<div class="tools">
+			<a class="gh" href="https://github.com/Le-Space/paperless-anywhere" target="_blank" rel="noopener" aria-label={$t.app.footer.source} title={$t.app.footer.source} data-testid="header-source"><GitHubMark size={20} /></a>
 			<!-- Changes the language at once; nothing reloads, so the vault stays open. -->
 			<div class="langs" role="group" aria-label={$t.app.langLabel}>
 				{#each LANGS as l}
@@ -339,6 +351,12 @@
 			     Paperless first; only the package moves, by CSS order, so a running
 			     checkout is not torn down when the tab changes. -->
 			<div class="stack" class:simple>
+				{#if ending}
+					<section class="card ending" class:urgent={ending !== 'soon'} role="alert" data-testid="period-ending">
+						<p><strong>{$t.pkg.ending[ending](endsAtText)}</strong> {$t.pkg.ending.what}</p>
+						<a href="#paket">{$t.pkg.ending.more}</a>
+					</section>
+				{/if}
 				{#if !simple && glance.length}
 					<section class="card glance" data-testid="glance">
 						<h2>{$t.app.glance.title}</h2>
@@ -412,6 +430,8 @@
 </main>
 
 <style>
+	.gh { display: inline-flex; align-items: center; color: var(--text-2); padding: 0.25rem; border-radius: 999px; }
+	.gh:hover { color: var(--text); }
 	.top { border-bottom: 1px solid var(--line); background: var(--surface); }
 	.bar { max-width: 40rem; margin: 0 auto; padding: 0.75rem var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 	main { max-width: 40rem; margin: 0 auto; padding: 1.5rem var(--gutter) 2rem; }
@@ -426,7 +446,9 @@
 	button { display: block; margin: 0.75rem 0; padding: 0.6rem 1.1rem; font-size: 1rem; }
 	.primary { width: 100%; padding: 0.85rem 1.25rem; font-weight: 600; font-size: 1.05rem; }
 	.secondary { background: transparent; color: var(--text); border-color: var(--line); }
-	.tools { display: flex; align-items: center; gap: 0.6rem; }
+	/* On a phone with the vault open (mark, languages, Sperren) they wrap
+	   instead of widening the page. */
+	.tools { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0.6rem; min-width: 0; }
 	.langs { display: flex; gap: 0.25rem; }
 	.lang { margin: 0; font-family: var(--mono); font-size: 0.75rem; padding: 0.25rem 0.55rem; background: transparent; color: var(--text-2); border: 1px solid var(--line); border-radius: 999px; }
 	.lang.on { background: var(--cta-bg); color: var(--cta-text); border-color: var(--cta-bg); }
@@ -458,6 +480,10 @@
 	.stack { display: flex; flex-direction: column; }
 	.stack:not(.simple) .pkg { order: -1; }
 	.stack:not(.simple) .glance { order: -2; }
+	.ending { order: -3; background: var(--warn-bg); color: var(--warn); }
+	.ending.urgent { border: 2px solid var(--warn); }
+	.ending p { margin: 0 0 0.4rem; }
+	.ending a { color: inherit; font-weight: 600; }
 	.glance h2 { margin: 0 0 0.25rem; font-size: 1.15rem; }
 	.glance ul { list-style: none; margin: 0; padding: 0; }
 	.glance li { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-top: 1px solid var(--line); }

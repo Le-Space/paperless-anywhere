@@ -32,6 +32,14 @@
 #                                    checks; every one this VM made is kept in
 #                                    /var/lib/paperless-anywhere/backup-marks.json.
 #                                    Without it, backups carry no mark.
+#   /tmp/secrets/backup_dedup_key    64 hex from the vault (else derived from the mark
+#                                    key, paperless-dedup-key): names the files of an
+#                                    incremental backup (backup_config's
+#                                    incremental.enabled). The export folder then stays
+#                                    in /srv/paperless/export/state, and the index of
+#                                    what the chain holds in
+#                                    /var/lib/paperless-anywhere/snapshots.json; each
+#                                    backup uploads only what changed, as one pack.
 #
 # No age identity is needed: backups are encrypted to ageRecipient. The session key
 # cannot delete pieces, so removing stays with the wallet; the tool's retention
@@ -175,6 +183,15 @@ if r is not None:
         sys.exit("remoteSigner needs product, tag and label")
     if r["payer"].lower() != str(c.get("payer", "")).lower():
         sys.exit("remoteSigner names another payer than the config")
+inc = c.get("incremental")
+if inc is not None:
+    if inc is True:
+        c["incremental"] = inc = {"enabled": True}
+    if not isinstance(inc, dict) or not isinstance(inc.get("enabled", False), bool):
+        sys.exit("incremental must be an object with enabled true or false")
+    for k in ("rebaseDays",):
+        if k in inc and not (isinstance(inc[k], int) and 1 <= inc[k] <= 366):
+            sys.exit(f"incremental.{k} must be a whole number from 1 to 366")
 c.pop("mail", None)
 c["daily"] = {**c.get("daily", {}), "prune": False}
 ret = c.get("retention")
@@ -235,9 +252,23 @@ PY
 elif [ -d /etc/paperless-anywhere/tls ]; then
   export EXPORT_EXTRA_DIR=/etc/paperless-anywhere/tls
 fi
+# Incremental (backup_config's incremental.enabled): the dedup key from the
+# vault into memory, the index on the sealed disk. Without a key from the
+# vault: a full backup, as before (--full), never a generation under a key
+# another VM of this vault would not have.
+run_args=""
+if python3 -c 'import json, sys; sys.exit(0 if (json.load(open(sys.argv[1])).get("incremental") or {}).get("enabled") is True else 1)' "$config" 2>/dev/null; then
+  if /usr/local/sbin/paperless-dedup-key "$state_dir/dedup.key"; then
+    export DEDUP_KEY_FILE="$state_dir/dedup.key" SNAPSHOT_STATE="$lib/snapshots.json"
+  else
+    echo "paperless-backup: no dedup key from the vault; a full backup instead" >&2
+    run_args="--full"
+  fi
+fi
 # While it runs, its latest lines go to the status page (the app shows them).
 : > "$log_dir/backup.log.run"
-node backup.mjs run > "$log_dir/backup.log.run" 2>&1 &
+# shellcheck disable=SC2086
+node backup.mjs run $run_args > "$log_dir/backup.log.run" 2>&1 &
 pid=$!
 while kill -0 "$pid" 2>/dev/null; do
   cat "$log_dir/backup.log.run" >> "$log_dir/backup.log" && : > "$log_dir/backup.log.run"
@@ -245,6 +276,7 @@ while kill -0 "$pid" 2>/dev/null; do
   sleep 5
 done
 wait "$pid"; rc=$?
+rm -f "$state_dir/dedup.key"
 cat "$log_dir/backup.log.run" >> "$log_dir/backup.log"; rm -f "$log_dir/backup.log.run"
 if [ "$rc" -ne 0 ]; then
   if [ "$(( $(oom_kills) - oom0 ))" -gt 0 ]; then fail "the backup ran out of memory (exit $rc)"
@@ -259,6 +291,8 @@ keep = ("providerId", "dataSetId", "pieceId", "pieceIds", "retrievalUrl", "locat
 parts = [{"pieceCid": p.get("pieceCid"), "size": p.get("size")} for p in (e.get("parts") or [])]
 print(json.dumps({"name": e.get("name"), "date": e.get("date"), "pieceCid": e.get("pieceCid"), "size": e.get("size"),
   **({"parts": parts} if len(parts) > 1 else {}),
+  # An incremental backup: a snapshot, pack seq of generation gen (0: its baseline).
+  **({"kind": "snapshot", "gen": e.get("gen"), "seq": e.get("seq"), "newBytes": e.get("newBytes"), "totalBytes": e.get("totalBytes")} if e.get("kind") == "snapshot" else {}),
   "complete": e.get("complete"), "requestedCopies": e.get("requestedCopies"),
   "copies": [{k: c.get(k) for k in keep} for c in e.get("copies", [])],
   "failedAttempts": len(e.get("failedAttempts", []))}))' \

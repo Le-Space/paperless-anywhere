@@ -71,8 +71,8 @@ describe('an image of one\'s own', () => {
 	});
 
 	it('names what an image is made from and by, with links only to what is known', () => {
-		expect(sources(builder).map((r) => r.label)).toEqual(['Öffentliches Image, SHA-256', 'Messwert des Build-Dienstes']);
-		expect(sources({ ...builder, plain: { ...builder.plain, store: 'cd'.repeat(32) } }).map((r) => r.label)).toContain('Öffentliches Image bei Aleph');
+		expect(sources(builder).map((r) => r.label)).toEqual(['Ausgangs-Image, SHA-256', 'Messwert des Build-Dienstes']);
+		expect(sources({ ...builder, plain: { ...builder.plain, store: 'cd'.repeat(32) } }).map((r) => r.label)).toContain('Ausgangs-Image bei Aleph');
 		const full = sources({ ...builder, vprogram: '12'.repeat(32), plain: { ...builder.plain, commit: 'ab'.repeat(20) } });
 		expect(full.find((r) => r.label === 'Gebaut aus dem Quelltext-Stand')?.href).toBe(`https://github.com/Le-Space/paperless-anywhere/tree/${'ab'.repeat(20)}`);
 		expect(full.find((r) => r.label === 'Build-Dienst bei Aleph')?.href).toBe(`https://api2.aleph.im/api/v0/messages/${'12'.repeat(32)}`);

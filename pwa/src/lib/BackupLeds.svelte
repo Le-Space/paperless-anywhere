@@ -60,8 +60,10 @@
 
 	const reach = $derived(reachLevel(result));
 	const wanted = $derived(copies?.wanted ?? null);
-	const independent = $derived(independenceLevel(result?.copies ?? null, wanted));
-	const operators = $derived(result ? operatorCount(result.copies) : 0);
+	// Only the copies at providers Le Space still uses count (blocked-providers.js).
+	const usable = $derived(result ? result.copies.filter((c) => !c.blocked) : null);
+	const independent = $derived(independenceLevel(usable, wanted));
+	const operators = $derived(usable ? operatorCount(usable) : 0);
 	$effect(() => onreach(reach));
 	const time = (/** @type {Date} */ d) => format.dateTime(d.toISOString(), { hour: '2-digit', minute: '2-digit', second: '2-digit' }, $lang);
 	const short = (/** @type {string | null} */ a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '–');
@@ -90,17 +92,17 @@
 		{:else}
 			<p class="says" data-testid="led-says">
 				{#if open === 'reach'}
-					{reach === 'ok' ? x.reachSays.ok(result.answering, result.total) : reach === 'warn' ? x.reachSays.warn(result.total) : reach === 'bad' ? x.reachSays.bad(result.total) : x.reachSays.unknown}
+					{!result.total ? x.allBlocked : reach === 'ok' ? x.reachSays.ok(result.answering, result.total) : reach === 'warn' ? x.reachSays.warn(result.total) : reach === 'bad' ? x.reachSays.bad(result.total) : x.reachSays.unknown}
 				{:else}
-					{independent === 'ok' ? x.independentSays.ok(result.total) : result.total < 2 ? x.independentSays.one : operators < result.total ? x.independentSays.warn : x.independentSays.few(operators, wanted ?? operators)}
+					{!result.total ? x.allBlocked : independent === 'ok' ? x.independentSays.ok(result.total) : result.total < 2 ? x.independentSays.one : operators < result.total ? x.independentSays.warn : x.independentSays.few(operators, wanted ?? operators)}
 				{/if}
 			</p>
 			<ul>
 				{#each result.copies as p (p.id)}
 					<li data-testid={`led-provider-${p.id}`}>
-						<i class="dot" class:ok={p.answers} aria-hidden="true"></i>
+						<i class="dot" class:ok={p.answers} class:blocked={Boolean(p.blocked)} aria-hidden="true"></i>
 						<strong>{x.provider(p.id)} · {p.name || '?'}</strong>{p.place ? ` (${p.place})` : ''}
-						— {p.answers ? x.answers : x.silent}
+						— {#if p.blocked}<span data-testid={`led-blocked-${p.id}`}>{x.blocked($t.backup.places.blockedWhy[p.blocked])}</span>{:else}{p.answers ? x.answers : x.silent}{/if}
 						<br /><small>{x.domain}: {p.domain ?? '–'} · {x.owner}: {short(p.payee ?? p.owner)}</small>
 					</li>
 				{/each}
@@ -145,6 +147,7 @@
 	.pair { color: var(--run); }
 	.dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--bad); margin-right: 0.35rem; }
 	.dot.ok { background: var(--app); }
+	.dot.blocked { background: transparent; border: 2px solid var(--dim); }
 	.actions { display: flex; gap: 1rem; }
 	.link { margin: 0.25rem 0 0; padding: 0; background: none; border: 0; color: var(--ink); text-decoration: underline; cursor: pointer; font-size: 0.85rem; }
 	.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

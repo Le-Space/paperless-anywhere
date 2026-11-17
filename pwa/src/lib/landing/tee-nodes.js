@@ -3,6 +3,8 @@
 // but not what their hardware supports; Aleph's CRN list adds what each node
 // reports about itself (confidential_support, free CPU, memory and disk).
 
+import { nodeBlockedReason } from '../blocked-nodes.js';
+
 export const CRN_LIST = 'https://crns-list.aleph.sh/crns.json?filter_inactive=true';
 
 // The Paperless VM: 2 vCPU, 4 GiB memory, 40 GiB disk.
@@ -16,14 +18,16 @@ export const flag = (code) =>
 	/^[A-Z]{2}$/.test(code ?? '') ? String.fromCodePoint(...[...String(code)].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)) : '';
 
 /**
- * The confidential-capable nodes of a CRN list, best score first.
+ * The confidential-capable nodes of a CRN list, best score first. A node Le
+ * Space blocked (blocked-nodes.js: it claims SEV-SNP but cannot run it) is
+ * not one of them.
  * @param {any} body the CRN list's JSON
  * @param {Record<string, Place>} [places] where the nodes stand, by hash (crn-places.json)
  * @returns {TeeNode[]}
  */
 export function teeNodes(body, places = {}) {
 	return (body?.crns ?? [])
-		.filter((n) => n?.confidential_support === true && n?.system_usage?.active !== false)
+		.filter((n) => n?.confidential_support === true && n?.system_usage?.active !== false && !nodeBlockedReason(n?.hash))
 		.map((n) => {
 			const u = n.system_usage ?? {};
 			const freeVcpus = Math.max(0, Math.floor((u.cpu?.count ?? 0) - (u.cpu?.load_average?.load1 ?? 0)));

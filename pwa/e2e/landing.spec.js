@@ -66,7 +66,7 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	await expect(page.locator('main')).not.toContainText('Sicherungen in drei Kopien.');
 
 	await expect(page.getByRole('link', { name: 'Impressum' })).toHaveAttribute('href', 'https://le-space.de/#impressum');
-	await expect(page.getByRole('link', { name: 'Datenschutz' })).toHaveAttribute('href', 'https://le-space.de/#datenschutz');
+	await expect(page.getByRole('link', { name: 'Datenschutz' })).toHaveAttribute('href', 'https://credits.le-space.de/datenschutz');
 	// Brand: the product is "Paperless anywhere"; Paperless-ngx is the software,
 	// linked at its first mention (the line under the name), with the notice in
 	// the footer, the FAQ and under the start button.
@@ -104,7 +104,7 @@ test('the landing page at / speaks German and English and leads to the app at /a
 	// Section links stay on the English page, and the licence page follows the language.
 	await page.locator('nav a[href="#trust"]').click();
 	await expect(page).toHaveURL(/\/en\/#trust$/);
-	await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', 'https://le-space.de/#privacy');
+	await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', 'https://credits.le-space.de/datenschutz');
 	await expect(page.getByTestId('hero-disclaimer')).toHaveText('Paperless-ngx is an independent open source project (GPL-3.0). Paperless anywhere is offered by Le Space, is not affiliated with the project and is neither endorsed nor sponsored by it.');
 	await expect(page.getByTestId('brand')).toContainText('Paperless-ngx in confidential VMs · offered by Le Space');
 	await page.reload();
@@ -185,6 +185,11 @@ test('the landing page shows who holds which key, what is attested and where to 
 	await expect(page.getByTestId('trust-diagram').getByRole('img')).toHaveCount(1);
 	await expect(page.getByTestId('trust-diagram').locator('svg:visible')).toHaveAttribute('class', /trust-wide/);
 	await expect(page.getByTestId('trust-diagram').locator('svg:visible text').getByText('Image (LUKS): nicht gemessen')).toBeVisible();
+	// The own image's way: built, sealed by the attested builder, stored by the browser; the public image only as a note.
+	await expect(page.getByTestId('trust-diagram').locator('svg:visible text').getByText('2 · Versiegelt')).toBeVisible();
+	await expect(page.getByTestId('trust-diagram').locator('svg:visible text').getByText('Image-Passphrase: nur deine')).toBeVisible();
+	await expect(page.getByTestId('trust-diagram-note')).toContainText('Zum reinen Ausprobieren gibt es das öffentliche Image');
+	await expect(page.getByTestId('trust-diagram-note').getByRole('link')).toHaveAttribute('href', /docs\/backup-proofs\.md$/);
 	// What the hardware confirms and what it does not yet are open without a click.
 	await expect(page.getByTestId('trust-gaps')).toBeVisible();
 	await expect(page.getByTestId('trust-gaps')).toContainText('Der Inhalt des Images wird nicht mitgemessen.');
@@ -476,4 +481,37 @@ test('the FAQ says what happens when a storage provider fails, and what is paid,
 	await page.goto('/en/');
 	await expect(page.locator('#faq summary', { hasText: 'Does the app notice beforehand that a provider cannot be reached?' })).toBeVisible();
 	await expect(page.locator('#faq summary', { hasText: 'Do I pay for failed providers, or for more and more copies?' })).toBeVisible();
+});
+
+test('the FAQ says what happens when a voucher or package ends, in both languages', async ({ page }) => {
+	await page.context().route(/crns-list\.aleph\.sh|filecoin|glif|chain\.love/, (route) => route.abort());
+	await page.goto('/');
+	const item = page.locator('#faq details', { hasText: 'Was passiert, wenn mein Gutschein oder Paket endet?' });
+	await item.locator('summary').click();
+	await expect(item).toContainText('bis 30 Tage nach dem letzten bezahlten Tag abrufbar');
+	await expect(item.getByRole('link', { name: 'Eine Sicherung selbst holen und entschlüsseln' })).toHaveAttribute('href', /restore-yourself\.de\.md$/);
+	await page.goto('/en/');
+	const en = page.locator('#faq details', { hasText: 'What happens when my voucher or package ends?' });
+	await en.locator('summary').click();
+	await expect(en.getByRole('link', { name: 'Fetch and decrypt a backup yourself' })).toHaveAttribute('href', /restore-yourself\.md$/);
+});
+
+test('the landing page says what Paperless-ngx is, and links its own source in the header and the footer', async ({ page }) => {
+	await page.context().route(/crns-list\.aleph\.sh|filecoin|glif|chain\.love/, (route) => route.abort());
+	await page.goto('/');
+	await expect(page.locator('.hero .lead')).toContainText('Dein papierloses Büro: Paperless-ngx');
+	await expect(page.locator('#paperless-ngx h2')).toHaveText('Was ist Paperless-ngx?');
+	await expect(page.getByTestId('ngx-features').locator('h3')).toHaveText(['Hineingeben', 'Ordnet von selbst', 'Findet in Sekunden', 'Holt Post aus dem Postfach']);
+	await expect(page.locator('#paperless-ngx').getByRole('link', { name: 'Paperless-ngx auf GitHub' })).toHaveAttribute('href', 'https://github.com/paperless-ngx/paperless-ngx');
+	await expect(page.getByTestId('header-source')).toHaveAttribute('href', 'https://github.com/Le-Space/paperless-anywhere');
+	await expect(page.getByTestId('header-source')).toHaveAccessibleName('Quelltext von Paperless anywhere auf GitHub');
+	await expect(page.getByTestId('footer-source')).toHaveText('Quelltext von Paperless anywhere auf GitHub');
+	await page.goto('/en/');
+	await expect(page.locator('#paperless-ngx h2')).toHaveText('What is Paperless-ngx?');
+	await expect(page.getByTestId('footer-source')).toHaveText('Paperless anywhere’s source code on GitHub');
+	await page.goto('/app/');
+	await expect(page.getByTestId('footer-source')).toHaveAttribute('href', 'https://github.com/Le-Space/paperless-anywhere');
+	await expect(page.getByTestId('footer-source')).toBeVisible();
+	await expect(page.getByTestId('header-source')).toHaveAttribute('target', '_blank');
+	await expect(page.getByTestId('header-source')).toHaveAccessibleName(/Paperless anywhere/);
 });

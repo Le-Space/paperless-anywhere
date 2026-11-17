@@ -6,13 +6,14 @@
 	import RefreshBalances from '$lib/RefreshBalances.svelte';
 	import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
 	import { noteError, noteState } from '$lib/diagnosis.js';
-	import { AlephShortError, BackupPartialError, StartGoneError, pushBackupPlaces, attestRunning, confirmStopBackup, eraseStopped, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
+	import { AlephShortError, BackupPartialError, NodeRefusedError, StartGoneError, startElsewhere, pushBackupPlaces, attestRunning, confirmPeriodEndBackup, confirmStopBackup, eraseStopped, syncPeriodEnd, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
 	import { buildImageForVault } from '$lib/own-image-build.js';
 	import { BUILDER, hasOwnImage, imageStatus } from '$lib/own-image.js';
 	import FirstStart from '$lib/FirstStart.svelte';
 	import { onImageBuild } from '$lib/image-build-request.js';
 	import { fetchPercent, stationOfBuildStep } from '$lib/first-start.js';
-	import { vmStatus } from '$lib/vm.js';
+	import { forgetInstance, vmStatus } from '$lib/vm.js';
+	import { stoppedAtPeriodEnd } from '$lib/period-end.js';
 	import Storage from '$lib/Storage.svelte';
 	import { statusToken } from '$lib/keys/derive.js';
 	import { CREDITS_URL, creditsBalance, fundVm, quoteVm, vmAuthorize } from '$lib/credits.js';
@@ -28,6 +29,7 @@
 	import { listProviders } from '$lib/providers.js';
 	import { replacementPlan } from '$lib/places-replace.js';
 	import { blockedAmong, blockedReason } from '$lib/blocked-providers.js';
+	import { avoidedNodes, nodeBlockedReason, noteProven, noteUnsuitable, provenNodes } from '$lib/blocked-nodes.js';
 	import { backupSize, knownBackup, listBackups, newerBackup, pieceCidOfStop, place, restoreEntry, restoreGap, splitOwn } from '$lib/backups.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
 	import { startingInstance } from '$lib/starting.js';
@@ -158,6 +160,8 @@
 	let error = $state('');
 	// An interrupted start Aleph no longer had: dropped, and why (not an error).
 	let goneNote = $state('');
+	// A node refused the VM and the start moved on to another one: said plainly.
+	let nodeNote = $state('');
 	// A broken connection: a plain sentence above, the browser's own words
 	// under "Details", and what "Noch einmal" does (null: nothing to repeat).
 	let errorRaw = $state('');
@@ -201,8 +205,18 @@
 		const time = format.dateTime(d, d.toDateString() === new Date(nowTick).toDateString() ? { hour: '2-digit', minute: '2-digit' } : { dateStyle: 'medium', timeStyle: 'short' }, $appLanguage);
 		return `${time} (${ago(nowTick - d.getTime())})`;
 	};
-	/** A backup that reached providers: remember it if newer. @param {{ at: string, copies?: number, requested?: number }} good */
+	// The lights at the top follow every backup that reached providers (where
+	// its copies are), not only the list read at the unlock.
+	const reportCopies = (/** @type {number[]} */ ids) => {
+		if (ids.length) oncopies({ network: profile.network ?? 'calibration', copies: ids.map((providerId) => ({ providerId })) });
+	};
+	let reportedGood = '';
+	/** A backup that reached providers: remember it if newer. @param {{ at: string, copies?: number, requested?: number, providerIds?: number[] }} good */
 	async function rememberGood(good) {
+		if (good?.at && good.at !== reportedGood && (!profile.lastGoodBackup?.at || new Date(profile.lastGoodBackup.at) <= new Date(good.at))) {
+			reportedGood = good.at;
+			reportCopies(good.providerIds ?? []);
+		}
 		if (!good?.at || (profile.lastGoodBackup?.at && new Date(profile.lastGoodBackup.at) >= new Date(good.at))) return;
 		profile = await updateProfile(master, (now) =>
 			now.lastGoodBackup?.at && new Date(now.lastGoodBackup.at) >= new Date(good.at) ? now : { ...now, lastGoodBackup: { at: good.at, copies: good.copies ?? null, requested: good.requested ?? null } }
@@ -280,7 +294,9 @@
 	// A backup without this vault's mark waits for the person's word.
 	const unmarkedOpen = $derived(choice === 'any' && Boolean(chosenBackup) && unmarkedAccepted !== chosenBackup?.pieceCid);
 	// The newest backup, for the lights at the top: this vault's own, else the newest listed.
-	const newestBackup = $derived(pick(split.own) ?? pick(backups ?? []) ?? null);
+	// This vault's newest: one with its mark or one its stops made (ownBackups;
+	// a stop's backup may not carry the noted mark yet), else the newest listed.
+	const newestBackup = $derived((backups ?? []).find((b) => (profile.vaultBackups ?? []).includes(b.pieceCid) || (profile.ownBackups ?? []).includes(b.pieceCid)) ?? pick(backups ?? []) ?? null);
 	$effect(() => {
 		if (backups === null || backupsError) return;
 		oncopies({ network: profile.network ?? 'calibration', copies: (newestBackup?.copies ?? []).map((/** @type {any} */ x) => ({ providerId: Number(x.providerId), url: x.retrievalUrl })), wanted: Number.isInteger(profile.backupConfig?.copies) ? profile.backupConfig.copies : null });
@@ -299,7 +315,8 @@
 	const whenOf = (b) => (b && lastGood?.pieceCid === b.pieceCid && lastGood.at ? c.dated(format.dateTime(lastGood.at, undefined, $appLanguage)) : '');
 	const wherePlaces = (b) => b.copies.map((c) => c.place || tr().card.provider(c.providerId)).join(tr().card.and);
 	// Size, and the parts a large backup went up in: shown as one backup.
-	const sizeOf = (b) => [backupSize(b.size), b.parts?.length > 1 ? c.inParts(b.parts.length) : ''].filter(Boolean).join(' ');
+	// An incremental backup says which generation it belongs to: an addition restores with its baseline and the additions before it.
+	const sizeOf = (b) => [b.kind === 'snapshot' ? `${c.snapshotOf(b.gen.slice(0, 6), b.seq)},` : '', backupSize(b.size), b.parts?.length > 1 ? c.inParts(b.parts.length) : ''].filter(Boolean).join(' ');
 	const sizePart = (b) => (sizeOf(b) ? `, ${sizeOf(b)}` : '');
 	// The admin password is derived from the master secret; it is shown only on request.
 	let showPassword = $state(false);
@@ -328,6 +345,18 @@
 			vmStatus(profile.running.host, statusToken(master))
 				.then(async (s) => {
 					if (s?.phase === 'stop-partial' && !busy && !partial) partial = new BackupPartialError(s);
+					// The VM stopped itself at the end of the paid time, with its
+					// last backup: erased now, once that backup is on the chain.
+					// A running one hears a changed end (a new voucher, a renewal).
+					if (stoppedAtPeriodEnd(s)) {
+						if (!busy && !periodEndTried) {
+							periodEndTried = true;
+							eraseAtPeriodEnd(s);
+						}
+					} else if (!busy && !syncingEnd) {
+						syncingEnd = true;
+						syncPeriodEnd(master, $state.snapshot(profile), s).catch(() => {}).finally(() => (syncingEnd = false));
+					}
 					// The backups this VM made with this vault's mark, also the two-hourly ones.
 					const noted = await noteVaultBackups(master, $state.snapshot(profile), s);
 					if (noted) profile = noted;
@@ -392,6 +421,7 @@
 		error = '';
 		errorRaw = '';
 		goneNote = '';
+		nodeNote = '';
 		again = null;
 		errorLog = [];
 		short = null;
@@ -569,11 +599,17 @@
 			if (!(await buildWithJourney(false))) return;
 			if (ceremony) ceremony = { ...ceremony, station: 'paperless', since: Date.now(), fetchPct: null };
 		}
-		// No node fixed in the setup: one with room now.
-		if (!profile.crnHash) progress = tr().card.progress.pickNode;
-		const crnHash = profile.crnHash || (await pickNode());
-		const forStart = { ...$state.snapshot(profile), crnHash, restoreEntry: chosen ? { ...restoreEntry(chosen), ...(unmarked ? { unmarked: true } : {}) } : null };
-		startRestores = Boolean(forStart.restoreEntry);
+		// No node fixed in the setup (or the fixed one is blocked): one with room
+		// now, nodes where a start was attested first. A node that refuses the VM
+		// (it cannot run SEV-SNP after all) is forgotten, noted and replaced;
+		// the image is not built again.
+		const fixed = profile.crnHash && !nodeBlockedReason(profile.crnHash) ? profile.crnHash : null;
+		const restore = chosen ? { ...restoreEntry(chosen), ...(unmarked ? { unmarked: true } : {}) } : null;
+		startRestores = Boolean(restore);
+		const pick = () => {
+			progress = tr().card.progress[nodeNote ? 'otherNode' : 'pickNode'];
+			return pickNode({ avoid: avoidedNodes(profile), proven: provenNodes(profile, { builder: BUILDER }) });
+		};
 		// Once Aleph has the VM, the profile knows it: a reload carries on from there.
 		const onRequested = async (starting) => {
 			profile = await updateProfile(master, (now) => ({ ...now, starting }));
@@ -590,7 +626,18 @@
 			if (p.attestation?.measurement) facts.vmMeasurement = p.attestation.measurement;
 			ceremony = { ...ceremony, facts };
 		};
-		await finishStart(() => startPaperless(master, forStart, step, { onRequested }));
+		await finishStart(() =>
+			startElsewhere({
+				fixed,
+				pick,
+				start: (crnHash) => startPaperless(master, { ...$state.snapshot(profile), crnHash, restoreEntry: restore }, step, { onRequested }),
+				onRefused: async (e) => {
+					nodeNote = tr().card.nodeRefused[e.kind];
+					await dropRefused(e);
+					if (fixed) throw new Error(tr().card.errors.fixedNodeRefused);
+				}
+			})
+		);
 		if (ceremony) ceremony = { ...ceremony, done: true, minimized: false };
 	}
 	// Buy hours from Le Space Credits: the service grants them (with Aleph's
@@ -637,8 +684,32 @@
 			await startNow();
 		});
 	};
+	/**
+	 * A node refused the VM: its INSTANCE is forgotten (it never ran; what
+	 * fails here is left in the list of VMs to remove), the interrupted start
+	 * dropped and the node noted in the profile, with the time.
+	 * @param {{ crnHash: string, instanceHash: string, payer?: string, kind: 'noSevSnp' | 'refused' }} e
+	 */
+	async function dropRefused(e) {
+		const app = privateKeyToAccount(alephPrivateKey(master));
+		const payer = e.payer ?? profile.starting?.payer;
+		if (payer) await forgetInstance(app, payer, e.instanceHash, 'paperless-anywhere: the node refused the VM').catch(() => null);
+		profile = await updateProfile(master, ({ starting, ...rest }) => noteUnsuitable(starting && starting.instanceHash !== e.instanceHash ? { ...rest, starting } : rest, e.crnHash, e.kind));
+		onchange();
+	}
 	const resume = () => run(async () => {
 		await reload();
+		// Interrupted on a node that is blocked, or that this vault saw refuse a
+		// start: that VM never runs. Forgotten, and the start asks another node.
+		const on = profile.starting;
+		if (on?.crnHash && (nodeBlockedReason(on.crnHash) || avoidedNodes(profile).has(String(on.crnHash).toLowerCase()))) {
+			const known = (profile.unsuitableNodes ?? []).find((n) => String(n?.hash).toLowerCase() === String(on.crnHash).toLowerCase());
+			const kind = nodeBlockedReason(on.crnHash) ? 'noSevSnp' : (known?.reason ?? 'refused');
+			nodeNote = tr().card.nodeRefused[kind];
+			await dropRefused({ crnHash: on.crnHash, instanceHash: on.instanceHash, payer: on.payer, kind });
+			await startNow();
+			return;
+		}
 		// The VM may have made backups since this start was requested (it ran on
 		// while this page was closed). What it restores now is the newest one, not
 		// the one chosen then; if the backups cannot be read, the start waits.
@@ -666,7 +737,11 @@
 		try {
 			const running = await bringUp();
 			// Which image this VM runs, so it is never forgotten under it (old-image.js).
-			profile = await updateProfile(master, ({ starting, ...rest }) => ({ ...rest, running: { ...running, rootfsItemHash: rest.rootfsItemHash } }));
+			// An attested start marks its node as proven (pickNode prefers it next time).
+			profile = await updateProfile(master, ({ starting, ...rest }) => {
+				const now = { ...rest, running: { ...running, rootfsItemHash: rest.rootfsItemHash } };
+				return running.attestation ? noteProven(now, running.crnHash) : now;
+			});
 			// The new own image started well: the one before it is no longer the way back.
 			if (startWentWell(running)) {
 				const release = releasePrevious(profile);
@@ -791,6 +866,8 @@
 			profile = await updateProfile(master, (now) => ({ ...now, backupConfig: { ...now.backupConfig, providerIds: ask.plan.ids, copies: Math.max(1, ask.plan.ids.length) } }));
 			onchange();
 			if (profile.running) await pushBackupPlaces(master, $state.snapshot(profile));
+			// The lights read the list again (where the newest backup is).
+			reload().catch(() => {});
 		});
 		if (!error) ask.then();
 	}
@@ -839,6 +916,24 @@
 		if (onChain) await confirmStopBackup(p.status, { onChain, before: p.before, known: profile.ownBackups ?? [] });
 		await finishStop(await eraseStopped(master, $state.snapshot(profile), p.status, on));
 	});
+	// A VM that stopped itself at the end of the paid time (paperless-period-end):
+	// erased like after "Sichern und beenden", once its last backup is on the
+	// chain. Without backups, or unconfirmed, it stays and the reason shows.
+	let periodEndTried = false;
+	let syncingEnd = false;
+	/** @type {any} the status page of a VM stopped at the period's end */
+	let periodEnded = $state(null);
+	const eraseAtPeriodEnd = (/** @type {any} */ s) => run(async () => {
+		periodEnded = s;
+		const on = track('stop');
+		stopSent = true;
+		vmPage = s;
+		progress = c.periodEnd.confirming;
+		const onChain = backupsOnChain();
+		if (!onChain) throw new Error(c.periodEnd.noBackups);
+		await confirmPeriodEndBackup(s, { onChain, known: profile.ownBackups ?? [] });
+		await finishStop(await eraseStopped(master, $state.snapshot(profile), s, on));
+	}, () => eraseAtPeriodEnd(s));
 	const keepVm = () => answer(async () => {
 		progress = tr().card.progress.restart;
 		await resumeAfterPartial(master, $state.snapshot(profile));
@@ -860,6 +955,8 @@
 				: rest
 		);
 		listedSeen = Boolean(made);
+		// The stop's backup is the newest now: the lights follow it at once.
+		if (made) reportCopies((result?.copies ?? []).map((/** @type {any} */ x) => Number(x?.providerId)).filter((n) => Number.isInteger(n) && n >= 0));
 		// The backups this VM made with this vault's mark, the stop's among them.
 		const noted = await noteVaultBackups(master, $state.snapshot(profile), status).catch(() => null);
 		if (noted) profile = noted;
@@ -1135,6 +1232,8 @@
 		{#if phase !== 'running' && profile.trial}<TrialRestore {master} {profile} listing={backupListing(profile)} onchange={async () => { profile = await loadProfile(master); onchange(); }} />{/if}
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
+		{#if nodeNote}<p class="hint" role="status" data-testid="node-refused">{nodeNote}</p>{/if}
+		{#if periodEnded}<p class="hint" role="status" data-testid="period-end-stopped">{c.periodEnd.stopped}</p>{/if}
 		{@render placesBox()}
 		{#if error}{@render errorBox()}{/if}
 		{#if error && !busy && !profile.running && profile.ownImage?.previous}<p class="hint" data-testid="previous-image"><button class="secondary" onclick={startPrevious} disabled={busy} data-testid="start-previous">{$i18n.ownImage.previousStart}</button> {$i18n.ownImage.previousHint}</p>{/if}
@@ -1226,6 +1325,8 @@
 		{#if progress}<p data-testid="progress">{progress} …</p>{/if}
 		{#if profile.backupRevokePending && !profile.running}<p class="hint" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
+		{#if nodeNote}<p class="hint" role="status" data-testid="node-refused">{nodeNote}</p>{/if}
+		{#if periodEnded}<p class="hint" role="status" data-testid="period-end-stopped">{c.periodEnd.stopped}</p>{/if}
 		{@render placesBox()}
 		{#if error}{@render errorBox()}{/if}
 		{#if error && !busy && !profile.running && profile.ownImage?.previous}<p class="hint" data-testid="previous-image"><button class="secondary" onclick={startPrevious} disabled={busy} data-testid="start-previous">{$i18n.ownImage.previousStart}</button> {$i18n.ownImage.previousHint}</p>{/if}

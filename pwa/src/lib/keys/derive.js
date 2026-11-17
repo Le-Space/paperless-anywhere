@@ -134,6 +134,20 @@ export const statusToken = (master) => hex(deriveBytes(master, LABELS.statusToke
 /** The key that binds backups to this vault, as 64 hex (the VM's backup_mark_key). @param {Uint8Array} master */
 export const backupMarkKey = (master) => hex(deriveBytes(master, LABELS.backupMark));
 
+/** The label the dedup key is made with (rootfs/files/paperless-dedup-key makes the same). */
+export const DEDUP_KEY_CONTEXT = 'paperless-anywhere/backup-dedup-key/v1';
+
+/**
+ * The key incremental backups name their files with (the backup tool's
+ * DEDUP_KEY_FILE): HMAC-SHA256 with the backup mark key over its own label,
+ * as 64 hex. The VM derives the same from the mark key when the app sent
+ * none, so every VM of this vault continues the same generation.
+ * @param {Uint8Array} master
+ */
+export function backupDedupKey(master) {
+	return hex(hmac(sha256, deriveBytes(master, LABELS.backupMark), encoder.encode(DEDUP_KEY_CONTEXT)));
+}
+
 /** What a MAC over a piece CID says: the VM's paperless-backup makes the same. */
 export const PIECE_MARK_CONTEXT = 'paperless-anywhere/backup-piece/v1\n';
 

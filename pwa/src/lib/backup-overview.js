@@ -8,7 +8,7 @@ import { currentLang, localeOf } from './i18n/index.js';
 /**
  * @typedef {{
  *   supported: boolean,
- *   last: null | { ok: boolean, at: Date | null, copies: number, requested: number, reason: string | null, seconds: number | null },
+ *   last: null | { ok: boolean, at: Date | null, copies: number, providerIds: number[], requested: number, reason: string | null, seconds: number | null },
  *   check: null | { status: string, at: Date | null },
  *   nextCheck: Date | null,
  *   running: boolean,
@@ -41,6 +41,8 @@ export function backupOverview(status) {
 				// The backup's own date (when the export was made), else when it was reported.
 				at: date(entry?.date) ?? date(lastRaw.at),
 				copies: entry?.copies?.length ?? 0,
+				// Where its copies are (provider ids only), for the lights at the top.
+				providerIds: (entry?.copies ?? []).map((/** @type {any} */ c) => Number(c?.providerId)).filter((n) => Number.isInteger(n) && n >= 0),
 				requested: entry?.requestedCopies ?? entry?.copies?.length ?? 0,
 				reason: lastRaw.reason ?? null,
 				seconds: typeof lastRaw.seconds === 'number' ? lastRaw.seconds : null

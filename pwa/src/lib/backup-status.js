@@ -16,6 +16,7 @@ import { filecoinChain } from './permissions.js';
 import { place } from './backups.js';
 import { copyAnswers } from './restore-reach.js';
 import { dependentPairs, operatorCount, registeredDomain } from './operators.js';
+import { blockedReason } from './blocked-providers.js';
 
 const KEY = 'paperless-anywhere.backup-copies';
 
@@ -55,7 +56,7 @@ export function forgetCopies() {
 /** @typedef {'ok' | 'warn' | 'bad' | 'unknown'} Level */
 
 /** Green from two answering copies, yellow for one, red for none; grey without a check. @param {{ answering: number, total: number } | null} r @returns {Level} */
-export const reachLevel = (r) => (!r || !r.total ? 'unknown' : r.answering >= 2 ? 'ok' : r.answering === 1 ? 'warn' : 'bad');
+export const reachLevel = (r) => (!r || (!r.total && !(/** @type {any} */ (r).blocked > 0)) ? 'unknown' : r.answering >= 2 ? 'ok' : r.answering === 1 ? 'warn' : 'bad');
 
 /**
  * Green when every copy is at another operator and there are as many
@@ -75,8 +76,8 @@ export function independenceLevel(providers, wanted = null) {
 }
 
 /**
- * @typedef {{ id: number, name: string, place: string, domain: string | null, url: string, owner: string | null, payee: string | null, listed: boolean, answers: boolean }} CheckedCopy listed: whether the registry named the provider
- * @typedef {{ at: Date, network: string, copies: CheckedCopy[], answering: number, total: number, pairs: { a: CheckedCopy, b: CheckedCopy, signs: ReturnType<typeof import('./operators.js').sharedSigns> }[] }} CopyCheck
+ * @typedef {{ id: number, name: string, place: string, domain: string | null, url: string, owner: string | null, payee: string | null, listed: boolean, answers: boolean, blocked: import('./blocked-providers.js').BlockReason | null }} CheckedCopy listed: whether the registry named the provider; blocked: taken out by Le Space (not asked, does not count)
+ * @typedef {{ at: Date, network: string, copies: CheckedCopy[], answering: number, total: number, blocked?: number, pairs: { a: CheckedCopy, b: CheckedCopy, signs: ReturnType<typeof import('./operators.js').sharedSigns> }[] }} CopyCheck
  */
 
 /**
@@ -90,7 +91,7 @@ export function independenceLevel(providers, wanted = null) {
  */
 export async function checkCopies({ network, copies }, { client, answers = copyAnswers, now = () => new Date() } = {}) {
 	const ids = [...new Set(copies.map((c) => Number(c.providerId)))];
-	if (!ids.length) return { at: now(), network, copies: [], answering: 0, total: 0, pairs: [] };
+	if (!ids.length) return { at: now(), network, copies: [], answering: 0, total: 0, blocked: 0, pairs: [] };
 	const c = client ?? createPublicClient({ chain: filecoinChain(network), transport: http(undefined, { retryCount: 1, timeout: 15_000 }) });
 	const listed = await getPDPProvidersByIds(c, { providerIds: ids.map(BigInt) });
 	const byId = new Map(listed.map((p) => [Number(p.id), p]));
@@ -102,7 +103,9 @@ export async function checkCopies({ network, copies }, { client, answers = copyA
 			const p = byId.get(id);
 			const url = String(p?.pdp?.serviceURL ?? '').replace(/\/+$/, '');
 			const own = copies.find((x) => Number(x.providerId) === id && x.url)?.url;
-			const ask = own ?? (url ? `${url}/pdp/ping` : '');
+			// A blocked provider is not asked: its copy does not count either way.
+			const blocked = blockedReason(network, id);
+			const ask = blocked ? '' : (own ?? (url ? `${url}/pdp/ping` : ''));
 			return {
 				id,
 				name: p?.name ?? '',
@@ -112,11 +115,15 @@ export async function checkCopies({ network, copies }, { client, answers = copyA
 				owner: p?.serviceProvider ?? null,
 				payee: p?.payee ?? null,
 				listed: Boolean(p),
+				blocked,
 				answers: ask ? await answers(ask, { timeoutMs: 8000 }) : false
 			};
 		})
 	);
-	return { at: now(), network, copies: checked, answering: checked.filter((x) => x.answers).length, total: checked.length, pairs: dependentPairs(checked) };
+	// Blocked copies are shown, but neither light counts them: what can be
+	// relied on is the copies at providers Le Space still uses.
+	const counted = checked.filter((x) => !x.blocked);
+	return { at: now(), network, copies: checked, answering: counted.filter((x) => x.answers).length, total: counted.length, blocked: checked.length - counted.length, pairs: dependentPairs(counted) };
 }
 
 /**

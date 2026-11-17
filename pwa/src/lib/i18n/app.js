@@ -74,6 +74,8 @@ export const app = {
 			provider: (/** @type {number} */ id) => `Anbieter ${id}`,
 			answers: 'antwortet',
 			silent: 'antwortet nicht',
+			blocked: (/** @type {string} */ why) => `gesperrt (${why}); zählt nicht`,
+			allBlocked: 'Alle Kopien der neuesten Sicherung liegen bei gesperrten Anbietern. Die nächste Sicherung geht an die neuen Orte.',
 			domain: 'Domain',
 			owner: 'Adresse',
 			pair: (/** @type {string} */ a, /** @type {string} */ b, /** @type {string} */ why) => `${a} und ${b}: selber Betreiber (${why})`,
@@ -127,6 +129,7 @@ export const app = {
 			imprint: 'Impressum',
 			privacy: 'Datenschutz',
 			licences: 'Lizenzen',
+			source: 'Quelltext von Paperless anywhere auf GitHub',
 			commit: 'Commit',
 			cid: 'IPFS-CID dieser Version',
 			// The cancel button (§ 312k BGB). Legal wording: the English entry stays
@@ -207,6 +210,8 @@ export const app = {
 			provider: (/** @type {number} */ id) => `Provider ${id}`,
 			answers: 'answers',
 			silent: 'does not answer',
+			blocked: (/** @type {string} */ why) => `blocked (${why}); does not count`,
+			allBlocked: 'Every copy of the newest backup is at a blocked provider. The next backup goes to the new places.',
 			domain: 'Domain',
 			owner: 'Address',
 			pair: (/** @type {string} */ a, /** @type {string} */ b, /** @type {string} */ why) => `${a} and ${b}: same operator (${why})`,
@@ -260,6 +265,7 @@ export const app = {
 			imprint: 'Imprint',
 			privacy: 'Privacy',
 			licences: 'Licences',
+			source: 'Paperless anywhere’s source code on GitHub',
 			commit: 'Commit',
 			cid: 'IPFS CID of this version',
 			// Not translated yet, see the German entry.

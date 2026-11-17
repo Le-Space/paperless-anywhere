@@ -42,6 +42,9 @@ describe('the copies kept for the locked vault', () => {
 		const kept = JSON.parse(localStorage.getItem('paperless-anywhere.backup-copies') ?? '{}');
 		expect(Object.keys(kept).sort()).toEqual(['at', 'network', 'providerIds', 'wanted']);
 		expect(knownCopies()).toMatchObject({ network: 'mainnet', providerIds: [36, 37] });
+		// Numbers only: nothing of the vault (no piece CID, data set or account address).
+		expect(kept.providerIds.every((/** @type {unknown} */ n) => typeof n === 'number')).toBe(true);
+		expect(JSON.stringify(kept)).not.toMatch(/0x|baga|bafk|dataSet/i);
 		forgetCopies();
 		expect(knownCopies()).toBeNull();
 	});
@@ -59,12 +62,13 @@ describe('checkCopies', () => {
 		const { checkCopies, providersAnswer } = await import('./backup-status.js');
 		const asked = [];
 		const answers = async (url) => (asked.push(url), url.startsWith('https://bass'));
-		const r = await checkCopies({ network: 'mainnet', copies: [{ providerId: 36, url: 'https://cello.fidl.tech/piece/x' }, { providerId: 37 }] }, { client: {}, answers, now: () => new Date(0) });
+		// Calibration: the same ids are not blocked there (blocked-providers.js is per network).
+		const r = await checkCopies({ network: 'calibration', copies: [{ providerId: 36, url: 'https://cello.fidl.tech/piece/x' }, { providerId: 37 }] }, { client: {}, answers, now: () => new Date(0) });
 		expect(asked).toEqual(['https://cello.fidl.tech/piece/x', 'https://bass.fidl.tech/pdp/ping']);
 		expect(r).toMatchObject({ answering: 1, total: 2, at: new Date(0) });
 		expect(r.copies.map((c) => [c.id, c.domain, c.answers])).toEqual([[36, 'fidl.tech', false], [37, 'fidl.tech', true]]);
 		expect(r.pairs.map((p) => p.signs)).toEqual([[{ kind: 'domain', value: 'fidl.tech' }]]);
-		expect(await providersAnswer('mainnet', [36, 37], { client: {}, answers: async () => false })).toEqual({ answering: 0, total: 2, names: ['36 Cello', '37 Bass'] });
+		expect(await providersAnswer('calibration', [36, 37], { client: {}, answers: async () => false })).toEqual({ answering: 0, total: 2, names: ['36 Cello', '37 Bass'] });
 		vi.doUnmock('@filoz/synapse-core/sp-registry');
 	});
 	it('is no check when the registry names none of the providers', async () => {
@@ -72,6 +76,28 @@ describe('checkCopies', () => {
 		vi.doMock('@filoz/synapse-core/sp-registry', () => ({ getPDPProvidersByIds: async () => [] }));
 		const { checkCopies } = await import('./backup-status.js');
 		await expect(checkCopies({ network: 'mainnet', copies: [{ providerId: 36 }] }, { client: {}, answers: async () => true })).rejects.toThrow();
+		vi.doUnmock('@filoz/synapse-core/sp-registry');
+	});
+	it('shows a blocked provider as such, does not ask it, and counts only the others', async () => {
+		vi.resetModules();
+		vi.doMock('@filoz/synapse-core/sp-registry', () => ({
+			getPDPProvidersByIds: async () => [
+				{ id: 36n, name: 'Cello', serviceProvider: '0x' + 'd'.repeat(40), payee: '0x' + 'd'.repeat(40), pdp: { serviceURL: 'https://cello.fidl.tech' } },
+				{ id: 43n, name: 'ProbeLab', serviceProvider: '0x' + 'f'.repeat(40), payee: '0x' + 'f'.repeat(40), pdp: { serviceURL: 'https://mainnet.pdp.probelab.io' } },
+				{ id: 1n, name: 'ezpdpz-main', serviceProvider: '0x' + '1'.repeat(40), payee: '0x' + '1'.repeat(40), pdp: { serviceURL: 'https://main.ezpdpz.net' } }
+			]
+		}));
+		const { checkCopies, reachLevel } = await import('./backup-status.js');
+		const asked = [];
+		const r = await checkCopies({ network: 'mainnet', copies: [{ providerId: 36 }, { providerId: 43 }, { providerId: 1 }] }, { client: {}, answers: async (url) => (asked.push(url), true) });
+		expect(asked).toEqual(['https://mainnet.pdp.probelab.io/pdp/ping', 'https://main.ezpdpz.net/pdp/ping']);
+		expect(r.copies.map((c) => [c.id, c.blocked])).toEqual([[36, 'fidl'], [43, null], [1, null]]);
+		expect(r).toMatchObject({ answering: 2, total: 2, blocked: 1 });
+		expect(reachLevel(r)).toBe('ok');
+		// Only blocked copies: red, nothing to rely on.
+		const only = await checkCopies({ network: 'mainnet', copies: [{ providerId: 36 }] }, { client: {}, answers: async () => true });
+		expect(only).toMatchObject({ answering: 0, total: 0, blocked: 1 });
+		expect(reachLevel(only)).toBe('bad');
 		vi.doUnmock('@filoz/synapse-core/sp-registry');
 	});
 	it('says nothing before a stop when the registry cannot be read', async () => {

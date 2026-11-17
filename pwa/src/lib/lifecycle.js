@@ -7,6 +7,7 @@
 // What a running VM needs to be stopped from another device goes into the
 // sealed profile.
 import { loadTeeNodes } from './landing/tee-nodes.js';
+import { noteProven, rankNodes } from './blocked-nodes.js';
 import { privateKeyToAccount } from 'viem/accounts';
 import { unlockInstance, pinsOf } from '@le-space/attest-wasm/instance';
 import { attestGuest, injectSecrets } from '@le-space/attest-wasm/ratls';
@@ -15,8 +16,9 @@ import { ownImageVerified, runsOwnImage } from './own-image-check.js';
 import { answeringCopies } from './restore-reach.js';
 import { placedConfig } from './providers.js';
 import { pinnedTrustedExecution } from './runtime-pin.js';
-import { alephPrivateKey, backupMarkKey, backupPrivateKey, pieceMark, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
-import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
+import { alephPrivateKey, backupDedupKey, backupMarkKey, backupPrivateKey, pieceMark, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
+import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, creditsBalance, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
+import { paidUntil, periodEndChanged, periodEndPiece, periodEndSecret } from './period-end.js';
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
 import { relayTransports } from './attest-p2p.js';
 import { backupFacts, pieceCidOfStop, reportedMarks, vaultBound, vmBackupSecrets, withVaultBackups } from './backups.js';
@@ -244,17 +246,77 @@ export const passphraseFitsImage = (profile) => !profile?.luksFor || profile.luk
 
 /**
  * A confidential node with room for a Paperless VM, for a start without a
- * node fixed in the setup: the best-scored one of Aleph's live list that
- * reports enough free CPU, memory and disk (the list the landing page shows).
+ * node fixed in the setup: one of Aleph's live list that reports enough free
+ * CPU, memory and disk (the list the landing page shows). Nodes Le Space
+ * blocked and those this profile saw refuse a start are left out; a node
+ * where a start was attested already (`proven`, blocked-nodes.js) comes
+ * before a new one, then the best score.
  * Not kept in the profile: the next start asks again.
- * @param {{ load?: () => Promise<import('./landing/tee-nodes.js').TeeNode[]> }} [deps]
+ * @param {{ load?: () => Promise<import('./landing/tee-nodes.js').TeeNode[]>, avoid?: Set<string>, proven?: Set<string> }} [deps]
  * @returns {Promise<string>}
  */
-export async function pickNode({ load = () => loadTeeNodes() } = {}) {
+export async function pickNode({ load = () => loadTeeNodes(), avoid = new Set(), proven = new Set() } = {}) {
 	const nodes = await load().catch(() => []);
-	const node = nodes.find((n) => n.fits && /^[0-9a-f]{64}$/.test(n.hash));
+	const node = rankNodes(nodes.filter((n) => n.fits && /^[0-9a-f]{64}$/.test(n.hash)), { avoid, proven })[0];
 	if (!node) throw new Error(tr().card.errors.noNode);
 	return node.hash;
+}
+
+/**
+ * The node took the INSTANCE but refused to run it: it cannot run SEV-SNP
+ * (`kind` "noSevSnp") or refused the allocation otherwise ("refused"). The VM
+ * never ran; the start forgets it and asks another node (startElsewhere).
+ */
+export class NodeRefusedError extends Error {
+	/** @param {{ crnHash: string, instanceHash: string, payer: string, kind: 'noSevSnp' | 'refused', reason: string }} a */
+	constructor({ crnHash, instanceHash, payer, kind, reason }) {
+		super(`the node did not take the instance: ${reason}`);
+		this.name = 'NodeRefusedError';
+		this.crnHash = crnHash;
+		this.instanceHash = instanceHash;
+		this.payer = payer;
+		this.kind = kind;
+		this.reason = reason;
+	}
+}
+
+/**
+ * Whether a node's answer to the allocation is a refusal to run the VM at
+ * all, and which: "noSevSnp" when it says it cannot run SEV-SNP (whatever the
+ * node list claims), "refused" when it answered the allocation with an HTTP
+ * error after the retries; null for anything else (no answer, a timeout),
+ * which is not retried elsewhere.
+ * @param {unknown} reason the error or its message
+ * @returns {'noSevSnp' | 'refused' | null}
+ */
+export function nodeRefusal(reason) {
+	const text = String(/** @type {any} */ (reason)?.message ?? reason ?? '');
+	if (/does not support SEV-?SNP|SEV-?SNP (is )?not supported/i.test(text)) return 'noSevSnp';
+	if (/did not take the instance/i.test(text) && /allocation notify returned [45]\d\d/i.test(text)) return 'refused';
+	return null;
+}
+
+/**
+ * A start that moves on when a node refuses the VM: `start(crnHash)` runs on
+ * the node given (fixed in the setup, or picked); when it throws
+ * NodeRefusedError, `onRefused` forgets that INSTANCE and notes the node, and
+ * a node is picked anew, at most `tries` times. A node fixed in the setup is
+ * not replaced: its refusal is passed on. No image is built again.
+ * @template T
+ * @param {{ fixed?: string | null, pick: () => Promise<string>, start: (crnHash: string) => Promise<T>, onRefused: (e: NodeRefusedError) => Promise<void> | void, tries?: number }} a
+ * @returns {Promise<T>}
+ */
+export async function startElsewhere({ fixed = null, pick, start, onRefused, tries = 3 }) {
+	for (let i = 0; ; i++) {
+		const crnHash = fixed || (await pick());
+		try {
+			return await start(crnHash);
+		} catch (e) {
+			if (!(e instanceof NodeRefusedError)) throw e;
+			await onRefused(e);
+			if (fixed || i >= tries - 1) throw e;
+		}
+	}
 }
 
 /**
@@ -316,7 +378,8 @@ export async function startPaperless(master, profile, onProgress, { onRequested,
 	// …and only when a copy of it can be fetched: otherwise the VM would start
 	// empty and cost for nothing. Asked before any VM is requested.
 	if (profile.restoreEntry) {
-		onProgress({ step: 'measure', detail: tr().life.progress.checkCopies });
+		// Before the start's steps: a copy that does not answer fails no step of the panel.
+		onProgress({ step: 'preparing', detail: tr().life.progress.checkCopies });
 		const { answering, total } = await reach(profile.restoreEntry);
 		if (total > 0 && answering === 0) throw Object.assign(new Error(tr().life.errors.copiesUnreachable(total)), { retryable: true });
 	}
@@ -360,7 +423,15 @@ export async function startPaperless(master, profile, onProgress, { onRequested,
 	}
 	const instanceHash = starting.instanceHash;
 	await onRequested?.(starting);
-	await notifyNode(await crnAddress(profile.crnHash), instanceHash);
+	try {
+		await notifyNode(await crnAddress(profile.crnHash), instanceHash);
+	} catch (e) {
+		// The node refused the VM (it cannot run SEV-SNP, or would not allocate
+		// it): said as such, so the start forgets it and tries another node.
+		const kind = nodeRefusal(e);
+		if (kind) throw new NodeRefusedError({ crnHash: profile.crnHash, instanceHash, payer, kind, reason: String(/** @type {any} */ (e)?.message ?? e).replace(/^the node did not take the instance: /, '') });
+		throw e;
+	}
 	return bringUp(master, profile, starting, wasm, onProgress);
 }
 
@@ -443,7 +514,11 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	// Binds backups to this vault: the VM marks each one it makes, and a
 	// restore takes only a backup with this vault's mark. Like the backups'
 	// other keys, only for a VM on this vault's own image.
-	if (own) secrets.backup_mark_key = backupMarkKey(master);
+	if (own) {
+		secrets.backup_mark_key = backupMarkKey(master);
+		// Names the files of incremental backups (snapshots), the same for every VM of this vault.
+		secrets.backup_dedup_key = backupDedupKey(master);
+	}
 	if (profile.backupConfig && !own) onProgress({ step: 'unlock', detail: tr().life.progress.publicNoBackups });
 	if (profile.backupConfig && own) {
 		// Through Le Space Credits: ask the service again (it may have a new
@@ -466,6 +541,9 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 			onProgress({ step: 'unlock', detail: tr().life.progress.withoutBackups(e instanceof Error ? e.message : String(e)) });
 		}
 	}
+	// When the paid time ends: the VM backs up and stops an hour before (period-end.js).
+	const periodEnd = await periodEndFor(master, profile);
+	if (periodEnd != null) secrets.period_end = periodEnd;
 	const keys = debugKeysFor(profile);
 	if (keys) secrets.authorized_keys = keys;
 	if (profile.restoreEntry && profile.ageIdentity && own) {
@@ -574,8 +652,59 @@ export async function pushBackupPlaces(master, profile, { send = sendToGuest, pl
 			? { backupKey: backupPrivateKey(master), signer, creditsUrl: CREDITS_URL, product: CREDITS_PRODUCT, account: creditsAccount(master).address }
 			: { sessionKey: filecoinSessionPrivateKey(master) })
 	});
+	// The end of the paid time with every hand-over, as at the start.
+	const periodEnd = await periodEndFor(master, profile);
+	if (periodEnd != null) secrets.period_end = periodEnd;
 	await send(master, profile, secrets);
 	return Object.keys(secrets);
+}
+
+/**
+ * The `period_end` secret for this Paperless (period-end.js): Unix seconds
+ * when the package that pays the VM ends without renewing, "0" when it
+ * renews, when something else pays the VM, or when there are no backups (a
+ * stop at the end would save nothing). Null when Le Space Credits did not
+ * answer: then the VM is not told anything new.
+ * @param {Uint8Array} master @param {Record<string, any>} profile
+ * @param {{ read?: typeof creditsBalance, now?: number }} [deps]
+ * @returns {Promise<string | null>}
+ */
+export async function periodEndFor(master, profile, { read = creditsBalance, now = Date.now() } = {}) {
+	if (!profile.leSpacePays || !profile.backupConfig) return '0';
+	try {
+		return periodEndSecret(paidUntil(await read(master), { pays: 'lespace', now }));
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * At an opening, with the VM's status page read: when the end of the paid
+ * time changed (a new voucher, a package renewed or cancelled, hours bought),
+ * the running VM is told. Returns the secret sent, or null when nothing was.
+ * @param {Uint8Array} master @param {Record<string, any>} profile with `running` @param {any} status
+ * @param {{ send?: typeof sendToGuest, read?: typeof creditsBalance, now?: number }} [deps]
+ */
+export async function syncPeriodEnd(master, profile, status, { send = sendToGuest, read = creditsBalance, now = Date.now() } = {}) {
+	if (!profile.running?.instanceHash || !status || ['stopping', 'stopped', 'stop-partial'].includes(status.phase)) return null;
+	const wanted = await periodEndFor(master, profile, { read, now });
+	if (wanted == null) return null;
+	if (!periodEndChanged(status, wanted === '0' ? null : Number(wanted) * 1000)) return null;
+	await send(master, profile, { period_end: wanted });
+	return wanted;
+}
+
+/**
+ * Before a VM that stopped itself at the end of the paid time is erased:
+ * its last backup (periodEndPiece) must be on the chain, read by the app,
+ * and not one this vault knew from an earlier stop. Throws BackupUnconfirmedError.
+ * @param {any} status the VM's status page
+ * @param {{ onChain: () => Promise<string[]>, known?: string[], tries?: number, delayMs?: number }} o
+ */
+export async function confirmPeriodEndBackup(status, { onChain, known = [], tries = 12, delayMs = 10_000 }) {
+	const piece = periodEndPiece(status);
+	if (!piece) throw new BackupUnconfirmedError(status);
+	return confirmStopBackup({ stop: { backup: { pieceCid: piece } } }, { onChain, before: null, known, tries, delayMs });
 }
 
 /**
@@ -627,7 +756,8 @@ export async function attestRunning(master, profile, { attest = attestRunningGue
 	}
 	if (!attestation) throw new Error(tr().life.errors.noAttestation);
 	// Only for the VM that was checked: it may have been stopped meanwhile.
-	await update(master, (now) => (now.running?.instanceHash === instanceHash ? { ...now, running: { ...now.running, attestation } } : now));
+	// …and its node noted as one where a start was attested (preferred by pickNode).
+	await update(master, (now) => (now.running?.instanceHash === instanceHash ? noteProven({ ...now, running: { ...now.running, attestation } }, now.running.crnHash) : now));
 	return attestation;
 }
 

@@ -36,7 +36,7 @@ export const texts = {
 		description: 'Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt: Paperless-ngx in einer vertraulichen VM, auf Knoten mehrerer Betreiber, im Monatspaket rund um die Uhr oder auf Abruf.',
 		// For search engines: the words people search for, within about 60 and 155 characters.
 		seoTitle: 'Paperless-ngx vertraulich gehostet – Paperless anywhere',
-		seoDescription: 'Paperless-ngx in einer vertraulichen VM: ausfallsicher, verschlüsselt gesichert, rund um die Uhr oder auf Abruf. Ohne Konto – ein Passkey genügt.',
+		seoDescription: 'Paperless-ngx in einer vertraulichen VM: dein papierloses Büro mit Dokumentenmanagement, ausfallsicher, verschlüsselt gesichert. Ohne Konto, mit Passkey.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx in vertraulichen VMs, ein Angebot von Le Space: Ausfallsicher. Vertraulich. Nach deinem Takt.',
 		nav: { how: 'So geht’s', tee: 'Vertraulich', nodes: 'Ausfallsicher', storage: 'Sicherungen', trust: 'Nachprüfbar', prices: 'Preise', faq: 'FAQ' },
 		tagline: 'Paperless-ngx in vertraulichen VMs · ein Angebot von Le Space',
@@ -50,7 +50,7 @@ export const texts = {
 			before: 'Paperless anywhere läuft',
 			words: ['ausfallsicher.', 'vertraulich.', 'nach deinem Takt.'],
 			full: 'Paperless anywhere läuft ausfallsicher, vertraulich und nach deinem Takt.',
-			lead: 'Darin läuft Paperless-ngx, auf vertraulichen Knoten mehrerer Betreiber und mit Sicherungen bei mehreren unabhängigen Speicheranbietern: kein einzelnes Rechenzentrum. Die VM ist vertraulich (AMD SEV-SNP); bei jedem Start bestätigt der Prozessor Firmware, Kernel und Initrd, und die App prüft das, bevor sie einen Schlüssel herausgibt. Du wählst, wie es läuft: im Dauerbetrieb rund um die Uhr oder auf Abruf, wenn du es brauchst, etwa für die Buchhaltung.'
+			lead: 'Dein papierloses Büro: Paperless-ngx, das beliebte Open-Source-Programm für Dokumente, liest deine Scans und PDFs, ordnet sie und findet jedes in Sekunden. Paperless anywhere betreibt es für dich, auf vertraulichen Knoten mehrerer Betreiber und mit Sicherungen bei mehreren unabhängigen Speicheranbietern: kein einzelnes Rechenzentrum. Du wählst, wie es läuft: im Dauerbetrieb rund um die Uhr oder auf Abruf, wenn du es brauchst, etwa für die Buchhaltung.'
 		},
 		points: [
 			{ t: 'Ausfallsicher', d: 'Kein einzelnes Rechenzentrum: Gerechnet wird auf Knoten mehrerer Betreiber, gesichert bei mehreren unabhängigen Speicheranbietern. Fällt ein Knoten aus, startest du auf einem anderen.' },
@@ -58,6 +58,21 @@ export const texts = {
 			{ t: 'Rund um die Uhr oder nach Gebrauch', d: 'Ein Monatspaket, das zu deinem Betrieb passt: Dauerbetrieb rund um die Uhr, oder ein Stundenpaket zum Starten, Arbeiten und Stoppen.' }
 		],
 		trustHint: 'Vertrauen ist gut, nachprüfen ist besser: wer welchen Schlüssel hat, was die Hardware bestätigt und was nicht',
+		// What Paperless-ngx is, for people who do not know it, from its own
+		// feature list (docs.paperless-ngx.com). The OCR languages are those the
+		// image sets (rootfs/files/compose.yml); stars as on GitHub, 2026-11-17.
+		ngx: {
+			title: 'Was ist Paperless-ngx?',
+			lead: 'Paperless-ngx ist ein freies Dokumentenmanagement: Es macht aus Papier, PDFs und Fotos ein durchsuchbares Archiv. Ein Open-Source-Projekt mit über 48.000 Sternen auf GitHub, entwickelt von einer offenen Gemeinschaft.',
+			items: [
+				{ t: 'Hineingeben', d: 'Scans, Fotos, PDFs und Office-Dateien hochladen, einfach per Ziehen und Ablegen. Die Texterkennung (OCR) macht auch reine Bild-Scans durchsuchbar, hier auf Deutsch, Englisch, Spanisch, Russisch und Türkisch.' },
+				{ t: 'Ordnet von selbst', d: 'Paperless lernt aus deinen Zuordnungen und vergibt bei neuen Dokumenten Absender, Dokumenttyp und Schlagwörter automatisch.' },
+				{ t: 'Findet in Sekunden', d: 'Volltextsuche über alle Dokumente, mit Vorschlägen beim Tippen und markierten Fundstellen. Abgelegt wird als PDF/A für die lange Aufbewahrung, neben dem unveränderten Original.' },
+				{ t: 'Holt Post aus dem Postfach', d: 'Anhänge und Mails aus einem oder mehreren E-Mail-Konten übernehmen, nach deinen Regeln, solange deine Paperless läuft.' }
+			],
+			after: 'Paperless anywhere betreibt diese Software; entwickelt wird sie vom Projekt Paperless-ngx.',
+			links: { project: 'Paperless-ngx auf GitHub', docs: 'Alle Funktionen in der Dokumentation' }
+		},
 		audience: {
 			title: 'Für wen?',
 			lead: 'Für alle, die ihr Dokumentenarchiv nicht einem einzelnen Rechenzentrum anvertrauen wollen:',
@@ -101,7 +116,7 @@ export const texts = {
 			tech: [
 				'Ein geprüfter Build-Dienst: ein vermessenes V-PROGRAM in einer vertraulichen VM (AMD SEV-SNP). Die App startet ihn nur für deinen Bau und löscht ihn danach.',
 				'Die Prüfung läuft in deinem Browser (WebAssembly): Der Bericht des AMD-Prozessors wird gegen AMDs Zertifikate und den in der App festgelegten Messwert geprüft. Dazwischen leitet ein Relay nur Verschlüsseltes weiter; lesen kann er nichts.',
-				'Erst dann geht die Passphrase an den Dienst. Er versiegelt das öffentliche Image damit (LUKS2) und vergisst sie wieder.',
+				'Erst dann geht die Passphrase an den Dienst. Er versiegelt das Ausgangs-Image damit (LUKS2) und vergisst sie wieder.',
 				'Die App holt das versiegelte Image in Stücken zu 3 MiB zurück, jede Verbindung erneut von der Hardware bestätigt, und legt es selbst bei Aleph ab (STORE, signiert von deiner App).',
 				'Beim Start öffnet deine VM die Platte nur mit deiner Passphrase. Eine andere Platte geht nicht auf.'
 			],
@@ -114,7 +129,7 @@ export const texts = {
 			],
 			docs: { text: 'Im Detail:', links: ['Eigenes Image', 'Ablauf'] },
 			steps: [
-				{ t: 'Öffentliches Image', d: 'Das System, in dem Paperless-ngx läuft, ist für alle gleich und enthält kein Geheimnis. Es liegt unverschlüsselt bei Aleph, mit seinem Hash; jeder kann ihn nachrechnen.' },
+				{ t: 'Ausgangs-Image', d: 'Das System, in dem Paperless-ngx läuft, ist für alle gleich und enthält kein Geheimnis. Es liegt unverschlüsselt bei Aleph, mit seinem Hash; jeder kann ihn nachrechnen.' },
 				{ t: 'Geprüfter Build-Dienst', d: 'Ein kleiner Dienst in einer vertraulichen VM, vollständig gemessen, samt dem Image, das er versiegelt. Die App startet ihn nur für deinen Bau, lässt sich von der Hardware bestätigen, dass dort genau der veröffentlichte Code mit genau diesem Image läuft, und löscht ihn danach wieder.' },
 				{ t: 'Dein Image', d: 'Erst dann schickt die App die Passphrase aus deinem Tresor. Der Dienst versiegelt das Image damit und vergisst sie wieder. Die App holt das versiegelte Image über denselben geprüften Kanal und legt es selbst bei Aleph ab.' },
 				{ t: 'Deine VM', d: 'Beim Start öffnet die VM die Platte mit deiner Passphrase. Eine Platte, die nicht damit versiegelt wurde, geht nicht auf, und es startet nichts.' }
@@ -129,7 +144,7 @@ export const texts = {
 				{ who: 'Der Betreiber des Knotens', v: 'no' },
 				{ who: 'GitHub', v: 'no' }
 			],
-			compare: 'Öffentlich vergleichen lassen sich der Hash des öffentlichen Images und der Messwert des Build-Dienstes; die App zeigt beide neben „Mein Image bauen“. Dein verschlüsseltes Image sieht bei jeder Person anders aus.'
+			compare: 'Öffentlich vergleichen lassen sich der Hash des Ausgangs-Images und der Messwert des Build-Dienstes; die App zeigt beide neben „Mein Image bauen“. Dein verschlüsseltes Image sieht bei jeder Person anders aus.'
 		},
 		nodes: {
 			title: 'Ausfallsicher: kein einzelnes Rechenzentrum',
@@ -190,18 +205,21 @@ export const texts = {
 			title: 'Vertrauen ist gut. Nachprüfen ist besser.',
 			sub: 'Nachprüfbar: wer welchen Schlüssel hat',
 			lead: 'Wo das Image entsteht, wie seine Platte verschlüsselt ist, wer welches Geheimnis kennt und was die Hardware bestätigt. Dazu steht hier, was die Hardware nicht prüft und wie das anders abgesichert ist, und wo du jede Aussage selbst prüfen kannst.',
-			diagramLabel: 'Schaubild: Ein GitHub-Runner baut das Image und verschlüsselt es mit LUKS; es liegt bei Aleph. Es läuft in einer vertraulichen VM (AMD SEV-SNP): Gemessen werden Firmware, Kernel, Initrd und Besitzer, nicht das Image; was die VM schreibt, liegt in einem Datenbereich mit einem Zufallsschlüssel, den nur sie hat. Sicherungen werden in der VM mit age verschlüsselt und bei Filecoin abgelegt. Dein Browser prüft den Nachweis der VM und schickt erst dann Passphrase und Geheimnisse.',
+			diagramLabel: 'Schaubild: Ein GitHub-Runner baut das unverschlüsselte Ausgangs-Image; sein SHA-256 ist öffentlich. Ein Build-Dienst in einer vertraulichen, gemessenen VM versiegelt es mit deiner Passphrase aus deinem Tresor (LUKS); dein Browser prüft vorher seinen AMD-Nachweis. Dein Browser lädt das versiegelte Image auf dein Aleph-Konto oder das deines Pakets. Es läuft in einer vertraulichen VM (AMD SEV-SNP): Gemessen werden Firmware, Kernel, Initrd und Besitzer, nicht das Image, das sich nur mit deiner Passphrase öffnet. Was die VM schreibt, liegt in einem Datenbereich mit einem Zufallsschlüssel, den nur sie hat; ohne ihn speichert sie nichts Geheimes. Sicherungen werden in der VM verschlüsselt, an deinen Tresor gebunden und bei mehreren Anbietern bei Filecoin abgelegt, die laufend beweisen, dass sie sie noch haben. Dein Browser prüft den Nachweis der VM und schickt erst dann Passphrase und Geheimnisse.',
 			diagram: {
-				build: { kicker: '1 · Gebaut', title: 'GitHub-Runner', lines: ['rootfs.yml baut Debian,', 'Docker, Caddy, Skripte', 'und verschlüsselt (LUKS)'] },
-				store: { kicker: '2 · Abgelegt', title: 'Aleph-Speicher', lines: ['das Image, verschlüsselt,', 'benannt durch seinen', 'STORE-Hash'] },
-				vm: { kicker: '3 · Läuft', title: 'Vertrauliche VM', sub: 'AMD SEV-SNP, auf einem Aleph-Knoten' },
+				build: { kicker: '1 · Gebaut', title: 'GitHub-Runner', lines: ['baut das Ausgangs-Image,', 'unverschlüsselt; sein', 'SHA-256 ist öffentlich'] },
+				seal: { kicker: '2 · Versiegelt', title: 'Build-Dienst', lines: ['in vertraulicher VM,', 'gemessen (SEV-SNP);', 'versiegelt mit deiner', 'Passphrase (LUKS)'] },
+				store: { kicker: '3 · Abgelegt', title: 'Aleph-Speicher', lines: ['dein versiegeltes Image,', 'von deinem Browser', 'hochgeladen, auf deinem', 'Konto oder dem des Pakets'] },
+				vm: { kicker: '4 · Läuft', title: 'Vertrauliche VM', sub: 'AMD SEV-SNP, auf einem Aleph-Knoten' },
 				measured: { title: 'Gemessen ✓', lines: ['Firmware · Kernel · Initrd · Besitzer'] },
-				image: { title: 'Image (LUKS): nicht gemessen', lines: ['öffnet sich nur mit', 'der Image-Passphrase'] },
-				data: { title: 'Datenbereich (dm-crypt)', lines: ['Zufallsschlüssel bei jedem Start,', 'nur im Speicher der VM'] },
-				backup: { kicker: '4 · Gesichert', title: 'Filecoin', lines: ['in der VM mit age', 'verschlüsselt, für', 'deinen Schlüssel'] },
-				you: { kicker: 'Du', title: 'Dein Browser, dein Tresor', lines: ['① prüft den AMD-Nachweis der VM', '② erst dann: Passphrase, Geheimnisse', 'über einen Relay, der nur weiterleitet'] },
+				image: { title: 'Image (LUKS): nicht gemessen', lines: ['öffnet sich nur mit deiner', 'Passphrase (aus deinem Tresor)'] },
+				data: { title: 'Datenbereich (dm-crypt)', lines: ['Zufallsschlüssel bei jedem Start;', 'ohne ihn speichert die VM nichts'] },
+				backup: { kicker: '5 · Gesichert', title: 'Filecoin', lines: ['in der VM verschlüsselt,', 'an den Tresor gebunden,', 'bei mehreren Anbietern,', 'die es laufend beweisen'] },
+				you: { kicker: 'Du', title: 'Dein Browser, dein Tresor', lines: ['① prüft den AMD-Nachweis, erst', '    des Build-Dienstes, dann der VM', '② erst dann: Passphrase, Geheimnisse', 'über einen Relay, der nur weiterleitet'] },
 				legend: 'Schlüssel',
-				keys: { image: 'Image-Passphrase: je Image oder nur deine', data: 'Datenbereich: je Start, nur in der VM', vault: 'Tresor: nur bei dir' }
+				keys: { image: 'Image-Passphrase: nur deine', data: 'Datenbereich: je Start, nur in der VM', vault: 'Tresor: nur bei dir' },
+				note: 'Zum reinen Ausprobieren gibt es das öffentliche Image: Es startet leer, ohne Sicherungen und ohne feste Adresse.',
+				proofs: 'Wie die Anbieter beweisen, dass sie deine Sicherung noch haben'
 			},
 			fold: { secrets: (n) => `${n} Geheimnisse`, verify: (n) => `${n} Stellen mit Links` },
 			sampleTitle: 'So sieht der Nachweis in der App aus',
@@ -220,13 +238,14 @@ export const texts = {
 				'Deine App prüft im Browser einen Bericht des AMD-Prozessors: von AMD signiert (mit Zertifikaten aus AMDs Schlüsseldienst), nicht widerrufen, mit ausreichendem Firmware-Stand.',
 				'Der Messwert im Bericht passt zu Firmware, Kernel und Initrd der Laufzeit, die in der App fest eingetragen ist, und zu einer Startzeile, die deinen App-Schlüssel als Besitzer nennt. Die App rechnet ihn selbst aus.',
 				'Im Bericht stehen ein frischer Zufallswert und der TLS-Schlüssel der VM: Die Verbindung endet in genau dieser VM. Erst dann gehen Passphrase und Geheimnisse hinaus, signiert von deinem App-Schlüssel; die VM nimmt sie nur mit dieser Unterschrift an.',
+				'Genauso prüft die App den Build-Dienst, bevor er deine Passphrase bekommt: Sein Messwert ist in der App fest eingetragen und umfasst auch das Ausgangs-Image. Der Dienst versiegelt nur, wenn dessen SHA-256 stimmt.',
 				'Der Relay dazwischen trägt nur verschlüsselte Bytes. Geprüft wird in deinem Browser, nicht dort.'
 			],
 			gapsTitle: 'Was die Hardware nicht prüft',
 			gaps: [
-				'Der Inhalt des Images wird nicht mitgemessen. Dass in der VM das veröffentlichte Image läuft, stützt sich darauf, dass sich seine Platte nur mit der Image-Passphrase öffnet, nicht auf einen Messwert der Hardware. Mit deinem eigenen Image kennt diese Passphrase nur dein Tresor: Weder Le Space noch Aleph Cloud haben einen Schlüssel, der deine Platte öffnet – und sie können dir auch keine andere unterschieben.',
+				'Der Inhalt des Images wird nicht mitgemessen. Dass in der VM dein Image läuft, stützt sich darauf, dass sich seine Platte nur mit deiner Passphrase öffnet, nicht auf einen Messwert der Hardware. Diese Passphrase kennt nur dein Tresor: Weder Le Space noch Aleph Cloud haben einen Schlüssel, der deine Platte öffnet – und sie können dir auch keine andere unterschieben.',
 				'Das öffentliche Image zum Ausprobieren hat eine Passphrase je Version, die alle Nutzer dieser Version teilen. Darum bekommt eine VM darauf keine Sicherungsschlüssel und keine feste Adresse und startet leer. Für den Echtbetrieb baut die App immer dein eigenes Image.',
-				'Der Bau ist nicht Bit für Bit wiederholbar, weil Debian-Pakete beim Bau geladen werden. Nachlesen lässt sich, was hineinkommt.',
+				'Der Bau des Ausgangs-Images ist nicht Bit für Bit wiederholbar, weil Debian-Pakete beim Bau geladen werden. Nachlesen lässt sich, was hineinkommt; dass eine Datei mit diesem SHA-256 aus diesem Quelltext-Stand gebaut wurde, bestätigt GitHub mit einer signierten Herkunftsangabe.',
 				'Der Relay, über den die App die VM erreicht, läuft in einer gewöhnlichen VM und wird nicht attestiert. Lesen oder unbemerkt ändern kann er nichts; er kann aber Verbindungen verzögern oder verweigern, und er sieht, von welcher IP-Adresse wann welche VM angesprochen wird.',
 				'Neben der Hardware läuft ein Sicherheits-Audit des Codes; noch sind nicht alle seine Punkte abgeschlossen.'
 			],
@@ -235,9 +254,9 @@ export const texts = {
 				runtime: { t: 'Die Laufzeit der VM', d: 'Firmware, Kernel und Initrd: die Aleph-Nachricht, deren Hash in der App steht. Liefert Aleph etwas anderes, startet die App nichts.', links: ['Aleph-Nachricht'] },
 				vm: { t: 'Deine VM und ihre Messwerte', d: 'Die INSTANCE-Nachricht deiner App-Adresse nennt die Messwerte, die die App eingetragen hat. Die App zeigt zu einer laufenden VM Instanz, Knoten, Messwerte und das Ergebnis der Prüfung unter „Nachweis dieser VM“, mit Links zu genau deinen Nachrichten.', links: ['Aleph-Explorer'] },
 				amd: { t: 'AMD SEV-SNP', d: 'Wie der Bericht aufgebaut ist und gegen welche Zertifikate er geprüft wird.', links: ['AMD SEV'] },
-				image: { t: 'Das Image', d: 'Den STORE-Hash zeigt die App in der Einrichtung. Gebaut wird es vom Workflow rootfs.yml aus rootfs/build-image.sh; die Zusammenfassung jedes Laufs nennt den Hash und den Quelltext-Stand.', links: ['build-image.sh', 'rootfs.yml', 'Läufe'] },
+				image: { t: 'Das Image', d: 'Das Ausgangs-Image baut der Workflow rootfs.yml aus rootfs/build-image.sh; die Zusammenfassung jedes Laufs nennt SHA-256 und Quelltext-Stand. Der Build-Dienst liegt unter builder/. Die Urkunde deines Images in der App nennt beides und den STORE-Hash deines versiegelten Images.', links: ['build-image.sh', 'rootfs.yml', 'Läufe', 'Build-Dienst', 'Eigenes Image im Detail'] },
 				data: { t: 'Der Datenbereich', d: 'Die App zeigt, ob eine laufende VM ihren Datenbereich versiegelt hat. Gelingt das nicht, startet Paperless-ngx nicht.', links: ['paperless-data-disk'] },
-				backups: { t: 'Die Sicherungen', d: 'Datensätze und Stücke sind bei Filecoin öffentlich einsehbar, ihr Inhalt verschlüsselt. Beim Wiederherstellen prüft die VM jedes Stück gegen seine Inhaltsadresse (Piece-CID).', links: ['Filfox'] },
+				backups: { t: 'Die Sicherungen', d: 'Datensätze und Stücke sind bei Filecoin öffentlich einsehbar, ihr Inhalt verschlüsselt. Beim Wiederherstellen prüft die VM jedes Stück gegen seine Inhaltsadresse (Piece-CID) und nimmt ohne Rückfrage nur Sicherungen mit dem Zeichen deines Tresors an.', links: ['Filfox'] },
 				relay: { t: 'Der Relay', d: 'Er leitet zwischen deinem Browser und der VM weiter, ohne etwas lesen zu können, und ist selbst nicht attestiert. Sein Quelltext ist offen: der Relay selbst und die Brücke, über die er per libp2p erreichbar ist. Die App nutzt nur Relays, die Aleph als laufende Instanz eines der beiden Relay-Konten von Le Space führt, oder einen, den du selbst einträgst.', links: ['attest-relay (relay-button)', 'Brücke (orbitdb-relay)', 'Im Sicherheitsmodell'] },
 				app: { t: 'Diese Web-App', d: 'Sie liegt auf IPFS. Welche Version die Domain ausliefert, zeigt ihr DNSLink-Eintrag (dig TXT _dnslink.paperless.le-space.de); jedes Release nennt seine CID.', links: ['Releases'] },
 				docs: { t: 'Im Detail', d: 'Die Beschreibung, nach der diese Seite geschrieben ist.', links: ['Sicherheitsmodell', 'Schlüssel und Wiederherstellung', 'Eigenes Image', 'Ablauf', 'Varianten vertraulicher VMs im Vergleich'] }
@@ -327,6 +346,21 @@ export const texts = {
 				},
 				{ q: 'Was kostet es, wenn Paperless anywhere nicht läuft?', a: 'Stunden verbraucht nur eine laufende Instanz. Dein Monatspaket läuft aber weiter und wird jeden Monat berechnet, bis du kündigst. Die Sicherung ist im Paket enthalten und läuft mit ihm weiter. Nach dem Ende des bezahlten Zeitraums entstehen keine neuen Sicherungen; die vorhandenen bleiben noch mindestens 30 Tage abrufbar.' },
 				{
+					q: 'Was passiert, wenn mein Gutschein oder Paket endet?',
+					a: 'Ein Monatspaket verlängert sich jeden Monat, bis du kündigst. Ein Gutschein endet nach seiner Laufzeit oder wenn seine Stunden verbraucht sind. Drei Tage vor einem Ende, das nicht verlängert wird, zeigt die App eine Warnung mit dem genauen Zeitpunkt, am letzten Tag noch deutlicher. Endet ein bezahltes Paket, schreiben wir dir außerdem drei Tage und einen Tag vorher, nach Möglichkeit an die Adresse, die du beim Bezahlen angegeben hast.',
+					tips: [
+						'Vor dem Ende: Stoppe Paperless mit „Sichern und beenden“. Dann sind deine Dokumente vollständig in der Sicherung, und die VM ist gelöscht.',
+						'Nach dem Ende bleibt nur eine kleine Reserve. Drei Tage danach holt Le Space das restliche Guthaben zurück, und die App startet keine VM mehr. Verlass dich nicht darauf, dass eine VM über das Ende hinaus weiterläuft.',
+						'Deine Sicherungen bleiben bis 30 Tage nach dem letzten bezahlten Tag abrufbar. In dieser Zeit holst du sie mit einem neuen Gutschein oder Paket zurück, oder du lädst sie selbst herunter und entschlüsselst sie, ohne Le Space.',
+						'Dein eigenes Image wird nach dem Ende nicht mehr bezahlt. Wann Aleph Cloud es entfernt, steht noch nicht fest.',
+						'Weiterbuchen: Ein neuer Gutschein oder ein Paket verlängert die Zeit, auch während Paperless läuft.'
+					],
+					links: [
+						{ text: 'Eine Sicherung selbst holen und entschlüsseln', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/restore-yourself.de.md' },
+						{ text: 'AGB von Le Space Credits', href: TERMS_URL }
+					]
+				},
+				{
 					q: 'Ich habe einen Gutschein. Wie löse ich ihn ein?',
 					a: 'In der App, ohne Zahlung: Lege deinen Tresor an und gib den Code (PA-…) unter „Gutschein einlösen“ ein. Ein Gutschein gibt dir einen festen Zeitraum, meist einige Tage. Was er umfasst, also wie viele Tage, wie viele Stunden und ob die Sicherung dabei ist, steht auf dem Gutschein; die App zeigt es nach dem Einlösen.',
 					tips: [
@@ -381,13 +415,13 @@ export const texts = {
 			back: 'Zur Startseite'
 		},
 		cta: { title: 'Bereit?', lead: 'Den Tresor anzulegen dauert eine Minute. Kein Konto, kein Passwort.' },
-		footer: { build: { label: 'Stand dieser Seite:', release: 'Dieses Release bei GitHub, mit seiner IPFS-CID', commit: 'Der Quelltext-Stand dieses Builds bei GitHub', built: 'Wann diese Seite gebaut wurde (UTC)' }, by: 'Ein Projekt von Le Space', belege: 'Le Space Belege', imprint: 'Impressum', imprintUrl: 'https://le-space.de/#impressum', privacy: 'Datenschutz', privacyUrl: 'https://le-space.de/#datenschutz', built: 'Paperless anywhere rechnet auf vertraulichen Knoten von Aleph Cloud und sichert auf Filecoin.', ngxLink: 'Paperless-ngx auf GitHub', terms: 'AGB', withdrawal: 'Widerrufsbelehrung' }
+		footer: { source: 'Quelltext von Paperless anywhere auf GitHub', sourceShort: 'Quelltext auf GitHub', build: { label: 'Stand dieser Seite:', release: 'Dieses Release bei GitHub, mit seiner IPFS-CID', commit: 'Der Quelltext-Stand dieses Builds bei GitHub', built: 'Wann diese Seite gebaut wurde (UTC)' }, by: 'Ein Projekt von Le Space', belege: 'Le Space Belege', imprint: 'Impressum', imprintUrl: 'https://le-space.de/#impressum', privacy: 'Datenschutz', privacyUrl: 'https://credits.le-space.de/datenschutz', built: 'Paperless anywhere rechnet auf vertraulichen Knoten von Aleph Cloud und sichert auf Filecoin.', ngxLink: 'Paperless-ngx auf GitHub', terms: 'AGB', withdrawal: 'Widerrufsbelehrung' }
 	},
 	en: {
 		title: 'Paperless anywhere – resilient, confidential, on your schedule',
 		description: 'Paperless anywhere runs resilient, confidential and on your schedule: Paperless-ngx in a confidential VM, on nodes of several operators, in a monthly package around the clock or on demand.',
 		seoTitle: 'Confidential Paperless-ngx hosting – Paperless anywhere',
-		seoDescription: 'Paperless-ngx in a confidential VM: resilient, with encrypted backups, around the clock or on demand. No account – a passkey is all you need.',
+		seoDescription: 'Paperless-ngx in a confidential VM: document management for your paperless office, resilient, with encrypted backups. No account, just a passkey.',
 		ogImageAlt: 'Paperless anywhere, Paperless-ngx in confidential VMs, offered by Le Space: Resilient. Confidential. On your schedule.',
 		nav: { how: 'How it works', tee: 'Confidential', nodes: 'Resilient', storage: 'Backups', trust: 'Verify', prices: 'Prices', faq: 'FAQ' },
 		tagline: 'Paperless-ngx in confidential VMs · offered by Le Space',
@@ -399,7 +433,7 @@ export const texts = {
 			before: 'Paperless anywhere runs',
 			words: ['resilient.', 'confidential.', 'on your schedule.'],
 			full: 'Paperless anywhere runs resilient, confidential and on your schedule.',
-			lead: 'Inside it runs Paperless-ngx, on confidential nodes of several operators and with backups at several independent storage providers: no single data centre. The VM is confidential (AMD SEV-SNP); at every start the processor confirms firmware, kernel and initrd, and the app checks that before it hands over a key. You choose how it runs: always on, around the clock, or on demand when you need it, for the bookkeeping, say.'
+			lead: 'Your paperless office: Paperless-ngx, the popular open source program for documents, reads your scans and PDFs, sorts them and finds any of them in seconds. Paperless anywhere runs it for you, on confidential nodes of several operators and with backups at several independent storage providers: no single data centre. You choose how it runs: always on, around the clock, or on demand when you need it, for the bookkeeping, say.'
 		},
 		points: [
 			{ t: 'Resilient', d: 'No single data centre: it computes on nodes of several operators and backs up to several independent storage providers. If a node fails, you start on another.' },
@@ -407,6 +441,18 @@ export const texts = {
 			{ t: 'Around the clock or pay as you use', d: 'A monthly package that fits how you work: always on, around the clock, or a package of hours to start, work and stop.' }
 		],
 		trustHint: 'Don’t trust, verify: who holds which key, what the hardware confirms and what it does not',
+		ngx: {
+			title: 'What is Paperless-ngx?',
+			lead: 'Paperless-ngx is free document management: it turns paper, PDFs and photos into a searchable archive. An open source project with more than 48,000 stars on GitHub, developed by an open community.',
+			items: [
+				{ t: 'Put things in', d: 'Upload scans, photos, PDFs and office files, simply by drag and drop. Text recognition (OCR) makes even image-only scans searchable, here in German, English, Spanish, Russian and Turkish.' },
+				{ t: 'Sorts by itself', d: 'Paperless learns from how you file documents and assigns correspondent, document type and tags to new ones automatically.' },
+				{ t: 'Finds in seconds', d: 'Full text search across all documents, with suggestions as you type and highlighted matches. Documents are stored as PDF/A for long-term keeping, next to the unaltered original.' },
+				{ t: 'Fetches mail', d: 'Takes attachments and mails from one or more e-mail accounts, by your rules, while your Paperless runs.' }
+			],
+			after: 'Paperless anywhere runs this software; it is developed by the Paperless-ngx project.',
+			links: { project: 'Paperless-ngx on GitHub', docs: 'All features in the documentation' }
+		},
 		audience: {
 			title: 'Who is it for?',
 			lead: 'For everyone who does not want to entrust their document archive to a single data centre:',
@@ -450,7 +496,7 @@ export const texts = {
 			tech: [
 				'An attested builder: a measured V-PROGRAM in a confidential VM (AMD SEV-SNP). The app starts it only for your build and deletes it afterwards.',
 				'The check runs in your browser (WebAssembly): the AMD processor’s report is checked against AMD’s certificates and the measurement fixed in the app. In between, a relay only forwards encrypted data; it can read nothing.',
-				'Only then does the passphrase go to the builder. It seals the public image with it (LUKS2) and forgets it again.',
+				'Only then does the passphrase go to the builder. It seals the base image with it (LUKS2) and forgets it again.',
 				'The app fetches the sealed image back in pieces of 3 MiB, every connection confirmed by the hardware again, and stores it on Aleph itself (a STORE signed by your app).',
 				'At the start your VM opens the disk only with your passphrase. Any other disk does not open.'
 			],
@@ -463,7 +509,7 @@ export const texts = {
 			],
 			docs: { text: 'In detail:', links: ['Your own image', 'Workflow'] },
 			steps: [
-				{ t: 'Public image', d: 'The system Paperless-ngx runs in is the same for everyone and holds no secret. It lies unencrypted on Aleph, with its hash; anyone can recompute it.' },
+				{ t: 'Base image', d: 'The system Paperless-ngx runs in is the same for everyone and holds no secret. It lies unencrypted on Aleph, with its hash; anyone can recompute it.' },
 				{ t: 'Attested builder', d: 'A small service in a confidential VM, measured as a whole, together with the image it seals. The app starts it only for your build, has the hardware confirm that exactly the published code runs there with exactly that image, and deletes it afterwards.' },
 				{ t: 'Your image', d: 'Only then the app sends the passphrase from your vault. The service seals the image with it and forgets it again. The app fetches the sealed image over the same attested channel and stores it on Aleph itself.' },
 				{ t: 'Your VM', d: 'At the start the VM opens the disk with your passphrase. A disk that was not sealed with it does not open, and nothing starts.' }
@@ -478,7 +524,7 @@ export const texts = {
 				{ who: 'The node’s operator', v: 'no' },
 				{ who: 'GitHub', v: 'no' }
 			],
-			compare: 'What can be compared in public: the public image’s hash and the builder’s measurement; the app shows both beside “Build my image”. Your encrypted image looks different for every person.'
+			compare: 'What can be compared in public: the base image’s hash and the builder’s measurement; the app shows both beside “Build my image”. Your encrypted image looks different for every person.'
 		},
 		nodes: {
 			title: 'Resilient: no single data centre',
@@ -539,18 +585,21 @@ export const texts = {
 			title: 'Don’t trust. Verify.',
 			sub: 'Checkable: who holds which key',
 			lead: 'Where the image is built, how its disk is encrypted, who knows which secret and what the hardware confirms. With what the hardware does not check and how that is covered instead, and where you can check each claim yourself.',
-			diagramLabel: 'Diagram: a GitHub runner builds the image and encrypts it with LUKS; it is stored on Aleph. It runs in a confidential VM (AMD SEV-SNP): firmware, kernel, initrd and owner are measured, the image is not; what the VM writes goes into a data area with a random key only the VM has. Backups are encrypted with age inside the VM and stored on Filecoin. Your browser checks the VM’s attestation and only then sends the passphrase and secrets.',
+			diagramLabel: 'Diagram: a GitHub runner builds the unencrypted base image; its SHA-256 is public. A builder in a confidential, measured VM seals it with your passphrase from your vault (LUKS); your browser checks its AMD attestation first. Your browser uploads the sealed image to your Aleph account or your package’s. It runs in a confidential VM (AMD SEV-SNP): firmware, kernel, initrd and owner are measured, not the image, which opens only with your passphrase. What the VM writes goes into a data area with a random key only the VM has; without it, the VM stores nothing secret. Backups are encrypted in the VM, bound to your vault and stored at several providers on Filecoin, which keep proving they still hold them. Your browser checks the VM’s attestation and only then sends the passphrase and secrets.',
 			diagram: {
-				build: { kicker: '1 · Built', title: 'GitHub runner', lines: ['rootfs.yml builds Debian,', 'Docker, Caddy, scripts', 'and encrypts (LUKS)'] },
-				store: { kicker: '2 · Stored', title: 'Aleph storage', lines: ['the image, encrypted,', 'named by its', 'STORE hash'] },
-				vm: { kicker: '3 · Runs', title: 'Confidential VM', sub: 'AMD SEV-SNP, on an Aleph node' },
+				build: { kicker: '1 · Built', title: 'GitHub runner', lines: ['builds the base image,', 'unencrypted; its', 'SHA-256 is public'] },
+				seal: { kicker: '2 · Sealed', title: 'Builder', lines: ['in a confidential VM,', 'measured (SEV-SNP);', 'seals it with your', 'passphrase (LUKS)'] },
+				store: { kicker: '3 · Stored', title: 'Aleph storage', lines: ['your sealed image,', 'uploaded by your', 'browser, on your account', 'or your package’s'] },
+				vm: { kicker: '4 · Running', title: 'Confidential VM', sub: 'AMD SEV-SNP, on an Aleph node' },
 				measured: { title: 'Measured ✓', lines: ['firmware · kernel · initrd · owner'] },
-				image: { title: 'Image (LUKS): not measured', lines: ['opens only with', 'the image passphrase'] },
-				data: { title: 'Data area (dm-crypt)', lines: ['random key at every start,', 'in the VM’s memory only'] },
-				backup: { kicker: '4 · Backed up', title: 'Filecoin', lines: ['encrypted with age', 'inside the VM,', 'to your key'] },
-				you: { kicker: 'You', title: 'Your browser, your vault', lines: ['① checks the VM’s AMD attestation', '② only then: passphrase, secrets', 'via a relay that only forwards'] },
+				image: { title: 'Image (LUKS): not measured', lines: ['opens only with your', 'passphrase (from your vault)'] },
+				data: { title: 'Data area (dm-crypt)', lines: ['random key at every start;', 'without it the VM stores nothing'] },
+				backup: { kicker: '5 · Backed up', title: 'Filecoin', lines: ['encrypted in the VM,', 'bound to your vault,', 'at several providers', 'that keep proving it'] },
+				you: { kicker: 'You', title: 'Your browser, your vault', lines: ['① checks the AMD attestation, first', '    of the builder, then of the VM', '② only then: passphrase, secrets', 'via a relay that only forwards'] },
 				legend: 'Keys',
-				keys: { image: 'Image passphrase: per image, or yours only', data: 'Data area: per start, in the VM only', vault: 'Vault: with you only' }
+				keys: { image: 'Image passphrase: yours only', data: 'Data area: per start, in the VM only', vault: 'Vault: with you only' },
+				note: 'For simply trying it out there is the public image: it starts empty, without backups and without a fixed address.',
+				proofs: 'How the providers prove they still hold your backup'
 			},
 			fold: { secrets: (n) => `${n} secrets`, verify: (n) => `${n} places with links` },
 			sampleTitle: 'What the evidence looks like in the app',
@@ -569,13 +618,14 @@ export const texts = {
 				'Your app checks a report from the AMD processor in the browser: signed by AMD (with certificates from AMD’s key service), not revoked, with a firmware level high enough.',
 				'The measurement in the report matches the firmware, kernel and initrd of the runtime fixed in the app, and a boot line naming your app key as the owner. The app computes it itself.',
 				'The report carries a fresh random value and the VM’s TLS key: the connection ends in exactly this VM. Only then do the passphrase and secrets go out, signed by your app key; the VM accepts them only with that signature.',
+				'The app checks the builder the same way before it gets your passphrase: its measurement is fixed in the app and covers the base image too. The builder seals only if that image’s SHA-256 matches.',
 				'The relay in between carries encrypted bytes only. The checking happens in your browser, not there.'
 			],
 			gapsTitle: 'What the hardware does not check',
 			gaps: [
-				'The image’s content is not measured. That the VM runs the published image rests on its disk opening only with the image passphrase, not on a measurement by the hardware. With your own image only your vault knows that passphrase: Neither Le Space nor Aleph Cloud holds a key that opens your disk – and they cannot slip you a different one either.',
+				'The image’s content is not measured. That the VM runs your image rests on its disk opening only with your passphrase, not on a measurement by the hardware. Only your vault knows that passphrase: Neither Le Space nor Aleph Cloud holds a key that opens your disk – and they cannot slip you a different one either.',
 				'The public image for trying out has one passphrase per version, shared by everyone using that version. That is why a VM on it gets no backup keys and no fixed address, and starts empty. For real use the app always builds your own image.',
-				'The build cannot be repeated bit for bit, because Debian packages are fetched while it runs. What goes in can be read.',
+				'The base image’s build cannot be repeated bit for bit, because Debian packages are fetched while it runs. What goes in can be read; that a file with this SHA-256 was built from this source commit, GitHub confirms with a signed provenance attestation.',
 				'The relay through which the app reaches the VM runs in an ordinary VM and is not attested. It can read nothing and change nothing unnoticed; it can delay or refuse connections, though, and it sees from which IP address which VM is called and when.',
 				'Besides the hardware, the code is under a security audit; not all of its points are closed yet.'
 			],
@@ -584,9 +634,9 @@ export const texts = {
 				runtime: { t: 'The VM’s runtime', d: 'Firmware, kernel and initrd: the Aleph message whose hash is fixed in the app. If Aleph delivers anything else, the app starts nothing.', links: ['Aleph message'] },
 				vm: { t: 'Your VM and its measurements', d: 'The INSTANCE message of your app address names the measurements the app put in. For a running VM the app shows instance, node, measurements and the result of the check under “Evidence of this VM”, with links to exactly your messages.', links: ['Aleph explorer'] },
 				amd: { t: 'AMD SEV-SNP', d: 'How the report is built and which certificates it is checked against.', links: ['AMD SEV'] },
-				image: { t: 'The image', d: 'The app shows the STORE hash in the setup. The workflow rootfs.yml builds it from rootfs/build-image.sh; every run’s summary names the hash and the source commit.', links: ['build-image.sh', 'rootfs.yml', 'Runs'] },
+				image: { t: 'The image', d: 'The workflow rootfs.yml builds the base image from rootfs/build-image.sh; every run’s summary names its SHA-256 and the source commit. The builder is in builder/. Your image’s certificate in the app names both and the STORE hash of your sealed image.', links: ['build-image.sh', 'rootfs.yml', 'Runs', 'Builder', 'The own image in detail'] },
 				data: { t: 'The data area', d: 'The app shows whether a running VM sealed its data area. If that fails, Paperless-ngx does not start.', links: ['paperless-data-disk'] },
-				backups: { t: 'The backups', d: 'Data sets and pieces are public on Filecoin, their content encrypted. At a restore the VM checks every piece against its content address (piece CID).', links: ['Filfox'] },
+				backups: { t: 'The backups', d: 'Data sets and pieces are public on Filecoin, their content encrypted. At a restore the VM checks every piece against its content address (piece CID), and takes without asking only backups that carry your vault’s mark.', links: ['Filfox'] },
 				relay: { t: 'The relay', d: 'It forwards between your browser and the VM without being able to read anything, and is not attested itself. Its source is open: the relay, and the bridge through which it is reached over libp2p. The app uses only relays that Aleph lists as a running instance of one of Le Space’s two relay accounts, or one you enter yourself.', links: ['attest-relay (relay-button)', 'bridge (orbitdb-relay)', 'In the security model'] },
 				app: { t: 'This web app', d: 'It is served from IPFS. Which version the domain serves, its DNSLink record shows (dig TXT _dnslink.paperless.le-space.de); every release names its CID.', links: ['Releases'] },
 				docs: { t: 'In detail', d: 'The description this page is written from.', links: ['Security model', 'Keys and recovery', 'Your own image', 'Workflow', 'Variants of confidential VMs compared'] }
@@ -676,6 +726,21 @@ export const texts = {
 				},
 				{ q: 'What does it cost while Paperless anywhere is not running?', a: 'Only a running instance uses hours. Your monthly package runs on, though, and is billed every month until you cancel. The backup is included in the package and runs on with it. After the end of the paid period no new backups are made; the existing ones stay retrievable for at least 30 more days.' },
 				{
+					q: 'What happens when my voucher or package ends?',
+					a: 'A monthly package renews every month until you cancel it. A voucher ends after its term or when its hours are used up. Three days before an end that is not renewed, the app shows a warning with the exact time, and more clearly on the last day. If a paid package ends, we also write to you three days and one day before, where possible to the address you gave when paying.',
+					tips: [
+						'Before the end: stop Paperless with “Back up and stop”. Then your documents are complete in the backup, and the VM is deleted.',
+						'After the end only a small reserve is left. Three days later Le Space takes back the remaining credit, and the app starts no VM any more. Do not rely on a VM running on past the end.',
+						'Your backups can be fetched until 30 days after the last paid day. In that time you bring them back with a new voucher or package, or you download and decrypt them yourself, without Le Space.',
+						'Your own image is no longer paid after the end. When Aleph Cloud removes it is not settled yet.',
+						'Extending: a new voucher or a package extends the time, also while Paperless runs.'
+					],
+					links: [
+						{ text: 'Fetch and decrypt a backup yourself', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/restore-yourself.md' },
+						{ text: 'Le Space Credits terms (German)', href: TERMS_URL }
+					]
+				},
+				{
 					q: 'I have a voucher. How do I redeem it?',
 					a: 'In the app, without a payment: create your vault and enter the code (PA-…) under “Redeem a voucher”. A voucher gives you a fixed period, usually a few days. What it covers, that is how many days, how many hours and whether the backup is included, is stated on the voucher; the app shows it after you redeem it.',
 					tips: [
@@ -730,6 +795,6 @@ export const texts = {
 			back: 'Back to the start page'
 		},
 		cta: { title: 'Ready?', lead: 'Creating a vault takes a minute. No account, no password.' },
-		footer: { build: { label: 'This page’s build:', release: 'This release on GitHub, with its IPFS CID', commit: 'The source commit of this build on GitHub', built: 'When this page was built (UTC)' }, by: 'A Le Space project', belege: 'Le Space Belege', imprint: 'Imprint', imprintUrl: 'https://le-space.de/#imprint', privacy: 'Privacy', privacyUrl: 'https://le-space.de/#privacy', built: 'Paperless anywhere computes on confidential nodes of Aleph Cloud and backs up to Filecoin.', ngxLink: 'Paperless-ngx on GitHub', terms: 'Terms', withdrawal: 'Withdrawal' }
+		footer: { source: 'Paperless anywhere’s source code on GitHub', sourceShort: 'Source code on GitHub', build: { label: 'This page’s build:', release: 'This release on GitHub, with its IPFS CID', commit: 'The source commit of this build on GitHub', built: 'When this page was built (UTC)' }, by: 'A Le Space project', belege: 'Le Space Belege', imprint: 'Imprint', imprintUrl: 'https://le-space.de/#imprint', privacy: 'Privacy', privacyUrl: 'https://credits.le-space.de/datenschutz', built: 'Paperless anywhere computes on confidential nodes of Aleph Cloud and backs up to Filecoin.', ngxLink: 'Paperless-ngx on GitHub', terms: 'Terms', withdrawal: 'Withdrawal' }
 	}
 };

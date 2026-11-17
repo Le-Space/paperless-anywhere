@@ -1,0 +1,44 @@
+#!/bin/sh
+# paperless-period-end: is the last backup before the end of the paid period
+# due now? Prints the stop request to make ("period-end-<now>") when it is,
+# nothing otherwise. paperless-stop asks every five seconds and answers the
+# printed request like one from the app: last backup, Paperless stopped.
+#
+# The end comes from the app that started this VM, over the attested channel
+# like every secret: /tmp/secrets/period_end, Unix seconds (from Le Space
+# Credits: the end of a voucher's or a cancelled package's period, or when its
+# hours run out). Empty or 0: the period renews, nothing is due. The app hands
+# it over at the start and again whenever it changes.
+#
+# Due LEAD seconds (one hour) before the end, so the backup finishes in paid
+# time and not on Aleph's start reserve. Not while a restore runs, nor while a
+# stop runs or after one ended (ready, partial). A period-end stop whose backup
+# failed (Paperless runs again) is tried again after RETRY seconds; one the
+# person chose to keep after a partial backup ("resumed") is not repeated for
+# the same end.
+#
+# Usage: paperless-period-end [now] (now: Unix seconds, for the tests)
+set -u
+dir="${PAPERLESS_RUN_DIR:-/run/paperless-anywhere}"
+secrets="${PAPERLESS_SECRETS_DIR:-/tmp/secrets}"
+LEAD=3600
+RETRY=900
+now="${1:-$(date +%s)}"
+end="$(head -c 32 "$secrets/period_end" 2>/dev/null | tr -cd '0-9')"
+[ -n "$end" ] && [ "$end" -gt 0 ] || exit 0
+[ "$now" -ge $((end - LEAD)) ] || exit 0
+grep -q '"status":"running"' "$dir/restore.json" 2>/dev/null && exit 0
+if [ -s "$dir/stop.json" ]; then
+  status="$(sed -n 's/.*"status":"\([a-z]*\)".*/\1/p' "$dir/stop.json")"
+  request="$(sed -n 's/.*"request":"\([0-9A-Za-z_-]*\)".*/\1/p' "$dir/stop.json")"
+  case "$status" in running|ready|partial) exit 0 ;; esac
+  case "$request" in
+    period-end-*)
+      tried="${request#period-end-}"
+      case "$tried" in ''|*[!0-9]*) tried=0 ;; esac
+      [ "$status" = resumed ] && [ "$tried" -ge $((end - LEAD)) ] && exit 0
+      [ "$status" = failed ] && [ "$now" -lt $((tried + RETRY)) ] && exit 0
+      ;;
+  esac
+fi
+echo "period-end-$now"

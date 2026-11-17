@@ -89,6 +89,15 @@ export const pkg = {
 			period: (/** @type {string} */ until) => `Gutschein-Zeitraum bis ${until}.`,
 			periodEnds: 'Er verlängert sich nicht. Sichere oder exportiere deine Dokumente vor dem Ende: 3 Tage danach startet die App keine VM mehr, und zum Wiederherstellen brauchst du dann ein Paket.'
 		},
+		// Shortly before the paid time ends (period-end.js): in the overview and on the card.
+		ending: {
+			soon: (/** @type {string} */ at) => `Deine bezahlte Laufzeit endet am ${at}. Sie verlängert sich nicht.`,
+			urgent: (/** @type {string} */ at) => `Deine bezahlte Laufzeit endet bald: ${at}.`,
+			ended: (/** @type {string} */ at) => `Deine bezahlte Laufzeit ist am ${at} zu Ende gegangen.`,
+			what: 'Eine Stunde vor dem Ende macht Paperless-ngx eine letzte Sicherung und hält an. Was du danach ablegst, ist nicht gesichert. Mit einem Paket oder einem neuen Gutschein läuft es weiter.',
+			chip: (/** @type {string} */ at) => `endet ${at}`,
+			more: 'Zum Paket'
+		},
 		checkoutLabel: 'Abo abschließen',
 		payWithStripe: 'Bezahlen mit Stripe',
 		close: 'Schließen'
@@ -175,6 +184,15 @@ export const pkg = {
 			pending: ' The hours appear shortly.',
 			period: (/** @type {string} */ until) => `Voucher period until ${until}.`,
 			periodEnds: 'It does not renew. Back up or export your documents before it ends: 3 days later the app starts no more VMs, and to restore you then need a package.'
+		},
+		// Shortly before the paid time ends (period-end.js): in the overview and on the card.
+		ending: {
+			soon: (/** @type {string} */ at) => `Your paid time ends on ${at}. It does not renew.`,
+			urgent: (/** @type {string} */ at) => `Your paid time ends soon: ${at}.`,
+			ended: (/** @type {string} */ at) => `Your paid time ended on ${at}.`,
+			what: 'An hour before the end, Paperless-ngx makes a last backup and pauses. Whatever you add after that is not backed up. With a package or a new voucher it goes on.',
+			chip: (/** @type {string} */ at) => `ends ${at}`,
+			more: 'To the package'
 		},
 		checkoutLabel: 'Take out the subscription',
 		payWithStripe: 'Pay with Stripe',
