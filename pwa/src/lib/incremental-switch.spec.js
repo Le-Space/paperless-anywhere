@@ -2,7 +2,7 @@
 // the config is rebuilt, and handed to the VM in backup_config. Made-up keys.
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { backupConfigFor, vmBackupSecrets } from './backups.js';
+import { INCREMENTAL_IMAGES, backupConfigFor, supportsIncremental, vmBackupSecrets } from './backups.js';
 
 const recipient = `age1${'q'.repeat(58)}`;
 const places = (enabled) => ({ copies: 2, providerIds: [], regions: ['EU'], incremental: { enabled } });
@@ -19,15 +19,31 @@ describe('the incremental switch', () => {
 		expect(backupConfigFor('calibration', `age1${'p'.repeat(58)}`, on).incremental).toEqual({ enabled: true });
 	});
 
-	it('reaches the VM on the wallet path and through Le Space Credits', () => {
+	it('reaches the VM only with an image that makes incremental backups, on both payment paths', () => {
 		const backupConfig = backupConfigFor('calibration', recipient, places(true));
-		const wallet = vmBackupSecrets({ network: 'calibration', backupConfig, payer: `0x${'a'.repeat(40)}` }, { sessionKey: '0x01' });
-		expect(JSON.parse(wallet.backup_config).incremental).toEqual({ enabled: true });
+		const ready = 'a'.repeat(64);
+		const images = [ready];
+		const wallet = (plain) => vmBackupSecrets({ network: 'calibration', backupConfig, payer: `0x${'a'.repeat(40)}`, ownImage: { plainSha256: plain } }, { sessionKey: '0x01', incrementalImages: images });
+		expect(JSON.parse(wallet(ready).backup_config).incremental).toEqual({ enabled: true });
+		// An older image: the switch is left out, the VM keeps making full backups.
+		expect(JSON.parse(wallet('b'.repeat(64)).backup_config).incremental).toBeUndefined();
+		expect(JSON.parse(wallet(undefined).backup_config).incremental).toBeUndefined();
 		const credits = vmBackupSecrets(
-			{ network: 'calibration', backupConfig, backupsByCredits: true },
-			{ backupKey: '0x02', creditsUrl: 'https://credits.example', product: 'paperless-anywhere', account: `0x${'b'.repeat(40)}`, signer: { payer: `0x${'c'.repeat(40)}`, signer: `0x${'d'.repeat(40)}`, tag: 'made-up-tag', label: 'paperless-backup-test', network: 'calibration' } }
+			{ network: 'calibration', backupConfig, backupsByCredits: true, ownImage: { plainSha256: ready } },
+			{ backupKey: '0x02', creditsUrl: 'https://credits.example', product: 'paperless-anywhere', account: `0x${'b'.repeat(40)}`, signer: { payer: `0x${'c'.repeat(40)}`, signer: `0x${'d'.repeat(40)}`, tag: 'made-up-tag', label: 'paperless-backup-test', network: 'calibration' }, incrementalImages: images }
 		);
 		expect(JSON.parse(credits.backup_config).incremental).toEqual({ enabled: true });
+	});
+
+	it('no image built so far makes them: the list starts empty, the switch stays greyed out', () => {
+		expect(INCREMENTAL_IMAGES).toEqual([]);
+		expect(supportsIncremental({ ownImage: { plainSha256: 'f08aeec9d1d37bb9a79e4cbe8d7614d58dadca0b527fb4027503313a02610753' } })).toBe(false);
+		expect(supportsIncremental({})).toBe(false);
+		expect(supportsIncremental({ ownImage: { plainSha256: 'c'.repeat(64) } }, ['c'.repeat(64)])).toBe(true);
+		const src = readFileSync(new URL('./BackupPlaces.svelte', import.meta.url), 'utf8');
+		expect(src).toMatch(/disabled=\{busy \|\| \(!incrementalReady && !incremental\)\}/);
+		expect(src).toMatch(/data-testid="places-incremental-later"/);
+		expect(readFileSync(new URL('./Setup.svelte', import.meta.url), 'utf8')).toMatch(/incrementalReady=\{supportsIncremental\(profile\)\}/);
 	});
 
 	it('is saved together with the places, so saving them never drops it', () => {

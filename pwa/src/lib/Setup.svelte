@@ -6,7 +6,7 @@
 	import { FIXED_HOST_DOMAIN } from '$lib/vm.js';
 	import { loadProfile, updateProfile } from '$lib/profile.js';
 	import { ageIdentityFromMaster, ageRecipient } from '$lib/keys/age.js';
-	import { BACKUP_LABEL, backupConfigFor } from '$lib/backups.js';
+	import { BACKUP_LABEL, backupConfigFor, supportsIncremental } from '$lib/backups.js';
 	import { relayList } from '$lib/attest-p2p.js';
 	import { findAttestRelays } from '$lib/relays.js';
 	import { backupAuthorize, backupKeyAddress, CREDITS_URL, creditsBalance, creditsCatalog, fundBackups, imageBuild, imageBuildDone, CreditsShortError } from '$lib/credits.js';
@@ -648,7 +648,7 @@
 		<span>{x.backups.on.before(profile.network === 'mainnet')}<code>{BACKUP_LABEL[profile.network === 'mainnet' ? 'mainnet' : 'calibration']}</code>{x.backups.on.after}</span>
 	</label>
 	{#if profile.backupConfig}
-		<BackupPlaces network={profile.network} payer={profile.backupOwner || (profile.backupsByCredits ? '' : profile.payer)} config={profile.backupConfig} busy={busy === 'places'} onsave={savePlaces} />
+		<BackupPlaces network={profile.network} payer={profile.backupOwner || (profile.backupsByCredits ? '' : profile.payer)} config={profile.backupConfig} busy={busy === 'places'} incrementalReady={supportsIncremental(profile)} onsave={savePlaces} />
 		{#if profile.running}
 			<div class="push-places" class:pending={placesPending} data-testid="places-push-box">
 				<p>{placesPending ? $t.backup.places.pushPending : $t.backup.places.pushHint}</p>

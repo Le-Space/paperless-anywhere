@@ -3,8 +3,8 @@
 	import { amount } from '$lib/balances.js';
 	import { lang, t } from '$lib/i18n/index.js';
 
-	/** @type {{ network: string, payer?: string, config: { copies: number, providerIds: number[], regions: string[], incremental?: { enabled?: boolean } }, busy?: boolean, onsave: (places: { copies: number, providerIds: number[], regions: string[], incremental: { enabled: boolean } }) => void }} */
-	let { network, payer = '', config, busy = false, onsave } = $props();
+	/** @type {{ network: string, payer?: string, config: { copies: number, providerIds: number[], regions: string[], incremental?: { enabled?: boolean } }, busy?: boolean, incrementalReady?: boolean, onsave: (places: { copies: number, providerIds: number[], regions: string[], incremental: { enabled: boolean } }) => void }} */
+	let { network, payer = '', config, busy = false, incrementalReady = false, onsave } = $props();
 
 	const x = $derived($t.backup.places);
 	/** @type {{ value: string, key: 'EUROPE' | 'EU' | 'EEA' | 'US' | 'anywhere' }[]} */
@@ -127,7 +127,9 @@
 			{#if cost !== null && preview.picked.length}<p><small>{x.cost(amount(cost, 2, $lang), bytes ? amount(bytes / 1e9, 1, $lang) : null)}</small></p>{/if}
 		</div>
 	{/if}
-	<label class="check"><input type="checkbox" bind:checked={incremental} disabled={busy} data-testid="places-incremental" /> {x.incremental}</label>
+	<!-- On only with an image whose backup tool makes incremental backups; off can always be chosen. -->
+	<label class="check"><input type="checkbox" bind:checked={incremental} disabled={busy || (!incrementalReady && !incremental)} data-testid="places-incremental" /> {x.incremental}</label>
+	{#if !incrementalReady}<p class="hint" data-testid="places-incremental-later">{x.incrementalLater}</p>{/if}
 	<p class="hint">{x.incrementalHint}</p>
 	<button onclick={() => onsave($state.snapshot(places))} disabled={busy || !valid || !changed}>{x.save}</button>
 </fieldset>

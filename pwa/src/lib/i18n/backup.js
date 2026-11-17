@@ -172,6 +172,7 @@ export const backup = {
 			cost: (/** @type {string} */ usdfc, /** @type {string | null} */ gbPerCopy) => `Kosten ca. ${usdfc} USDFC im Monat${gbPerCopy ? ` bei ${gbPerCopy} GB je Kopie` : ' (Grundgebühr, noch keine Daten)'}.`,
 			save: 'Sicherungsorte speichern',
 			incremental: 'Nur Änderungen sichern (inkrementell)',
+			incrementalLater: 'Ab dem nächsten Image: Das Image deiner VM bringt die inkrementelle Sicherung noch nicht mit. Bis dahin sichert sie wie bisher vollständig.',
 			incrementalHint:
 				'Jede Sicherung lädt nur neue und geänderte Dateien hoch, als ein verschlüsseltes Paket von wenigen MB statt des ganzen Archivs. Etwa alle 30 Tage folgt eine neue vollständige Grundsicherung. Bisherige vollständige Sicherungen bleiben erhalten, bis eine Wiederherstellung aus dem neuen Verfahren geprüft ist. Öffentlich sichtbar ist nur, dass es eine inkrementelle Sicherung ist, zu welcher Generation sie gehört und ihre Nummer – nichts über die Dokumente. Gilt ab der nächsten Sicherung der VM.',
 			problems: {
@@ -453,6 +454,7 @@ export const backup = {
 			cost: (/** @type {string} */ usdfc, /** @type {string | null} */ gbPerCopy) => `Costs about ${usdfc} USDFC a month${gbPerCopy ? ` at ${gbPerCopy} GB per copy` : ' (base fee, no data yet)'}.`,
 			save: 'Save the backup places',
 			incremental: 'Back up only changes (incremental)',
+			incrementalLater: 'From the next image on: your VM\'s image does not bring incremental backups yet. Until then it keeps making full backups.',
 			incrementalHint:
 				'Each backup uploads only new and changed files, as one encrypted pack of a few MB instead of the whole archive. About every 30 days a new full baseline follows. Existing full backups stay until a restore from the new scheme has been checked. Publicly visible is only that it is an incremental backup, which generation it belongs to and its number – nothing about the documents. Applies from the VM\'s next backup.',
 			problems: {
