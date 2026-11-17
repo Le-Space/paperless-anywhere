@@ -30,6 +30,54 @@ async function vault(aggregates, pieceCid, extra = {}) {
 test.describe('German', () => {
 	test.use({ locale: 'de-DE', timezoneId: 'Europe/Berlin' });
 
+	test('v0.2: "Standard" picks a backup from a plain list without ids; "Technisch" shows the same choice with its id and seal', async ({ page }) => {
+		test.setTimeout(90_000);
+		const piece = await calculate(new Uint8Array(4096).fill(9));
+		const cid = piece.toString();
+		const aggregates = await alephMock()(page.context());
+		// Set up far enough for a start, so the start's choice shows.
+		const phrase = await vault(aggregates, cid, { rootfsItemHash: 'e'.repeat(64), crnHash: 'd'.repeat(64), luksPassphrase: 'made-up-passphrase', appPays: true });
+		await page.context().route(/^https?:\/\/(?!localhost|api2\.aleph\.im)/, (route) => route.abort());
+		await page.context().route(calibration.rpcUrls.default.http[0], rpc(answers(piece)));
+		await page.goto('/v0.2/');
+		await page.getByTestId('v2-have-vault').click();
+		await page.getByTestId('v2-words').fill(phrase);
+		await page.getByTestId('v2-open-words').click();
+		await expect(page.getByTestId('v2-starts-with')).toBeVisible({ timeout: 30_000 });
+
+		// Standard: the list is one button away and names age, size and copies, never an id.
+		await expect(page.getByTestId('v2-backup-list')).toHaveCount(0);
+		await page.getByTestId('v2-other-backup').click();
+		const row = page.getByTestId('v2-backup-list').locator('label').first();
+		await expect(row).toContainText('Neueste');
+		await expect(row).toContainText('Herkunft nicht bestätigt');
+		await expect(page.getByTestId('v2-start')).not.toContainText(cid.slice(-12));
+		// With one backup in the list it is the one chosen already, and the list says so.
+		await expect(page.getByTestId('v2-backup-pick-0')).toBeChecked();
+		// A backup without the vault's mark asks before it is restored, in plain words; the start waits for the answer.
+		await expect(page.getByTestId('restore-unmarked')).toContainText('Die App kann nicht bestätigen');
+		await expect(page.getByTestId('v2-start-button')).toBeDisabled();
+		await page.getByTestId('restore-unmarked-accept').check();
+		await expect(page.getByTestId('v2-start-button')).toBeEnabled();
+
+		// Technisch: "Eine bestimmte Sicherung wählen" lists the same backups with the id's ending and the seal.
+		await page.getByRole('banner').getByTestId('view-technical').click();
+		await expect(page.getByTestId('backup-pick-list')).toHaveCount(0);
+		await page.getByTestId('restore-pick').check();
+		const picks = page.getByTestId('backup-pick-list');
+		await expect(picks).toContainText(cid.slice(-12));
+		await expect(picks).toContainText('ohne Siegel');
+		await page.getByTestId('backup-pick-0').check();
+		await expect(page.getByTestId('v2-starts-with-tech')).toContainText(cid.slice(-12));
+		// The same backup as accepted before: the start stays possible.
+		await expect(page.getByTestId('v2-start-button')).toBeEnabled();
+		// Back in Standard the choice is the same, and it holds while the page stays open.
+		await page.getByRole('banner').getByTestId('view-standard').click();
+		await expect(page.getByTestId('v2-backup-pick-0')).toBeChecked();
+		await page.getByRole('banner').getByTestId('view-technical').click();
+		await expect(page.getByTestId('restore-pick')).toBeChecked();
+	});
+
 	test('each copy shows what the chain says, green only for what the app read; "Jetzt prüfen" adds a blue sample', async ({ page }) => {
 		test.setTimeout(90_000);
 		const piece = await calculate(new Uint8Array(4096).fill(9));

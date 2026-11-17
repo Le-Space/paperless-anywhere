@@ -269,6 +269,11 @@ export function createLifecycleCard(p) {
 	// also hold backups encrypted to other keys (round trips), which this vault
 	// cannot decrypt (live: "age could not decrypt the piece").
 	let choice = $state('empty');
+	// The person chose what to start with (a radio, the list, "Die vorige
+	// wählen"): reading the list again keeps that choice as long as it still
+	// names a backup in the list. Until then, and after a start or a stop, the
+	// card chooses by itself (defaultChoice).
+	let choiceByPerson = false;
 	// "Own" are the backups that carry this vault's mark (vaultBackups, checked
 	// by the app); any other one is offered only as such, and only after the
 	// person confirms it (unmarkedAccepted): older backups and anything not made by
@@ -309,6 +314,14 @@ export function createLifecycleCard(p) {
 		const { own, other } = splitOwn(list, profile.vaultBackups ?? []);
 		if (own.length) return production ? 'latest' : 'own';
 		return (production ? other.length : other.some((b) => (profile.ownBackups ?? []).includes(b.pieceCid))) ? 'any' : 'empty';
+	};
+	/** Whether the choice made by the person still names something in this list. @param {any[]} list */
+	const choiceHolds = (list) => {
+		const { own, other } = splitOwn(list, profile.vaultBackups ?? []);
+		if (choice === 'pick') return list.some((b) => b.pieceCid === pickedCid);
+		if (choice === 'latest' || choice === 'own') return own.length > 0;
+		if (choice === 'any') return other.length > 0;
+		return choice === 'empty';
 	};
 	// "Latest" is the newest backup with this vault's mark: only those start without asking.
 	const chosenBackup = $derived(choice === 'latest' || choice === 'own' ? pick(split.own) : choice === 'any' ? unmarkedPick(split.other) : choice === 'pick' ? ((backups ?? []).find((b) => b.pieceCid === pickedCid) ?? null) : null);
@@ -389,7 +402,7 @@ export function createLifecycleCard(p) {
 		if (listing && profile.ageIdentity) {
 			backupsError = '';
 			listBackups({ network: profile.network ?? 'calibration', ...listing })
-				.then((list) => ((backups = list), (choice = defaultChoice(list))))
+				.then((list) => ((backups = list), (choice = choiceByPerson && choiceHolds(list) ? choice : defaultChoice(list))))
 				.catch(() => ((backups = []), (backupsError = tr().card.backupsUnreadable)));
 		}
 	};
@@ -775,6 +788,8 @@ export function createLifecycleCard(p) {
 	}, () => startAgain());
 	/** @param {() => Promise<any>} bringUp */
 	async function finishStart(bringUp) {
+		// The choice was for this start; the next one chooses anew.
+		choiceByPerson = false;
 		try {
 			const running = await bringUp();
 			// Which image this VM runs, so it is never forgotten under it (old-image.js).
@@ -1002,6 +1017,7 @@ export function createLifecycleCard(p) {
 	});
 	/** @param {any} status the VM's status page at the end of the stop */
 	async function finishStop(status) {
+		choiceByPerson = false;
 		const made = pieceCidOfStop(status);
 		const was = profile.running;
 		const result = status?.stop?.backup?.backup ?? null;
@@ -1160,7 +1176,7 @@ export function createLifecycleCard(p) {
 		get backupsError() { return backupsError; },
 		set backupsError(v) { backupsError = v; },
 		get choice() { return choice; },
-		set choice(v) { choice = v; },
+		set choice(v) { choice = v; choiceByPerson = true; },
 		get split() { return split; },
 		get freshConfirmed() { return freshConfirmed; },
 		set freshConfirmed(v) { freshConfirmed = v; },
@@ -1175,7 +1191,7 @@ export function createLifecycleCard(p) {
 		get chosenUnmarked() { return chosenUnmarked; },
 		get pickedCid() { return pickedCid; },
 		set pickedCid(v) { pickedCid = v; },
-		pickBackup: (/** @type {string} */ cid) => ((pickedCid = cid), (choice = 'pick')),
+		pickBackup: (/** @type {string} */ cid) => ((pickedCid = cid), (choice = 'pick'), (choiceByPerson = true)),
 		marked,
 		get chainBackup() { return chainBackup; },
 		get known() { return known; },
