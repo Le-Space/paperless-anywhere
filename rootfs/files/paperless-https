@@ -20,9 +20,15 @@ case "$host" in *[!A-Za-z0-9.-]*|"") echo "not a hostname: $host" >&2; exit 1 ;;
 R="${PAPERLESS_ROOT:-}"
 mkdir -p "$R/run/paperless-anywhere"
 # paperless-status, paperless-secrets and paperless-fixed-address may call
-# this at the same moment.
+# this at the same moment. The lock is fd 9 of this script only: every command
+# that may start a process outliving it (systemctl, which under the
+# confidential init's replacement can start Caddy as a child) runs with fd 9
+# closed, and the lock is let go once Caddy is set up. A process that kept it
+# would block the next call for good: paperless-secrets, in the stack's
+# ExecStartPre, and with it every unit started after the stack, sshd as well.
+# Waited for at most a minute; the Caddyfiles written are the same either way.
 exec 9>"$R/run/paperless-anywhere/https.lock"
-command -v flock >/dev/null 2>&1 && flock 9
+command -v flock >/dev/null 2>&1 && { flock -w 60 9 || echo "paperless-https: lock not free after a minute; going on" >&2; }
 # /etc/paperless-anywhere is the sealed area's (paperless-data-disk).
 [ -n "$status_only" ] || printf '%s\n' "$host" > "$R/etc/paperless-anywhere/hostname"
 # The second certificate authority's contact (ZeroSSL ties its ACME account to
@@ -164,11 +170,12 @@ fi
 # it cannot pull) used to restart Caddy each time, which cancelled every
 # certificate order: after five failed authorizations Let's Encrypt refuses
 # the name for an hour, and the ZeroSSL order was cut off as well.
-if ! cmp -s "$new" "$R/etc/caddy/Caddyfile" || ! systemctl is-active --quiet caddy.service; then
+if ! cmp -s "$new" "$R/etc/caddy/Caddyfile" || ! systemctl is-active --quiet caddy.service 9>&-; then
   install -m 644 "$new" "$R/etc/caddy/Caddyfile"
-  systemctl restart caddy.service
+  systemctl restart caddy.service 9>&-
 fi
 rm -f "$new"
+exec 9>&-
 [ -n "$early" ] && exit 0
 # PAPERLESS_URL follows the hostname (Django trusts that origin for CSRF).
 # A restart through the systemctl replacement does not reliably recreate the
