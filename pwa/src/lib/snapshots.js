@@ -1,85 +1,84 @@
 // Incremental backups (paperless-backup-filecoin's snapshot.mjs): each backup
-// is a pack, one piece (a baseline above 1 GB in parts), with public piece
-// metadata pa = "snap/1" (or "snap/1 2/3" for part 2 of 3), gen (16 hex, the
-// generation) and seq (0 = the generation's baseline). A snapshot is restored
-// from every pack of its generation up to its own.
+// is a pack, one piece (a baseline above 1 GB in parts). A sealed pack starts
+// with a public prefix of 64 bytes, "PA-SNAP/1 <gen> <seq>" (gen: 16 hex, the
+// generation; seq 0: its baseline), before the age stream; a full backup of
+// the old kind starts with age's own header. A snapshot is restored from
+// every pack of its generation up to its own.
 //
-// Warm Storage keeps piece metadata in its storage without a getter in its
-// view contract; it is read here as the tool reads it (piece-metadata.mjs):
-// with extsload, at the slot of dataSetPieceMetadata (13) for the data set,
-// piece and key.
+// The prefix is read with an HTTP range request (bytes 0-63) from a provider
+// that holds the piece. Warm Storage keeps piece metadata only in its
+// PieceAdded event, not in its state, so the chain alone does not say it.
 
-import { encodeAbiParameters, encodePacked, hexToBytes, keccak256, parseAbi, toHex } from 'viem';
-
-export const PIECE_METADATA_SLOT = 13n;
-const KEYS = ['pa', 'gen', 'seq'];
-const ABI = parseAbi(['function extsload(bytes32 slot) view returns (bytes32)', 'function extsloadStruct(bytes32 slot, uint256 size) view returns (bytes32[])']);
-const decoder = new TextDecoder();
-
-/** The storage slot of one piece's metadata value for `key`. */
-export function pieceMetadataSlot(dataSetId, pieceId, key) {
-	const dataSetLevel = keccak256(encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [BigInt(dataSetId), PIECE_METADATA_SLOT]));
-	const pieceLevel = keccak256(encodeAbiParameters([{ type: 'uint256' }, { type: 'bytes32' }], [BigInt(pieceId), dataSetLevel]));
-	return keccak256(encodePacked(['string', 'bytes32'], [key, pieceLevel]));
-}
+export const PREFIX_BYTES = 64;
+const AGE_TAG = 'age-encryption.org/v1';
+const decoder = new TextDecoder('latin1');
 
 /**
- * A Solidity string from its slot word; long ones from the words at keccak256(slot).
- * @param {`0x${string}`} word @param {`0x${string}`} slot @param {(slot: `0x${string}`, n: number) => Promise<readonly `0x${string}`[]>} [readLong]
+ * What the first bytes of a piece say: a pack ({ gen, seq }), a full backup
+ * ('full'), or null (anything else).
+ * @param {Uint8Array} bytes
+ * @returns {{ gen: string, seq: number } | 'full' | null}
  */
-export async function decodeStringSlot(word, slot, readLong) {
-	const w = BigInt(word);
-	if ((w & 1n) === 0n) {
-		const len = Number((w & 0xffn) >> 1n);
-		if (len > 31) throw new Error('not a string slot');
-		return decoder.decode(hexToBytes(toHex(w, { size: 32 })).subarray(0, len));
+export function classifyPrefix(bytes) {
+	const text = decoder.decode(bytes.subarray(0, PREFIX_BYTES));
+	if (text.startsWith(AGE_TAG)) return 'full';
+	if (bytes.length < PREFIX_BYTES || bytes[PREFIX_BYTES - 1] !== 0x0a) return null;
+	const m = /^PA-SNAP\/1 ([0-9a-f]{16}) (0|[1-9][0-9]{0,9}) *$/.exec(text.slice(0, PREFIX_BYTES - 1));
+	return m ? { gen: m[1], seq: Number(m[2]) } : null;
+}
+
+/** Pieces never change: what one said is kept for the session. */
+const kinds = new Map();
+
+/**
+ * What a piece is, from the first provider that answers the range request;
+ * null when none does (then it is listed as a full backup, as before).
+ * @param {string} cid @param {string[]} bases providers' service URLs
+ * @param {typeof fetch} [fetchFn]
+ */
+export async function pieceKind(cid, bases, fetchFn = globalThis.fetch) {
+	if (kinds.has(cid)) return kinds.get(cid);
+	for (const base of bases) {
+		try {
+			const res = await fetchFn(`${base}/piece/${cid}`, { headers: { range: `bytes=0-${PREFIX_BYTES - 1}` }, signal: AbortSignal.timeout(20_000) });
+			if (!res.ok) continue;
+			const kind = classifyPrefix(new Uint8Array(await res.arrayBuffer()));
+			if (!kind) continue;
+			kinds.set(cid, kind);
+			return kind;
+		} catch {
+			// the next provider
+		}
 	}
-	const len = Number(w >> 1n);
-	if (len > 4096) throw new Error('metadata value too long');
-	if (!readLong) throw new Error('a long value needs extsloadStruct');
-	const words = await readLong(keccak256(slot), Math.ceil(len / 32));
-	const bytes = new Uint8Array(words.length * 32);
-	words.forEach((x, i) => bytes.set(hexToBytes(x), i * 32));
-	return decoder.decode(bytes.subarray(0, len));
+	return null;
 }
 
 /**
- * A piece's snapshot metadata, or null for a piece of the old kind (a full
- * backup) or anything malformed.
- * @param {Record<string, string> | null | undefined} meta
- * @returns {{ gen: string, seq: number, part: number, parts: number } | null}
+ * Marks the pieces of snapshot packs (`snapshot`: gen, seq, part, parts),
+ * each backup asked once by its first piece. `groups(pieces)` cuts a data
+ * set's pieces into backups as for full backups (parts of PART_BYTES).
+ * @param {Array<{ providerId: any, pieces: Array<{ cid: any, id: any, snapshot?: any }> }>} sets
+ * @param {{ baseOf: (providerId: any) => string | undefined, groups: (pieces: any[]) => Array<{ parts: Array<{ pieceCid: string }>, pieceIds: string[] }>, cidText: (cid: any) => string, fetchFn?: typeof fetch }} o
  */
-export function parseSnapshotMeta(meta) {
-	const m = /^snap\/1(?: (\d{1,4})\/(\d{1,4}))?$/.exec(String(meta?.pa ?? ''));
-	if (!m) return null;
-	const gen = String(meta?.gen ?? '');
-	const seq = Number(meta?.seq);
-	if (!/^[0-9a-f]{16}$/.test(gen) || !Number.isSafeInteger(seq) || seq < 0 || String(seq) !== String(meta?.seq)) return null;
-	const parts = m[2] ? Number(m[2]) : 1;
-	const part = m[1] ? Number(m[1]) - 1 : 0;
-	if (parts < 1 || part < 0 || part >= parts) return null;
-	return { gen, seq, part, parts };
-}
-
-/**
- * The snapshot metadata of a data set's pieces, read with plain calls.
- * @param {any} client viem public client @param {`0x${string}`} fwss Warm Storage
- * @param {bigint | string} dataSetId @param {Array<bigint | string | number>} pieceIds
- * @returns {Promise<Map<string, { gen: string, seq: number, part: number, parts: number } | null>>}
- */
-export async function readSnapshotMeta(client, fwss, dataSetId, pieceIds) {
-	const calls = pieceIds.flatMap((id) => KEYS.map((key) => ({ id: String(id), key, slot: pieceMetadataSlot(dataSetId, id, key) })));
-	const words = await Promise.all(calls.map((c) => client.readContract({ address: fwss, abi: ABI, functionName: 'extsload', args: [c.slot] })));
-	const readLong = (slot, n) => client.readContract({ address: fwss, abi: ABI, functionName: 'extsloadStruct', args: [slot, BigInt(n)] });
-	/** @type {Map<string, Record<string, string>>} */
-	const raw = new Map();
-	for (const [i, c] of calls.entries()) {
-		const value = await decodeStringSlot(words[i], c.slot, readLong);
-		const m = raw.get(c.id) ?? {};
-		if (value) m[c.key] = value;
-		raw.set(c.id, m);
+export async function markSnapshots(sets, { baseOf, groups, cidText, fetchFn }) {
+	/** @type {Map<string, string[]>} */
+	const holders = new Map();
+	for (const ds of sets) {
+		const base = baseOf(ds.providerId);
+		if (!base) continue;
+		for (const p of ds.pieces) holders.set(cidText(p.cid), [...(holders.get(cidText(p.cid)) ?? []), base]);
 	}
-	return new Map([...raw].map(([id, m]) => [id, parseSnapshotMeta(m)]));
+	for (const ds of sets) {
+		for (const g of groups(ds.pieces)) {
+			const kind = await pieceKind(g.parts[0].pieceCid, holders.get(g.parts[0].pieceCid) ?? [], fetchFn);
+			if (!kind || kind === 'full') continue;
+			g.pieceIds.forEach((id, part) => {
+				const p = ds.pieces.find((x) => String(x.id) === id);
+				if (p) p.snapshot = { gen: kind.gen, seq: kind.seq, part, parts: g.parts.length };
+			});
+		}
+	}
+	return sets;
 }
 
 /**

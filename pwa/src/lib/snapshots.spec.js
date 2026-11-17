@@ -3,9 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { keccak256, toHex } from 'viem';
-import { decodeStringSlot, parseSnapshotMeta, pieceMetadataSlot, readSnapshotMeta, snapshotsFromPieces } from './snapshots.js';
-import { backupConfigFor, backupsFromPieces, protectedPieces, restoreEntry } from './backups.js';
+import { PREFIX_BYTES, classifyPrefix, markSnapshots, pieceKind, snapshotsFromPieces } from './snapshots.js';
+import { backupConfigFor, backupsFromPieces, groupPieces, protectedPieces, restoreEntry } from './backups.js';
 import { backupDedupKey, backupMarkKey } from './keys/derive.js';
 
 const G1 = '1111111111111111';
@@ -19,37 +18,38 @@ const cidText = (c) => String(c);
 /** A data set's pieces: [id, cid, snapshot meta or null]. */
 const set = (providerId, dataSetId, pieces) => ({ providerId, dataSetId, pieces: pieces.map(([id, c, s]) => ({ id: BigInt(id), cid: c, snapshot: s })) });
 
-describe('snapshot metadata', () => {
-	it('parses what the backup tool writes, and nothing else', () => {
-		expect(parseSnapshotMeta({ pa: 'snap/1', gen: G1, seq: '3' })).toEqual({ gen: G1, seq: 3, part: 0, parts: 1 });
-		expect(parseSnapshotMeta({ pa: 'snap/1 2/2', gen: G1, seq: '0' })).toEqual({ gen: G1, seq: 0, part: 1, parts: 2 });
-		for (const m of [null, {}, { pa: 'snap/2', gen: G1, seq: '1' }, { pa: 'snap/1', gen: 'x', seq: '1' }, { pa: 'snap/1', gen: G1, seq: '-1' }]) expect(parseSnapshotMeta(m)).toBeNull();
+/** A pack's 64-byte public prefix, as the backup tool writes it. */
+const prefix = (gen, seq) => new TextEncoder().encode(`PA-SNAP/1 ${gen} ${seq}`.padEnd(PREFIX_BYTES - 1, ' ') + '\n');
+
+describe('telling packs from full backups', () => {
+	it('reads the prefix, age\'s header, and refuses anything else', () => {
+		expect(classifyPrefix(prefix(G1, 3))).toEqual({ gen: G1, seq: 3 });
+		expect(classifyPrefix(new TextEncoder().encode('age-encryption.org/v1\n-> X25519 made-up'))).toBe('full');
+		expect(classifyPrefix(new Uint8Array(64))).toBeNull();
+		expect(classifyPrefix(prefix(G1, 3).subarray(0, 30))).toBeNull();
 	});
-	it('reads it from the storage slots, short and long values', async () => {
-		const word = (s) => {
-			const b = new Uint8Array(32);
-			b.set(new TextEncoder().encode(s));
-			b[31] = s.length * 2;
-			return toHex(b);
+	it('asks providers with a range request, the next one when one fails, and remembers', async () => {
+		const asked = [];
+		const fetchFn = async (url, init) => {
+			asked.push([url, init.headers.range]);
+			if (url.startsWith('https://down')) throw new Error('made-up outage');
+			return new Response(prefix(G2, 0), { status: 206 });
 		};
-		const store = new Map([
-			[pieceMetadataSlot(7n, 4n, 'pa'), word('snap/1')],
-			[pieceMetadataSlot(7n, 4n, 'gen'), word(G1)],
-			[pieceMetadataSlot(7n, 4n, 'seq'), word('2')]
+		const c = cid('kq');
+		expect(await pieceKind(c, ['https://down.example', 'https://up.example'], fetchFn)).toEqual({ gen: G2, seq: 0 });
+		expect(asked).toEqual([
+			[`https://down.example/piece/${c}`, 'bytes=0-63'],
+			[`https://up.example/piece/${c}`, 'bytes=0-63']
 		]);
-		const client = { readContract: async ({ args }) => store.get(args[0]) ?? toHex(0n, { size: 32 }) };
-		const m = await readSnapshotMeta(client, '0x0000000000000000000000000000000000000001', 7n, [4n, 5n]);
-		expect(m.get('4')).toEqual({ gen: G1, seq: 2, part: 0, parts: 1 });
-		expect(m.get('5')).toBeNull();
-		const long = 'y'.repeat(40);
-		const slot = toHex(9n, { size: 32 });
-		const got = await decodeStringSlot(toHex(BigInt(long.length * 2 + 1), { size: 32 }), slot, async (at, n) => {
-			expect(at).toBe(keccak256(slot));
-			const b = new Uint8Array(n * 32);
-			b.set(new TextEncoder().encode(long));
-			return [toHex(b.subarray(0, 32)), toHex(b.subarray(32))];
-		});
-		expect(got).toBe(long);
+		await pieceKind(c, ['https://up.example'], fetchFn);
+		expect(asked).toHaveLength(2);
+	});
+	it('marks every part of a pack in parts, and leaves full backups alone', async () => {
+		const base = set(1, 10, [[1, cid('qa'), null], [2, cid('qb'), null], [3, cid('qc'), null]]);
+		const sizes = { [cid('qa')]: 1_000_000_000, [cid('qb')]: 5, [cid('qc')]: 7 };
+		const fetchFn = async (url) => new Response(url.endsWith(cid('qa')) ? prefix(G1, 0) : new TextEncoder().encode('age-encryption.org/v1\nmade-up'), { status: 206 });
+		await markSnapshots([base], { baseOf: () => 'https://sp1.example', groups: (p) => groupPieces(p, (c) => sizes[c]), cidText, fetchFn });
+		expect(base.pieces.map((p) => p.snapshot)).toEqual([snap(G1, 0, 0, 2), snap(G1, 0, 1, 2), null]);
 	});
 });
 
