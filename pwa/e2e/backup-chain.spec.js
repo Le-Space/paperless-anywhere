@@ -153,4 +153,28 @@ test.describe('German', () => {
 		await expect(page.getByTestId('newest-backup')).toBeVisible({ timeout: 30_000 });
 		await expect(page.getByTestId('restore-unmarked')).toHaveCount(0);
 	});
+
+	test('a tiny newest backup is said, with the sizes, and the one before it is chosen', async ({ page }) => {
+		test.setTimeout(90_000);
+		const { bytesToHex } = await import('viem');
+		const big = await calculate(new Uint8Array(1 << 20).fill(7));
+		const tiny = await calculate(new Uint8Array(8000).fill(3));
+		const aggregates = await alephMock()(page.context());
+		const phrase = await vault(aggregates, big.toString(), { ownBackups: [big.toString(), tiny.toString()], vaultBackups: [big.toString(), tiny.toString()] });
+		await page.context().route(/^https?:\/\/(?!localhost|api2\.aleph\.im)/, (route) => route.abort());
+		// The tiny one in the later data set: the newest.
+		const table = { ...answers(big), getActivePiecesByCursor: (ds) => [[{ data: bytesToHex((ds === 500n ? big : tiny).bytes) }], [ds === 500n ? 3n : 5n], false] };
+		await page.context().route(calibration.rpcUrls.default.http[0], rpc(table));
+		const errors = [];
+		page.on('pageerror', (e) => errors.push(e.message));
+		await page.goto('/app/');
+		await page.getByTestId('open-with-phrase').click();
+		await page.locator('textarea').first().fill(phrase);
+		await page.getByTestId('open-phrase').click();
+		await page.getByRole('tab', { name: 'Erweitert' }).click();
+		const warning = page.getByTestId('tiny-newest');
+		await expect(warning).toBeVisible({ timeout: 30_000 });
+		await expect(warning).toContainText(big.toString().slice(-12));
+		expect(errors).toEqual([]);
+	});
 });
