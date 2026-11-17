@@ -29,6 +29,7 @@ import { listProviders, providerIdsIn } from '$lib/providers.js';
 import { replacementPlan } from '$lib/places-replace.js';
 import { blockedAmong, blockedReason } from '$lib/blocked-providers.js';
 import { avoidedNodes, nodeBlockedReason, noteProven, noteUnsuitable, provenNodes } from '$lib/blocked-nodes.js';
+import { DataAreaFailedError } from '$lib/start-watch.js';
 import { backupSize, knownBackup, listBackups, newerBackup, pieceCidOfStop, restoreEntry, restoreGap, splitOwn } from '$lib/backups.js';
 import { paperlessSecrets } from '$lib/keys/derive.js';
 import { startingInstance } from '$lib/starting.js';
@@ -640,7 +641,7 @@ export function createLifecycleCard(p) {
 					if (fixed) throw new Error(tr().card.errors.fixedNodeRefused);
 				}
 			})
-		);
+		).catch(dataAreaFailed);
 		if (ceremony) ceremony = { ...ceremony, done: true, minimized: false };
 	}
 	// Buy hours from Le Space Credits: the service grants them (with Aleph's
@@ -691,7 +692,7 @@ export function createLifecycleCard(p) {
 	 * A node refused the VM: its INSTANCE is forgotten (it never ran; what
 	 * fails here is left in the list of VMs to remove), the interrupted start
 	 * dropped and the node noted in the profile, with the time.
-	 * @param {{ crnHash: string, instanceHash: string, payer?: string, kind: 'noSevSnp' | 'refused' }} e
+	 * @param {{ crnHash: string, instanceHash: string, payer?: string | null, kind: 'noSevSnp' | 'refused' | 'dataArea' }} e
 	 */
 	async function dropRefused(e) {
 		const app = privateKeyToAccount(alephPrivateKey(master));
@@ -699,6 +700,20 @@ export function createLifecycleCard(p) {
 		if (payer) await forgetInstance(app, payer, e.instanceHash, 'paperless-anywhere: the node refused the VM').catch(() => null);
 		profile = await updateProfile(master, ({ starting, ...rest }) => noteUnsuitable(starting && starting.instanceHash !== e.instanceHash ? { ...rest, starting } : rest, e.crnHash, e.kind));
 		onchange();
+	}
+	/**
+	 * The VM could not seal its data area on its node (paperless-data-disk):
+	 * Paperless never runs there. The VM is forgotten, the node noted for a
+	 * day like one that refused the VM, and a start on another node offered
+	 * ("Noch einmal" starts anew; pickNode leaves the node out).
+	 * @param {unknown} e
+	 */
+	async function dataAreaFailed(e) {
+		if (!(e instanceof DataAreaFailedError) || !e.crnHash || !e.instanceHash) throw e;
+		await dropRefused({ crnHash: e.crnHash, instanceHash: e.instanceHash, payer: e.payer, kind: 'dataArea' });
+		nodeNote = tr().card.nodeRefused.dataArea;
+		const fixedNode = String(profile.crnHash ?? '').toLowerCase() === String(e.crnHash).toLowerCase();
+		throw Object.assign(new Error(`${e.message} ${tr().card.errors[fixedNode ? 'fixedNodeDataArea' : 'dataAreaElsewhere']}`), { retryable: !fixedNode });
 	}
 	const resume = () => run(async () => {
 		await reload();
@@ -726,7 +741,7 @@ export function createLifecycleCard(p) {
 		}
 		startRestores = Boolean(profile.starting?.restoreEntry);
 		try {
-			await finishStart(() => resumeStart(master, $state.snapshot(profile), track('start')));
+			await finishStart(() => resumeStart(master, $state.snapshot(profile), track('start'))).catch(dataAreaFailed);
 		} catch (e) {
 			// Aleph rejected or forgot it: dropped, said plainly, and a new start offered.
 			if (!(e instanceof StartGoneError)) throw e;

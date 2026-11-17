@@ -39,6 +39,14 @@ describe('nodes a vault saw refuse a start', () => {
 		expect([...avoidedNodes(p, now)].sort()).toEqual([A, B]);
 		expect(avoidedNodes({}).size).toBe(0);
 	});
+
+	it('leaves out a node where the sealed data area failed for a day, like one that refused', () => {
+		const now = 1_800_000_000_000;
+		const p = noteUnsuitable({}, A, 'dataArea', now - 1000);
+		expect(p.unsuitableNodes).toEqual([{ hash: A, reason: 'dataArea', at: now - 1000 }]);
+		expect(avoidedNodes(p, now).has(A)).toBe(true);
+		expect(avoidedNodes(p, now + REFUSED_PAUSE_MS).has(A)).toBe(false);
+	});
 });
 
 describe('proven nodes', () => {

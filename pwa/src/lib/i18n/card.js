@@ -24,11 +24,14 @@ export const card = {
 		},
 		nodeRefused: {
 			noSevSnp: 'Dieser Knoten kann trotz Angabe keine vertraulichen VMs. Die App versucht einen anderen.',
-			refused: 'Dieser Knoten hat die VM abgelehnt. Die App versucht einen anderen.'
+			refused: 'Dieser Knoten hat die VM abgelehnt. Die App versucht einen anderen.',
+			dataArea: 'Auf diesem Knoten ist der versiegelte Datenbereich gescheitert. Die App hat die VM entfernt und meidet den Knoten einen Tag lang.'
 		},
 		errors: {
 			noNode: 'Gerade hat kein vertraulicher Knoten Platz für deine VM. In ein paar Minuten noch einmal starten.',
 			fixedNodeRefused: 'Der im Setup festgelegte Knoten hat die VM abgelehnt. Leere im Setup das Feld „SEV-SNP-Knoten“, dann wählt die App einen anderen.',
+			dataAreaElsewhere: '„Noch einmal“ startet auf einem anderen Knoten.',
+			fixedNodeDataArea: 'Der Knoten ist im Setup festgelegt: Leere dort das Feld „SEV-SNP-Knoten“, dann wählt die App einen anderen.',
 			noDelegation: 'Aleph zeigt die Freigabe von Le Space noch nicht. In ein paar Minuten noch einmal starten.',
 			gapOpen: 'Der Start wartet auf deine Bestätigung: die letzte bekannte Sicherung würde nicht eingespielt.',
 			unmarkedOpen: 'Der Start wartet auf deine Bestätigung: die gewählte Sicherung trägt nicht das Siegel deines Tresors.',
@@ -191,11 +194,14 @@ export const card = {
 		},
 		nodeRefused: {
 			noSevSnp: 'This node cannot run confidential VMs, although it says it can. The app is trying another one.',
-			refused: 'This node refused the VM. The app is trying another one.'
+			refused: 'This node refused the VM. The app is trying another one.',
+			dataArea: 'The sealed data area failed on this node. The app removed the VM and avoids the node for a day.'
 		},
 		errors: {
 			noNode: 'No confidential node has room for your VM right now. Start again in a few minutes.',
 			fixedNodeRefused: 'The node fixed in the setup refused the VM. Clear the “SEV-SNP node” field in the setup and the app picks another one.',
+			dataAreaElsewhere: '“Try again” starts on another node.',
+			fixedNodeDataArea: 'The node is fixed in the setup: clear the “SEV-SNP node” field there and the app picks another one.',
 			noDelegation: 'Aleph does not show Le Space’s approval yet. Start again in a few minutes.',
 			gapOpen: 'The start is waiting for your confirmation: the last known backup would not be restored.',
 			unmarkedOpen: 'The start is waiting for your confirmation: the chosen backup does not carry your vault’s mark.',
