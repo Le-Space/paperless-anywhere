@@ -33,6 +33,7 @@ import { DataAreaFailedError } from '$lib/start-watch.js';
 import { backupSize, knownBackup, listBackups, newerBackup, pieceCidOfStop, restoreEntry, restoreGap, splitOwn } from '$lib/backups.js';
 import { paperlessSecrets } from '$lib/keys/derive.js';
 import { startingInstance } from '$lib/starting.js';
+import { choiceAfterReading } from '$lib/restore-choice.js';
 import { evidenceRows } from '$lib/evidence.js';
 import { evidenceTexts, panelTexts } from '$lib/evidence-i18n.js';
 import { format, lang as appLanguage, t as i18n, tr } from '$lib/i18n/index.js';
@@ -271,8 +272,8 @@ export function createLifecycleCard(p) {
 	let choice = $state('empty');
 	// The person chose what to start with (a radio, the list, "Die vorige
 	// wählen"): reading the list again keeps that choice as long as it still
-	// names a backup in the list. Until then, and after a start or a stop, the
-	// card chooses by itself (defaultChoice).
+	// names a backup in the list (restore-choice.js). Until then, and after a
+	// start that went through or a stop, the card chooses by itself (defaultChoice).
 	let choiceByPerson = false;
 	// "Own" are the backups that carry this vault's mark (vaultBackups, checked
 	// by the app); any other one is offered only as such, and only after the
@@ -314,14 +315,6 @@ export function createLifecycleCard(p) {
 		const { own, other } = splitOwn(list, profile.vaultBackups ?? []);
 		if (own.length) return production ? 'latest' : 'own';
 		return (production ? other.length : other.some((b) => (profile.ownBackups ?? []).includes(b.pieceCid))) ? 'any' : 'empty';
-	};
-	/** Whether the choice made by the person still names something in this list. @param {any[]} list */
-	const choiceHolds = (list) => {
-		const { own, other } = splitOwn(list, profile.vaultBackups ?? []);
-		if (choice === 'pick') return list.some((b) => b.pieceCid === pickedCid);
-		if (choice === 'latest' || choice === 'own') return own.length > 0;
-		if (choice === 'any') return other.length > 0;
-		return choice === 'empty';
 	};
 	// "Latest" is the newest backup with this vault's mark: only those start without asking.
 	const chosenBackup = $derived(choice === 'latest' || choice === 'own' ? pick(split.own) : choice === 'any' ? unmarkedPick(split.other) : choice === 'pick' ? ((backups ?? []).find((b) => b.pieceCid === pickedCid) ?? null) : null);
@@ -402,7 +395,7 @@ export function createLifecycleCard(p) {
 		if (listing && profile.ageIdentity) {
 			backupsError = '';
 			listBackups({ network: profile.network ?? 'calibration', ...listing })
-				.then((list) => ((backups = list), (choice = choiceByPerson && choiceHolds(list) ? choice : defaultChoice(list))))
+				.then((list) => ((backups = list), (choice = choiceAfterReading({ byPerson: choiceByPerson, choice, pickedCid }, list, profile.vaultBackups ?? [], defaultChoice))))
 				.catch(() => ((backups = []), (backupsError = tr().card.backupsUnreadable)));
 		}
 	};
@@ -788,10 +781,11 @@ export function createLifecycleCard(p) {
 	}, () => startAgain());
 	/** @param {() => Promise<any>} bringUp */
 	async function finishStart(bringUp) {
-		// The choice was for this start; the next one chooses anew.
-		choiceByPerson = false;
 		try {
 			const running = await bringUp();
+			// The choice was for this start, which went through: the next one chooses anew.
+			// A start that fails keeps it, so starting again begins with the same backup.
+			choiceByPerson = false;
 			// Which image this VM runs, so it is never forgotten under it (old-image.js).
 			// An attested start marks its node as proven (pickNode prefers it next time).
 			profile = await updateProfile(master, ({ starting, ...rest }) => {
