@@ -12,7 +12,8 @@
 	// is never torn down.
 	import { tick } from 'svelte';
 	import { refreshBalancesSoon } from '$lib/balance-refresh.js';
-	import Setup from '$lib/Setup.svelte';
+	import System from '$lib/v2/System.svelte';
+	import Addr from '$lib/Addr.svelte';
 	import Paperless from '$lib/v2/Paperless.svelte';
 	import Balances from '$lib/Balances.svelte';
 	import VmList from '$lib/VmList.svelte';
@@ -89,7 +90,9 @@
 	let acting = $state(false);
 	/** @type {string[]} */
 	let missing = $state([]);
-	let setupOpen = $state(false);
+	let vmsOpen = $state(false);
+	// VMs this vault started that no card knows (VmList): they cost until adopted or deleted.
+	let strays = $state(0);
 	/** @type {import('$lib/Lifecycle.svelte').Glance | null} */
 	let life = $state(null);
 	/** @type {{ plan: boolean, hoursLeft: number | null, pays: string | null, low: boolean, endsAt: number | null } | null} */
@@ -166,11 +169,31 @@
 			.catch(() => '');
 		return diagnosisText({ build: __BUILD__, cid, unlocked: Boolean(session.master), lang: $lang });
 	}
+	// The setup's sections open by themselves where something is missing (setup-card.svelte.js).
 	const toSetup = () => {
 		setView('technical');
-		setupOpen = true;
 		go('system');
 	};
+	const toVms = () => {
+		setView('technical');
+		vmsOpen = true;
+		go('system');
+	};
+	/** The dialog for a card that asks with one sentence. @param {string} text */
+	const askPlain = (text) => ask({ title: x.confirmTitle, text, yes: x.confirmYes, no: x.confirmNo });
+	// The top of "System": what the shell knows of package and Paperless, each with where it leads.
+	const systemState = $derived.by(() => {
+		const g = $t.app.glance;
+		return [
+			...(CREDITS_URL && pkg ? [{ key: 'package', label: g.package, value: !pkg.plan ? g.noPackage : pkg.pays === 'app' || pkg.pays === 'wallet' ? g.notInUse : ending && ending !== 'ended' ? $t.pkg.ending.chip(endsAtText) : pkg.hoursLeft != null ? g.hoursLeft(pkg.hoursLeft) : g.active, tone: !pkg.plan || pkg.low || ending ? 'warn' : '', open: () => go('plan') }] : []),
+			...(life ? [
+				{ key: 'paperless', label: 'Paperless-ngx', value: /** @type {Record<string, string>} */ (g.phases)[life.phase] ?? life.phase, tone: life.phase === 'interrupted' ? 'warn' : '', open: () => go('start') },
+				{ key: 'last-backup', label: $t.backup.overview.last, value: !life.backupsOn ? g.backupsOff : life.lastGood ? `${format.dateTime(life.lastGood.at, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }, $lang)}${life.lastGood.copies ? ` · ${g.copies(life.lastGood.copies)}` : ''}` : g.noneYet, tone: !life.backupsOn || !life.lastGood ? 'warn' : '', open: () => go('backup') },
+				// The address only while there is one; whether it is fixed is the setup's own row.
+				...(life.host ? [{ key: 'host', label: g.address, value: life.host, tone: '', open: () => go('start') }] : [])
+			] : [])
+		];
+	});
 	const master = $derived(/** @type {Uint8Array} */ (session.master));
 	const unlocked = $derived(session.state === 'unlocked');
 </script>
@@ -305,6 +328,12 @@
 						<button class="sec" onclick={() => go('plan')}>{$t.pkg.ending.more}</button>
 					</section>
 				{/if}
+				{#if strays && area === 'start'}
+					<section class="alert" role="status" data-testid="v2-stray">
+						<p><strong>{x.system.strayStrong(strays)}</strong> {x.system.stray}</p>
+						<button class="sec" onclick={toVms} data-testid="v2-stray-open">{$technical ? x.system.strayButtonTechnical : x.system.strayButton}</button>
+					</section>
+				{/if}
 				{#if summary && area === 'start'}
 					{#each summary.warnings as w (w)}
 						<section class="alert" role="status" data-testid={`v2-warning-${w}`}>
@@ -315,7 +344,7 @@
 				{/if}
 
 				{#snippet lights()}<BackupLeds copies={ledCopies} remembered={ledRemembered} onreach={(l) => (reachLed = l)} />{/snippet}
-				<Paperless {master} technical={$technical} {area} version={profileVersion} reach={reachLed} confirm={ask} {lights} onchange={() => profileVersion++} onsetup={toSetup} onpackage={() => go('plan')} onmissing={(m) => { missing = m; if (m.length) setupOpen = true; }} onglance={(g) => (life = g)} onbusy={(b) => (acting = b)} oncopies={newestCopies} />
+				<Paperless {master} technical={$technical} {area} version={profileVersion} reach={reachLed} confirm={ask} {lights} onchange={() => profileVersion++} onsetup={toSetup} onpackage={() => go('plan')} onmissing={(m) => (missing = m)} onglance={(g) => (life = g)} onbusy={(b) => (acting = b)} oncopies={newestCopies} />
 
 				<section id="area-plan" hidden={area !== 'plan'} aria-labelledby="h-plan">
 					<h1 id="h-plan" tabindex="-1">{x.areas.plan}</h1>
@@ -327,17 +356,14 @@
 					</details>
 				</section>
 
-				<!-- Mounted in both views (the setup reports what is missing); shown in the technical one. -->
+				<!-- Mounted in both views (the VM list reports strays, the setup what is missing); shown in the technical one. -->
 				<section id="area-system" hidden={area !== 'system' || !$technical} aria-labelledby="h-system">
 					<h1 id="h-system" tabindex="-1">{x.system.title}</h1>
 					<p class="hint">{x.system.lede}</p>
-					<details class="part" data-testid="v2-vms">
-						<summary>{$t.app.tech.vms}</summary>
-						<VmList {master} version={profileVersion} onchange={() => profileVersion++} />
-					</details>
-					<details class="part" bind:open={setupOpen} data-testid="v2-setup">
-						<summary>{$t.app.tech.setup} <span class="chip" class:warn={missing.length > 0}>{missing.length ? $t.app.tech.missing : $t.app.tech.complete}</span></summary>
-						<Setup {master} version={profileVersion} onsaved={() => profileVersion++} />
+					<System {master} version={profileVersion} state={systemState} confirm={ask} onplan={() => go('plan')} onsaved={() => profileVersion++} />
+					<details class="part" bind:open={vmsOpen} data-testid="v2-vms">
+						<summary>{$t.app.tech.vms}{#if strays} <span class="chip warn">{strays}</span>{/if}</summary>
+						<VmList {master} version={profileVersion} onchange={() => profileVersion++} confirm={askPlain} onstrays={(n) => (strays = n)} />
 					</details>
 				</section>
 
@@ -346,11 +372,15 @@
 					<div class="card">
 						<h2>{x.more.keys}</h2>
 						<p>{x.more.keysText}</p>
-						{#if $technical}<p class="tline">{x.more.appKey}: <code data-testid="v2-address">{session.address}</code></p>{/if}
+						<!-- The app's address in one place, with a copy button (v0.1 showed it in four, under three names). -->
+						{#if $technical}<p class="tline">{x.more.appKey}: <Addr value={session.address} testid="v2-address" /></p>{/if}
 						<h3>{x.more.addDevice}</h3>
 						<p class="hint">{x.more.addDeviceText(location.host)}</p>
 						<button class="sec" onclick={async () => { added = false; await session.newPasskey(name); added = !session.error; }} disabled={session.busy} data-testid="v2-add-passkey">{x.more.addPasskey}</button>
 						{#if added}<p class="ok" role="status" data-testid="v2-passkey-added">{x.more.added}</p>{/if}
+						<h3>{x.locked.forget}</h3>
+						<p class="hint">{x.more.forgetText}</p>
+						<button class="lnk" onclick={forget} data-testid="v2-forget-here">{x.locked.forget}</button>
 					</div>
 					<div class="card">
 						<h2>{x.more.settings}</h2>
@@ -366,7 +396,7 @@
 		<!-- Help and the legal links: with the vault open under "Mehr", before that always. -->
 		<div hidden={unlocked && area !== 'more'}>
 			<Help t={$t.help} lang={$lang} faq={$lang === 'en' ? '/en/#faq' : '/#faq'} diagnosis={diagnose} bind:open={helpOpen} />
-			<BuildInfo />
+			<BuildInfo simple={!$technical} />
 		</div>
 	</main>
 

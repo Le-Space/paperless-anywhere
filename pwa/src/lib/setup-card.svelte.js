@@ -29,6 +29,14 @@ export function createSetupCard(p) {
 	const master = $derived(p.master);
 	const version = $derived(p.version);
 	const { onsaved } = p;
+	// A question to the person: the host's own dialog where it has one (v0.2), else the browser's.
+	const ask = async (/** @type {string} */ question) => (p.confirm ? p.confirm(question) : window.confirm(question));
+	// The first reading of the settings again, after it failed (v0.2 offers it).
+	let loadTry = $state(0);
+	const loadAgain = () => {
+		error = '';
+		loadTry++;
+	};
 	const x = $derived(tNow.current.setup);
 
 	const pwaAddress = privateKeyToAccount(alephPrivateKey(master)).address;
@@ -92,6 +100,7 @@ export function createSetupCard(p) {
 	});
 
 	$effect(() => {
+		loadTry;
 		loadProfile(master)
 			.then(async (p) => {
 				profile = { network: 'calibration', ...p };
@@ -168,7 +177,7 @@ export function createSetupCard(p) {
 	// another one to that role while the first still runs would duplicate both.
 	/** @param {'test' | 'primary'} role @param {HTMLInputElement} [radio] */
 	const setRole = (role, radio) => run('role', async () => {
-		if (role === 'primary' && !confirm(tr().setup.role.confirm)) {
+		if (role === 'primary' && !(await ask(tr().setup.role.confirm))) {
 			// The browser already moved the selection; put it back.
 			const test = radio?.closest('fieldset')?.querySelector('input[value="test"]');
 			if (test instanceof HTMLInputElement) test.checked = true;
@@ -203,9 +212,12 @@ export function createSetupCard(p) {
 	const payBackups = () => run('bycredits', async () => {
 		const want = wantNetwork();
 		// Asked before paying: credits spent in the wrong network would be lost to this Paperless.
-		const offered = (await creditsCatalog().catch(() => null))?.network;
+		const catalog = await creditsCatalog().catch(() => null);
+		const offered = catalog?.network;
 		if (offered === null) throw new Error(tr().setup.backups.notPaying);
 		if (offered && offered !== want) throw new Error(tr().setup.backups.errors.payOtherNetwork(netName(offered), netName(want)));
+		// A host with its own dialog (v0.2) asks before the balance is charged, with the price where the service names it.
+		if (p.confirm && !(await p.confirm(tr().v2.system.payMonthConfirm(catalog?.backup?.monthCents != null ? format.euro(catalog.backup.monthCents) : '')))) return;
 		const r = await fundBackups(master, 1);
 		if (r.network && r.network !== want) throw new Error(tr().setup.backups.errors.fundNetwork(r.network, want));
 		await authorizeKey();
@@ -233,7 +245,7 @@ export function createSetupCard(p) {
 	// decrypt every backup made with it. Only its recipient is ever shown.
 	const vaultAge = $derived(ageIdentityFromMaster(master));
 	const useVaultAge = () => run('age', async () => {
-		if (profile.ageIdentity && profile.ageIdentity !== vaultAge && !confirm(tr().setup.backups.errors.replaceAge)) return;
+		if (profile.ageIdentity && profile.ageIdentity !== vaultAge && !(await ask(tr().setup.backups.errors.replaceAge))) return;
 		await save({ ageIdentity: vaultAge, ...(profile.backupConfig ? { backupConfig: backupConfigFor(profile.network, ageRecipient(vaultAge), profile.backupConfig) } : {}) });
 	});
 	// Without a key yet, backups use the vault's own: the default.
@@ -347,7 +359,7 @@ export function createSetupCard(p) {
 				master,
 				profile,
 				packagePays,
-				confirm: (question) => confirm(question),
+				confirm: (question) => ask(question),
 				save,
 				onProgress: ({ detail }) => (ownStep = detail ?? '')
 			});
@@ -444,6 +456,7 @@ export function createSetupCard(p) {
 	let devOpen = $state(false);
 
 	return {
+		loadAgain,
 		// Written by the markup only: the person picked an image kind themselves.
 		set imageKindPicked(v) { imageKindPicked = v; },
 		get x() { return x; },

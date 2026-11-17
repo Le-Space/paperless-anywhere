@@ -7,6 +7,8 @@
 	import { format, lang, t } from '$lib/i18n/index.js';
 	import GitHubMark from '$lib/GitHubMark.svelte';
 
+	/** @type {{ simple?: boolean }} simple: the release and its time only, without commit and CID (v0.2's "Standard") */
+	let { simple = false } = $props();
 	const build = __BUILD__;
 	const time = $derived(format.dateTime(build.time, { dateStyle: 'medium', timeStyle: 'short' }, $lang));
 	// The landing page of the language shown here.
@@ -33,8 +35,10 @@
 	</nav>
 	<span data-testid="build-version">{build.version}</span>
 	· <time datetime={build.time}>{time}</time>
-	{#if build.commit}· <code title={$t.app.footer.commit}>{build.commit}</code>{/if}
-	{#if cid}<br /><span title={$t.app.footer.cid}>IPFS: <code>{cid}</code></span>{/if}
+	{#if !simple}
+		{#if build.commit}· <code title={$t.app.footer.commit}>{build.commit}</code>{/if}
+		{#if cid}<br /><span title={$t.app.footer.cid}>IPFS: <code>{cid}</code></span>{/if}
+	{/if}
 </footer>
 
 <style>

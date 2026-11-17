@@ -140,7 +140,8 @@ test('not set up yet: Standard leads to the setup in the technical view with one
 	await page.getByTestId('v2-open-setup').click();
 	await expect(page.getByRole('banner').getByTestId('view-technical')).toHaveAttribute('aria-pressed', 'true');
 	await expect(page.getByRole('heading', { level: 1, name: 'System' })).toBeFocused();
-	await expect(page.getByTestId('v2-setup')).toHaveAttribute('open', '');
+	await expect(page.getByTestId('setup-overview')).toBeVisible();
+	await expect(page.getByTestId('step-pays')).toHaveAttribute('open', '');
 	await page.getByTestId('v2-area-start').click();
 	await expect(page.getByTestId('v2-missing')).toContainText('Es fehlt noch:');
 	// The choice of what to start with and the role are what the technical view adds here.
