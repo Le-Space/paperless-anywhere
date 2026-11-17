@@ -139,6 +139,14 @@ export const v2 = {
 			techChain: 'Nachweise auf der Chain',
 			techLast: 'Letzte Sicherung beim Beenden'
 		},
+		confirmTitle: 'Bitte bestätigen',
+		confirmYes: 'Ja',
+		confirmNo: 'Abbrechen',
+		lock: 'Sperren',
+		lockBusy: 'Gerade läuft noch etwas (Start, Sicherung oder Stopp). Die Maschine macht weiter; die App verfolgt es erst wieder, wenn du neu entsperrst.',
+		leaveTitle: 'App sperren und verlassen?',
+		leaveYes: 'Sperren und verlassen',
+		leaveNo: 'Hier bleiben',
 		plan: {
 			again: 'Noch einmal versuchen',
 			payer: 'Zahlweg ändern (Ansicht „Technisch“)',
@@ -159,14 +167,6 @@ export const v2 = {
 			techPayerHint: 'Ändern unter System → Einrichtung → „Wer zahlt die VM?“.',
 			toSetup: 'Einrichtung öffnen'
 		},
-		confirmTitle: 'Bitte bestätigen',
-		confirmYes: 'Ja',
-		confirmNo: 'Abbrechen',
-		lock: 'Sperren',
-		lockBusy: 'Gerade läuft noch etwas (Start, Sicherung oder Stopp). Die Maschine macht weiter; die App verfolgt es erst wieder, wenn du neu entsperrst.',
-		leaveTitle: 'App sperren und verlassen?',
-		leaveYes: 'Sperren und verlassen',
-		leaveNo: 'Hier bleiben',
 		system: {
 			title: 'System',
 			lede: 'Alles, was der Alltag nicht braucht.',
@@ -322,6 +322,14 @@ export const v2 = {
 			techChain: 'Proofs on the chain',
 			techLast: 'Last backup at the stop'
 		},
+		confirmTitle: 'Please confirm',
+		confirmYes: 'Yes',
+		confirmNo: 'Cancel',
+		lock: 'Lock',
+		lockBusy: 'Something is still under way (a start, a backup or a stop). The machine carries on; the app follows it again only after you unlock anew.',
+		leaveTitle: 'Lock the app and leave?',
+		leaveYes: 'Lock and leave',
+		leaveNo: 'Stay here',
 		plan: {
 			again: 'Try again',
 			payer: 'Change who pays (“Technical” view)',
@@ -342,14 +350,6 @@ export const v2 = {
 			techPayerHint: 'Change it under System → Setup → “Who pays the VM?”.',
 			toSetup: 'Open the setup'
 		},
-		confirmTitle: 'Please confirm',
-		confirmYes: 'Yes',
-		confirmNo: 'Cancel',
-		lock: 'Lock',
-		lockBusy: 'Something is still under way (a start, a backup or a stop). The machine carries on; the app follows it again only after you unlock anew.',
-		leaveTitle: 'Lock the app and leave?',
-		leaveYes: 'Lock and leave',
-		leaveNo: 'Stay here',
 		system: {
 			title: 'System',
 			lede: 'Everything that everyday use does not need.',
