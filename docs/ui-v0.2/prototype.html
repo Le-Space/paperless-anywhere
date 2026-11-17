@@ -1,0 +1,581 @@
+<title>Paperless anywhere v0.2</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a working page. Top: the clickable prototype, two phones side by side
+   (Standard, Technisch) on the same screen, so the difference is visible at once.
+   Below: the concept in short sections. Tokens are those of the Le Space Belege
+   Brand & Style Guide v1 (pwa/src/lib/theme.css). */
+:root {
+	--bg: #faf6ee; --surface: #ffffff; --surface-2: #f3eee2; --text: #0f1b2d; --text-2: #51606f;
+	--line: #e3dccb; --accent: #ffb020; --accent-ink: #0f1b2d; --accent-text: #8a5a00; --link: #5b3fd6;
+	--cta-bg: #0f1b2d; --cta-text: #faf6ee;
+	--ok: #1f7a3d; --ok-bg: #e6f3e9; --warn: #8a5a00; --warn-bg: #fff3d6; --danger: #b3261e; --danger-bg: #fdecea;
+	--focus: #0f1b2d; --shadow: 0 1px 2px rgba(15,27,45,.06), 0 8px 24px rgba(15,27,45,.06);
+	--font: 'Sora', system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+	--radius: 16px; --radius-sm: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+	--bg: #0b0e15; --surface: #161b26; --surface-2: #1d2331; --text: #f4f6fb; --text-2: #8a94a6;
+	--line: #2a3140; --accent: #c6f24e; --accent-ink: #0b0e15; --accent-text: #c6f24e; --link: #a893ff;
+	--cta-bg: #c6f24e; --cta-text: #0b0e15;
+	--ok: #7fd99a; --ok-bg: #16281d; --warn: #ffc65c; --warn-bg: #2b2414; --danger: #ff8a80; --danger-bg: #2e1715;
+	--focus: #c6f24e; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35); color-scheme: dark } }
+:root[data-theme="dark"] {
+	--bg: #0b0e15; --surface: #161b26; --surface-2: #1d2331; --text: #f4f6fb; --text-2: #8a94a6;
+	--line: #2a3140; --accent: #c6f24e; --accent-ink: #0b0e15; --accent-text: #c6f24e; --link: #a893ff;
+	--cta-bg: #c6f24e; --cta-text: #0b0e15;
+	--ok: #7fd99a; --ok-bg: #16281d; --warn: #ffc65c; --warn-bg: #2b2414; --danger: #ff8a80; --danger-bg: #2e1715;
+	--focus: #c6f24e; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35); color-scheme: dark }
+
+*, *::before, *::after { box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+.page { max-width: 1120px; margin: 0 auto; padding-block: 28px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { letter-spacing: -0.01em; line-height: 1.2; text-wrap: balance; margin: 0; }
+.page > header h1 { font-size: clamp(30px, 5vw, 40px); font-weight: 700; }
+.page h2 { font-size: 24px; font-weight: 600; margin: 56px 0 12px; }
+.page h3 { font-size: 17px; font-weight: 600; margin: 24px 0 6px; }
+p { margin: 0 0 12px; max-width: 68ch; }
+a { color: var(--link); text-underline-offset: 3px; }
+.kicker { font-family: var(--mono); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent-text); margin: 0 0 8px; }
+.lede { color: var(--text-2); font-size: 17px; }
+code, .mono { font-family: var(--mono); font-size: .86em; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
+button { font: inherit; cursor: pointer; }
+
+/* prototype controls */
+.picker { display: flex; flex-wrap: wrap; gap: 6px; margin: 20px 0 8px; }
+.picker button { background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; font-size: 14px; }
+.picker button[aria-pressed="true"] { background: var(--cta-bg); color: var(--cta-text); border-color: var(--cta-bg); font-weight: 600; }
+.note { font-size: 14px; color: var(--text-2); }
+.stage { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-top: 16px; align-items: start; }
+.col { min-width: 0; }
+.col > .label { font-family: var(--mono); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--text-2); margin: 0 0 8px; }
+
+/* the app inside the phone */
+.device { max-width: 400px; margin: 0 auto; border: 1px solid var(--line); border-radius: 28px; background: var(--bg); box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; }
+.ahead { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.brand svg { flex: none; }
+.brand .w { line-height: 1.1; min-width: 0; }
+.brand .w small { display: block; font-family: var(--mono); font-size: 9px; letter-spacing: .32em; color: var(--text-2); }
+.brand .w b { font-size: 14px; font-weight: 700; white-space: nowrap; }
+.seg { display: flex; padding: 3px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; flex: none; }
+.seg button { border: 0; background: transparent; color: var(--text-2); border-radius: 999px; padding: 6px 10px; font-size: 13px; min-height: 32px; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
+.abody { padding: 16px 14px 20px; display: flex; flex-direction: column; gap: 12px; min-height: 420px; }
+.anav { display: flex; background: var(--surface); border-top: 1px solid var(--line); }
+.anav button { flex: 1; border: 0; background: transparent; color: var(--text-2); padding: 10px 2px 12px; font-size: 12px; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 3px; position: relative; }
+.anav button[aria-current="page"] { color: var(--text); font-weight: 600; }
+.anav button[aria-current="page"]::before { content: ""; position: absolute; top: 0; left: 22%; right: 22%; height: 3px; background: var(--accent); border-radius: 0 0 3px 3px; }
+.anav svg { width: 22px; height: 22px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+.card h3 { font-size: 22px; font-weight: 700; margin: 0 0 6px; }
+.card h4 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+.card p { margin: 0 0 10px; font-size: 16px; }
+.card p:last-child { margin-bottom: 0; }
+.sub { color: var(--text-2); }
+.cta, .sec { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 52px; border-radius: 999px; font-size: 17px; font-weight: 600; padding: 10px 18px; margin: 10px 0 0; text-align: center; }
+.cta { background: var(--cta-bg); color: var(--cta-text); border: 1px solid var(--cta-bg); }
+.sec { background: transparent; color: var(--text); border: 1px solid var(--text-2); }
+.lnk { background: none; border: 0; padding: 8px 0; color: var(--link); text-decoration: underline; text-underline-offset: 3px; font-size: 15px; min-height: 44px; text-align: left; }
+.small { background: transparent; border: 1px solid var(--line); color: var(--text); border-radius: 999px; padding: 6px 12px; font-size: 14px; min-height: 36px; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); font-size: 15px; min-height: 48px; }
+.row:first-child { border-top: 0; }
+.row > span:first-child { min-width: 0; }
+.row .v { color: var(--text-2); text-align: right; }
+.chev::after { content: "›"; color: var(--text-2); font-size: 20px; margin-left: 8px; }
+.light { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; padding: 6px 0; }
+.dot { flex: none; width: 14px; height: 14px; border-radius: 50%; margin-top: 5px; background: var(--ok); }
+.dot.w { background: var(--accent); } .dot.o { background: transparent; border: 2px solid var(--text-2); }
+.alert { background: var(--warn-bg); color: var(--warn); border: 1px solid currentColor; border-radius: var(--radius-sm); padding: 12px 14px; font-size: 15px; }
+.alert b { display: block; }
+.alert .sec { border-color: currentColor; color: inherit; min-height: 44px; font-size: 15px; }
+.okline { background: var(--ok-bg); color: var(--ok); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 15px; }
+.steps { list-style: none; margin: 10px 0 0; padding: 0; }
+.steps li { display: flex; gap: 10px; padding: 8px 0; font-size: 16px; align-items: baseline; }
+.steps .s { flex: none; width: 22px; font-family: var(--mono); color: var(--text-2); }
+.steps .done .s { color: var(--ok); } .steps .now { font-weight: 600; } .steps .wait { color: var(--text-2); }
+.meter { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin: 10px 0 6px; }
+.meter i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+/* what only the technical view adds */
+.tech { background: var(--surface-2); border: 1px dashed var(--text-2); border-radius: var(--radius-sm); padding: 12px; font-size: 13.5px; line-height: 1.5; }
+.tech .tk { font-family: var(--mono); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--text-2); margin: 0 0 6px; }
+.tech dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; }
+.tech dt { color: var(--text-2); } .tech dd { margin: 0; font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.tech .small { margin-top: 8px; }
+.tline { font-family: var(--mono); font-size: 12.5px; color: var(--text-2); overflow-wrap: anywhere; margin: 2px 0 0; }
+.words { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0; padding: 0; list-style: none; counter-reset: w; font-family: var(--mono); font-size: 13px; }
+.words li { counter-increment: w; background: var(--surface-2); border-radius: 8px; padding: 6px 8px; }
+.words li::before { content: counter(w) " "; color: var(--text-2); }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; }
+.check input { width: 22px; height: 22px; flex: none; margin-top: 2px; accent-color: var(--text); }
+.stepno { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; color: var(--text-2); text-transform: uppercase; }
+.login { background: var(--surface-2); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 15px; }
+.login div { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+
+/* the panel of lights (StartPanel): a fixed dark panel in both themes, as in the app today */
+.lp { --g: #0b1020; --r: #1f2947; --i: #e6ebf8; --d: #9aa6c6; --app: #5fd6a8; --rep: #8ab8f5; --run: #f5b041; --off: #2a3558;
+	background: var(--g); color: var(--i); border-radius: var(--radius); padding: 12px 14px; font-size: 13.5px;
+	background-image: radial-gradient(1px 1px at 12% 18%, #ffffff66 50%, transparent 51%), radial-gradient(1px 1px at 71% 9%, #ffffff55 50%, transparent 51%), radial-gradient(1px 1px at 88% 62%, #ffffff44 50%, transparent 51%), radial-gradient(1px 1px at 34% 83%, #ffffff44 50%, transparent 51%); }
+.lp ol, .lp ul { list-style: none; margin: 0; padding: 0; }
+.lp .r { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 8px 0; border-top: 1px solid var(--r); align-items: center; }
+.lp .r:first-child { border-top: 0; }
+.lp .nm { font-family: var(--mono); font-weight: 500; font-size: 13.5px; }
+.lp .nm .no { display: inline-block; width: 20px; color: var(--d); }
+.lp .nm small { color: var(--d); font-weight: 400; margin-left: 6px; }
+.lp .off .nm { color: var(--d); }
+.lp .ld { display: flex; gap: 6px; }
+.lp .ld i { width: 11px; height: 11px; border-radius: 50%; background: var(--off); }
+.lp .ld i.app { background: var(--app); box-shadow: 0 0 6px var(--app); }
+.lp .ld i.rep { background: var(--rep); box-shadow: 0 0 6px var(--rep); }
+.lp .ld i.run { background: var(--run); box-shadow: 0 0 6px var(--run); }
+.lp .fx { grid-column: 1 / -1; color: var(--d); font-size: 12.5px; padding-left: 20px; }
+.lp .fx b { color: var(--app); font-weight: 700; margin-right: 6px; } .lp .fx b.rep { color: var(--rep); } .lp .fx b.run { color: var(--run); }
+.lp .lg { margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--r); color: var(--d); font-size: 12px; }
+/* the first-start journey (FirstStart): full screen, dark, in both themes */
+.fs { --g: #0b1020; --r: #1f2947; --i: #e6ebf8; --d: #9aa6c6; --gold: #f5b041; --app: #5fd6a8;
+	background: var(--g); color: var(--i); padding: 16px 14px 18px; display: flex; flex-direction: column; gap: 12px; min-height: 520px; }
+.fs .kk { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); margin: 0; }
+.fs .tp { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.fs h3 { font-size: 20px; font-weight: 700; margin: 4px 0 0; }
+.fs .gh { background: transparent; color: var(--i); border: 1px solid var(--d); border-radius: 999px; padding: 6px 12px; font-size: 13px; min-height: 36px; flex: none; }
+.fs .st { list-style: none; display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 4px 0 0; padding: 0; text-align: center; font-size: 10.5px; color: var(--d); }
+.fs .st .c { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--r); display: grid; place-items: center; margin: 0 auto 4px; font-family: var(--mono); font-size: 13px; position: relative; }
+.fs .st .done .c { background: var(--app); border-color: var(--app); color: var(--g); font-weight: 700; }
+.fs .st .act { color: var(--i); } .fs .st .act .c { border-color: var(--gold); color: var(--gold); }
+.fs .st .act .c::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid transparent; border-top-color: var(--gold); }
+.fs .ldr { display: grid; grid-template-columns: repeat(6, 1fr); justify-items: center; }
+.fs .ldr i { width: 9px; height: 9px; border-radius: 50%; background: var(--r); }
+.fs .ldr i.on { background: var(--app); box-shadow: 0 0 6px var(--app); } .fs .ldr i.bl { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
+.fs .now { background: #121a33; border: 1px solid var(--r); border-radius: var(--radius-sm); padding: 12px; }
+.fs .now .sp { font-family: var(--mono); font-size: 11.5px; color: var(--d); margin: 0 0 4px; }
+.fs .now h4 { font-size: 17px; margin: 0 0 4px; } .fs .now p { margin: 0; font-size: 14.5px; color: var(--i); }
+.fs .sb { list-style: none; margin: 10px 0 0; padding: 0; font-size: 12.5px; color: var(--d); }
+.fs .sb li { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; }
+.fs .sb i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--r); } .fs .sb i.on { background: var(--app); } .fs .sb i.bl { background: var(--gold); }
+.fs figure { margin: 0; border: 1px solid var(--r); border-radius: var(--radius-sm); padding: 10px; }
+.fs figcaption { font-size: 12.5px; color: var(--d); margin-bottom: 6px; } .fs figcaption b { color: var(--i); }
+.fs svg text { fill: var(--i); font-family: var(--font); font-size: 11px; }
+.fs .br { height: 8px; border-radius: 999px; background: var(--r); overflow: hidden; } .fs .br i { display: block; height: 100%; background: var(--gold); }
+.fs .ft { font-size: 13px; color: var(--d); margin: 0; }
+@media (prefers-reduced-motion: no-preference) {
+	.lp .ld i.run, .fs .ldr i.bl, .fs .sb i.bl { animation: blink 1.2s ease-in-out infinite; }
+	.fs .st .act .c::after { animation: spin 1.6s linear infinite; }
+	@keyframes blink { 50% { opacity: .25; } } @keyframes spin { to { transform: rotate(360deg); } }
+}
+
+/* concept sections */
+.tablewrap { overflow-x: auto; margin: 12px 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; min-width: 640px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-top: 1px solid var(--line); }
+thead th { border-top: 0; font-size: 12px; font-family: var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--text-2); font-weight: 500; }
+td.n { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+ul.plain { padding-left: 20px; margin: 0 0 12px; max-width: 72ch; }
+ul.plain li { margin: 4px 0; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px 32px; }
+.two > div { min-width: 0; }
+.q { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px 16px; margin: 0 0 10px; max-width: 76ch; }
+.q b { display: block; margin-bottom: 2px; }
+</style>
+
+<div class="page">
+<header>
+	<p class="kicker">Konzept zur Freigabe · Phase 2 · 17.11.2026</p>
+	<h1>Paperless anywhere v0.2: Standard und Technisch</h1>
+	<p class="lede" style="margin-top:12px">Eine App, zwei Ansichten. „Standard“ zeigt nur, was man im Alltag braucht. „Technisch“ zeigt dasselbe an derselben Stelle und legt alle Details und Regler dazu. Unten kannst du beide Ansichten nebeneinander durchklicken.</p>
+</header>
+
+<section aria-labelledby="proto">
+	<h2 id="proto">Prototyp zum Durchklicken</h2>
+	<p class="note">Wähle einen Bildschirm. Links steht die Ansicht „Standard“, rechts „Technisch“ im selben Zustand; die gestrichelten Kästen sind alles, was „Technisch“ dazulegt. Der Schalter im Kopf jedes Telefons funktioniert. Zahlen, Namen und Adressen sind Beispielwerte.</p>
+	<div class="picker" id="picker" role="group" aria-label="Bildschirm wählen"></div>
+	<div class="stage" id="stage"></div>
+</section>
+
+<section>
+	<h2>Was die Inventur ergeben hat</h2>
+	<p>Ich bin jeden Bildschirm und Zustand der heutigen App durchgegangen: 791 Einträge mit Datei und Zeile (231 Shell, Einrichtung, Erststart und Hilfe; 291 Start, Betrieb, Stopp und Nachweise; 269 Paket, Guthaben und Sicherungen).</p>
+	<div class="two">
+		<div>
+			<h3>Warum es heute unübersichtlich ist</h3>
+			<ul class="plain">
+				<li>Die Karte für Start und Stopp gibt es zweimal als eigene Vorlage (Übersicht, Erweitert). Die beiden sind auseinandergelaufen: „Jetzt sichern“, Speicher und „Sicherung prüfen“ gibt es nur in der Übersicht, „Dokumente herunterladen“ nur unter Erweitert und nur bei gestoppter Maschine.</li>
+				<li>Dieselbe Sache steht an vielen Stellen: die letzte Sicherung an bis zu sechs, das Laufzeitende an drei, die Adresse der App an vier (unter drei Namen), „Auf einen Blick“ an zwei.</li>
+				<li>Die Übersicht ist nicht einfach: Bei jedem Start und Stopp stehen dort alle Tatsachen des Lichterfelds ausgeschrieben (INSTANCE, Attestierung, Piece-CID, FORGET), dazu „Was die Chain sagt“ und ein Kommandozeilenbefehl.</li>
+				<li>Die Einrichtung liegt vier Ebenen tief (Erweitert, Technisch, Einrichtung, Schritt, „Mehr dazu“).</li>
+			</ul>
+		</div>
+		<div>
+			<h3>Sackgassen, die v0.2 schließt</h3>
+			<ul class="plain">
+				<li>Die 24 Wörter können verloren gehen, bevor sie notiert sind: „Sperren“, das Logo oder ein Neuladen verwerfen sie ohne Rückfrage.</li>
+				<li>Ein verworfener, unterbrochener Start lässt eine Maschine weiterlaufen, die Geld kostet. Löschen lässt sie sich nur unter Erweitert, Technisch, Meine VMs.</li>
+				<li>Warnungen in der Übersicht sagen „Details unter Erweitert“, ohne Link oder Knopf.</li>
+				<li>„Einen Monat Sicherungen bezahlen“ bucht ohne Rückfrage und ohne Preis.</li>
+				<li>Mehrere Wege verlassen die App und sperren damit den Tresor ohne Hinweis (Stripe-Portal, Häufige Fragen, „Über“).</li>
+				<li>Wer auf einem neuen Gerät einen vorhandenen Tresor öffnen will, landet zuerst bei „Tresor anlegen“.</li>
+			</ul>
+		</div>
+	</div>
+</section>
+
+<section>
+	<h2>Aufbau</h2>
+	<p>Vier Bereiche in „Standard“, fünf in „Technisch“. Jeder Bereich beantwortet eine Frage. Die Navigation liegt auf dem Telefon unten, am Bildschirm oben.</p>
+	<div class="tablewrap"><table>
+		<thead><tr><th>Bereich</th><th>Frage</th><th>Standard</th><th>Technisch legt dazu</th></tr></thead>
+		<tbody>
+			<tr><td><b>Start</b></td><td>Läuft mein Paperless, und wie komme ich hinein?</td><td>Ein Zustand, ein Satz, ein Knopf. Beim Starten und Stoppen das Lichterfeld mit schlichten Zeilennamen und Restzeit. Der Erststart als Vollbild-Reise. Anmeldung. Eine Zeile „Geprüft“.</td><td>Im Lichterfeld jede Tatsache ausgeschrieben, mit Zeiten; im Erststart Unterschritte und Belege; Nachweis der VM, Wahl der Sicherung beim Start, Rolle, Netz, Knoten, Urkunde des Images.</td></tr>
+			<tr><td><b>Sicherung</b></td><td>Sind meine Dokumente sicher, und komme ich an sie heran?</td><td>Ein Satz und zwei Lichter. Letzte Sicherung, „Jetzt sichern“, „Sicherung ausprobieren“, „Dokumente herunterladen“, Speicher.</td><td>Kopien je Anbieter, „Was die Chain sagt“, Sicherungsorte, Aufbewahrung, Schlüssel der Sicherungen, Netz und Zahlweg des Speichers.</td></tr>
+			<tr><td><b>Paket</b></td><td>Was habe ich gebucht, und was kostet es?</td><td>Stunden und Zeitraum, Guthaben, Aufladen, Rechnungen, Bedingungen, Kündigen, Widerrufen.</td><td>Wer die VM zahlt, Guthaben bei Aleph und Filecoin, Freigaben für App-Schlüssel und Sitzungsschlüssel.</td></tr>
+			<tr><td><b>System</b></td><td>Wie ist alles verdrahtet?</td><td>Gibt es nicht. Ist dort etwas zu tun, meldet es die App oben auf „Start“ mit eigenem Knopf.</td><td>Eine Übersichtstabelle, Meine VMs, Image und Knoten, Netz und Rolle, Attest-Relay, feste Adresse, Ablageort der Einrichtung.</td></tr>
+			<tr><td><b>Mehr</b></td><td>Schlüssel, Hilfe, Rechtliches</td><td>Schlüssel und Geräte, Hilfe und Kontakt, Sprache, Hell oder Dunkel, Ansicht, Rechtliches.</td><td>Adresse des App-Schlüssels, Diagnose, Commit und IPFS-CID.</td></tr>
+		</tbody>
+	</table></div>
+	<h3>Sechs Regeln</h3>
+	<ul class="plain">
+		<li><b>Technisch fügt nur hinzu.</b> Beim Umschalten verschwindet nichts und nichts wandert. Es gibt drei Formen: eine Zeile in Mono unter einem Satz, einen Kasten „Technik“ unter einer Karte, und den Bereich „System“.</li>
+		<li><b>Was gut ist, bleibt.</b> Das Lichterfeld beim Starten und Stoppen und die Vollbild-Reise beim ersten Start mit Stationen, Lichtern und dem Schaubild „Was gerade wohin fließt“ bleiben in beiden Ansichten, deutsch und englisch. „Standard“ nennt Zeilen und Stationen in schlichten Worten; „Technisch“ schreibt jede Tatsache aus.</li>
+		<li><b>Jede Warnung hat ihren Knopf.</b> Kein Text verweist mehr mit Worten auf eine andere Stelle. Was Geld kostet oder Daten gefährdet, erscheint in beiden Ansichten oben auf „Start“.</li>
+		<li><b>Eine Sache, ein Ort, ein Name.</b> Doppelte Anzeigen fallen auf eine zusammen. Die Lichter der Sicherungen ziehen aus dem Kopf in den Bereich „Sicherung“; ist dort etwas nicht grün, trägt der Reiter einen Punkt.</li>
+		<li><b>Rückfragen sind gestaltet.</b> Die neun Rückfragen des Browsers (<code>confirm</code>) werden eigene Dialoge mit klaren Knöpfen, Preis und Folgen.</li>
+		<li><b>Rechtstexte bleiben wörtlich.</b> Bedingungen, Verzicht, Kündigung und Widerruf ändern sich nicht; die heute fest eingebauten Texte ziehen unverändert in den Katalog.</li>
+	</ul>
+</section>
+
+<section>
+	<h2>Der Schalter</h2>
+	<div class="two">
+		<div>
+			<ul class="plain">
+				<li><b>Ort:</b> im Kopf der App, als zweiteiliger Schalter „Standard | Technisch“, auch vor dem Entsperren. Zusätzlich unter „Mehr“.</li>
+				<li><b>Voreinstellung:</b> „Standard“.</li>
+				<li><b>Merken:</b> je Gerät in <code>localStorage</code> unter <code>paperless-anywhere.view</code>. Wer in v0.1 „Erweitert“ gewählt hatte, startet in „Technisch“. Der Wert ist kein Geheimnis. Ist der Speicher gesperrt, gilt die Wahl nur für diesen Besuch.</li>
+				<li><b>Umsetzung:</b> ein kleiner Store nach dem Muster aus simple-todo (<code>technical-view.js</code>), den jede Komponente liest. Dort ist es ein einzelner Knopf; hier bleibt es bei zwei Segmenten, weil man so den Zustand sieht.</li>
+			</ul>
+		</div>
+		<div>
+			<ul class="plain">
+				<li><b>Kein Zustand geht verloren:</b> Umschalten rendert nichts neu. Ein laufender Start, ein offener Kauf und der offene Tresor bleiben, wie sie sind.</li>
+				<li><b>Sprung mit Rückweg:</b> Braucht eine Meldung in „Standard“ einen Regler aus „System“, heißt der Knopf „In der technischen Ansicht öffnen“. Er schaltet um und springt an die Stelle; ein Hinweis dort führt zurück.</li>
+				<li><b>Sprache und Hell/Dunkel:</b> am breiten Bildschirm im Kopf (wie im Style Guide), auf dem Telefon unter „Mehr“ und vor dem Entsperren im Kopf.</li>
+			</ul>
+		</div>
+	</div>
+</section>
+
+<section>
+	<h2>Wortwahl</h2>
+	<p>Jeder Begriff bekommt ein schlichtes Wort für „Standard“ und sein Fachwort für „Technisch“. Der schlichte Satz bleibt in beiden Ansichten stehen; das Fachwort kommt in der Mono-Zeile darunter dazu. Alle Texte liegen deutsch und englisch im i18n-Katalog, Schlüssel für Schlüssel wie heute.</p>
+	<div class="tablewrap"><table>
+		<thead><tr><th>Sache</th><th>Standard (de)</th><th>Standard (en)</th><th>Technisch (de / en)</th></tr></thead>
+		<tbody>
+			<tr><td>Ansichten</td><td>Standard</td><td>Standard</td><td>Technisch / Technical</td></tr>
+			<tr><td>VM</td><td>deine Maschine</td><td>your machine</td><td>VM (AMD SEV-SNP)</td></tr>
+			<tr><td>Wiederherstellungsphrase</td><td>die 24 Wörter</td><td>the 24 words</td><td>Wiederherstellungsphrase (BIP-39) / recovery phrase</td></tr>
+			<tr><td>Passkey</td><td>Passkey (Fingerabdruck, Gesicht oder PIN deines Geräts)</td><td>passkey (your device's fingerprint, face or PIN)</td><td>Passkey (WebAuthn, PRF)</td></tr>
+			<tr><td>Attestierung</td><td>Echtheitsprüfung, „Geprüft“</td><td>authenticity check, “Checked”</td><td>Attestierung / attestation</td></tr>
+			<tr><td>Storage Provider</td><td>Speicherort</td><td>storage place</td><td>Anbieter, Provider-ID / provider</td></tr>
+			<tr><td>Host</td><td>Adresse deines Paperless</td><td>your Paperless address</td><td>Host</td></tr>
+			<tr><td>Credits</td><td>Guthaben, Stunden</td><td>balance, hours</td><td>Le Space Credits, Aleph-Credits</td></tr>
+			<tr><td>Image</td><td>dein persönliches Paperless (wird einmal eingerichtet)</td><td>your personal Paperless (set up once)</td><td>eigenes Image / own image</td></tr>
+			<tr><td>Chain</td><td>öffentliches Register</td><td>public ledger</td><td>Chain (Filecoin)</td></tr>
+			<tr><td>Backup-Nachweis</td><td>Kopie bestätigt</td><td>copy confirmed</td><td>PDP-Beweis, Datensatz, Piece-CID</td></tr>
+			<tr><td>Knoten</td><td>(nicht genannt)</td><td>(not named)</td><td>Knoten (CRN) / node</td></tr>
+			<tr><td>Erweitert</td><td colspan="3">entfällt als Wort; die Ansicht heißt „Technisch“ / “Technical”</td></tr>
+		</tbody>
+	</table></div>
+	<p>In „Standard“ erscheinen nie: Hashes, CIDs, 0x-Adressen, Anbieternummern, Netznamen, rohe Protokolle und Befehle. Fehler lauten dort „Was ist passiert, was jetzt“ mit einem Knopf; „Technisch“ hängt die rohe Meldung unter „Details“ an. Ton nach dem Style Guide: du, klar, konkret, ohne Ausrufezeichen und Superlative. „Paperless-ngx“ bleibt beim ersten Nennen und im Fuß genannt; im Fluss heißt es „Paperless“.</p>
+</section>
+
+<section>
+	<h2>Zuordnung: wohin jeder Eintrag kommt</h2>
+	<p>Jeder der 791 Inventur-Einträge hat eine Zeile mit seinem Platz in v0.2, getrennt für „Standard“ und „Technisch“, und mit dem, was sich ändert. Die drei Tabellen liegen als Dateien im Zweig; hier die Verteilung.</p>
+	<div class="tablewrap"><table id="maptable">
+		<thead><tr><th>Platz in v0.2</th><th>Einträge</th><th>davon auch in Standard</th></tr></thead>
+		<tbody><tr><td>Start</td><td class="n">160</td><td class="n">125</td></tr><tr><td>Sicherung</td><td class="n">150</td><td class="n">69</td></tr><tr><td>Paket</td><td class="n">184</td><td class="n">151</td></tr><tr><td>System (in Standard: nur als Meldung mit Knopf)</td><td class="n">66</td><td class="n">16</td></tr><tr><td>Mehr: Schlüssel, Hilfe, Rechtliches</td><td class="n">33</td><td class="n">26</td></tr><tr><td>Vor dem Entsperren</td><td class="n">28</td><td class="n">26</td></tr><tr><td>Übergreifend: Kopf, Meldungen, Dialoge, Fuß</td><td class="n">130</td><td class="n">123</td></tr><tr><td>Zusammengelegt (Doppelung, bleibt an einem Ort)</td><td class="n">39</td><td class="n">–</td></tr><tr><td>Nur Testhaken</td><td class="n">1</td><td class="n">–</td></tr><tr><td><b>Summe</b></td><td class="n"><b>791</b></td><td class="n"><b>536</b></td></tr></tbody>
+	</table></div>
+	<p class="note" id="mapnote">Kein Eintrag blieb ohne Platz. Sieben Einträge, die seit der Inventur auf main dazukamen (drei unabhängige Betreiber in Europa, Anzeige der nächsten Sicherung, eine neue Fehlermeldung beim Start), sind in <code>inventory/D-delta-since-30f34f4.md</code> nachgetragen und zugeordnet. Vier unbenutzte Katalogtexte und ein doppelt definierter Schlüssel (<code>funds.refresh</code>) werden nicht übernommen; sie erscheinen heute nirgends. Dateien im Zweig: <code>docs/ui-v0.2/inventory/</code> (Bestand mit Datei und Zeile) und <code>docs/ui-v0.2/mapping/</code> (Zuordnung).</p>
+</section>
+
+<section>
+	<h2>Barrierefreiheit in „Standard“</h2>
+	<div class="two">
+		<div><ul class="plain">
+			<li>Schrift mindestens 17 px, Hauptknöpfe 52 px hoch, alles Antippbare mindestens 44 px.</li>
+			<li>Ein Hauptknopf je Bildschirm. Zweitrangiges ist umrandet, Gefährliches steht nie an erster Stelle.</li>
+			<li>Kontrast nach WCAG AA; Amber und Lime nur als Fläche, nie als Text auf dem Hintergrund (Style Guide).</li>
+			<li>Zustand nie nur durch Farbe: jedes Licht hat einen Satz daneben.</li>
+		</ul></div>
+		<div><ul class="plain">
+			<li>Alles mit der Tastatur bedienbar, sichtbarer Fokus, sinnvolle Reihenfolge; Dialoge halten den Fokus und schließen mit Esc.</li>
+			<li>Fortschritt und Meldungen werden Screenreadern angesagt (<code>role="status"</code>, <code>role="alert"</code>), ohne englische Testwörter.</li>
+			<li>Sätze kurz, ein Gedanke je Satz. Zeiten als „noch etwa 6 Minuten“.</li>
+			<li>Tests: axe in den e2e-Läufen für jeden Bildschirm in beiden Ansichten, hell und dunkel, 200 % Zoom ohne Querscrollen.</li>
+		</ul></div>
+	</div>
+</section>
+
+<section>
+	<h2>Ausblick auf Bau und Paralleldeploy</h2>
+	<div class="two">
+		<div>
+			<h3>Phase 3, Bau</h3>
+			<ul class="plain">
+				<li>Die Logikmodule bleiben. Ein Befund ändert aber den Zuschnitt: Rund 1000 Zeilen Ablaufsteuerung stehen im Skriptteil von <code>Lifecycle.svelte</code>, ähnlich in <code>Setup.svelte</code> und <code>Package.svelte</code>. Die ziehe ich zuerst unverändert in eigene Module, damit v0.1 und v0.2 dieselbe Steuerung benutzen.</li>
+				<li>v0.2 bekommt eine eigene Route und einen eigenen Build; die v0.1-Seiten bleiben unberührt.</li>
+				<li>Die vorhandenen e2e-Tests hängen an <code>data-testid</code>; die Namen behalte ich, wo der Eintrag bleibt.</li>
+			</ul>
+		</div>
+		<div>
+			<h3>Phase 4, vorläufige Empfehlung: Unterdomain</h3>
+			<ul class="plain">
+				<li>Heute setzt die App keine <code>rp.id</code>; der Passkey gehört damit zu <code>paperless.le-space.de</code>. Eine Unterdomain wie <code>v2.paperless.le-space.de</code> darf diese <code>rp.id</code> ausdrücklich angeben, dann öffnet derselbe Passkey. Das muss ich im Browser nachweisen, bevor wir uns festlegen.</li>
+				<li>Der Tresor liegt versiegelt im Browser und zusätzlich auf Aleph, auffindbar über den Passkey. Auf der neuen Adresse holt ihn die App von dort.</li>
+				<li>Getrennter Browser-Speicher heißt: v0.1 und v0.2 können sich dort nichts überschreiben. Gemeinsam bleibt nur das versiegelte Profil auf Aleph; v0.2 ändert dessen Schema nicht.</li>
+				<li>Ein Pfad (<code>/v2/</code>) wäre ohne Wartezeit da, hängt aber beide Versionen an eine Veröffentlichung und einen Speicher.</li>
+				<li>Die Aleph-Domain braucht bis zu zwei Tage für ihr Zertifikat. Sie anzulegen wäre der erste Schritt nach deinem Ja.</li>
+			</ul>
+		</div>
+	</div>
+</section>
+
+<section>
+	<h2>Offene Fragen an dich</h2>
+	<div id="questions"><div class="q"><b>1. Wohin kommt v0.2 zum Testen?</b>Empfehlung: die Unterdomain v2.paperless.le-space.de. Wenn du zustimmst, lege ich als Erstes die Aleph-Domain an, weil ihr Zertifikat bis zu zwei Tage braucht, und weise im Browser nach, dass derselbe Passkey öffnet.</div><div class="q"><b>2. Darf ich die Ablaufsteuerung aus den v0.1-Komponenten herauslösen?</b>Das wäre ein erster, verhaltensneutraler PR an Lifecycle, Setup und Package, mit grünen Tests. Die Alternative ist eine Kopie der Steuerung für v0.2; dann laufen die beiden Versionen auseinander.</div><div class="q"><b>3. Stimmen die Namen?</b>Ansichten „Standard“ und „Technisch“; Bereiche Start, Sicherung, Paket, System, Mehr; „deine Maschine“ für die VM und „die 24 Wörter“ für die Phrase.</div><div class="q"><b>4. Unterbrochener Start und fremde Maschine in „Standard“</b>Vorschlag: „Abbrechen und Maschine löschen“ löscht die Maschine wirklich. Läuft eine zweite Maschine, bietet die Meldung zuerst „Wieder verbinden“ an, dann „Beenden“, damit nichts Ungesichertes verloren geht.</div><div class="q"><b>5. Meldungen, deren Lösung in „Technisch“ liegt</b>Zum Beispiel Kopien beim selben Betreiber oder zu wenig Guthaben in der eigenen Wallet. Vorschlag: Der Knopf schaltet um und springt an die Stelle. Gilt außerdem: Wer selbst mit Krypto zahlt, startet in „Technisch“?</div><div class="q"><b>6. Kann ein Kunde in „Standard“ ohne eigenes Image oder ohne Sicherungen laufen?</b>Wenn ja, braucht „Start“ dafür eine dauerhafte, deutliche Meldung. Wenn nein, entfallen diese Fälle in „Standard“.</div><div class="q"><b>7. Die 24 Wörter, falls sie nie bestätigt wurden</b>Die App kann sie später nicht mehr zeigen. v0.2 schützt den Bildschirm gegen Sperren und Verlassen. Soll ein Tresor ohne bestätigte Wörter zusätzlich dauerhaft warnen und „Weiteres Gerät hinzufügen“ als Ausweg anbieten?</div><div class="q"><b>8. Neben Rechtstexten etwas ergänzen?</b>Nach einem Widerruf steht heute nur „Schließen“. Vorschlag: darunter ein Satz, was mit der laufenden Maschine und den Dokumenten geschieht, und „Dokumente herunterladen“. Die Rechtstexte selbst, samt Kontoadresse, bleiben unverändert.</div><div class="q"><b>9. Hell und Dunkel umschaltbar?</b>Der Style Guide sieht einen Mond/Sonne-Schalter vor; die App folgt heute nur dem System. Im Konzept liegt er unter „Mehr“ und am breiten Bildschirm im Kopf.</div></div>
+</section>
+</div>
+
+<script>
+const ICON = {
+	start: '<path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/>',
+	sich: '<path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.800-1.200-8-4.500-8-9V6z"/><path d="M8.500 12l2.500 2.500 4.500-5"/>',
+	paket: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/>',
+	system: '<rect x="7" y="7" width="10" height="10" rx="1.500"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/>',
+	mehr: '<circle cx="6" cy="12" r="1.500"/><circle cx="12" cy="12" r="1.500"/><circle cx="18" cy="12" r="1.500"/>'
+};
+const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.700" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
+const LOGO = '<svg width="34" height="26" viewBox="0 0 34 26" aria-hidden="true"><circle cx="11" cy="10" r="7" fill="none" stroke="var(--accent)" stroke-width="5"/><rect x="14" y="8" width="16" height="16" rx="5" fill="none" stroke="var(--text)" stroke-width="5"/></svg>';
+
+// T(...) is what only the technical view adds.
+const tech = (title, body) => `<div class="tech"><p class="tk">Technik · ${title}</p>${body}</div>`;
+const dl = (pairs) => `<dl>${pairs.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>`;
+
+// The panel of lights, as StartPanel draws it today. Each row: [technical name, plain name, state, lights, facts, time].
+const SIGN = { app: '✓', rep: '•', run: '▶' };
+const panel = (rows, t) => `<div class="lp"><ol>${rows.map(([tn, pn, st, ls, fx, tm], i) => `<li class="r ${st}"><span class="nm"><span class="no">${i + 1}</span>${t ? tn : pn}${t && tm ? `<small>${tm}</small>` : ''}</span><span class="ld" aria-hidden="true">${ls.map((l) => `<i class="${l}"></i>`).join('')}</span>${t ? fx.map(([k, f]) => `<span class="fx"><b class="${k}">${SIGN[k] || '·'}</b>${f}</span>`).join('') : ''}</li>`).join('')}</ol><p class="lg">${t ? 'Grün: von der App selbst geprüft. Blau: von der VM oder von Aleph gemeldet, nicht von der Hardware bestätigt. Gesamt: 104 s · üblich ca. 10 min.' : 'Grün: von der App geprüft. Blau: gemeldet. Tippe auf eine Zeile für Einzelheiten.'}</p></div>`;
+const START_ROWS = [
+	['Messwerte', 'Vorbereiten', 'done', ['app', 'app'], [['app', 'Messwerte für diesen Start berechnet']], '9 s (üblich ca. 10 s)'],
+	['Instanz', 'Maschine', 'done', ['app', 'rep'], [['app', 'INSTANCE-Nachricht signiert …9c2e'], ['rep', 'Knoten …a41f hat die VM angenommen']], '74 s (üblich ca. 90 s)'],
+	['Netz', 'Adresse', 'done', ['rep', 'rep'], [['rep', 'Port 443 freigegeben'], ['rep', 'Adresse x7k2.2n6.me']], '21 s (üblich ca. 25 s)'],
+	['Attestierung', 'Echtheit', 'run', ['app', 'run'], [['app', 'Bericht des AMD-Prozessors, Zertifikatskette geprüft'], ['run', 'Messwert und Policy vergleichen']], ''],
+	['Entsperren', 'Aufschließen', 'off', ['off', 'off'], [], ''],
+	['Wiederherstellen', 'Sicherung holen', 'off', ['off'], [], ''],
+	['Bereit', 'Bereit', 'off', ['off', 'off', 'off', 'off'], [], '']
+];
+const STOP_ROWS = [
+	['Auftrag', 'Auftrag', 'done', ['app', 'rep'], [['app', 'Stopp-Auftrag signiert'], ['rep', 'VM hat ihn angenommen']], ''],
+	['Export', 'Dokumente sammeln', 'done', ['rep', 'rep'], [['rep', '1 204 Dateien exportiert']], ''],
+	['Archiv', 'Verschlüsseln', 'done', ['rep', 'app'], [['rep', 'age (X25519, ChaCha20-Poly1305), 412 MiB'], ['app', 'Kopf der Sicherung öffnet mit deinem Schlüssel']], ''],
+	['Hochladen', 'Kopien ablegen', 'done', ['rep', 'rep', 'rep'], [['rep', 'Anbieter 4, 9, 12 · 3 von 3 Kopien']], ''],
+	['Bestätigt', 'Kopien bestätigt', 'run', ['run'], [['run', 'Piece …k3f9 auf der Chain suchen']], ''],
+	['Löschen', 'Maschine löschen', 'off', ['off', 'off', 'off'], [], ''],
+	['Liste', 'Eintragen', 'off', ['off'], [], '']
+];
+const FLOW = '<svg viewBox="0 0 330 70" role="img" aria-label="Schaubild"><line x1="60" y1="35" x2="165" y2="35" stroke="#f5b041" stroke-width="2"/><line x1="165" y1="35" x2="270" y2="35" stroke="#f5b041" stroke-width="2"/><circle r="5" fill="#f5b041"><animateMotion dur="1.800s" repeatCount="indefinite" path="M270 35 L60 35"/></circle>' + [[60, 'Dein Browser'], [165, 'Relay'], [270, 'Knoten']].map(([x, l]) => `<rect x="${x - 50}" y="19" width="100" height="32" rx="9" fill="#121a33" stroke="#f5b041"/><text x="${x}" y="39" text-anchor="middle">${l}</text>`).join('') + '</svg>';
+
+const SCREENS = [
+	{ id: 'neu', label: 'Neu hier', nav: null, r: (t) => `
+		<p class="stepno">Schritt 1 von 3</p>
+		<div class="card"><h3>Deine Dokumente in deinem eigenen Tresor</h3>
+			<p>Paperless anywhere startet für dich ein eigenes Paperless auf einer verschlüsselten Maschine. Hineinsehen kannst nur du, auch Le Space nicht.</p>
+			<div class="light"><span class="dot"></span><span>Nur du hast den Schlüssel.</span></div>
+			<div class="light"><span class="dot"></span><span>Es kostet nur, solange es läuft.</span></div>
+			<div class="light"><span class="dot"></span><span>Sicherungen liegen an mehreren unabhängigen Orten.</span></div>
+		</div>
+		<div class="alert"><b>Le Space kann deinen Tresor nicht wiederherstellen.</b>Sind Passkey und die 24 Wörter weg, sind Dokumente und Sicherungen verloren.
+			<label class="check" style="margin-top:10px"><input type="checkbox" checked> <span>Verstanden: Ich bewahre die 24 Wörter auf Papier auf, nicht auf diesem Gerät.</span></label></div>
+		<button class="cta">Tresor anlegen</button>
+		<p class="sub" style="font-size:15px;margin:0">Dein Gerät fragt gleich nach Fingerabdruck, Gesicht oder PIN. Das ist dein Passkey.</p>
+		<button class="sec">Ich habe schon einen Tresor</button>
+		${t ? tech('Tresor', dl([['Passkey', 'WebAuthn mit PRF, gebunden an diese Adresse'], ['Hauptgeheimnis', 'zufällig, zweimal versiegelt: PRF und 24 Wörter'], ['Abgeleitet', 'App-Schlüssel (Aleph), Sitzungsschlüssel (Filecoin), age-Identität, Paperless-Geheimnisse'], ['Im Browser', 'nur der versiegelte Datensatz']]) + '<button class="small">Name des Passkeys ändern</button>') : ''}` },
+	{ id: 'woerter', label: 'Die 24 Wörter', nav: null, r: (t) => `
+		<p class="stepno">Schritt 2 von 3</p>
+		<div class="card"><h3>Schreib die 24 Wörter auf Papier</h3>
+			<p>Mit ihnen öffnest du den Tresor auf jedem Gerät, auch wenn der Passkey verloren ist. Sie werden nur jetzt angezeigt.</p>
+			<ol class="words">${'apfel brücke dach eimer feder garten hafen insel jacke kerze lampe mauer nebel ofen pinsel quelle regen sattel tafel ufer vogel wiese zange zimmer'.split(' ').map((w) => `<li>${w}</li>`).join('')}</ol>
+			<button class="cta">Ich habe sie aufgeschrieben</button>
+			<p class="sub" style="font-size:15px;margin-top:10px">Als Nächstes fragt die App drei der Wörter ab und sagt dir, welches nicht stimmt.</p>
+		</div>
+		<div class="okline">Solange die Wörter zu sehen sind, sperrt die App nicht und fragt nach, bevor du die Seite verlässt.</div>
+		${t ? tech('Phrase', dl([['Format', 'BIP-39, 24 Wörter'], ['Wirkung', 'öffnet den Tresor auf jeder Adresse, unabhängig vom Passkey'], ['Gespeichert', 'nirgends; die App kann sie später nicht mehr zeigen']])) : ''}` },
+	{ id: 'gesperrt', label: 'Gesperrt', nav: null, r: (t) => `
+		<div class="card"><h3>Willkommen zurück</h3>
+			<p>Entsperre deinen Tresor, dann siehst du, ob Paperless läuft.</p>
+			<button class="cta">Mit Passkey entsperren</button>
+			<button class="sec">Mit den 24 Wörtern entsperren</button>
+			<button class="lnk">Probleme beim Entsperren?</button>
+		</div>
+		<div class="card"><h4>Sicherungen</h4>
+			<div class="light"><span class="dot"></span><span>Erreichbar: 3 von 3 Kopien antworten.</span></div>
+			<div class="light"><span class="dot"></span><span>Unabhängig: bei drei verschiedenen Betreibern in Europa.</span></div>
+			${t ? '<p class="tline">Anbieter 4, 9, 12 · Calibration · aus der zuletzt gelesenen Liste (16.11., 21:14)</p>' : ''}
+		</div>
+		${t ? tech('Entsperren', dl([['Passkey', 'liest die PRF-Ausgabe, entsiegelt das Hauptgeheimnis'], ['Ohne lokalen Datensatz', 'holt ihn von Aleph, gefunden über den Passkey'], ['Unter „Probleme“', 'Diesen Browser vergessen']])) : ''}` },
+	{ id: 'aus', label: 'Start: aus', nav: 'start', r: (t) => `
+		<div class="card"><h3>Paperless ist aus</h3>
+			<p class="sub">Aus kostet nichts. Der Start dauert etwa 10 Minuten.</p>
+			<button class="cta">Paperless starten</button>
+			<p style="margin-top:12px">Startet mit deiner Sicherung von gestern, 21:14 Uhr.</p>
+			${t ? '<p class="tline">Piece …k3f9a2bq7d1x · 412 MiB · 3 Kopien · Siegel des Tresors ✓</p>' : ''}
+			<button class="lnk">Andere Sicherung wählen</button>
+		</div>
+		<div class="card">
+			<div class="row chev"><span>Sicherung</span><span class="v">gestern, 21:14 · 3 Kopien</span></div>
+			<div class="row chev"><span>Paket</span><span class="v">42 Stunden übrig</span></div>
+		</div>
+		${t ? tech('Dieser Start', dl([['Beim Start', 'neueste eigene Sicherung · ohne Siegel · leer'], ['Rolle', 'Test (Mail-Regeln aus)'], ['Netz', 'Calibration'], ['Image', 'eigenes, gebaut am 12.11.'], ['Knoten', 'automatisch (SEV-SNP)'], ['Zahlweg', 'Le Space, aus dem Paket']]) + '<button class="small">Urkunde des Images</button>') : ''}` },
+	{ id: 'erster', label: 'Erster Start', nav: null, full: true, r: (t) => `<div class="fs">
+		<div class="tp"><div><p class="kk">Dein erster Start · ca. 25 Minuten insgesamt</p><h3>${t ? 'Dein eigenes Image entsteht' : 'Dein persönliches Paperless entsteht'}</h3></div><button class="gh">Verkleinern</button></div>
+		<ol class="st">${(t ? ['Build-Dienst', 'Echtheit', 'Siegel', 'Abholen', 'Abgelegt', 'Paperless'] : ['Aufwachen', 'Echtheit', 'Siegel', 'Abholen', 'Abgelegt', 'Paperless']).map((l, i) => `<li class="${i < 2 ? 'done' : i === 2 ? 'act' : ''}"><span class="c">${i < 2 ? '✓' : i + 1}</span>${l}</li>`).join('')}</ol>
+		<div class="ldr" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="bl"></i><i></i><i></i><i></i></div>
+		<div class="now"><p class="sp">Schritt 3 von 6 · ca. 2 Min.</p>
+			<h4>${t ? 'Dein Image wird versiegelt' : 'Dein Paperless wird versiegelt'}</h4>
+			<p>${t ? 'Mit einer Passphrase, die nur dein Tresor kennt. Nicht Le Space, nicht der Knoten – nur du.' : 'Mit einem Schlüssel, den nur dein Tresor kennt. Nicht Le Space, nicht das Rechenzentrum – nur du.'}</p>
+			${t ? '<ul class="sb"><li><i class="on"></i>Passphrase verschlüsselt an genau diesen Build-Dienst geschickt</li><li><i class="on"></i>Ausgangs-Image ausgepackt, SHA-256 geprüft</li><li><i class="bl"></i>Mit LUKS versiegelt – die Passphrase vergisst der Dienst danach</li></ul>' : ''}
+		</div>
+		<figure><figcaption>Was gerade wohin fließt: <b>${t ? 'Stücke deines versiegelten Images' : 'dein versiegeltes Paperless, Stück für Stück'}</b></figcaption>${FLOW}</figure>
+		<div class="br"><i style="width:41%"></i></div>
+		<p class="ft"><b style="color:var(--i)">41 % geschafft</b> · noch ca. 15 Min. · fertig gegen 14:40<br>Dein Bildschirm bleibt an. Lass dieses Fenster einfach offen.</p>
+		${t ? '<div class="now"><p class="sp">Belege – zum Nachprüfen</p><p style="font-family:var(--mono);font-size:12px;color:var(--d)">Quelltext-Stand 30f34f4 ✓<br>Erwarteter Messwert …71ac = gemessen ✓<br>Build-Dienst (V-PROGRAM) …e2b0<br>Knoten …a41f · Relay von Le Space</p></div>' : ''}
+	</div>` },
+	{ id: 'startet', label: 'Start: startet', nav: 'start', r: (t) => `
+		<div class="card"><h3>Paperless startet</h3>
+			<p class="sub">Bitte dieses Fenster offen lassen.</p>
+			<div class="meter" role="progressbar" aria-valuenow="40" aria-valuemin="0" aria-valuemax="100"><i style="width:40%"></i></div>
+			<p><b>Noch etwa 6 Minuten</b></p>
+			</div>
+		${panel(START_ROWS, t)}
+		${t ? '<p class="tline">VM prüfen (AMD) und entsperren …</p>' : ''}` },
+	{ id: 'laeuft', label: 'Start: läuft', nav: 'start', r: (t) => `
+		<div class="card"><h3>Paperless läuft</h3>
+			${t ? '<p class="tline">https://x7k2.2n6.me · seit 14:02 · Datenplatte verschlüsselt (LUKS2)</p>' : ''}
+			<button class="cta">Paperless öffnen</button>
+			<div class="login" style="margin-top:12px"><b>Anmeldung</b>
+				<div><span>Benutzer</span> <code>admin</code></div>
+				<div><span>Passwort</span> <code>••••••••</code> <button class="small">Anzeigen</button> <button class="small">Kopieren</button></div></div>
+		</div>
+		<div class="okline"><b>Geprüft: echte, verschlüsselte Maschine.</b> Auch Le Space kann nicht hineinsehen. <button class="lnk" style="color:inherit;padding:0;min-height:0">Was wurde geprüft?</button></div>
+		${t ? tech('Nachweis dieser VM', dl([['Attestierung', 'AMD SEV-SNP, von der App geprüft'], ['Messwert', 'Firmware, Kernel, Initrd, Startzeile'], ['Image', 'STORE …4be1, eigenes'], ['Datenplatte', 'LUKS2, aes-xts-plain64'], ['Relay', 'von Le Space']]) + '<button class="small">Jetzt erneut prüfen</button>') : ''}
+		<div class="card"><h4>Fertig für heute?</h4>
+			<p class="sub">Erst wird gesichert, dann geht die Maschine aus. Danach kostet sie nichts mehr.</p>
+			<button class="sec">Sichern und beenden</button></div>` },
+	{ id: 'beenden', label: 'Start: beendet', nav: 'start', r: (t) => `
+		<div class="card"><h3>Paperless wird beendet</h3>
+			<p class="sub">Bitte dieses Fenster offen lassen.</p>
+			<div class="meter" role="progressbar" aria-valuenow="70" aria-valuemin="0" aria-valuemax="100"><i style="width:70%"></i></div>
+			<p><b>Noch etwa 3 Minuten</b></p>
+			</div>
+		${panel(STOP_ROWS, t)}` },
+	{ id: 'sicherung', label: 'Sicherung', nav: 'sich', r: (t) => `
+		<div class="card"><h3>Deine Dokumente sind gesichert</h3>
+			<div class="light"><span class="dot"></span><span>Erreichbar: 3 von 3 Kopien antworten.</span></div>
+			<div class="light"><span class="dot"></span><span>Unabhängig: bei drei verschiedenen Betreibern in Europa.</span></div>
+			<p style="margin-top:8px">Letzte Sicherung: heute, 14:02 Uhr. Gesichert wird, wenn sich etwas geändert hat und danach 30 Minuten nichts mehr, höchstens alle 6 Stunden, und beim Beenden.</p>
+			<button class="cta">Jetzt sichern</button>
+		</div>
+		${t ? tech('Kopien', dl([['Anbieter 4', 'antwortet · EU · bezahlt bis 30.11.'], ['Anbieter 9', 'antwortet · EU'], ['Anbieter 12', 'antwortet · EU']]) + '<button class="small">Jetzt prüfen</button>') : ''}
+		${t ? tech('Was die Chain sagt', dl([['Datensatz aktiv', '✓ von der App geprüft'], ['Letzter Beweis', '✓ heute, 13:40'], ['Nächste Stichprobe', '• vom Anbieter gemeldet'], ['Probeabruf', '✓']])) : ''}
+		<div class="card">
+			<div class="row chev"><span><b>Sicherung ausprobieren</b><br><span class="sub">Startet eine zweite Maschine aus der Sicherung, zum Nachsehen. Kostet Laufzeit.</span></span></div>
+			<div class="row chev"><span><b>Dokumente herunterladen</b><br><span class="sub">Holt die Sicherung in diesen Browser und entschlüsselt sie.</span></span></div>
+		</div>
+		<div class="card"><h4>Speicher</h4><div class="meter"><i style="width:26%"></i></div><p class="sub">2,1 GB von 8 GB belegt</p></div>
+		${t ? tech('Einstellungen', dl([['Sicherungsorte', 'Region EU, 3 Kopien'], ['Aufbewahrung', '7 bleiben, 2 zur Entfernung geplant'], ['Schlüssel (age)', 'der des Tresors'], ['Bezahlt', 'über Le Space Credits']]) + '<button class="small">Sicherungsorte ändern</button>') : ''}` },
+	{ id: 'paket', label: 'Paket', nav: 'paket', r: (t) => `
+		<div class="card"><h3>42 Stunden übrig</h3>
+			<p class="sub">Paket „100 Stunden“, bis 30.11.</p>
+			<div class="meter"><i style="width:42%"></i></div>
+			<p>Die Sicherung ist im Paket enthalten.</p>
+			<button class="cta">Stunden dazukaufen</button>
+			<button class="sec">Paket ändern</button>
+		</div>
+		<div class="card">
+			<div class="row"><span>Guthaben</span><span class="v"><b>12,00 €</b></span></div>
+			<div class="row chev"><span>Guthaben aufladen</span></div>
+			<div class="row chev"><span>Rechnungen</span><span class="v">3</span></div>
+		</div>
+		${t ? tech('Wer zahlt die VM', dl([['Gewählt', 'Le Space, aus dem Paket'], ['Möglich', 'Adresse dieser App · meine Wallet'], ['Aleph-Credits', '0 (nicht in Gebrauch)'], ['Freigaben', 'App-Schlüssel: INSTANCE, FORGET · Sitzungsschlüssel bis 14.12.']]) + '<button class="small">Zahlweg ändern</button>') : ''}
+		<div class="card">
+			<div class="row chev"><span>Bedingungen</span></div>
+			<div class="row chev"><span>Verträge hier kündigen</span></div>
+			<div class="row chev"><span>Vertrag widerrufen</span></div>
+		</div>` },
+	{ id: 'system', label: 'System', nav: 'system', r: (t) => t ? `
+		<div class="card"><h3>System</h3><p class="sub">Alles, was der Alltag nicht braucht. Jede Zeile öffnet ihre Einstellungen.</p>
+			<div class="row chev"><span>Meine VMs</span><span class="v">1 läuft</span></div>
+			<div class="row chev"><span>Image und Knoten</span><span class="v">eigenes, 12.11.</span></div>
+			<div class="row chev"><span>Netz und Rolle</span><span class="v">Calibration · Test</span></div>
+			<div class="row chev"><span>Attest-Relay</span><span class="v">Le Space, 2 gefunden</span></div>
+			<div class="row chev"><span>Feste Adresse</span><span class="v">keine</span></div>
+			<div class="row chev"><span>Wo die Einrichtung liegt</span><span class="v">versiegelt auf Aleph</span></div>
+		</div>
+		${tech('Auf einen Blick', dl([['Zahlung', 'Le Space, aus dem Paket'], ['Aleph-Freigabe', 'freigegeben'], ['Sicherungen', 'an, bezahlt bis 30.11.'], ['Adresse', 'neu bei jedem Start']]))}` : `
+		<div class="card"><h3>Diesen Bereich gibt es nur in „Technisch“</h3>
+			<p>In „Standard“ musst du hier nichts einstellen. Ist doch etwas zu tun, meldet sich die App auf „Start“, zum Beispiel so:</p></div>
+		<div class="alert"><b>Es läuft noch eine zweite Maschine.</b>Sie kostet Laufzeit, bis sie beendet ist.<button class="sec">Jetzt beenden</button></div>
+		<div class="alert"><b>Dein Paket endet morgen um 18:00 Uhr.</b>Dann wird gesichert und die Maschine geht aus.<button class="sec">Paket verlängern</button></div>` },
+	{ id: 'mehr', label: 'Mehr', nav: 'mehr', r: (t) => `
+		<div class="card"><h4>Schlüssel und Geräte</h4>
+			<p>Dieses Gerät öffnet den Tresor mit einem Passkey. Die 24 Wörter stehen auf deinem Zettel; die App kann sie nicht noch einmal zeigen.</p>
+			${t ? '<p class="tline">App-Schlüssel 0x7a3f…c41d · Passkey für paperless.le-space.de</p>' : ''}
+			<button class="sec">Weiteres Gerät hinzufügen</button>
+			<button class="lnk">Diesen Browser vergessen</button>
+		</div>
+		<div class="card">
+			<div class="row chev"><span>Hilfe und Kontakt</span></div>
+			<div class="row chev"><span>Fehlerbericht kopieren</span></div>
+			<div class="row"><span>Sprache</span><span class="v">Deutsch · English</span></div>
+			<div class="row"><span>Darstellung</span><span class="v">Hell · Dunkel</span></div>
+			<div class="row"><span>Ansicht</span><span class="v">${t ? 'Technisch' : 'Standard'}</span></div>
+		</div>
+		<div class="card">
+			<div class="row chev"><span>Impressum</span></div>
+			<div class="row chev"><span>Datenschutz</span></div>
+			<div class="row chev"><span>Lizenzen</span></div>
+			<div class="row"><span>Version</span><span class="v">0.2.0</span></div>
+		</div>
+		${t ? tech('Diese Version', dl([['Commit', '30f34f4'], ['IPFS-CID', 'bafy…q2xm'], ['Quelltext', 'Le-Space/paperless-anywhere']])) : ''}` }
+];
+
+const NAV = [['start', 'Start'], ['sich', 'Sicherung'], ['paket', 'Paket'], ['system', 'System'], ['mehr', 'Mehr']];
+const NAV_TO = { start: 'aus', sich: 'sicherung', paket: 'paket', system: 'system', mehr: 'mehr' };
+let current = 'aus';
+const modes = [false, true];
+try { const h = location.hash.slice(1); if (SCREENS.some((s) => s.id === h)) current = h; } catch {}
+
+function device(i) {
+	const t = modes[i];
+	const s = SCREENS.find((x) => x.id === current);
+	const nav = s.nav ? `<nav class="anav" aria-label="Bereiche">${NAV.filter(([k]) => t || k !== 'system').map(([k, l]) => `<button data-nav="${k}" ${s.nav === k ? 'aria-current="page"' : ''}>${icon(k)}<span>${l}</span></button>`).join('')}</nav>` : '';
+	return `<div class="col"><p class="label">${i === 0 ? 'Ansicht' : 'Ansicht'}: ${t ? 'Technisch' : 'Standard'}</p>
+		<div class="device"><div class="ahead"><div class="brand">${LOGO}<div class="w"><small>LE SPACE</small><b>Paperless anywhere</b></div></div>
+			<div class="seg" role="group" aria-label="Ansicht"><button data-mode="${i}:0" aria-pressed="${!t}">Standard</button><button data-mode="${i}:1" aria-pressed="${t}">Technisch</button></div></div>
+			${s.full ? s.r(t) : `<div class="abody">${s.r(t)}</div>`}${nav}</div></div>`;
+}
+function render() {
+	document.getElementById('picker').innerHTML = SCREENS.map((s) => `<button data-screen="${s.id}" aria-pressed="${s.id === current}">${s.label}</button>`).join('');
+	document.getElementById('stage').innerHTML = device(0) + device(1);
+}
+document.addEventListener('click', (e) => {
+	const b = e.target.closest('button'); if (!b) return;
+	if (b.dataset.screen) current = b.dataset.screen;
+	else if (b.dataset.nav) current = NAV_TO[b.dataset.nav];
+	else if (b.dataset.mode) { const [i, v] = b.dataset.mode.split(':'); modes[+i] = v === '1'; }
+	else return;
+	render();
+});
+render();
+</script>
