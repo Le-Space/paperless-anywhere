@@ -77,7 +77,7 @@ test('v0.2: the switch adds "System" and technical detail, hides nothing, and is
 	await expect(page.getByRole('navigation', { name: 'Bereiche' }).getByRole('button')).toHaveText(['Start', 'Sicherung', 'Paket', 'System', 'Mehr']);
 	await page.getByTestId('v2-area-system').click();
 	await expect(page.getByRole('heading', { level: 1, name: 'System' })).toBeFocused();
-	await expect(page.getByTestId('v2-setup')).toBeVisible();
+	await expect(page.getByTestId('setup')).toBeVisible();
 	// Remembered in this browser under its own key; v0.1's tab is not written.
 	expect(await page.evaluate(() => ({ view: localStorage.getItem('paperless-anywhere.view'), tab: localStorage.getItem('paperless-anywhere.tab') }))).toEqual({ view: 'technical', tab: null });
 	// Back to Standard while "System" shows: the person lands on Start, nothing is lost.

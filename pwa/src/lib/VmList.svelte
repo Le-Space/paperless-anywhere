@@ -9,8 +9,10 @@
 	import { pinsOf } from '@le-space/attest-wasm/instance';
 	import { format, lang, t, tr } from '$lib/i18n/index.js';
 
-	/** @type {{ master: Uint8Array, version?: number, onchange?: () => void }} */
-	let { master, version = 0, onchange = () => {} } = $props();
+	/** @type {{ master: Uint8Array, version?: number, onchange?: () => void, confirm?: (question: string) => Promise<boolean>, onstrays?: (n: number) => void }} confirm: the host's dialog in place of the browser's; onstrays: how many VMs run that no card knows */
+	let { master, version = 0, onchange = () => {}, confirm = undefined, onstrays = () => {} } = $props();
+	// A question to the person: the host's own dialog where it has one (v0.2), else the browser's.
+	const ask = async (/** @type {string} */ question) => (confirm ? confirm(question) : window.confirm(question));
 
 	const app = privateKeyToAccount(alephPrivateKey(master));
 	/** @type {{ itemHash: string, name: string, createdAt: number, crnHash: string | null, payer: string, host?: string | null, phase?: string }[] | null} */
@@ -57,7 +59,7 @@
 		const question = isRunning
 			? tr().life.vms.removeRunning(vm.name)
 			: tr().life.vms.removeOther(vm.name);
-		if (!confirm(question)) return;
+		if (!(await ask(question))) return;
 		busy = vm.itemHash;
 		error = '';
 		notice = '';
@@ -85,13 +87,15 @@
 	// Started by this vault and known: the running one, and one a start in this tab is bringing up.
 	const known = (vm) => vm.itemHash === profile.running?.instanceHash || vm.itemHash === profile.starting?.instanceHash || vm.itemHash === $startingInstance;
 	const strays = $derived((vms ?? []).filter((vm) => !known(vm)).length);
+	// VMs this vault started that no card knows: they cost until removed. The host may say so where it is seen (v0.2).
+	$effect(() => onstrays(strays));
 	// A start whose tab was reloaded or closed leaves a running VM the app no
 	// longer knows. Adopting it makes it the running one again, so "Sichern und
 	// stoppen" works: its measurements come from the INSTANCE this app key
 	// signed (checked here), its address from 2n6, and it must answer as a
 	// paperless-anywhere guest.
 	async function adopt(vm) {
-		if (!confirm(tr().life.vms.adoptConfirm(vm.name))) return;
+		if (!(await ask(tr().life.vms.adoptConfirm(vm.name)))) return;
 		busy = vm.itemHash;
 		error = '';
 		try {

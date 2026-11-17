@@ -78,6 +78,22 @@ same build.
   `rp.id`, with the same PRF output, and not without it. Safari and real authenticators were
   not tested.
 
+## Where the build differs from the concept
+
+- **The setup stays together under System.** `places.md` puts who pays and the grants under
+  Paket (`P-PAYER.T`, `P-GRANTS.T`) and the backup settings and places under Sicherung
+  (`B-SETUP.T`, `B-PLACES.T`). In the build they are sections of System, as one setup on one
+  flow control (`setup-card.svelte.js`); Paket and Sicherung lead there with a button. Splitting
+  one setup over three areas would need three instances of its state or a shared one above
+  the areas, for no gain a developer would notice.
+- **The alert for a VM no card knows leads to the list**, in both views, instead of offering
+  "Wieder verbinden" and "Beenden" inside the alert: adopting and deleting stay where the VM is
+  shown with its state.
+- **Light and dark still follow the system.** The switch the style guide names needs
+  `theme.css` to take a chosen theme, which touches every page of the app; not done yet.
+- **Shared parts keep v0.1's control sizes** (`TopUp`, `BackupLine`, `Cancel`, `Withdraw`,
+  `BackupPlaces`, `Addr`): below the 44 px used elsewhere in v0.2.
+
 ## Open questions
 
 They are on the concept page, in German, for the product owner.

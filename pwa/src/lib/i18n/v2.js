@@ -232,7 +232,13 @@ export const v2 = {
 		system: {
 			title: 'System',
 			lede: 'Alles, was der Alltag nicht braucht.',
-			onlyTechnical: 'Diesen Bereich gibt es nur in der Ansicht „Technisch“.'
+			onlyTechnical: 'Diesen Bereich gibt es nur in der Ansicht „Technisch“.',
+			show: 'Ansehen',
+			payMonthConfirm: (/** @type {string} */ price) => `Einen Monat Sicherungen aus dem Guthaben bezahlen${price ? ` (${price})` : ''}?`,
+			strayStrong: (/** @type {number} */ n) => (n === 1 ? 'Es läuft eine Maschine, die diese App nicht als gestartet kennt.' : `Es laufen ${n} Maschinen, die diese App nicht als gestartet kennt.`),
+			stray: 'Das kommt von einem abgebrochenen Start oder einem neu geladenen Fenster. Sie kostet Laufzeit, bis sie übernommen oder gelöscht ist.',
+			strayButton: 'Maschinen ansehen (Ansicht „Technisch“)',
+			strayButtonTechnical: 'Zu „Meine VMs“'
 		},
 		more: {
 			keys: 'Schlüssel und Geräte',
@@ -242,6 +248,7 @@ export const v2 = {
 			addPasskey: 'Passkey für dieses Gerät anlegen',
 			added: 'Neuer Passkey angelegt; dieses Gerät nutzt ihn ab jetzt.',
 			appKey: 'App-Schlüssel (Aleph)',
+			forgetText: 'Entfernt den Zugang auf diesem Gerät und sperrt die App. Dein Tresor bleibt bestehen.',
 			settings: 'Einstellungen',
 			language: 'Sprache',
 			legal: 'Rechtliches und Version'
@@ -477,7 +484,13 @@ export const v2 = {
 		system: {
 			title: 'System',
 			lede: 'Everything that everyday use does not need.',
-			onlyTechnical: 'This area exists only in the “Technical” view.'
+			onlyTechnical: 'This area exists only in the “Technical” view.',
+			show: 'Show',
+			payMonthConfirm: (/** @type {string} */ price) => `Pay one month of backups from the balance${price ? ` (${price})` : ''}?`,
+			strayStrong: (/** @type {number} */ n) => (n === 1 ? 'A machine is running that this app does not know as started.' : `${n} machines are running that this app does not know as started.`),
+			stray: 'That comes from a start that was cut short or a window that was reloaded. It uses running time until it is adopted or deleted.',
+			strayButton: 'Show the machines (“Technical” view)',
+			strayButtonTechnical: 'To “My VMs”'
 		},
 		more: {
 			keys: 'Keys and devices',
@@ -487,6 +500,7 @@ export const v2 = {
 			addPasskey: 'Create a passkey for this device',
 			added: 'New passkey created; this device uses it from now on.',
 			appKey: 'App key (Aleph)',
+			forgetText: 'Removes the way in on this device and locks the app. Your vault stays.',
 			settings: 'Settings',
 			language: 'Language',
 			legal: 'Legal and version'
