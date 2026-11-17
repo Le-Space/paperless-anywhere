@@ -9,12 +9,12 @@ import { ownImagePatch } from '$lib/own-image-check.js';
 import { balancesRound, onceThisRound } from '$lib/balance-refresh.js';
 import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
 import { noteError, noteState } from '$lib/diagnosis.js';
-import { AlephShortError, BackupPartialError, StartGoneError, startElsewhere, pushBackupPlaces, attestRunning, confirmPeriodEndBackup, confirmStopBackup, eraseStopped, syncPeriodEnd, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst } from '$lib/lifecycle.js';
+import { AlephShortError, BackupPartialError, StartGoneError, startElsewhere, pushBackupPlaces, attestRunning, confirmPeriodEndBackup, confirmStopBackup, eraseStopped, syncPeriodEnd, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst, revokeBackupKey } from '$lib/lifecycle.js';
 import { buildImageForVault } from '$lib/own-image-build.js';
 import { BUILDER, hasOwnImage, imageStatus } from '$lib/own-image.js';
 import { onImageBuild } from '$lib/image-build-request.js';
 import { fetchPercent, stationOfBuildStep } from '$lib/first-start.js';
-import { forgetInstance, vmStatus } from '$lib/vm.js';
+import { crnAddress, eraseOnNode, forgetInstance, vmStatus } from '$lib/vm.js';
 import { stoppedAtPeriodEnd } from '$lib/period-end.js';
 import { statusToken } from '$lib/keys/derive.js';
 import { CREDITS_URL, creditsBalance, fundVm, quoteVm, vmAuthorize } from '$lib/credits.js';
@@ -59,6 +59,8 @@ export function createLifecycleCard(p) {
 	const master = $derived(p.master);
 	const version = $derived(p.version);
 	const { onchange, onmissing, onglance, onbusy, oncopies } = p;
+	// A question to the person: the host's own dialog where it has one (v0.2), else the browser's.
+	const ask = async (/** @type {string} */ question) => (p.confirm ? p.confirm(question) : window.confirm(question));
 
 	/** @type {Record<string, any>} */
 	let profile = $state({});
@@ -554,7 +556,7 @@ export function createLifecycleCard(p) {
 			master,
 			profile: $state.snapshot(profile),
 			packagePays: Boolean(profile.leSpacePays),
-			confirm: (question) => window.confirm(question),
+			confirm: (question) => ask(question),
 			save,
 			onProgress: (/** @type {{ step: string, detail?: string, data?: Record<string, any> }} */ { step, detail, data }) => {
 				progress = `${tr().card.progress.buildImage}: ${detail ?? step}`;
@@ -815,6 +817,27 @@ export function createLifecycleCard(p) {
 		profile = await updateProfile(master, ({ starting, ...rest }) => rest);
 		onchange();
 	});
+	// Give up on an interrupted start and delete its VM, so that nothing keeps
+	// running and costing (v0.2; "discard" above only forgets the start and
+	// leaves the VM in the list). As the VM list removes one: erased on its
+	// node, forgotten on Aleph, its backup key revoked.
+	const abandonStart = () => run(async () => {
+		await reload();
+		const on = profile.starting;
+		if (!on) return;
+		const app = privateKeyToAccount(alephPrivateKey(master));
+		const payer = on.payer ?? profile.vmOwner ?? profile.payer ?? (profile.appPays ? app.address : null);
+		if (!payer) throw new Error(tr().v2.start.abandonNoPayer);
+		progress = tr().life.progress.forget;
+		const crnUrl = on.crnHash ? await crnAddress(on.crnHash).catch(() => null) : null;
+		if (crnUrl) await eraseOnNode(app, on.instanceHash, crnUrl);
+		await forgetInstance(app, payer, on.instanceHash, 'paperless-anywhere: the start was given up');
+		await revokeBackupKey(master, $state.snapshot(profile), on.instanceHash, {}).catch(() => {});
+		profile = await updateProfile(master, ({ starting, ...rest }) => (starting && starting.instanceHash !== on.instanceHash ? { ...rest, starting } : rest));
+		onchange();
+	});
+	// The list of backups again, after it could not be read.
+	const readBackupsAgain = () => reload().catch((e) => (error = e.message));
 	// With backups on: the piece CIDs the chain lists for this vault, read by the
 	// app itself. A stop erases the VM only once its backup is among them.
 	const backupsOnChain = () =>
@@ -920,7 +943,7 @@ export function createLifecycleCard(p) {
 		// Whatever was put into this Paperless since the start goes with it:
 		// say so, with what it holds now, and ask.
 		const bytes = await vmStatus(run.host, statusToken(master)).then((s) => s?.storage?.documentsBytes).catch(() => null);
-		if (!confirm(c.simple.discardConfirm(typeof bytes === 'number' ? `${format.number(Math.round(bytes / 1e6), undefined, langNow.current)} MB` : ''))) return;
+		if (!(await ask(c.simple.discardConfirm(typeof bytes === 'number' ? `${format.number(Math.round(bytes / 1e6), undefined, langNow.current)} MB` : '')))) return;
 		await finishStop(await eraseStopped(master, $state.snapshot(profile), null, track('discard')));
 	});
 	// After a partial backup, on the person's word: erase the VM anyway, or
@@ -1077,6 +1100,8 @@ export function createLifecycleCard(p) {
 	const stepLabel = $derived(action ? (/** @type {Record<string, string>} */ (c.steps)[STEPS[action].find((s) => s.step === current)?.step ?? 'preparing']) : '');
 
 	return {
+		abandonStart,
+		readBackupsAgain,
 		get profile() { return profile; },
 		set profile(v) { profile = v; },
 		get progress() { return progress; },
