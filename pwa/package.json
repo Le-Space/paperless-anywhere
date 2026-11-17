@@ -35,6 +35,7 @@
 		"viem": "2.57.2"
 	},
 	"devDependencies": {
+		"@axe-core/playwright": "4.10.2",
 		"@playwright/test": "1.61.1",
 		"@sveltejs/adapter-static": "3.0.8",
 		"@sveltejs/kit": "2.27.0",

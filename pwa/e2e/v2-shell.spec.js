@@ -57,7 +57,7 @@ test('v0.2: a vault is made in three steps; the 24 words cannot be lost by locki
 	// Standard: four areas; no "System".
 	await expect(page.getByRole('banner').getByTestId('view-standard')).toHaveAttribute('aria-pressed', 'true');
 	await expect(page.getByRole('navigation', { name: 'Bereiche' }).getByRole('button')).toHaveText(['Start', 'Sicherung', 'Paket', 'Mehr']);
-	await expect(page.getByTestId('lifecycle')).toBeVisible();
+	await expect(page.getByTestId('v2-status')).toBeVisible();
 });
 
 test('v0.2: the switch adds "System" and technical detail, hides nothing, and is remembered on this device', async ({ page }) => {
@@ -83,7 +83,7 @@ test('v0.2: the switch adds "System" and technical detail, hides nothing, and is
 	// Back to Standard while "System" shows: the person lands on Start, nothing is lost.
 	await page.getByRole('banner').getByTestId('view-standard').click();
 	await expect(page.getByTestId('v2-area-system')).toHaveCount(0);
-	await expect(page.getByTestId('lifecycle')).toBeVisible();
+	await expect(page.getByTestId('v2-status')).toBeVisible();
 	await page.reload();
 	await expect(page.getByRole('banner').getByTestId('view-standard')).toHaveAttribute('aria-pressed', 'true');
 });

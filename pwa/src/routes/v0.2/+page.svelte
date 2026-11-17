@@ -5,14 +5,15 @@
 	// in the technical view. Same origin, same vault module, same sealed
 	// profile as v0.1: both read and write the same records.
 	//
-	// This first step is the shell: the way into the vault in plain words, the
-	// switch, the areas. The cards inside the areas are still the ones of v0.1;
-	// each area gets its own design in a later step. Every area stays mounted
+	// The shell: the way into the vault in plain words, the switch, the areas.
+	// The cards of Paket, System and Mehr are still the ones of v0.1;
+	// Start and Sicherung have their own design (lib/v2/Paperless.svelte); the
+	// other areas follow. Every area stays mounted
 	// while another one shows, so a running start is never torn down.
 	import { tick } from 'svelte';
 	import { refreshBalancesSoon } from '$lib/balance-refresh.js';
 	import Setup from '$lib/Setup.svelte';
-	import Lifecycle from '$lib/Lifecycle.svelte';
+	import Paperless from '$lib/v2/Paperless.svelte';
 	import Balances from '$lib/Balances.svelte';
 	import VmList from '$lib/VmList.svelte';
 	import Package from '$lib/Package.svelte';
@@ -129,13 +130,16 @@
 	const endsAtText = $derived(pkg?.endsAt != null ? format.dateTime(pkg.endsAt, undefined, $lang) : '');
 
 	// Locking and leaving ask first while something is under way.
-	/** @type {{ title: string, text: string, yes: string, no: string, danger?: boolean, then: () => void } | null} */
+	/** @type {{ title: string, text: string, yes: string, no: string, danger?: boolean, then?: () => void, resolve?: (yes: boolean) => void } | null} */
 	let asking = $state(null);
 	const answer = (/** @type {boolean} */ yes) => {
 		const a = asking;
 		asking = null;
-		if (yes) a?.then();
+		if (yes) a?.then?.();
+		a?.resolve?.(yes);
 	};
+	/** A question from a card, answered in the same dialog. @param {{ title: string, text: string, yes: string, no: string, danger?: boolean }} q @returns {Promise<boolean>} */
+	const ask = (q) => new Promise((resolve) => (asking = { ...q, resolve }));
 	function lockNow() {
 		if (session.lock()) {
 			fromMemory();
@@ -310,15 +314,8 @@
 					{/each}
 				{/if}
 
-				<section id="area-start" hidden={area !== 'start'} aria-labelledby="h-start">
-					<h1 id="h-start" class="sr-only" tabindex="-1">{x.areas.start}</h1>
-					<Lifecycle {master} simple={!$technical} version={profileVersion} onchange={() => profileVersion++} onadvanced={toSetup} onmissing={(m) => { missing = m; if (m.length) setupOpen = true; }} onglance={(g) => (life = g)} onbusy={(b) => (acting = b)} oncopies={newestCopies} reach={reachLed} onpackage={() => go('plan')} />
-				</section>
-
-				<section id="area-backup" hidden={area !== 'backup'} aria-labelledby="h-backup">
-					<h1 id="h-backup" tabindex="-1">{x.areas.backup}</h1>
-					<div class="card"><BackupLeds copies={ledCopies} remembered={ledRemembered} onreach={(l) => (reachLed = l)} /></div>
-				</section>
+				{#snippet lights()}<BackupLeds copies={ledCopies} remembered={ledRemembered} onreach={(l) => (reachLed = l)} />{/snippet}
+				<Paperless {master} technical={$technical} {area} version={profileVersion} reach={reachLed} confirm={ask} {lights} onchange={() => profileVersion++} onsetup={toSetup} onpackage={() => go('plan')} onmissing={(m) => { missing = m; if (m.length) setupOpen = true; }} onglance={(g) => (life = g)} onbusy={(b) => (acting = b)} oncopies={newestCopies} />
 
 				<section id="area-plan" hidden={area !== 'plan'} aria-labelledby="h-plan">
 					<h1 id="h-plan" tabindex="-1">{x.areas.plan}</h1>
