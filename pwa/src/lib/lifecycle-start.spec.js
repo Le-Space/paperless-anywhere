@@ -168,3 +168,17 @@ describe('the secrets of a start fit what the guest takes', () => {
 		expect(src).toMatch(/periodEnd !== '0'/);
 	});
 });
+
+describe('an empty start while backups exist', () => {
+	it('sends no backup secrets unless the person begins anew, and the card asks', async () => {
+		const { readFileSync } = await import('node:fs');
+		const life = readFileSync(new URL('./lifecycle.js', import.meta.url), 'utf8');
+		expect(life).toMatch(/if \(profile\.backupConfig && own && !profile\.holdBackups\) \{/);
+		const card = readFileSync(new URL('./lifecycle-card.svelte.js', import.meta.url), 'utf8');
+		expect(card).toMatch(/const holdBackups = !restore && \(backups\?\.length \?\? 0\) > 0 && !freshConfirmed;/);
+		expect(card).toMatch(/restoreEntry: restore, holdBackups/);
+		const view = readFileSync(new URL('./Lifecycle.svelte', import.meta.url), 'utf8');
+		expect(view).toMatch(/data-testid="empty-fresh-confirm"/);
+		expect(view).toMatch(/data-testid="tiny-newest"/);
+	});
+});

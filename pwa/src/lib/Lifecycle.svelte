@@ -354,6 +354,13 @@
 						</label>
 					{/if}
 					<label><input type="radio" bind:group={k.choice} value="empty" /> {c.advanced.empty}</label>
+					{#if k.choice === 'empty' && backups?.length}
+						<div class="warn" data-testid="empty-over-backups">
+							<p>{c.advanced.emptyOverBackups(backups.length)}</p>
+							<label><input type="checkbox" bind:checked={k.freshConfirmed} data-testid="empty-fresh-confirm" /> {c.advanced.emptyFresh}</label>
+						</div>
+					{/if}
+					{#if k.tinyNewest && (k.choice === 'latest' || k.choice === 'own')}<p class="warn" data-testid="tiny-newest">{c.advanced.tinyNewest(backupSize(k.tinyNewest.newest.size), backupSize(k.tinyNewest.before.size), k.tinyNewest.before.pieceCid.slice(-12))}</p>{/if}
 					{#if backupsError}<small class="hint">{backupsError}</small>{/if}
 				</fieldset>
 				{@render gapWarning()}
