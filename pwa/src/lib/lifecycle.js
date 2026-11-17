@@ -16,7 +16,7 @@ import { ownImageVerified, runsOwnImage } from './own-image-check.js';
 import { answeringCopies } from './restore-reach.js';
 import { placedConfig } from './providers.js';
 import { pinnedTrustedExecution } from './runtime-pin.js';
-import { alephPrivateKey, backupDedupKey, backupMarkKey, backupPrivateKey, pieceMark, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
+import { alephPrivateKey, backupMarkKey, backupPrivateKey, pieceMark, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
 import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, creditsBalance, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
 import { paidUntil, periodEndChanged, periodEndPiece, periodEndSecret } from './period-end.js';
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
@@ -465,6 +465,26 @@ export async function resumeStart(master, profile, onProgress, { lookUpTries = 2
 	return bringUp(master, { ...profile, restoreEntry: starting.restoreEntry }, starting, await loadWasm(), onProgress);
 }
 
+/** What the guest's agent takes at most in one hand-over (relay-button's attest agent). */
+export const MAX_GUEST_SECRETS = 16;
+/** Left out first when a hand-over would be too large: neither is needed to start and run. */
+const OPTIONAL_SECRETS = ['period_end', 'authorized_keys'];
+
+/**
+ * The secrets of one hand-over, within what the guest takes: optional ones
+ * are left out first; if it is still too many, a plain error instead of the
+ * guest's refusal.
+ * @param {Record<string, string>} secrets @param {number} [max]
+ * @returns {Record<string, string>}
+ */
+export function fitSecrets(secrets, max = MAX_GUEST_SECRETS) {
+	const out = { ...secrets };
+	for (const name of OPTIONAL_SECRETS) if (Object.keys(out).length > max) delete out[name];
+	const n = Object.keys(out).length;
+	if (n > max) throw new Error(tr().life.errors.tooManySecrets(n, max));
+	return out;
+}
+
 /**
  * From a requested VM to a ready Paperless: port 443, address, unlock, ready.
  * @param {Uint8Array} master @param {Record<string, any>} profile @param {Starting} starting @param {any} wasm
@@ -516,8 +536,8 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	// other keys, only for a VM on this vault's own image.
 	if (own) {
 		secrets.backup_mark_key = backupMarkKey(master);
-		// Names the files of incremental backups (snapshots), the same for every VM of this vault.
-		secrets.backup_dedup_key = backupDedupKey(master);
+		// The key that names incremental backups' files is not sent: the VM
+		// derives it from the mark key (paperless-dedup-key), as backupDedupKey does.
 	}
 	if (profile.backupConfig && !own) onProgress({ step: 'unlock', detail: tr().life.progress.publicNoBackups });
 	if (profile.backupConfig && own) {
@@ -543,7 +563,8 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	}
 	// When the paid time ends: the VM backs up and stops an hour before (period-end.js).
 	const periodEnd = await periodEndFor(master, profile);
-	if (periodEnd != null) secrets.period_end = periodEnd;
+	// "0" (it renews, or nothing to stop for) is what a missing one means too.
+	if (periodEnd != null && periodEnd !== '0') secrets.period_end = periodEnd;
 	const keys = debugKeysFor(profile);
 	if (keys) secrets.authorized_keys = keys;
 	if (profile.restoreEntry && profile.ageIdentity && own) {
@@ -573,7 +594,7 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 			instanceItemHash: instanceHash,
 			trustedExecution,
 			passphrase: profile.luksPassphrase,
-			secrets,
+			secrets: fitSecrets(secrets),
 			sign: (payload) => app.signMessage({ message: payload }),
 			onProgress: ({ detail, phase }) => onProgress({ step: 'unlock', detail, phase })
 		});
