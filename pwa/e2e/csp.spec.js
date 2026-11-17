@@ -4,7 +4,7 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 
-const PAGES = ['/', '/en/', '/lizenzen/', '/app/'];
+const PAGES = ['/', '/en/', '/lizenzen/', '/app/', '/v0.2/'];
 
 // The credits service this build was given, as svelte.config.js reads it: a
 // release build has one, and the policy then names it for connections and as
