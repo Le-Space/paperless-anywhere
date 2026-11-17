@@ -1,18 +1,33 @@
 #!/bin/sh
-# paperless-https [--early] <hostname>: serve Paperless on https://<hostname>
-# through Caddy on 443 (ACME over TLS-ALPN on 443, the one port mapped for it),
-# and the start status at /anywhere/status.json for the app that started it.
+# paperless-https [--early|--status] <hostname>: serve Paperless on
+# https://<hostname> through Caddy on 443 (ACME over TLS-ALPN on 443, the one
+# port mapped for it), and the start status at /anywhere/status.json for the
+# app that started it.
 # --early (from paperless-secrets, before the stack starts) only writes the
 # Caddyfile and restarts Caddy: PAPERLESS_URL is then right from the start.
+# --status (from paperless-status, at its start) does the same before the
+# sealed data area is known, and writes nothing else: the status page is
+# reachable from the first moments, and also when the area failed.
 set -eu
-early=""
-[ "${1:-}" = --early ] && { early=1; shift; }
-host="${1:?usage: paperless-https [--early] <hostname>}"
+early="" status_only=""
+case "${1:-}" in
+  --early) early=1; shift ;;
+  --status) early=1; status_only=1; shift ;;
+esac
+host="${1:?usage: paperless-https [--early|--status] <hostname>}"
 case "$host" in *[!A-Za-z0-9.-]*|"") echo "not a hostname: $host" >&2; exit 1 ;; esac
-printf '%s\n' "$host" > /etc/paperless-anywhere/hostname
+# PAPERLESS_ROOT: a directory standing in for / (the tests).
+R="${PAPERLESS_ROOT:-}"
+mkdir -p "$R/run/paperless-anywhere"
+# paperless-status, paperless-secrets and paperless-fixed-address may call
+# this at the same moment.
+exec 9>"$R/run/paperless-anywhere/https.lock"
+command -v flock >/dev/null 2>&1 && flock 9
+# /etc/paperless-anywhere is the sealed area's (paperless-data-disk).
+[ -n "$status_only" ] || printf '%s\n' "$host" > "$R/etc/paperless-anywhere/hostname"
 # The second certificate authority's contact (ZeroSSL ties its ACME account to
 # an address); from the unlock if the app sent one.
-email="$(head -c 254 /tmp/secrets/acme_email 2>/dev/null | tr -d '\r\n')"
+email="$(head -c 254 "$R/tmp/secrets/acme_email" 2>/dev/null | tr -d '\r\n')"
 case "$email" in *@*.*) ;; *) email="paperless-anywhere@le-space.de" ;; esac
 case "$email" in *[!A-Za-z0-9.@_+-]*) email="paperless-anywhere@le-space.de" ;; esac
 new="$(mktemp)"
@@ -24,27 +39,93 @@ new="$(mktemp)"
 # Whether this VM has one: the token says so while it is there, and
 # fixed-address.wanted after paperless-fixed-address removed it.
 fixed="" port=""
-wanted=/run/paperless-anywhere/fixed-address.wanted
-if [ -s /tmp/secrets/dns_cloudflare_token ]; then mkdir -p /run/paperless-anywhere; : > "$wanted"; fi
+wanted="$R/run/paperless-anywhere/fixed-address.wanted"
+if [ -s "$R/tmp/secrets/dns_cloudflare_token" ]; then : > "$wanted"; fi
 if [ -e "$wanted" ]; then
   fixed=1
-  port="$(head -c 5 /tmp/secrets/https_port 2>/dev/null | tr -d '\r\n')"
+  port="$(head -c 5 "$R/tmp/secrets/https_port" 2>/dev/null | tr -d '\r\n')"
   case "$port" in *[!0-9]*|"") echo "paperless-https: no port for the fixed address" >&2; exit 1 ;; esac
-  printf '%s\n' "$port" > /etc/paperless-anywhere/https_port
+  [ -n "$status_only" ] || printf '%s\n' "$port" > "$R/etc/paperless-anywhere/https_port"
 fi
 # Caddy's admin API stays off (admin off): every container shares the host
 # network, so one that parses an untrusted document could otherwise reload
 # Caddy with a config of its own. Changes restart Caddy instead.
+# Caddy keeps what it orders (the 2n6 name's certificate, its ACME account) in
+# memory (/run): it may run before the sealed data area is there, or without
+# it, and a 2n6 name is new at every start anyway. The fixed address's
+# certificate comes from the sealed area as files.
+install -d -m 700 -o caddy -g caddy "$R/run/caddy" 2>/dev/null || install -d -m 700 "$R/run/caddy"
+global="  admin off
+  auto_https disable_redirects
+  storage file_system {
+    root /run/caddy
+  }"
+# With a fixed address, Caddy also answers the instance's 2n6 name, with the
+# start status only: the fixed name has no certificate until its DNS order
+# went through (and with a restore, until then nothing else answers). The VM
+# does not know its 2n6 name; the first handshake for it comes through 2n6
+# (TLS passthrough by SNI), and paperless-2n6-ask lets Caddy order a
+# certificate only for a name 2n6 routes to this VM.
+if [ -n "$fixed" ]; then
+  global="$global
+  on_demand_tls {
+    ask http://127.0.0.1:9180/
+  }"
+fi
+status_routes() {
+  cat <<'ROUTES'
+  # The start status, read by the app that started this VM from its own
+  # origin: in public only the phase; the details (restore, backups, stop,
+  # disks) at /anywhere/s/<token>.json, a path the app derives from its vault.
+  handle /anywhere/status.json {
+    header Access-Control-Allow-Origin "*"
+    header Cache-Control "no-store"
+    root * /run/paperless-anywhere/public
+    rewrite * /status.json
+    file_server
+  }
+  @detail path_regexp detail ^/anywhere/s/([0-9a-f]{32})\.json$
+  handle @detail {
+    header Access-Control-Allow-Origin "*"
+    header Cache-Control "no-store"
+    root * /run/paperless-anywhere/public
+    rewrite * /s/{re.detail.1}.json
+    file_server
+  }
+ROUTES
+}
+two_n6_site() {
+  cat <<CADDY
+
+# The 2n6 name: the start status only, never Paperless.
+https:// {
+  tls {
+    on_demand
+    issuer acme {
+      disable_http_challenge
+    }
+    issuer zerossl {
+      email ${email}
+      disable_http_challenge
+    }
+  }
+$(status_routes)
+  handle {
+    respond 404
+  }
+}
+CADDY
+}
 serve=1
-if [ -n "$fixed" ] && ! [ -s /var/lib/caddy/fixed/cert.pem ]; then
+if [ -n "$fixed" ] && ! [ -s "$R/var/lib/caddy/fixed/cert.pem" ]; then
   serve=""
-  printf '{\n  admin off\n  auto_https off\n}\n' > "$new"
+  printf '{\n%s\n}\n' "$global" > "$new"
+  two_n6_site >> "$new"
 elif [ -n "$fixed" ]; then
   also=""; [ "$port" = 443 ] || also=", https://${host}:${port}"
   cat > "$new" <<CADDY
 {
-  admin off
-  auto_https disable_redirects
+$global
 }
 
 https://${host}${also} {
@@ -53,8 +134,7 @@ CADDY
 else
   cat > "$new" <<CADDY
 {
-  admin off
-  auto_https disable_redirects
+$global
 }
 
 https://${host} {
@@ -74,35 +154,18 @@ https://${host} {
   }
 CADDY
 fi
-[ -z "$serve" ] || cat >> "$new" <<CADDY
-  # The start status, read by the app that started this VM from its own
-  # origin: in public only the phase; the details (restore, backups, stop,
-  # disks) at /anywhere/s/<token>.json, a path the app derives from its vault.
-  handle /anywhere/status.json {
-    header Access-Control-Allow-Origin "*"
-    header Cache-Control "no-store"
-    root * /run/paperless-anywhere/public
-    rewrite * /status.json
-    file_server
-  }
-  @detail path_regexp detail ^/anywhere/s/([0-9a-f]{32})\.json$
-  handle @detail {
-    header Access-Control-Allow-Origin "*"
-    header Cache-Control "no-store"
-    root * /run/paperless-anywhere/public
-    rewrite * /s/{re.detail.1}.json
-    file_server
-  }
-  reverse_proxy 127.0.0.1:8000
-}
-CADDY
+if [ -n "$serve" ]; then
+  status_routes >> "$new"
+  printf '  reverse_proxy 127.0.0.1:8000\n}\n' >> "$new"
+  [ -z "$fixed" ] || two_n6_site >> "$new"
+fi
 # Restart Caddy only when its configuration changed. paperless-secrets calls
 # this on every start of the stack, and a stack that keeps failing (an image
 # it cannot pull) used to restart Caddy each time, which cancelled every
 # certificate order: after five failed authorizations Let's Encrypt refuses
 # the name for an hour, and the ZeroSSL order was cut off as well.
-if ! cmp -s "$new" /etc/caddy/Caddyfile || ! systemctl is-active --quiet caddy.service; then
-  install -m 644 "$new" /etc/caddy/Caddyfile
+if ! cmp -s "$new" "$R/etc/caddy/Caddyfile" || ! systemctl is-active --quiet caddy.service; then
+  install -m 644 "$new" "$R/etc/caddy/Caddyfile"
   systemctl restart caddy.service
 fi
 rm -f "$new"

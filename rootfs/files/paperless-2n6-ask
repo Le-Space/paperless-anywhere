@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+# paperless-2n6-ask: Caddy's on_demand_tls "ask" (127.0.0.1 only). A VM with
+# a fixed address does not know its 2n6 name (it comes with no secret, and the
+# guest takes at most 16), yet the app needs to read the status page while
+# the fixed name still waits for its certificate. 2n6 passes TLS through by
+# SNI, so the first handshake for this VM's 2n6 name arrives here, and Caddy
+# asks whether it may order a certificate for it. Yes only for a name under
+# 2n6.me that 2n6 itself (api.2n6.me/api/lookup/<label>) routes to this VM:
+# its IPv6 is one of this VM's, or has the same interface ID (the low 64 bits,
+# made from the instance's hash; 2n6 kept an old node's prefix once). Every
+# other name is refused, so a stranger who sends a made-up SNI to this VM's
+# address costs no order at a certificate authority.
+#
+#   paperless-2n6-ask              serve on 127.0.0.1:${PAPERLESS_2N6_ASK_PORT:-9180}
+#   paperless-2n6-ask check NAME   0 when NAME may have a certificate, 1 if not
+#                                  (PAPERLESS_2N6_LOOKUP and PAPERLESS_OWN_IPV6
+#                                  replace 2n6's API and `ip` in tests)
+import ipaddress, json, os, re, subprocess, sys, urllib.parse, urllib.request
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+NAME = re.compile(r"^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.2n6\.me$")
+LOOKUP = os.environ.get("PAPERLESS_2N6_LOOKUP", "https://api.2n6.me/api/lookup/")
+
+
+def own_ipv6():
+    fixed = os.environ.get("PAPERLESS_OWN_IPV6")
+    if fixed is not None:
+        return [ipaddress.IPv6Address(a) for a in fixed.split() if a]
+    out = subprocess.run(["ip", "-6", "-j", "addr", "show", "scope", "global"], capture_output=True, text=True).stdout
+    found = []
+    for link in json.loads(out or "[]"):
+        for a in link.get("addr_info", []):
+            if a.get("family") == "inet6":
+                try:
+                    found.append(ipaddress.IPv6Address(a["local"]))
+                except ValueError:
+                    pass
+    return found
+
+
+def routed_ipv6(label):
+    if LOOKUP.startswith("file://"):
+        data = json.load(open(urllib.parse.urlsplit(LOOKUP).path + label))
+    else:
+        with urllib.request.urlopen(LOOKUP + label, timeout=10) as r:
+            data = json.load(r)
+    if not isinstance(data, dict) or data.get("subdomain") != label:
+        return None
+    try:
+        return ipaddress.IPv6Address(str(data.get("ipv6") or "").split("%")[0])
+    except ValueError:
+        return None
+
+
+def allowed(name):
+    m = NAME.match(str(name or "").strip().lower().rstrip("."))
+    if not m:
+        return False
+    try:
+        routed = routed_ipv6(m.group(1))
+    except Exception:
+        return False
+    if routed is None:
+        return False
+    low = int(routed) & ((1 << 64) - 1)
+    return any(routed == a or (int(a) & ((1 << 64) - 1)) == low for a in own_ipv6())
+
+
+# Names 2n6 confirmed, for this boot: Caddy asks again at every renewal.
+confirmed = set()
+
+
+class Ask(BaseHTTPRequestHandler):
+    def do_GET(self):
+        name = (urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("domain") or [""])[0].lower()
+        ok = name in confirmed or allowed(name)
+        if ok:
+            confirmed.add(name)
+        self.send_response(200 if ok else 403)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def log_message(self, fmt, *args):
+        pass
+
+
+if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "check":
+        sys.exit(0 if allowed(sys.argv[2]) else 1)
+    HTTPServer(("127.0.0.1", int(os.environ.get("PAPERLESS_2N6_ASK_PORT", "9180"))), Ask).serve_forever()

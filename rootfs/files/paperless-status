@@ -12,6 +12,12 @@ mkdir -p "$pub"
 chmod 755 "$pub"
 # When this script first ran: the disk is open and the services are starting.
 [ -s "$dir/timeline.json" ] || printf '{"unlocked":%s}\n' "$(date +%s)" > "$dir/timeline.json"
+# Caddy serves this page from the first moments, before the sealed data area
+# is known and also when it failed: with a fixed address over the instance's
+# 2n6 name until the fixed name has its certificate (paperless-https).
+host="$(head -c 253 /tmp/secrets/https_hostname 2>/dev/null | tr -d '\r\n')"
+[ -z "$host" ] || /usr/local/sbin/paperless-https --status "$host" \
+  || echo "paperless-status: Caddy could not be set up for the status page" >&2
 compose="docker compose --project-directory /opt/paperless"
 while :; do
   code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8000/api/ || true)"
@@ -27,8 +33,14 @@ while :; do
     done
     running="$($compose ps --status running -q 2>/dev/null | wc -l | tr -d ' ')"
   fi
+  # The certificate of the name Paperless is served on: with a fixed address
+  # that one (a 2n6 name's for the status page does not count).
   cert=false
-  [ -n "$(find /var/lib/caddy /root/.local/share/caddy -name '*.crt' 2>/dev/null | head -1)" ] && cert=true
+  if [ -e "$dir/fixed-address.wanted" ]; then
+    [ -s /var/lib/caddy/fixed/cert.pem ] && cert=true
+  else
+    [ -n "$(find /run/caddy /var/lib/caddy /root/.local/share/caddy -name '*.crt' 2>/dev/null | head -1)" ] && cert=true
+  fi
   python3 - "$dir" "$up" "$docker" "$images" "$total" "$running" "$cert" > "$pub/status.json.tmp" <<'PY' && mv "$pub/status.json.tmp" "$pub/status.json"
 import json, os, re, sys, time
 d, up = sys.argv[1], sys.argv[2] == "true"
@@ -131,6 +143,10 @@ if stop and stop.get("status") in ("running", "ready", "failed", "partial"):
     phase = {"running": "stopping", "ready": "stopped", "partial": "stop-partial"}.get(stop["status"], "stop-failed")
 elif data_disk and data_disk.get("status") != "encrypted":
     phase = "data-disk-failed"
+elif fixed and fixed.get("status") == "failed" and fixed.get("final"):
+    # The fixed name will not answer (paperless-fixed-address gave up): said
+    # here, over the 2n6 name, instead of a port that stays closed.
+    phase = "address-failed"
 elif restore and restore.get("status") == "running":
     phase = "restoring"
 elif restore and restore.get("status") == "failed":
@@ -150,9 +166,35 @@ def period_end():
         return int(v) if v and int(v) > 0 else None
     except (OSError, ValueError):
         return None
+# Which step the start waits for, while it is not ready: the sealed data area,
+# the fixed address's DNS records or certificate, the restore's download
+# (fetch, check, decrypt) or its import, the images, the containers, or
+# Paperless itself. No secrets, no names; on the public page too.
+def waiting():
+    if phase not in ("starting", "restoring"):
+        return None
+    if not data_disk:
+        return "data-area"
+    f = (fixed or {}).get("status")
+    if f == "dns":
+        return "dns"
+    if f == "restore":
+        return "restore-download"
+    if f == "certificate":
+        return "certificate"
+    if restore and restore.get("status") == "running":
+        return "restore-import" if restore.get("stage") == "import" else "restore-download"
+    if os.path.exists(os.path.join(d, "fixed-address.wanted")) and f != "ready":
+        return "certificate"
+    if not docker or total == 0 or images < total:
+        return "images"
+    if running < total:
+        return "containers"
+    return "paperless"
+wait = waiting()
 stop_reason = (stop.get("reason") if stop.get("reason") in ("app", "period-end") else "app") if stop and phase in ("stopping", "stopped", "stop-partial", "stop-failed") else None
-public = {"v": 2, "phase": phase, "paperless": up, **({"stopReason": stop_reason} if stop_reason else {}), "at": now}
-full = {"v": 2, "phase": phase, "stopReason": stop_reason, "periodEnd": period_end(), "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "lastBackup": last, "backupSchedule": schedule, "backupRequest": request, "backupMarks": marks, "retention": retention, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "netHardening": net, "disks": disks, "memory": memory(), "storage": storage(), "at": now}
+public = {"v": 2, "phase": phase, "paperless": up, **({"stopReason": stop_reason} if stop_reason else {}), **({"waiting": wait} if wait else {}), "at": now}
+full = {"v": 2, "phase": phase, "waiting": wait, "stopReason": stop_reason, "periodEnd": period_end(), "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "lastBackup": last, "backupSchedule": schedule, "backupRequest": request, "backupMarks": marks, "retention": retention, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "netHardening": net, "disks": disks, "memory": memory(), "storage": storage(), "at": now}
 # The details only at a path the app that started this VM derives from its
 # vault (the status_token secret); the public page says no more than the phase.
 token = ""
