@@ -449,6 +449,34 @@ export const supportsIncremental = (profile, images = INCREMENTAL_IMAGES) => {
 	return typeof plain === 'string' && images.includes(plain);
 };
 
+/** What an image before 2026-11-16 downloads at most of one part (paperless-restore, curl --max-filesize). */
+export const OLD_PART_LIMIT = 1_000_000_000;
+/**
+ * The plain images whose restore takes a full part of the backup tool
+ * (1,000,000,000 bytes before encryption, a little more as stored): rootfs
+ * from 9d2da9b on. Older ones stop at OLD_PART_LIMIT, so a backup with such
+ * a part never arrives there (2026-11-17: a start sat silent while the VM
+ * tried in vain).
+ * @type {readonly string[]}
+ */
+export const FULL_PART_IMAGES = Object.freeze([
+	// Plain image of main edb44b4 (2026-11-17).
+	'1657c6a5ad6480f59c66e1e03841905e6ed0627b6c16da3d0c8c8d24c4bbd0ac'
+]);
+
+/**
+ * Whether the VM's image can restore `entry`: always, unless one of its parts
+ * is larger than OLD_PART_LIMIT and the image is not one of FULL_PART_IMAGES.
+ * @param {Record<string, any> | null | undefined} profile @param {any} entry the restore entry (restoreEntry())
+ * @param {readonly string[]} [images]
+ */
+export function restoreFitsImage(profile, entry, images = FULL_PART_IMAGES) {
+	const sizes = [...(entry?.parts ?? []).map((/** @type {any} */ p) => p?.size), ...(entry?.parts?.length ? [] : [entry?.size])];
+	if (!sizes.some((n) => typeof n === 'number' && n > OLD_PART_LIMIT)) return true;
+	const plain = profile?.ownImage?.plainSha256;
+	return typeof plain === 'string' && images.includes(plain);
+}
+
 /**
  * The piece CIDs of every part of the backup a VM is restored from: the tool
  * never removes it (retention.protect).
