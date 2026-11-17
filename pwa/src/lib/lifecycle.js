@@ -457,7 +457,7 @@ export async function resumeStart(master, profile, onProgress, { lookUpTries = 2
 	// Rejected, forgotten or never arrived: nothing left to carry on with.
 	if (['rejected', 'forgotten', 'removed', 'removing'].includes(status) || res.status === 404) throw new StartGoneError(starting.instanceHash, status ?? res.status, missingOf(answer));
 	if (status !== 'processed') throw new Error(tr().life.errors.vmGone(starting.instanceHash.slice(0, 12), status ?? res.status));
-	return bringUp(master, { ...profile, restoreEntry: starting.restoreEntry }, starting, await loadWasm(), onProgress);
+	return bringUp(master, { ...profile, restoreEntry: starting.restoreEntry }, starting, await loadWasm(), onProgress, { resumed: true });
 }
 
 /** What the guest's agent takes at most in one hand-over (relay-button's attest agent). */
@@ -480,18 +480,68 @@ export function fitSecrets(secrets, max = MAX_GUEST_SECRETS) {
 	return out;
 }
 
+/** How long the start waits for a service it only asks for a better answer (credits, providers): then the recorded one. */
+export const ASK_MS = 30_000;
+
+/**
+ * A promise that settles within `ms`, or is rejected then.
+ * @template T @param {Promise<T>} promise @param {number} ms
+ * @returns {Promise<T>}
+ */
+function within(promise, ms) {
+	/** @type {ReturnType<typeof setTimeout> | undefined} */
+	let timer;
+	const late = new Promise((_, reject) => (timer = setTimeout(() => reject(new Error(`no answer within ${ms} ms`)), ms)));
+	return /** @type {Promise<T>} */ (Promise.race([promise, late]).finally(() => clearTimeout(timer)));
+}
+
+/**
+ * Whether the VM of a resumed start is up already: its status page answers
+ * on the instance's 2n6 name or, with a fixed address, on `name:port`. The
+ * fixed name is asked only once the start is older than FIRST_LOOK_FIXED_MS,
+ * as at a new start (a wildcard answers it before the VM set its records).
+ * @param {{ instanceHash: string, crnUrl: string, fixedName: string | null, startedAt: number, read: (host: string) => Promise<any>, now?: number }} a
+ * @returns {Promise<{ host: string, status: any } | null>}
+ */
+export async function findRunning({ instanceHash, crnUrl, fixedName, startedAt, read, now = Date.now() }) {
+	const at = async (/** @type {string | null} */ host) => {
+		const status = host ? await read(host).catch(() => null) : null;
+		return status?.phase ? { host: /** @type {string} */ (host), status } : null;
+	};
+	const viaTwoN6 = hostname(instanceHash).catch(() => null).then(at);
+	const fixedLater = !fixedName || now - (Number(startedAt) || 0) < FIRST_LOOK_FIXED_MS;
+	const viaFixed = fixedLater ? Promise.resolve(null) : publicAddress(crnUrl, instanceHash).catch(() => null).then((addr) => at(addr ? `${fixedName}:${addr.port}` : null));
+	const [twoN6, fixed] = await Promise.all([viaTwoN6, viaFixed]);
+	return fixed ?? twoN6;
+}
+
 /**
  * From a requested VM to a ready Paperless: port 443, address, unlock, ready.
+ * A resumed start first looks whether the VM is up already; then nothing is
+ * set up or handed over again, and it goes straight to watching the start.
  * @param {Uint8Array} master @param {Record<string, any>} profile @param {Starting} starting @param {any} wasm
  * @param {(p: { step: string, detail?: string, instanceHash?: string }) => void} onProgress
+ * @param {{ resumed?: boolean }} [options]
  */
-async function bringUp(master, profile, starting, wasm, onProgress) {
+async function bringUp(master, profile, starting, wasm, onProgress, { resumed = false } = {}) {
 	const app = privateKeyToAccount(alephPrivateKey(master));
 	const { instanceHash, payer, trustedExecution } = starting;
 	const crnUrl = await crnAddress(starting.crnHash);
+	// Only a VM on this vault's own image gets the DNS token, the backups'
+	// keys and the age identity (own-image-check.js).
+	const own = ownImageVerified(master, profile);
+	const fixed = Boolean(profile.dnsToken && own);
+	const fixedName = fixed ? `${fixedHostLabel(master)}.${FIXED_HOST_DOMAIN}` : null;
+	const readStatus = (/** @type {string} */ h) => vmStatus(h, statusToken(master));
+	// With a fixed address, the 2n6 name while the fixed one does not answer (start-watch.js).
+	const twoN6 = fixed ? () => hostname(instanceHash) : null;
 
 	onProgress({ step: 'network', detail: tr().life.progress.network, instanceHash });
-	if (!(await mapped443(crnUrl, instanceHash).catch(() => null))) {
+	const found = resumed ? await findRunning({ instanceHash, crnUrl, fixedName, startedAt: starting.at, read: readStatus }) : null;
+	// A node that does not answer is asked again, never sent a second mapping:
+	// that restarts a running VM.
+	const listed = () => mapped443(crnUrl, instanceHash).then((port) => ({ port }));
+	if (!found && !(await until('port 443', listed, { tries: 12 })).port) {
 		await forward443(app, payer, instanceHash);
 		await until('port 443', () => mapped443(crnUrl, instanceHash), { tries: 60 });
 		// The node restarts the VM to apply a mapping; give it a moment before the unlock.
@@ -501,90 +551,100 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 	// gets its certificate over DNS, and Caddy answers on 443 (IPv6) and on the
 	// node's port (IPv4), so `name:port` reaches it from either. Without one,
 	// the instance's 2n6 name, new at every start.
-	let host, name;
+	/** @type {string} */
+	let host;
+	/** @type {string} */
+	let name;
 	const dns = {};
-	// Only a VM on this vault's own image gets the DNS token, the backups'
-	// keys and the age identity (own-image-check.js).
-	const own = ownImageVerified(master, profile);
 	if (profile.dnsToken && !own) onProgress({ step: 'network', detail: tr().life.progress.publicNoFixed });
-	if (profile.dnsToken && own) {
+	if (fixedName) {
 		const addr = await until('IPv4-Adresse', () => publicAddress(crnUrl, instanceHash), { tries: 30 });
-		name = `${fixedHostLabel(master)}.${FIXED_HOST_DOMAIN}`;
+		name = fixedName;
 		host = `${name}:${addr.port}`;
 		Object.assign(dns, { dns_cloudflare_token: String(profile.dnsToken), https_ipv4: addr.ipv4, https_port: String(addr.port) });
 	} else {
-		host = name = await until('hostname', () => hostname(instanceHash), { tries: 30, delayMs: 10_000 });
+		host = name = found?.host ?? (await until('hostname', () => hostname(instanceHash), { tries: 30, delayMs: 10_000 }));
 	}
 
-	const p = paperlessSecrets(master);
-	const secrets = {
-		...dns,
-		https_hostname: name,
-		paperless_role: profile.role === 'primary' ? 'primary' : 'test',
-		paperless_admin_password: p.adminPassword,
-		paperless_db_password: p.dbPassword,
-		paperless_secret_key: p.secretKey,
-		status_token: statusToken(master)
-	};
-	// Binds backups to this vault: the VM marks each one it makes, and a
-	// restore takes only a backup with this vault's mark. Like the backups'
-	// other keys, only for a VM on this vault's own image.
-	if (own) {
-		secrets.backup_mark_key = backupMarkKey(master);
-		// The key that names incremental backups' files is not sent: the VM
-		// derives it from the mark key (paperless-dedup-key), as backupDedupKey does.
-	}
-	if (profile.backupConfig && !own) onProgress({ step: 'unlock', detail: tr().life.progress.publicNoBackups });
-	// An empty start while backups exist, not confirmed as a new beginning:
-	// this VM makes no backups, so an empty Paperless never becomes the newest.
-	if (profile.backupConfig && own && profile.holdBackups) onProgress({ step: 'unlock', detail: tr().life.progress.backupsHeld });
-	if (profile.backupConfig && own && !profile.holdBackups) {
-		// Through Le Space Credits: ask the service again (it may have a new
-		// payer or signer, which the profile then keeps); without an answer,
-		// what the setup recorded.
-		const signer = await refreshBackupSigner(master, profile);
-		// A region becomes named providers: one per operator, none blocked (providers.js).
-		const backupConfig = await placedConfig(profile.network === 'mainnet' ? 'mainnet' : 'calibration', profile.backupConfig);
-		try {
-			Object.assign(
-				secrets,
-				vmBackupSecrets({ ...profile, backupConfig }, {
-					...(profile.backupsByCredits
-						? { backupKey: backupPrivateKey(master), signer, creditsUrl: CREDITS_URL, product: CREDITS_PRODUCT, account: creditsAccount(master).address }
-						: { sessionKey: filecoinSessionPrivateKey(master) })
-				})
-			);
-		} catch (e) {
-			// Paperless starts anyway; the VM reports "no backup_config".
-			onProgress({ step: 'unlock', detail: tr().life.progress.withoutBackups(e instanceof Error ? e.message : String(e)) });
+	// The secrets, put together only when they are handed over: a VM that is
+	// up already needs none, and no slow service holds its start.
+	const gather = async () => {
+		const p = paperlessSecrets(master);
+		/** @type {Record<string, string>} */
+		const secrets = {
+			...dns,
+			https_hostname: name,
+			paperless_role: profile.role === 'primary' ? 'primary' : 'test',
+			paperless_admin_password: p.adminPassword,
+			paperless_db_password: p.dbPassword,
+			paperless_secret_key: p.secretKey,
+			status_token: statusToken(master)
+		};
+		// Binds backups to this vault: the VM marks each one it makes, and a
+		// restore takes only a backup with this vault's mark. Like the backups'
+		// other keys, only for a VM on this vault's own image.
+		if (own) {
+			secrets.backup_mark_key = backupMarkKey(master);
+			// The key that names incremental backups' files is not sent: the VM
+			// derives it from the mark key (paperless-dedup-key), as backupDedupKey does.
 		}
-	}
-	// When the paid time ends: the VM backs up and stops an hour before (period-end.js).
-	const periodEnd = await periodEndFor(master, profile);
-	// "0" (it renews, or nothing to stop for) is what a missing one means too.
-	if (periodEnd != null && periodEnd !== '0') secrets.period_end = periodEnd;
-	const keys = debugKeysFor(profile);
-	if (keys) secrets.authorized_keys = keys;
-	if (profile.restoreEntry && profile.ageIdentity && own) {
-		const { unmarked, ...entry } = profile.restoreEntry;
-		secrets.restore_ledger_entry = JSON.stringify(entry);
-		secrets.age_identity = profile.ageIdentity;
-		// A backup without this vault's mark, restored because the person chose
-		// it as such: the VM takes it only when this names its piece.
-		if (unmarked === true) secrets.restore_unmarked = String(entry.pieceCid);
-	}
+		if (profile.backupConfig && !own) onProgress({ step: 'unlock', detail: tr().life.progress.publicNoBackups });
+		// An empty start while backups exist, not confirmed as a new beginning:
+		// this VM makes no backups, so an empty Paperless never becomes the newest.
+		if (profile.backupConfig && own && profile.holdBackups) onProgress({ step: 'unlock', detail: tr().life.progress.backupsHeld });
+		if (profile.backupConfig && own && !profile.holdBackups) {
+			// Through Le Space Credits: ask the service again (it may have a new
+			// payer or signer, which the profile then keeps); without an answer
+			// in time, what the setup recorded.
+			const signer = await within(refreshBackupSigner(master, profile), ASK_MS).catch(() => profile.backupSigner ?? null);
+			// A region becomes named providers: one per operator, none blocked (providers.js).
+			const network = profile.network === 'mainnet' ? 'mainnet' : 'calibration';
+			const backupConfig = await within(placedConfig(network, profile.backupConfig), ASK_MS).catch(() => profile.backupConfig);
+			try {
+				Object.assign(
+					secrets,
+					vmBackupSecrets({ ...profile, backupConfig }, {
+						...(profile.backupsByCredits
+							? { backupKey: backupPrivateKey(master), signer, creditsUrl: CREDITS_URL, product: CREDITS_PRODUCT, account: creditsAccount(master).address }
+							: { sessionKey: filecoinSessionPrivateKey(master) })
+					})
+				);
+			} catch (e) {
+				// Paperless starts anyway; the VM reports "no backup_config".
+				onProgress({ step: 'unlock', detail: tr().life.progress.withoutBackups(e instanceof Error ? e.message : String(e)) });
+			}
+		}
+		// When the paid time ends: the VM backs up and stops an hour before (period-end.js).
+		const periodEnd = await within(periodEndFor(master, profile), ASK_MS).catch(() => null);
+		// "0" (it renews, or nothing to stop for) is what a missing one means too.
+		if (periodEnd != null && periodEnd !== '0') secrets.period_end = periodEnd;
+		const keys = debugKeysFor(profile);
+		if (keys) secrets.authorized_keys = keys;
+		if (profile.restoreEntry && profile.ageIdentity && own) {
+			const { unmarked, ...entry } = profile.restoreEntry;
+			secrets.restore_ledger_entry = JSON.stringify(entry);
+			secrets.age_identity = profile.ageIdentity;
+			// A backup without this vault's mark, restored because the person chose
+			// it as such: the VM takes it only when this names its piece.
+			if (unmarked === true) secrets.restore_unmarked = String(entry.pieceCid);
+		}
+		return fitSecrets(secrets);
+	};
 
-	onProgress({ step: 'unlock', detail: tr().life.progress.unlock });
-	const relays = await attestRelaysFor(profile);
-	const transports = relayTransports(relays);
 	// The attestation with the relay that carried it (not attested itself; it forwards encrypted bytes).
+	/** @type {any} */
+	let transports = null;
 	const kept = (/** @type {any} */ unlocked) => {
 		const a = attestationOf(unlocked);
 		const relay = a ? relayUsed(transports.last(), profile) : null;
 		return a && relay ? { ...a, relay } : a;
 	};
-	const unlock = () =>
-		unlockInstance({
+	const unlock = async () => {
+		const secrets = await gather();
+		onProgress({ step: 'unlock', detail: tr().life.progress.unlock });
+		const relays = await attestRelaysFor(profile);
+		transports = relayTransports(relays);
+		return unlockInstance({
 			wasm,
 			relayUrl: relays[0],
 			transport: transports,
@@ -592,16 +652,14 @@ async function bringUp(master, profile, starting, wasm, onProgress) {
 			instanceItemHash: instanceHash,
 			trustedExecution,
 			passphrase: profile.luksPassphrase,
-			secrets: fitSecrets(secrets),
+			secrets,
 			sign: (payload) => app.signMessage({ message: payload }),
 			onProgress: ({ detail, phase }) => onProgress({ step: 'unlock', detail, phase })
 		});
+	};
 	// A resumed start may find the VM unlocked already: its status page answers
 	// (with a fixed address perhaps only over the 2n6 name, start-watch.js).
-	const fixed = Boolean(profile.dnsToken && own);
-	const twoN6 = fixed ? () => hostname(instanceHash) : null;
-	const readStatus = (/** @type {string} */ h) => vmStatus(h, statusToken(master));
-	let already = await readStatus(host).catch(() => null);
+	let already = found?.status ?? (await readStatus(host).catch(() => null));
 	if (!already?.phase && twoN6) already = await twoN6().then((h) => (h ? readStatus(h) : null)).catch(() => null);
 	// What the attestation of this start confirmed, for the evidence view; a
 	// resumed start that finds the VM unlocked has checked nothing itself.
