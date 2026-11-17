@@ -434,7 +434,10 @@ export function retentionFor(network, set) {
  * off and greyed out.
  * @type {readonly string[]}
  */
-export const INCREMENTAL_IMAGES = Object.freeze([]);
+export const INCREMENTAL_IMAGES = Object.freeze([
+	// Plain image of main bb424a2, backup tool f4df5d7 (2026-11-17).
+	'3ced86bd5d2ce7440df16cf706ce0045a2b861924b54a4147549f0fbb9eca471'
+]);
 
 /**
  * Can the image the VM starts from make incremental backups? Its own image
