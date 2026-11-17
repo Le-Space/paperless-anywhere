@@ -8,7 +8,7 @@ import { dataSetLive, getActivePiecesByCursor } from '@filoz/synapse-core/pdp-ve
 import { getPDPProvidersByIds } from '@filoz/synapse-core/sp-registry';
 import { tryFrom as pieceFrom } from '@filoz/synapse-core/piece';
 import { filecoinChain } from './permissions.js';
-import { readSnapshotMeta, snapshotRestoreEntry, snapshotsFromPieces } from './snapshots.js';
+import { markSnapshots, snapshotRestoreEntry, snapshotsFromPieces } from './snapshots.js';
 import { format, tr } from './i18n/index.js';
 
 /** The data-set label paperless-backup-filecoin writes, per network. */
@@ -276,10 +276,10 @@ export async function listBackups({ network, owner, label, customer = null, data
 	for (const ds of sets) {
 		const dataSetId = BigInt(ds.dataSetId ?? ds.id);
 		const { items: pieces } = await getActivePiecesByCursor(client, { dataSetId });
-		// Which pieces are snapshot packs (incremental backups): their piece metadata.
-		const meta = pieces.length ? await readSnapshotMeta(client, filecoinChain(network).contracts.fwss.address, dataSetId, pieces.map((p) => p.id)).catch(() => new Map()) : new Map();
-		withPieces.push({ providerId: ds.providerId, dataSetId, pieces: pieces.map((p) => ({ ...p, snapshot: meta.get(String(p.id)) ?? null })) });
+		withPieces.push({ providerId: ds.providerId, dataSetId, pieces: pieces.map((p) => ({ ...p, snapshot: null })) });
 	}
+	// Which backups are snapshot packs (incremental backups): their first bytes, from a provider.
+	await markSnapshots(withPieces, { baseOf: (id) => byId(id)?.pdp?.serviceURL?.replace(/\/+$/, ''), groups: (pieces) => groupPieces(pieces), cidText });
 	return backupsFromPieces(withPieces, {
 		urlOf: (id) => byId(id)?.pdp?.serviceURL?.replace(/\/+$/, ''),
 		placeOf: (id) => place(byId(id)?.pdp?.location)
