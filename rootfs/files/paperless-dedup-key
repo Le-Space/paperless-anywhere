@@ -1,0 +1,21 @@
+#!/bin/sh
+# paperless-dedup-key <file>: write the key incremental backups name their
+# files with (the backup tool's DEDUP_KEY_FILE, 64 hex) into <file>, in /run.
+#
+# It comes from the vault: /tmp/secrets/backup_dedup_key when the app sent
+# one; else derived from /tmp/secrets/backup_mark_key (also from the vault)
+# with its own label, so the two never coincide. Both VMs of one vault, the
+# one that made a generation and the one that restored it, get the same key,
+# and the restored one continues that generation. Exit 1 without either.
+set -u
+out="${1:?usage: paperless-dedup-key <file>}"
+secrets=/tmp/secrets
+key="$(tr -cd '0-9a-f' < "$secrets/backup_dedup_key" 2>/dev/null | head -c 64)"
+if [ "${#key}" != 64 ]; then
+  mark="$(tr -cd '0-9a-f' < "$secrets/backup_mark_key" 2>/dev/null | head -c 64)"
+  [ "${#mark}" = 64 ] || exit 1
+  key="$(MARK_KEY="$mark" python3 -c 'import hashlib, hmac, os
+print(hmac.new(bytes.fromhex(os.environ["MARK_KEY"]), b"paperless-anywhere/backup-dedup-key/v1", hashlib.sha256).hexdigest())')" || exit 1
+fi
+umask 077
+printf '%s\n' "$key" > "$out.tmp" && mv "$out.tmp" "$out"

@@ -20,6 +20,16 @@
 #                                      chose as such in the app: only that one is
 #                                      imported without the mark
 #
+# An incremental backup (kind "snapshot") names its generation (gen), its
+# number in it (seq) and every pack of the generation up to it (packs: seq,
+# parts, copies[].retrievalUrls): each part is fetched and checked like a part
+# of a full backup, the packs are joined per seq, and the backup tool
+# (restore-snapshot --packs) decrypts them and writes the export folder,
+# checking each file against its SHA-256. With the vault's dedup key
+# (paperless-dedup-key) this VM then continues that generation: the folder
+# becomes /srv/paperless/export/state and its index snapshots.json, so its
+# next backup uploads only what changed.
+#
 # The piece is fetched from a provider, checked against the ledger's SHA-256,
 # or its piece CID. A backup above 1 GB comes in parts (each a piece of at
 # most 1,000,000,000 bytes): every part is fetched from the first copy that
@@ -120,6 +130,66 @@ urls = [c.get("retrievalUrl", "") for c in copies]
 urls = [u for u in urls if isinstance(u, str) and re.fullmatch(URL, u)]
 if sha and not re.fullmatch(SHA, sha):
     sys.exit("the ledger entry's SHA-256 is malformed")
+if e.get("kind") == "snapshot":
+    # SNAPSHOT-ENTRY (tested in pwa/src/lib/rootfs-restore-snapshot.spec.js)
+    gen, target = str(e.get("gen", "")), e.get("seq")
+    if not re.fullmatch(r"[0-9a-f]{16}", gen) or not (isinstance(target, int) and not isinstance(target, bool) and 0 <= target <= 100000):
+        sys.exit("the snapshot names no generation and number")
+    packs = e.get("packs") if isinstance(e.get("packs"), list) else []
+    if len(packs) > 5000:
+        sys.exit("the snapshot has too many packs")
+    by_seq = {}
+    for p in packs:
+        if isinstance(p, dict) and isinstance(p.get("seq"), int) and not isinstance(p.get("seq"), bool) and 0 <= p["seq"] <= target:
+            if p["seq"] in by_seq:
+                sys.exit(f"pack {p['seq']} is named twice")
+            by_seq[p["seq"]] = p
+    if sorted(by_seq) != list(range(target + 1)):
+        sys.exit("the snapshot lacks packs of its generation")
+    plan, tool = [], []
+    for q in range(target + 1):
+        p = by_seq[q]
+        pparts = p.get("parts") if isinstance(p.get("parts"), list) else []
+        if not 1 <= len(pparts) <= 512:
+            sys.exit(f"pack {q} has no parts")
+        pcopies = [c for c in p.get("copies", []) if isinstance(c, dict)]
+        tparts = []
+        for i, part in enumerate(pparts):
+            part = part if isinstance(part, dict) else {}
+            pcid = str(part.get("pieceCid", "") or "")
+            psha = str(part.get("sha256", "") or "")
+            psize = part.get("size")
+            if not re.fullmatch(CID, pcid):
+                sys.exit(f"pack {q} part {i + 1} names no piece CID")
+            if psha and not re.fullmatch(SHA, psha):
+                sys.exit(f"the SHA-256 of pack {q} part {i + 1} is malformed")
+            if psize is not None and not (isinstance(psize, int) and not isinstance(psize, bool) and 0 < psize <= 1_100_000_000):
+                sys.exit(f"the size of pack {q} part {i + 1} is not a part size")
+            purls = []
+            for c in pcopies:
+                ru = c.get("retrievalUrls")
+                u = ru[i] if isinstance(ru, list) and len(ru) == len(pparts) else None
+                if isinstance(u, str) and re.fullmatch(URL, u):
+                    purls.append(u)
+            if not purls:
+                sys.exit(f"pack {q} part {i + 1} has no https retrieval URL")
+            plan.append(" ".join([str(q), pcid, psha or "-", str(psize) if psize is not None else "-", *purls]))
+            tparts.append({"pieceCid": pcid, **({"size": psize} if psize is not None else {})})
+        keep = ("providerId", "dataSetId", "retrievalUrls")
+        tool.append({"seq": q, "parts": tparts, "copies": [{k: c.get(k) for k in keep if k in c} for c in pcopies], **({"date": p["date"]} if isinstance(p.get("date"), str) else {})})
+    first = by_seq[target]["parts"][0]["pieceCid"]
+    if cid and cid != first:
+        sys.exit("the pieceCid of the snapshot entry is not its pack's first part")
+    print("name=" + shlex.quote(str(e.get("name", "snapshot"))[:80]))
+    print("sha=''")
+    print("cid=" + shlex.quote(first))
+    print("urls=''")
+    print("nparts=" + str(len(plan)))
+    print("plan=" + shlex.quote("\n".join(plan)))
+    print("kind=snapshot")
+    print("snapentry=" + shlex.quote(json.dumps({"gen": gen, "seq": target, "packs": tool})))
+    sys.exit(0)
+print("kind=full")
 parts = e.get("parts") if isinstance(e.get("parts"), list) else []
 plan = []
 if len(parts) > 1:
@@ -196,7 +266,32 @@ download() {
 
 rm -rf "$work" && mkdir -p "$work" && chmod 700 "$work"
 t1=$(date +%s); got=""
-if [ "$nparts" -gt 1 ]; then
+if [ "$kind" = snapshot ]; then
+  # Every part of every pack of the generation up to the snapshot, joined per pack.
+  mkdir -m 700 "$work/packs"
+  i=0
+  while read -r pseq pcid psha psize purls; do
+    i=$((i + 1)); pgot=""
+    for u in $purls; do
+      if download "$u" "$work/part.age" "$psize"; then pgot="${u#https://}"; pgot="${pgot%%/*}"; break; fi
+    done
+    [ -n "$pgot" ] || fail "no provider delivered piece $i of $nparts (pack $pseq)"
+    [ -n "$got" ] || got="$pgot"
+    if [ "$psize" != - ]; then
+      [ "$(stat -c %s "$work/part.age")" = "$psize" ] || fail "piece $i of $nparts has the wrong size"
+    fi
+    if [ "$psha" != - ]; then
+      [ "$(sha256sum "$work/part.age" | cut -d' ' -f1)" = "$psha" ] || fail "piece $i of $nparts does not match its SHA-256"
+    fi
+    got_cid="$(cd /opt/backup-filecoin && node piece-cid.mjs "$work/part.age" 2>>"$log")" || fail "could not compute the piece CID of piece $i"
+    [ "$got_cid" = "$pcid" ] || fail "piece $i of $nparts is not the piece that was asked for"
+    cat "$work/part.age" >> "$work/packs/$pseq.age" || fail "could not join piece $i of $nparts"
+    rm -f "$work/part.age"
+  done <<PLAN
+$plan
+PLAN
+  [ "$i" = "$nparts" ] || fail "only $i of $nparts pieces were read"
+elif [ "$nparts" -gt 1 ]; then
   : > "$work/sealed.age"
   i=0
   # Not in a pipe: fail must end this shell, not a subshell.
@@ -239,6 +334,28 @@ else
 fi
 t2=$(date +%s)
 
+if [ "$kind" = snapshot ]; then
+  # The backup tool decrypts the packs and writes the snapshot's files, each
+  # checked against its SHA-256. With the vault's dedup key it also writes the
+  # index this VM continues the generation with (--adopt).
+  printf '%s' "$snapentry" > "$work/entry.json"
+  if [ "$(cat "$secrets/paperless_role" 2>/dev/null)" = primary ]; then net=mainnet; else net=calibration; fi
+  printf '{"network":"%s"}\n' "$net" > "$work/tool-config.json"
+  adopt=""
+  if /usr/local/sbin/paperless-dedup-key "$state_dir/dedup.key"; then adopt=--adopt; fi
+  (cd /opt/backup-filecoin && BACKUP_CONFIG="$work/tool-config.json" AGE_IDENTITY_FILE="$secrets/age_identity" \
+    DEDUP_KEY_FILE="$state_dir/dedup.key" SNAPSHOT_STATE=/var/lib/paperless-anywhere/snapshots.json \
+    node backup.mjs restore-snapshot "$work/entry.json" "$work/import" --packs "$work/packs" $adopt) >>"$log" 2>&1
+  rc=$?
+  rm -f "$state_dir/dedup.key"
+  forget_secrets
+  rm -rf "$work/packs" "$work/entry.json" "$work/tool-config.json"
+  [ "$rc" = 0 ] || { rm -rf "$work/import"; rm -f /var/lib/paperless-anywhere/snapshots.json; fail "the snapshot could not be restored (see $log)"; }
+  [ -s "$work/import/manifest.json" ] || fail "the snapshot holds no manifest.json"
+  # What paperless-anywhere put beside the export, out of what document_importer reads.
+  if [ -d "$work/import/.paperless-anywhere" ]; then mv "$work/import/.paperless-anywhere" "$work/extra"; fi
+  t3=$(date +%s)
+else
 age -d -i "$secrets/age_identity" -o "$work/export.zip" "$work/sealed.age" 2>>"$log" || fail "age could not decrypt the piece"
 forget_secrets
 rm -f "$work/sealed.age"
@@ -265,6 +382,7 @@ for n in names:
             dst.write(src.read())
 PY
 rm -f "$work/export.zip"
+fi
 # The vault's mark, checked before anything of the backup is used: "verified"
 # with this vault's key; a backup without one only when the person chose this
 # very piece as such ("accepted"). Another vault's mark, a broken one, or none
@@ -298,6 +416,7 @@ if [ "$mark" != verified ]; then
     mark=accepted
   else
     rm -rf "$work/import" "$work/extra"
+    rm -f /var/lib/paperless-anywhere/snapshots.json
     fail "the backup does not carry this vault's mark (${mark:-unreadable})"
   fi
 fi
@@ -307,7 +426,7 @@ if [ -d "$work/extra" ] && ! [ -d /etc/paperless-anywhere/tls/certificates ]; th
   cp -a "$work/extra/." /etc/paperless-anywhere/tls/
 fi
 rm -rf "$work/extra"
-printf 'name=%s\ngot=%s\nt0=%s\nt1=%s\nt2=%s\nt3=%s\nmark=%s\n' "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._:-')" "$(printf '%s' "$got" | tr -cd 'A-Za-z0-9.:-')" "$t0" "$t1" "$t2" "$t3" "$(printf '%s' "$mark" | tr -cd 'a-z')" > "$entry_env"
+printf 'kind=%s\nname=%s\ngot=%s\nt0=%s\nt1=%s\nt2=%s\nt3=%s\nmark=%s\n' "$kind" "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._:-')" "$(printf '%s' "$got" | tr -cd 'A-Za-z0-9.:-')" "$t0" "$t1" "$t2" "$t3" "$(printf '%s' "$mark" | tr -cd 'a-z')" > "$entry_env"
 }
 
 fetch
@@ -325,6 +444,12 @@ count="$(paperless-manage shell -c 'from documents.models import Document; print
 
 paperless-manage document_importer ../export/restore/import --no-progress-bar >>"$log" 2>&1 || fail "document_importer failed (see $log)"
 t4=$(date +%s)
+# A snapshot's folder is what the next incremental backup starts from: the
+# exporter updates it in place (only what changed is rewritten).
+if [ "${kind:-full}" = snapshot ] && [ -s /var/lib/paperless-anywhere/snapshots.json ]; then
+  rm -rf /srv/paperless/export/state && mv "$work/import" /srv/paperless/export/state \
+    || echo "paperless-restore: could not keep the restored folder; the next backup rebuilds it" >&2
+fi
 
 mail="kept"
 if [ "$role" != primary ]; then
@@ -371,7 +496,7 @@ documents="${counts%% *}"; trash="${counts##* }"
 
 # The backup this VM came from, by the piece CIDs of all its parts: retention
 # never removes it while this VM runs (paperless-backup).
-{ printf '%s\n' "$cid"; printf '%s\n' "$plan" | awk 'NF { print $1 }'; } | grep -E '^(baga|bafk)[a-z2-7]{20,}$' | sort -u > /var/lib/paperless-anywhere/restored-from 2>>"$log" || true
+{ printf '%s\n' "$cid"; printf '%s\n' "$plan" | awk -v k="${kind:-full}" 'NF { print (k == "snapshot" ? $2 : $1) }'; } | grep -E '^(baga|bafk)[a-z2-7]{20,}$' | sort -u > /var/lib/paperless-anywhere/restored-from 2>>"$log" || true
 
 # What was restored needs no new backup: the first check compares against it.
 paperless-backup fingerprint > /var/lib/paperless-anywhere/backed-up.fingerprint 2>>"$log" || true
