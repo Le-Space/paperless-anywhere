@@ -9,6 +9,7 @@ import { getPDPProvidersByIds } from '@filoz/synapse-core/sp-registry';
 import { tryFrom as pieceFrom } from '@filoz/synapse-core/piece';
 import { filecoinChain } from './permissions.js';
 import { markSnapshots, snapshotRestoreEntry, snapshotsFromPieces } from './snapshots.js';
+import { blockedReason } from './blocked-providers.js';
 import { format, tr } from './i18n/index.js';
 
 /** The data-set label paperless-backup-filecoin writes, per network. */
@@ -279,12 +280,23 @@ export async function listBackups({ network, owner, label, customer = null, data
 		withPieces.push({ providerId: ds.providerId, dataSetId, pieces: pieces.map((p) => ({ ...p, snapshot: null })) });
 	}
 	// Which backups are snapshot packs (incremental backups): their first bytes, from a provider.
-	await markSnapshots(withPieces, { baseOf: (id) => byId(id)?.pdp?.serviceURL?.replace(/\/+$/, ''), groups: (pieces) => groupPieces(pieces), cidText });
+	await markSnapshots(withPieces, { baseOf: askedBase(network, (id) => byId(id)?.pdp?.serviceURL?.replace(/\/+$/, '')), groups: (pieces) => groupPieces(pieces), cidText });
 	return backupsFromPieces(withPieces, {
 		urlOf: (id) => byId(id)?.pdp?.serviceURL?.replace(/\/+$/, ''),
 		placeOf: (id) => place(byId(id)?.pdp?.location)
 	});
 }
+
+/**
+ * The service URL the app may ask for a piece's first bytes: none for a
+ * provider Le Space blocked (blocked-providers.js). Its data sets stay on the
+ * chain until they end, so its copies are still listed (and shown as
+ * blocked); only the browser does not knock there.
+ * @param {string | null | undefined} network
+ * @param {(providerId: any) => string | undefined} serviceUrlOf
+ * @returns {(providerId: any) => string | undefined}
+ */
+export const askedBase = (network, serviceUrlOf) => (id) => (blockedReason(network, Number(id)) ? undefined : serviceUrlOf(id));
 
 /**
  * What paperless-restore takes for a chain-listed backup: no SHA-256, the
