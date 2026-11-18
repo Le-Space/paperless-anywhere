@@ -22,7 +22,7 @@ import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, credit
 import { paidUntil, periodEndChanged, periodEndPiece, periodEndSecret } from './period-end.js';
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
 import { relayTransports } from './attest-p2p.js';
-import { backupFacts, pieceCidOfStop, reportedMarks, vaultBound, vmBackupSecrets, withVaultBackups } from './backups.js';
+import { backupFacts, pieceCidOfStop, reportedMarks, restoreFitsImage, vaultBound, vmBackupSecrets, withVaultBackups } from './backups.js';
 import { attestRelaysFor, relayUsed } from './relays.js';
 import { updateProfile, vmPayer } from './profile.js';
 import { ALEPH_API, readFetch } from './aleph.js';
@@ -370,6 +370,8 @@ export async function startPaperless(master, profile, onProgress, { onRequested,
 	// A backup is restored only into this vault's own image: the age identity
 	// that opens it goes to no VM on the public image. Said before any VM is asked for.
 	if (profile.restoreEntry && !ownImageVerified(master, profile)) throw new Error(tr().life.errors.restoreNeedsOwnImage);
+	// A part larger than an older image downloads: said now, before a VM is paid for.
+	if (profile.restoreEntry && !restoreFitsImage(profile, profile.restoreEntry)) throw new Error(tr().life.errors.partTooLargeForImage);
 	// …and only when a copy of it can be fetched: otherwise the VM would start
 	// empty and cost for nothing. Asked before any VM is requested.
 	if (profile.restoreEntry) {

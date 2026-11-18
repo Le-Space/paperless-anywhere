@@ -19,6 +19,7 @@ export const life = {
 			placesNeedOwnImage: 'Sicherungsorte gehen nur an eine VM mit deinem eigenen Image.',
 			copiesUnreachable: (/** @type {number} */ n) => `Gerade liefert keine der ${n} Kopien deiner Sicherung aus (ihre Anbieter antworten nicht). Darum wird keine VM angefordert: Sie würde leer starten und kosten. Deine Sicherung ist dadurch nicht verloren. Bitte später noch einmal versuchen.`,
 			restoreNeedsOwnImage: 'Eine Sicherung wird nur in dein eigenes Image wiederhergestellt. Baue zuerst dein eigenes Image (Einrichtung, Schritt Image) oder starte ohne Sicherung.',
+			partTooLargeForImage: 'Diese Sicherung hat einen Teil von über 1 GB. Dein eigenes Image ist älter und kann ihn nicht laden. Baue dein eigenes Image neu (Einrichtung, Schritt Image) oder wähle eine kleinere Sicherung.',
 			startGone: (/** @type {string} */ status, /** @type {string[]} */ missing) =>
 				`Der unterbrochene Start ist bei Aleph ${status === 'rejected' ? 'abgelehnt worden' : 'nicht mehr da'}${missing.length ? ` (Aleph kennt ${missing.length === 1 ? 'dieses Image' : 'diese Teile'} nicht mehr: ${missing.join(', ')})` : ''}. Er ist verworfen; du kannst neu starten.`,
 			dataDiskFailed: (/** @type {string} */ reason) => `Der versiegelte Datenbereich ist auf diesem Knoten gescheitert (${reason}); Paperless-ngx startet dort nicht.`,
@@ -168,6 +169,7 @@ export const life = {
 			placesNeedOwnImage: 'Backup places go only to a VM on your own image.',
 			copiesUnreachable: (/** @type {number} */ n) => `None of the ${n} copies of your backup delivers right now (their providers do not answer). So no VM is requested: it would start empty and cost. Your backup is not lost by this. Please try again later.`,
 			restoreNeedsOwnImage: 'A backup is restored only into your own image. Build your own image first (setup, image step) or start without a backup.',
+			partTooLargeForImage: 'This backup has a part of over 1 GB. Your own image is older and cannot load it. Build your own image again (setup, image step) or choose a smaller backup.',
 			startGone: (/** @type {string} */ status, /** @type {string[]} */ missing) =>
 				`Aleph ${status === 'rejected' ? 'rejected' : 'no longer has'} the interrupted start${missing.length ? ` (Aleph no longer knows ${missing.length === 1 ? 'this image' : 'these parts'}: ${missing.join(', ')})` : ''}. It was dropped; you can start again.`,
 			dataDiskFailed: (/** @type {string} */ reason) => `The sealed data area failed on this node (${reason}); Paperless-ngx does not start there.`,
