@@ -3,6 +3,11 @@
 // backup-overview.js), fetching one without a VM (BackupExport,
 // backup-fetch.js, the guide in backups.js) and the documents' storage
 // (Storage, storage.js). German is the original; English beside it, key for key.
+/** @param {{ keepLast: number, keepDays: number, keepWeeks: number, keepMonths: number }} p */
+export const keptDe = (p) => [`die letzten ${p.keepLast}`, p.keepDays ? `je eine pro Tag der letzten ${p.keepDays} Tage` : '', p.keepWeeks ? `je eine pro Woche der letzten ${p.keepWeeks} Wochen` : '', p.keepMonths ? `je eine pro Monat der letzten ${p.keepMonths} Monate` : ''].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' und $1');
+/** @param {{ keepLast: number, keepDays: number, keepWeeks: number, keepMonths: number }} p */
+export const keptEn = (p) => [`the last ${p.keepLast}`, p.keepDays ? `one per day of the last ${p.keepDays} days` : '', p.keepWeeks ? `one per week of the last ${p.keepWeeks} weeks` : '', p.keepMonths ? `one per month of the last ${p.keepMonths} months` : ''].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' and $1');
+
 export const backup = {
 	de: {
 		overview: {
@@ -37,16 +42,21 @@ export const backup = {
 			retention: {
 				title: 'Aufbewahrung',
 				summary: (/** @type {number} */ keep, /** @type {number} */ remove) => `${keep} ${keep === 1 ? 'Sicherung bleibt' : 'Sicherungen bleiben'}${remove ? `, ${remove} zum Entfernen vorgemerkt` : ''}`,
-				policy: (/** @type {{ keepLast: number, keepDays: number, keepWeeks: number, keepMonths: number }} */ p) => `Es bleiben die letzten ${p.keepLast}, dazu je eine pro Tag (${p.keepDays} Tage), Woche (${p.keepWeeks} Wochen) und Monat (${p.keepMonths} Monate); immer die neueste vollständige, die neueste bei jedem Anbieter und die, aus der diese VM wiederhergestellt wurde.`,
+				policy: (/** @type {{ keepLast: number, keepDays: number, keepWeeks: number, keepMonths: number }} */ p) => `Es bleiben ${keptDe(p)}; immer die neueste vollständige, die neueste bei jedem Anbieter und die, aus der diese VM wiederhergestellt wurde.`,
 				keep: 'bleibt',
 				remove: 'Entfernung geplant',
 				toRemove: 'zum Entfernen vorgemerkt',
-				reasons: { newest: 'neueste vollständige', restored: 'Ausgangspunkt dieser VM', place: 'neueste bei einem Anbieter', last: 'eine der letzten', undated: 'Datum unbekannt', day: 'Tag', week: 'Woche', month: 'Monat' },
+				reasons: { newest: 'neueste vollständige', restored: 'Ausgangspunkt dieser VM', place: 'neueste bei einem Anbieter', last: 'eine der letzten', undated: 'Datum unbekannt', day: 'Tag', week: 'Woche', month: 'Monat', generation: 'eine spätere inkrementelle baut darauf auf', legacy: 'ältere vollständige, bis eine inkrementelle geprüft ist' },
 				partial: 'unvollständig',
 				undated: 'Datum unbekannt',
 				queued: 'Entfernungen sind beim Anbieter angemeldet; der Platz wird mit dem nächsten Nachweis frei (meist innerhalb eines Tages).',
 				planned: 'Wird mit der nächsten vollständigen Sicherung entfernt.',
-				needsWallet: 'Entfernen kann nur deine Wallet, die die Sicherungen bezahlt (die VM darf nur hinzufügen): mit dem Sicherungswerkzeug und `node backup.mjs retain --yes`.',
+				needsWallet: 'Entfernen kann nur deine Wallet, die die Sicherungen bezahlt (die VM darf nur hinzufügen). Mit dem Knopf unterschreibst du es: ein Aufruf je Datensatz, je 0,007 USDFC. Der Anbieter entfernt beim nächsten Nachweis, meist innerhalb eines Tages.',
+				removeButton: (/** @type {number} */ n) => `${n} ${n === 1 ? 'Sicherung' : 'Sicherungen'} mit der Wallet entfernen`,
+				removing: 'Die Wallet unterschreibt …',
+				removed: (/** @type {number} */ ok, /** @type {number} */ all) => (ok === all ? `Entfernen bei ${ok} ${ok === 1 ? 'Datensatz' : 'Datensätzen'} angemeldet.` : `Entfernen bei ${ok} von ${all} Datensätzen angemeldet; der Rest ging nicht durch (siehe unten).`),
+				nothingSafe: 'Nichts entfernt: Der Plan der VM passt nicht mehr zu dem, was auf der Chain liegt, oder es bliebe keine gute Sicherung übrig. Nach der nächsten vollständigen Sicherung gibt es einen neuen Plan.',
+				skippedWhy: { newest: 'die neueste', protected: 'geschützt (Ausgangspunkt oder gewählt)', generation: 'eine spätere inkrementelle Sicherung baut darauf auf', unmarked: 'es bliebe keine mit dem Siegel dieses Tresors', gone: 'nicht mehr auf der Chain', nothingLeft: 'es bliebe keine übrig' },
 				overBudget: 'Was bleiben muss, lässt keinen Platz für eine weitere Sicherung im Kontingent.',
 				failed: 'Die Aufbewahrung konnte zuletzt nicht laufen; die Sicherungen bleiben, die nächste versucht es wieder.'
 			}
@@ -319,16 +329,21 @@ export const backup = {
 			retention: {
 				title: 'Retention',
 				summary: (/** @type {number} */ keep, /** @type {number} */ remove) => `${keep} ${keep === 1 ? 'backup stays' : 'backups stay'}${remove ? `, ${remove} marked for removal` : ''}`,
-				policy: (/** @type {{ keepLast: number, keepDays: number, keepWeeks: number, keepMonths: number }} */ p) => `The last ${p.keepLast} stay, plus one per day (${p.keepDays} days), week (${p.keepWeeks} weeks) and month (${p.keepMonths} months); always the newest complete one, the newest at each provider and the one this VM was restored from.`,
+				policy: (/** @type {{ keepLast: number, keepDays: number, keepWeeks: number, keepMonths: number }} */ p) => `What stays: ${keptEn(p)}; always the newest complete one, the newest at each provider and the one this VM was restored from.`,
 				keep: 'stays',
 				remove: 'removal scheduled',
 				toRemove: 'marked for removal',
-				reasons: { newest: 'newest complete', restored: 'this VM’s starting point', place: 'newest at a provider', last: 'one of the last', undated: 'date unknown', day: 'day', week: 'week', month: 'month' },
+				reasons: { newest: 'newest complete', restored: 'this VM’s starting point', place: 'newest at a provider', last: 'one of the last', undated: 'date unknown', day: 'day', week: 'week', month: 'month', generation: 'a later incremental one builds on it', legacy: 'older full one, until an incremental one is checked' },
 				partial: 'incomplete',
 				undated: 'date unknown',
 				queued: 'The removals are registered with the providers; the space is freed with the next proof (usually within a day).',
 				planned: 'Removed with the next complete backup.',
-				needsWallet: 'Only your wallet, which pays the backups, can remove them (the VM may only add): with the backup tool and `node backup.mjs retain --yes`.',
+				needsWallet: 'Only your wallet, which pays the backups, can remove them (the VM may only add). With the button you sign it: one call per data set, 0.007 USDFC each. The provider removes at its next proof, usually within a day.',
+				removeButton: (/** @type {number} */ n) => `Remove ${n} ${n === 1 ? 'backup' : 'backups'} with the wallet`,
+				removing: 'The wallet signs …',
+				removed: (/** @type {number} */ ok, /** @type {number} */ all) => (ok === all ? `Removal requested at ${ok} data ${ok === 1 ? 'set' : 'sets'}.` : `Removal requested at ${ok} of ${all} data sets; the rest did not go through (see below).`),
+				nothingSafe: 'Nothing removed: the VM\'s plan no longer matches what is on the chain, or no good backup would be left. The next complete backup brings a new plan.',
+				skippedWhy: { newest: 'the newest', protected: 'protected (starting point or chosen)', generation: 'a later incremental backup builds on it', unmarked: 'none with this vault\'s seal would be left', gone: 'no longer on the chain', nothingLeft: 'none would be left' },
 				overBudget: 'What must stay leaves no room for another backup within the quota.',
 				failed: 'Retention could not run last time; the backups stay, the next one tries again.'
 			}

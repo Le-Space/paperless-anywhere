@@ -8,7 +8,11 @@
 	import { statusToken } from '$lib/keys/derive.js';
 	import { BackupFailedError, requestBackup } from '$lib/lifecycle.js';
 	import { BACKUP_TEXTS, backupOverview, retentionView, when } from '$lib/backup-overview.js';
-	import { backupSize } from '$lib/backups.js';
+	import { backupSize, listBackups, protectedPieces, removalBatches } from '$lib/backups.js';
+	import { backupListing } from '$lib/profile.js';
+	import { filecoinChain, removeWithWallet } from '$lib/permissions.js';
+	import { createPublicClient, http } from 'viem';
+	import { getScheduledRemovals } from '@filoz/synapse-core/pdp-verifier';
 	import { lang as appLang } from '$lib/i18n/index.js';
 
 	/** @type {{ master: Uint8Array, profile: Record<string, any>, known?: { at: string, copies?: number | null } | null, disabled?: boolean, guard?: ((then: () => unknown) => unknown) | null, onbusy?: (busy: boolean) => void, ongood?: (good: { at: string, copies: number, requested: number, providerIds: number[] }) => void }} */
@@ -57,6 +61,47 @@
 		timer = setInterval(() => busy || read(), 60_000);
 	});
 	onDestroy(() => clearInterval(timer));
+
+	// The wallet path: the VM only plans (needsWallet); the person removes what
+	// it planned with the wallet, checked again against the chain first
+	// (removalBatches): never the newest, a protected one, or what a kept
+	// snapshot builds on. One signed call per data set.
+	let removing = $state(false);
+	let removeNote = $state('');
+	/** @type {Array<{ pieceCid: string, why: string }>} */
+	let removeSkipped = $state([]);
+	/** @type {string[]} */
+	let removeErrors = $state([]);
+	const canRemove = $derived(Boolean(kept && !kept.failed && kept.needsWallet && !kept.sent && kept.remove > 0 && profile.payer && !profile.backupsByCredits));
+	const removeOld = async () => {
+		removing = true;
+		removeNote = rt.removing;
+		removeSkipped = [];
+		removeErrors = [];
+		try {
+			const network = profile.network ?? 'calibration';
+			const all = await listBackups({ network, ...backupListing(profile, null) });
+			const marked = (/** @type {any} */ b) => (profile.vaultBackups ?? []).includes(b.pieceCid);
+			const protect = [...protectedPieces(profile.restoreEntry), ...protectedPieces(profile.starting?.restoreEntry)];
+			// Pieces already scheduled for removal are still listed until the provider's next proof.
+			const client = createPublicClient({ chain: filecoinChain(network), transport: http(undefined, { retryCount: 1, timeout: 20_000 }) });
+			const sets = [...new Set(all.flatMap((b) => (b.copies ?? []).map((c) => c.dataSetId)).filter(Boolean))];
+			const scheduled = new Map(await Promise.all(sets.map(async (id) => /** @type {[string, Set<string>]} */ ([String(id), new Set((await getScheduledRemovals(client, { dataSetId: BigInt(id) })).map(String))]))));
+			const plan = removalBatches({ remove: status?.retention?.remove ?? [] }, all, { protect, marked, scheduled });
+			removeSkipped = plan.skipped;
+			if (!plan.batches.length) {
+				removeNote = rt.nothingSafe;
+				return;
+			}
+			const out = await removeWithWallet(profile.payer, network, plan.batches);
+			removeErrors = out.filter((o) => !o.ok).map((o) => `${o.dataSetId}: ${o.error}`);
+			removeNote = rt.removed(out.filter((o) => o.ok).length, out.length);
+		} catch (e) {
+			removeNote = String(/** @type {any} */ (e)?.message ?? e).slice(0, 200);
+		} finally {
+			removing = false;
+		}
+	};
 
 	async function backUpNow() {
 		busy = true;
@@ -137,6 +182,12 @@
 				{/if}
 			</details>
 		{/if}
+		{#if canRemove}
+			<button type="button" class="small" onclick={removeOld} disabled={removing || busy} data-testid="retention-remove-wallet">{rt.removeButton(kept.remove)}</button>
+		{/if}
+		{#if removeNote}<p class="hint" role="status" data-testid="retention-remove-result">{removeNote}</p>{/if}
+		{#if removeSkipped.length}<ul class="hint" data-testid="retention-remove-skipped">{#each removeSkipped as x (x.pieceCid)}<li>…{x.pieceCid.slice(-12)}: {rt.skippedWhy[x.why]}</li>{/each}</ul>{/if}
+		{#if removeErrors.length}<ul class="warn">{#each removeErrors as err (err)}<li>{err}</li>{/each}</ul>{/if}
 		{#if kept && simple && (kept.failed || kept.overBudget)}<p class="warn" data-testid="backup-retention-warning">{kept.failed ? rt.failed : rt.overBudget}</p>{/if}
 		<button type="button" class="small" onclick={() => (guard ? guard(backUpNow) : backUpNow())} disabled={disabled || busy || view.running} data-testid="backup-now">{t.now}</button>
 	{:else if answered}

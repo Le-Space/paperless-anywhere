@@ -115,7 +115,7 @@ export function snapshotsFromPieces(sets, { urlOf, placeOf = () => '', sizeOf, c
 			const isWhole = new Set(ps.map((p) => p.snapshot.part)).size === parts;
 			if (isWhole) {
 				full.add(k);
-				pack.holders.push({ providerId: ds.providerId, dataSetId: ds.dataSetId, pieceIds: sorted.map((p) => String(p.id)) });
+				pack.holders.push({ providerId: ds.providerId, dataSetId: ds.dataSetId, pieceIds: sorted.map((p) => String(p.id)), clientDataSetId: ds.clientDataSetId, endsAt: ds.endsAt });
 			}
 			packs.set(k, pack);
 			seq.push(`snap:${k}`);
@@ -132,7 +132,9 @@ export function snapshotsFromPieces(sets, { urlOf, placeOf = () => '', sizeOf, c
 			retrievalUrl: urls[0],
 			retrievalUrls: urls,
 			place: placeOf(h.providerId),
-			...(h.dataSetId != null ? { dataSetId: String(h.dataSetId), pieceIds: h.pieceIds } : {})
+			...(h.dataSetId != null ? { dataSetId: String(h.dataSetId), pieceIds: h.pieceIds } : {}),
+			...(h.clientDataSetId != null ? { clientDataSetId: String(h.clientDataSetId) } : {}),
+			...(Number.isFinite(h.endsAt) ? { endsAt: h.endsAt } : {})
 		};
 	};
 	const snapshots = [];

@@ -30,7 +30,8 @@ import { replacementPlan } from '$lib/places-replace.js';
 import { blockedAmong, blockedReason } from '$lib/blocked-providers.js';
 import { avoidedNodes, nodeBlockedReason, noteProven, noteUnsuitable, provenNodes } from '$lib/blocked-nodes.js';
 import { DataAreaFailedError } from '$lib/start-watch.js';
-import { backupSize, knownBackup, listBackups, newerBackup, pieceCidOfStop, restoreEntry, restoreGap, splitOwn } from '$lib/backups.js';
+import { keptDe, keptEn } from '$lib/i18n/backup.js';
+import { backupSize, endingCopies, knownBackup, listBackups, newerBackup, pieceCidOfStop, restoreEntry, restoreGap, retentionFor, splitOwn, withoutBlocked } from '$lib/backups.js';
 import { paperlessSecrets } from '$lib/keys/derive.js';
 import { startingInstance } from '$lib/starting.js';
 import { choiceAfterReading } from '$lib/restore-choice.js';
@@ -265,6 +266,34 @@ export function createLifecycleCard(p) {
 	let backingUp = $state(false);
 	/** @type {any[] | null} */
 	let backups = $state(null);
+	// Backups whose every copy sits at a provider Le Space blocked: not
+	// offered (withoutBlocked); said in a line, with when ended data sets run out.
+	/** @type {any[]} */
+	let hiddenBackups = $state([]);
+	/** @type {ReturnType<typeof endingCopies>} */
+	let ending = $state([]);
+	// What retain keeps (the policy the VM gets) and whether it removes by itself:
+	// with Le Space Credits it does after each complete backup; with the wallet
+	// the VM may only add, and the person removes with the wallet.
+	const retention = $derived({ policy: retentionFor(profile.network ?? 'calibration', profile.backupConfig?.retention), byItself: profile.backupsByCredits === true });
+	// Lines below the backup list: what is not offered, what runs out when,
+	// and what retention keeps. Only what the code does (2026-11-18).
+	const backupHints = $derived.by(() => {
+		const l = langNow.current;
+		const a = tr().card.advanced;
+		/** @type {Array<{ id: string, text: string }>} */
+		const lines = [];
+		if (hiddenBackups.length) lines.push({ id: 'hidden', text: a.hiddenBlocked(hiddenBackups.length) });
+		for (const e of ending) {
+			const names = e.providers.map((id) => tr().card.provider(id)).join(tr().card.and);
+			lines.push({ id: `ending-${e.at}`, text: a.endsOn(format.date(e.at, { day: 'numeric', month: 'long', year: 'numeric' }, l), names, e.gone) });
+		}
+		if (profile.backupConfig) {
+			const kept = (l === 'en' ? keptEn : keptDe)(retention.policy);
+			lines.push({ id: 'retention', text: retention.byItself ? a.retentionAuto(kept) : a.retentionWallet(kept) });
+		}
+		return lines;
+	});
 	let backupsError = $state('');
 	// Only this vault's own backups are offered by default: the test data sets
 	// also hold backups encrypted to other keys (round trips), which this vault
@@ -395,7 +424,13 @@ export function createLifecycleCard(p) {
 		if (listing && profile.ageIdentity) {
 			backupsError = '';
 			listBackups({ network: profile.network ?? 'calibration', ...listing })
-				.then((list) => ((backups = list), (choice = choiceAfterReading({ byPerson: choiceByPerson, choice, pickedCid }, list, profile.vaultBackups ?? [], defaultChoice))))
+				.then((all) => {
+					const { usable: list, hidden } = withoutBlocked(profile.network ?? 'calibration', all);
+					backups = list;
+					hiddenBackups = hidden;
+					ending = endingCopies(all);
+					choice = choiceAfterReading({ byPerson: choiceByPerson, choice, pickedCid }, list, profile.vaultBackups ?? [], defaultChoice);
+				})
 				.catch(() => ((backups = []), (backupsError = tr().card.backupsUnreadable)));
 		}
 	};
@@ -781,7 +816,7 @@ export function createLifecycleCard(p) {
 		if (listing) {
 			progress = tr().card.progress.lookBackups;
 			const vault = profile.vaultBackups ?? [];
-			const newer = newerBackup(await listBackups({ network: profile.network ?? 'calibration', ...listing }), chosen, (b) => vault.includes(b.pieceCid));
+			const newer = newerBackup(withoutBlocked(profile.network ?? 'calibration', await listBackups({ network: profile.network ?? 'calibration', ...listing })).usable, chosen, (b) => vault.includes(b.pieceCid));
 			if (newer) profile = await updateProfile(master, (now) => (now.starting ? { ...now, starting: { ...now.starting, restoreEntry: restoreEntry(newer) } } : now));
 		}
 		startRestores = Boolean(profile.starting?.restoreEntry);
@@ -1182,6 +1217,10 @@ export function createLifecycleCard(p) {
 		get backingUp() { return backingUp; },
 		set backingUp(v) { backingUp = v; },
 		get backups() { return backups; },
+		get hiddenBackups() { return hiddenBackups; },
+		get ending() { return ending; },
+		get retention() { return retention; },
+		get backupHints() { return backupHints; },
 		set backups(v) { backups = v; },
 		get backupsError() { return backupsError; },
 		set backupsError(v) { backupsError = v; },

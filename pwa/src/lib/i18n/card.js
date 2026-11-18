@@ -141,6 +141,10 @@ export const card = {
 		},
 		advanced: {
 			pickOne: 'Eine bestimmte Sicherung wählen',
+			hiddenBlocked: (/** @type {number} */ n) => `${n} ältere ${n === 1 ? 'Sicherung liegt' : 'Sicherungen liegen'} nur noch bei Anbietern, die Le Space gesperrt hat, und ${n === 1 ? 'wird' : 'werden'} nicht angeboten.`,
+			endsOn: (/** @type {string} */ date, /** @type {string} */ providers, /** @type {number} */ gone) => `Die Kopien bei ${providers} laufen am ${date} aus: Ihr Speicher ist gekündigt, der Anbieter löscht sie dann.${gone ? ` ${gone} ${gone === 1 ? 'Sicherung ist' : 'Sicherungen sind'} danach ganz weg.` : ''}`,
+			retentionAuto: (/** @type {string} */ kept) => `Ältere Sicherungen entfernt die VM nach jeder vollständigen Sicherung von selbst. Es bleiben ${kept}, dazu immer die neueste vollständige.`,
+			retentionWallet: (/** @type {string} */ kept) => `Ältere Sicherungen entfernt die VM nicht von selbst: Das darf nur deine Wallet. Bei laufender VM zeigt „Aufbewahrung“ die überzähligen; ein Knopf entfernt sie. Es bleiben dann ${kept}, dazu immer die neueste vollständige.`,
 			parts: (/** @type {number} */ n) => `${n} Teile`,
 			sealYes: 'mit Siegel',
 			sealNo: 'ohne Siegel',
@@ -327,6 +331,10 @@ export const card = {
 		},
 		advanced: {
 			pickOne: 'Choose a particular backup',
+			hiddenBlocked: (/** @type {number} */ n) => `${n} older ${n === 1 ? 'backup sits' : 'backups sit'} only at providers Le Space blocked and ${n === 1 ? 'is' : 'are'} not offered.`,
+			endsOn: (/** @type {string} */ date, /** @type {string} */ providers, /** @type {number} */ gone) => `The copies at ${providers} run out on ${date}: their storage was ended, and the provider deletes them then.${gone ? ` ${gone} ${gone === 1 ? 'backup is' : 'backups are'} gone entirely after that.` : ''}`,
+			retentionAuto: (/** @type {string} */ kept) => `The VM removes older backups by itself after each complete backup. What stays: ${kept}, and always the newest complete one.`,
+			retentionWallet: (/** @type {string} */ kept) => `The VM does not remove older backups by itself: only your wallet may. While the VM runs, "Retention" shows the extra ones, and a button removes them. What then stays: ${kept}, and always the newest complete one.`,
 			parts: (/** @type {number} */ n) => `${n} parts`,
 			sealYes: 'with the seal',
 			sealNo: 'without the seal',

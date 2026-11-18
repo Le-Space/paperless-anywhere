@@ -388,6 +388,7 @@
 					{/if}
 					{#if k.tinyNewest && k.choice !== 'pick'}<p class="warn" data-testid="tiny-newest">{c.advanced.tinyNewest(backupSize(k.tinyNewest.newest.size), backupSize(k.tinyNewest.before.size), k.tinyNewest.before.pieceCid.slice(-12))} <button class="link" onclick={() => k.pickBackup(k.tinyNewest.before.pieceCid)} data-testid="tiny-pick-before">{c.advanced.pickBefore}</button></p>{/if}
 					{#if backupsError}<small class="hint">{backupsError}</small>{/if}
+					{#each k.backupHints as h (h.id)}<p class="hint" data-testid="backups-hint-{h.id.split('-')[0]}">{h.text}</p>{/each}
 				</fieldset>
 				{@render gapWarning()}
 				{@render unmarkedWarning()}
