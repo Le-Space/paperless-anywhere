@@ -10,7 +10,7 @@
 // A relay carries the RA-TLS records the WASM checks and cannot read them, so
 // trusting it is about availability, not secrets.
 import { wordlist } from '@scure/bip39/wordlists/english.js';
-import { ALEPH_API } from './aleph.js';
+import { ALEPH_API, readFetch } from './aleph.js';
 import { isMultiaddr, relayList } from './attest-p2p.js';
 import { tr } from './i18n/index.js';
 
@@ -70,7 +70,7 @@ export function ownerRegistrations(payload, owners = TRUSTED_RELAY_OWNERS) {
  */
 export async function ownedInstance(instance, owner, fetchImpl = fetch) {
 	try {
-		const res = await fetchImpl(`${ALEPH_API}/api/v0/messages/${instance}`, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
+		const res = await readFetch(`${ALEPH_API}/api/v0/messages/${instance}`, 'relay', { tries: 1, timeoutMs: 10_000, fetch: fetchImpl });
 		if (!res.ok) return false;
 		const body = await res.json();
 		return body?.status === 'processed' && body?.message?.type === 'INSTANCE' && body?.message?.item_hash === instance && String(body?.message?.content?.address ?? '').toLowerCase() === owner.toLowerCase();
@@ -92,7 +92,7 @@ export async function findAttestRelays({ fetch: fetchImpl = fetch, tries = 2, ti
 	const params = new URLSearchParams({ channels: RELAY_REGISTRATION.channel, refs: RELAY_REGISTRATION.ref, types: RELAY_REGISTRATION.type, pagination: '50' });
 	for (let attempt = 0; attempt < tries; attempt++) {
 		try {
-			const res = await fetchImpl(`${ALEPH_API}/api/v0/posts.json?${params}`, { cache: 'no-store', signal: AbortSignal.timeout(timeoutMs) });
+			const res = await readFetch(`${ALEPH_API}/api/v0/posts.json?${params}`, 'relays', { tries: 1, timeoutMs, fetch: fetchImpl });
 			if (!res.ok) continue;
 			const candidates = ownerRegistrations(await res.json());
 			const owned = await Promise.all(candidates.map((c) => ownedInstance(c.instance, c.owner, fetchImpl)));

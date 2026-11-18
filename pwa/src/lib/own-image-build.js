@@ -8,7 +8,7 @@ import { IMAGE_BUILD_TYPES, imageBuild, imageBuildDone, vmAuthorize } from './cr
 import { format, tr } from './i18n/index.js';
 import { alephPrivateKey } from './keys/derive.js';
 import { attestRelaysFor } from './relays.js';
-import { ALEPH_API } from './aleph.js';
+import { ALEPH_API, readFetch } from './aleph.js';
 import { keepPrevious } from './old-image.js';
 import { BUILDER, BuilderError, buildOnOwnBuilder, buildOwnImage, buildPaidByPackage, builderOpener, forgetBuilder } from './own-image.js';
 
@@ -44,7 +44,7 @@ export async function buildImageForVault(a) {
  * @returns {Promise<boolean>} true when forgotten
  */
 export async function forgetOldImage(app, store, deps = {}) {
-	const read = deps.read ?? (async (hash) => (await fetch(`${ALEPH_API}/api/v0/messages/${hash}`, { cache: 'no-store' })).json());
+	const read = deps.read ?? (async (hash) => (await readFetch(`${ALEPH_API}/api/v0/messages/${hash}`, 'image', { tries: 1 })).json());
 	const m = await read(store);
 	if (m?.status !== 'processed' || m?.message?.type !== 'STORE') return false;
 	const owner = String(m.message.content?.address ?? '');
