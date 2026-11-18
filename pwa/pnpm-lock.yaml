@@ -26,6 +26,9 @@ importers:
       '@le-space/attest-wasm':
         specifier: 0.12.5
         version: 0.12.5
+      '@le-space/build-journey':
+        specifier: 0.12.11
+        version: 0.12.11(svelte@5.37.2)
       '@le-space/core':
         specifier: 0.10.0
         version: 0.10.0(typescript@5.9.3)(zod@4.4.3)
@@ -420,6 +423,11 @@ packages:
 
   '@le-space/attest-wasm@0.12.5':
     resolution: {integrity: sha512-DfKnzLoPGr+kYJTGZCBIvQb8YQuPz1Fd3NScfylO6vR2QPuMKP1pQRzD/BEyv6nH94qJ2EWSwhfifkX3E137gQ==}
+
+  '@le-space/build-journey@0.12.11':
+    resolution: {integrity: sha512-pilEXBnYPyXMnH8Y8gufigq+HRA8x4SPIkHtKBVm5PYJ4Lfcu39DtvvSE3zgc2GJN26c0Qdk9tMorYa6RZot/w==}
+    peerDependencies:
+      svelte: ^5.0.0
 
   '@le-space/core@0.10.0':
     resolution: {integrity: sha512-Lyx5xKs3ZpKXFbrz5TC3COp0Zqay1r3RN7cMbNplM4qirX4W5XNkwrbjQ7c2PAqVIfD4WJLWapSBL1mjiCvhgA==}
@@ -2846,6 +2854,10 @@ snapshots:
       - zod
 
   '@le-space/attest-wasm@0.12.5': {}
+
+  '@le-space/build-journey@0.12.11(svelte@5.37.2)':
+    dependencies:
+      svelte: 5.37.2
 
   '@le-space/core@0.10.0(typescript@5.9.3)(zod@4.4.3)':
     dependencies:
