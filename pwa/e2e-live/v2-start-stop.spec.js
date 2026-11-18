@@ -41,6 +41,34 @@ test('start and stop a confidential Paperless from the v0.2 interface', async ({
 		void d.dismiss();
 	});
 
+	// What a failed round has to say: requests that did not get through and answers of a
+	// failing server, each kind once in a row (a VM coming up is asked many times).
+	let lastNet = '';
+	const net = (line) => {
+		if (line !== lastNet) console.log(line);
+		lastNet = line;
+	};
+	const where = (url) => {
+		const u = new URL(url);
+		return `${u.host}${u.pathname.slice(0, 60)}`;
+	};
+	page.on('requestfailed', (r) => net(`[request failed] ${r.method()} ${where(r.url())}: ${r.failure()?.errorText ?? ''}`));
+	page.on('response', (r) => r.status() >= 500 && net(`[answer ${r.status()}] ${r.request().method()} ${where(r.url())}`));
+	// Only what is on the page is read: reading a part that is not there waits for it,
+	// and "Standard" has no step list.
+	const said = async (id) => ((await page.getByTestId(id).isVisible()) ? ((await page.getByTestId(id).textContent({ timeout: 2_000 }).catch(() => '')) ?? '') : '');
+	/** Waits for `done`; an error the shell shows ends the wait at once, with its text. */
+	const orShellError = async (what, done, limit) => {
+		const since = Date.now();
+		while (!(await done())) {
+			const error = await said('v2-error');
+			if (error) throw new Error(`${what}: the page says "${error.trim()}"`);
+			if (Date.now() - since > limit) throw new Error(`${what}: nothing after ${Math.round(limit / 1000)} s, the shell is in state "${await said('v2-state')}"`);
+			await page.waitForTimeout(1_000);
+		}
+		console.log(`[${what}] after ${seconds(since)} s`);
+	};
+
 	const view = (name) => page.getByRole('banner').getByTestId(`view-${name}`).click();
 	const area = (name) => page.getByTestId(`v2-area-${name}`).click();
 	/** A section of the setup, opened if it is folded. */
@@ -56,7 +84,8 @@ test('start and stop a confidential Paperless from the v0.2 interface', async ({
 	await expect(page.getByTestId('v2-state')).toHaveText('new', { timeout: 60_000 });
 	await page.getByTestId('v2-key-loss-ok').check();
 	await page.getByTestId('v2-create').click();
-	await expect(page.getByTestId('v2-phrase').locator('li')).toHaveCount(24, { timeout: 60_000 });
+	// The vault is written to Aleph before the words are shown.
+	await orShellError('vault created', async () => (await page.getByTestId('v2-phrase').locator('li').count()) === 24, 3 * 60_000);
 	const words = await page.getByTestId('v2-phrase').locator('li').allTextContents();
 	await page.getByTestId('v2-written').click();
 	const asked = page.locator('input[data-testid^="v2-confirm-"]');
@@ -65,7 +94,7 @@ test('start and stop a confidential Paperless from the v0.2 interface', async ({
 		await asked.nth(i).fill(words[position - 1]);
 	}
 	await page.getByTestId('v2-confirmed').click();
-	await expect(page.getByTestId('v2-state')).toHaveText('unlocked', { timeout: 60_000 });
+	await orShellError('vault open', async () => (await said('v2-state')) === 'unlocked', 2 * 60_000);
 
 	// The setup, in "Technisch" under "System": the wallet pays, the app's key may act for it.
 	await view('technical');
@@ -101,9 +130,7 @@ test('start and stop a confidential Paperless from the v0.2 interface', async ({
 	await startButton.click();
 	const open = page.getByTestId('v2-open');
 	const failed = page.getByTestId('start-error');
-	// Print what the page says as it comes. Only what is on the page is read: reading a
-	// part that is not there waits for it, and "Standard" has no step list.
-	const said = async (id) => ((await page.getByTestId(id).isVisible()) ? ((await page.getByTestId(id).textContent({ timeout: 2_000 }).catch(() => '')) ?? '') : '');
+	// Print what the page says as it comes.
 	let last = '';
 	while (!(await open.isVisible())) {
 		if (await failed.isVisible()) throw new Error(`start failed: ${await failed.textContent()}`);
