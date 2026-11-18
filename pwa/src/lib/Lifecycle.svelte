@@ -34,7 +34,7 @@
 		oncopies: (c) => oncopies(c),
 		get onpackage() { return onpackage; }
 	});
-	const { showCertificate, STEPS, typicalOf, minutes, goodWhen, rememberGood, checkAgain, pick, unmarkedPick, whenOf, wherePlaces, sizePart, copyPassword, startFromPackage, purchase, askToBuy, start, startWithoutBackup, toPackage, rebuildImage, resume, startPrevious, discard, checkPlacesThen, acceptPlaces, placesAnyway, stop, discardFailed, answer, eraseAnyway, keepVm } = k;
+	const { showCertificate, STEPS, typicalOf, minutes, goodWhen, rememberGood, checkAgain, pick, unmarkedPick, whenOf, wherePlaces, sizePart, copyPassword, startFromPackage, purchase, askToBuy, start, startWithoutBackup, startOnOldImage, rebuildBeforeStart, toPackage, rebuildImage, resume, startPrevious, discard, checkPlacesThen, acceptPlaces, placesAnyway, stop, discardFailed, answer, eraseAnyway, keepVm } = k;
 	const profile = $derived(k.profile);
 	const progress = $derived(k.progress);
 	const ceremony = $derived(k.ceremony);
@@ -84,6 +84,7 @@
 	const buying = $derived(k.buying);
 	const bought = $derived(k.bought);
 	const unpaidBackup = $derived(k.unpaidBackup);
+	const oldImage = $derived(k.oldImage);
 	const stopChecking = $derived(k.stopChecking);
 	const placesAsk = $derived(k.placesAsk);
 	const restoreFailed = $derived(k.restoreFailed);
@@ -151,6 +152,19 @@
 	</div>
 	<HourQuote quote={buying.phase === 'open' ? buying.quote : null} short={buying.phase === 'short'} hoursAsked={buying.hours} topUpHint={c.fund.topUpHint} confirmLabel={c.fund.buyAndStart} disabled={busy || buying.phase === 'buying'} onconfirm={() => purchase.confirm()} oncancel={() => purchase.cancel()} />
 	{#if buying.error}<p class="error" role="alert" data-testid="fund-error">{buying.error}</p>{/if}
+	{/if}
+{/snippet}
+
+{#snippet oldImageQuestion()}
+	{#if oldImage}
+		<div class="warn gap" role="alertdialog" aria-label={c.oldImage.label} data-testid="start-old-image">
+			<p><strong>{c.oldImage.strong}</strong> {c.oldImage.text}</p>
+			<p class="row">
+				<button class="secondary" onclick={rebuildBeforeStart} disabled={busy} data-testid="start-rebuild-first">{c.oldImage.rebuild}</button>
+				<button class="quiet" onclick={startOnOldImage} disabled={busy} data-testid="start-old-image-anyway">{c.oldImage.anyway}</button>
+				<button class="quiet" onclick={() => (k.oldImage = false)}>{c.oldImage.cancel}</button>
+			</p>
+		</div>
 	{/if}
 {/snippet}
 
@@ -273,6 +287,7 @@
 				<button class="secondary" onclick={onadvanced}>{c.simple.openSetup}</button>
 			{:else}
 				<button class="cta" onclick={start} disabled={busy || backupsPending || Boolean(backupsError) || gapOpen || unmarkedOpen} data-testid="start">{c.simple.start}</button>
+				{@render oldImageQuestion()}
 				{@render unpaidQuestion()}
 				{#if backupsPending}<p class="hint">{c.simple.readingBackups}</p>
 				{:else if backupsError}<p class="warn">{backupsError} {c.simple.tryAgain}</p>
@@ -388,6 +403,7 @@
 			{:else}
 				<p class="role-line" data-testid="role-line">{profile.role === 'primary' ? c.advanced.rolePrimary : c.advanced.roleTest}</p>
 				<button class="cta" onclick={start} disabled={busy || missing.length > 0 || gapOpen || unmarkedOpen} data-testid="start">{c.simple.start}</button>
+				{@render oldImageQuestion()}
 				{@render unpaidQuestion()}
 				{#if missing.length}<p class="hint">{c.advanced.stillMissing(missing.join(', '))}</p>{/if}
 			{/if}

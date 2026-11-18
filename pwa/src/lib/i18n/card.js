@@ -48,6 +48,14 @@ export const card = {
 			buyAndStart: 'Kaufen und starten',
 			topUpHint: 'Erst Guthaben aufladen, unter „Aufladen, Stunden dazukaufen, Paket ändern“, dann noch einmal kaufen.'
 		},
+		oldImage: {
+			label: 'Start mit dem alten Image',
+			strong: 'Für dein eigenes Image gibt es eine neuere Version.',
+			text: 'Paperless würde mit deinem bisherigen Image starten, ohne die Korrekturen der neuen Version. Bau es zuerst neu (etwa 15 Minuten, mit Paket oder Gutschein enthalten) und starte danach.',
+			rebuild: 'Erst das Image neu bauen',
+			anyway: 'Mit dem alten Image starten',
+			cancel: 'Doch nicht starten'
+		},
 		unpaid: {
 			label: 'Start ohne Sicherung',
 			strong: 'Für heute ist keine Sicherung bezahlt.',
@@ -225,6 +233,14 @@ export const card = {
 			quoting: 'Asking for the price …',
 			buyAndStart: 'Buy and start',
 			topUpHint: 'Top up the balance first, under “Top up, buy extra hours, change package”, then buy again.'
+		},
+		oldImage: {
+			label: 'Start with the old image',
+			strong: 'There is a newer version of your own image.',
+			text: 'Paperless would start with your current image, without the fixes of the new version. Rebuild it first (about 15 minutes, included with a package or voucher) and start afterwards.',
+			rebuild: 'Rebuild the image first',
+			anyway: 'Start with the old image',
+			cancel: 'Do not start after all'
 		},
 		unpaid: {
 			label: 'Start without a backup',

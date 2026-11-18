@@ -253,6 +253,14 @@
 	</div>
 
 	<!-- A question before the start: asked once, with its own buttons. -->
+	{#if k.oldImage}
+		<div class="alert" role="alertdialog" aria-label={c.oldImage.label} data-testid="start-old-image">
+			<p><strong>{c.oldImage.strong}</strong> {c.oldImage.text}</p>
+			<button class="sec" onclick={k.rebuildBeforeStart} disabled={k.busy} data-testid="start-rebuild-first">{c.oldImage.rebuild}</button>
+			<button class="sec" onclick={k.startOnOldImage} disabled={k.busy} data-testid="start-old-image-anyway">{c.oldImage.anyway}</button>
+			<button class="lnk" onclick={() => (k.oldImage = false)}>{c.oldImage.cancel}</button>
+		</div>
+	{/if}
 	{#if k.unpaidBackup}
 		<div class="alert" role="alertdialog" aria-label={c.unpaid.label} data-testid="start-unpaid-backup">
 			<p><strong>{c.unpaid.strong}</strong> {c.unpaid.text}</p>

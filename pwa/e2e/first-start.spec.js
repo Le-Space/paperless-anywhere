@@ -39,6 +39,21 @@ test('the overview says which image Paperless starts from, and offers a newer ve
 	await expect(page.getByTestId('image-rebuild')).toHaveText('Jetzt neu bauen');
 });
 
+test('a start on an image with a newer version asks first, with the rebuild one button away', async ({ page }) => {
+	await vaultWith(page, ownImage('0'.repeat(64)));
+	await expect(page.getByTestId('image-newer')).toBeVisible({ timeout: 30_000 });
+	await expect(page.getByTestId('start-old-image')).toHaveCount(0);
+	await page.getByTestId('start').click();
+	const ask = page.getByTestId('start-old-image');
+	await expect(ask).toContainText('Für dein eigenes Image gibt es eine neuere Version.');
+	await expect(ask.getByTestId('start-rebuild-first')).toHaveText('Erst das Image neu bauen');
+	await expect(ask.getByTestId('start-old-image-anyway')).toHaveText('Mit dem alten Image starten');
+	// Nothing started while it asks.
+	await expect(page.getByTestId('start')).toBeEnabled();
+	await ask.getByRole('button', { name: 'Doch nicht starten' }).click();
+	await expect(page.getByTestId('start-old-image')).toHaveCount(0);
+});
+
 test('the overview names the public image when no own one is built or planned', async ({ page }) => {
 	await vaultWith(page, { rootfsItemHash: IMAGE, luksPassphrase: 'made-up passphrase' });
 	await expect(page.getByTestId('image-line')).toHaveText('Öffentliches Image, zum Ausprobieren.');
