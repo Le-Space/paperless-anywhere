@@ -31,7 +31,9 @@ test('start and stop a confidential Paperless from the PWA', async ({ page }) =>
 	page.on('console', (m) => /error|warn/i.test(m.type()) && console.log(`[browser ${m.type()}] ${m.text().slice(0, 300)}`));
 
 	await page.goto('/app/');
-	await page.getByRole('button', { name: 'Passkey anlegen' }).click();
+	// Creating a vault asks first to confirm what losing the key means.
+	await page.getByTestId('key-loss-ok').check();
+	await page.getByTestId('create-vault').click();
 	await expect(page.getByTestId('phrase').locator('li')).toHaveCount(24, { timeout: 60_000 });
 	const words = await page.getByTestId('phrase').locator('li').allTextContents();
 	await page.getByRole('button', { name: 'Aufgeschrieben' }).click();
@@ -41,20 +43,32 @@ test('start and stop a confidential Paperless from the PWA', async ({ page }) =>
 		await asked.nth(i).fill(words[position - 1]);
 	}
 	await page.getByRole('button', { name: 'Stimmt' }).click();
-	// The settings, the step list and "Sichern und stoppen" live under "Erweitert".
+	// The settings, the step list and the stop with its steps live under "Erweitert".
 	await page.getByTestId('tab-advanced').click();
+	/** A section of the setup, opened if it is folded. Its own button is found by place, not by wording. */
+	const step = async (name) => {
+		const section = page.getByTestId(`step-${name}`);
+		await expect(section).toBeVisible({ timeout: 60_000 });
+		if (!(await section.evaluate((d) => d.open))) await section.locator('summary').first().click();
+		return section;
+	};
 
 	await page.getByRole('button', { name: 'Wallet verbinden' }).click();
 	await expect(page.getByTestId('payer')).toHaveText(payer.address, { timeout: 60_000 });
-	await page.getByRole('button', { name: 'Im Wallet freigeben' }).click();
+	await (await step('aleph')).locator(':scope > button').click();
 	await expect(page.getByTestId('aleph-status')).toHaveText(/^freigegeben/, { timeout: 60_000 });
 
-	await page.getByPlaceholder('wss://dein-relay.example/attest').fill(env('RELAY_URL'));
-	await page.getByRole('button', { name: 'Relay speichern' }).click();
-	await page.getByPlaceholder('Image (STORE-Hash)').fill(env('ROOTFS_ITEM_HASH'));
-	await page.getByPlaceholder('SEV-SNP-Knoten (Hash)').fill(env('CRN_HASH'));
-	await page.getByPlaceholder('Passphrase des Images').fill(env('LUKS_PASSPHRASE'));
-	await page.getByRole('button', { name: 'Image und Knoten speichern' }).click();
+	const relay = await step('relay');
+	await relay.getByTestId('relays').fill(env('RELAY_URL'));
+	await relay.locator(':scope > button').click();
+	await expect(page.getByTestId('saved-relay')).toBeVisible({ timeout: 60_000 });
+	const image = await step('image');
+	// A build with the image builder offers an image of one's own first; this round uses the test image.
+	if (await image.getByTestId('image-public').count()) await image.getByTestId('image-public').check();
+	await image.getByTestId('image-hash').fill(env('ROOTFS_ITEM_HASH'));
+	await image.getByPlaceholder('SEV-SNP-Knoten (Hash)').fill(env('CRN_HASH'));
+	await image.getByTestId('image-passphrase').fill(env('LUKS_PASSPHRASE'));
+	await image.getByRole('button', { name: 'Image und Knoten speichern' }).click();
 	await expect(page.getByRole('button', { name: 'Paperless anywhere starten' })).toBeEnabled({ timeout: 60_000 });
 
 	const started = Date.now();
@@ -80,11 +94,11 @@ test('start and stop a confidential Paperless from the PWA', async ({ page }) =>
 	expect(status.phase).toBe('ready');
 
 	const stopping = Date.now();
-	await page.getByRole('button', { name: 'Sichern und stoppen' }).click();
+	await page.getByTestId('stop').click();
 	await expect(page.getByRole('button', { name: 'Paperless anywhere starten' })).toBeVisible({ timeout: 30 * 60_000 });
 	await expect(page.getByRole('alert')).toHaveCount(0);
 	console.log(`[stop ${Math.round((Date.now() - stopping) / 1000)} s] stopped and forgotten`);
 
-	await page.getByRole('button', { name: 'Freigabe zurücknehmen' }).click();
+	await (await step('aleph')).locator(':scope > button').click();
 	await expect(page.getByTestId('aleph-status')).toHaveText('nicht freigegeben', { timeout: 60_000 });
 });
