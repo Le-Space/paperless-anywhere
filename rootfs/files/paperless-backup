@@ -248,6 +248,18 @@ chmod 600 "$config"
 
 now="$(fingerprint)"
 [ -n "$now" ] || fail "could not read Paperless's state"
+# An empty Paperless (no documents, none in the trash) is not backed up: its
+# backup would become the newest, push real ones out of retention's last ones
+# and be what the next start restores (2026-11-17). "empty", not "failed";
+# the backup tool refuses it too (run exits 3).
+empty_now() { printf '%s' "$now" | python3 -c 'import json, sys
+f = json.load(sys.stdin)
+sys.exit(0 if f.get("documents") == 0 and f.get("trash") == 0 else 1)' 2>/dev/null; }
+if empty_now; then
+  echo "paperless-backup: Paperless holds no documents; no backup" >&2
+  status empty ",\"role\":\"$role\",\"reason\":\"Paperless holds no documents: no backup, it would replace the newest real one\""
+  exit 0
+fi
 if [ "$cmd" = check ] && [ -s "$lib/backed-up.fingerprint" ] && [ "$now" = "$(cat "$lib/backed-up.fingerprint")" ]; then
   status unchanged ",\"role\":\"$role\""
   exit 0
@@ -322,6 +334,11 @@ done
 wait "$pid"; rc=$?
 rm -f "$state_dir/dedup.key"
 cat "$log_dir/backup.log.run" >> "$log_dir/backup.log"; rm -f "$log_dir/backup.log.run"
+# Exit 3: the backup tool found Paperless empty after all (it checks again).
+if [ "$rc" -eq 3 ]; then
+  status empty ",\"role\":\"$role\",\"reason\":\"Paperless holds no documents: no backup, it would replace the newest real one\""
+  exit 0
+fi
 if [ "$rc" -ne 0 ]; then
   if [ "$(( $(oom_kills) - oom0 ))" -gt 0 ]; then fail "the backup ran out of memory (exit $rc)"
   elif [ "$rc" -ge 128 ]; then fail "the backup was stopped by signal $(( rc - 128 ))"

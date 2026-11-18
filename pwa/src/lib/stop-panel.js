@@ -72,9 +72,9 @@ export function stopPanel({ kind, sent = false, status = null, lines = [], erase
 	const b = stop?.backup ?? (stop ? status?.backup : null) ?? null;
 	const entry = b?.backup ?? null;
 	const f = backupFacts([...lines, ...(Array.isArray(b?.log) ? b.log : [])]);
-	const over = ['done', 'partial', 'failed', 'unchanged', 'skipped', 'refused'].includes(b?.status) || ['ready', 'partial', 'failed'].includes(stop?.status);
-	// No new backup: none set up, or nothing changed since the last one.
-	const none = over && (!b || b.status === 'unchanged' || b.status === 'skipped');
+	const over = ['done', 'partial', 'failed', 'unchanged', 'skipped', 'empty', 'refused'].includes(b?.status) || ['ready', 'partial', 'failed'].includes(stop?.status);
+	// No new backup: none set up, nothing changed since the last one, or Paperless is empty.
+	const none = over && (!b || b.status === 'unchanged' || b.status === 'skipped' || b.status === 'empty');
 
 	/** @type {[string, StopLight[]][]} */
 	const rows = [];
