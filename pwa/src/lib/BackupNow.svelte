@@ -117,9 +117,9 @@
 			status = done;
 			const outcome = done.backupRequest?.backup?.status;
 			const entry = done.backupRequest?.backup?.backup;
-			resultOk = outcome !== 'partial';
-			resultWarn = outcome === 'partial';
-			result = outcome === 'partial' ? t.donePartial(entry?.copies?.length ?? 0, entry?.requestedCopies ?? 0) : outcome === 'unchanged' ? t.doneUnchanged : t.doneNow;
+			resultOk = outcome !== 'partial' && outcome !== 'empty';
+			resultWarn = outcome === 'partial' || outcome === 'empty';
+			result = outcome === 'partial' ? t.donePartial(entry?.copies?.length ?? 0, entry?.requestedCopies ?? 0) : outcome === 'unchanged' ? t.doneUnchanged : outcome === 'empty' ? t.doneEmpty : t.doneNow;
 		} catch (e) {
 			resultOk = false;
 			resultWarn = false;
