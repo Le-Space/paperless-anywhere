@@ -84,4 +84,27 @@ describe('what the full screen shows besides the stations', () => {
 		expect(by.node.href).toBeNull();
 		expect(evidence({ measurement: '0'.repeat(96) }, builder, { aleph: 'a', repo: 'r' }).find((r) => r.key === 'measured')?.ok).toBe(false);
 	});
+
+	it('says "stimmt" only for a value that equals the pin', () => {
+		const builder = { plain: { sha256: 'a'.repeat(64), store: 'b'.repeat(64), commit: 'c'.repeat(40) }, measurements: ['d'.repeat(96), 'e'.repeat(96)], crn: 'e'.repeat(64) };
+		const at = { aleph: 'https://api.example.com/messages', repo: 'https://github.com/example/repo' };
+		const ok = (/** @type {any} */ facts) => Object.fromEntries(evidence(facts, builder, at).map((r) => [r.key, r.ok]));
+		// A pinned measurement, either of them: "stimmt".
+		expect(ok({ measurement: 'd'.repeat(96) }).measured).toBe(true);
+		expect(ok({ measurement: 'e'.repeat(96) }).measured).toBe(true);
+		// A made-up other measurement, one character off, or the pin's prefix: never.
+		expect(ok({ measurement: '0'.repeat(96) }).measured).toBe(false);
+		expect(ok({ measurement: `${'d'.repeat(95)}0` }).measured).toBe(false);
+		expect(ok({ measurement: 'd'.repeat(64) }).measured).toBe(false);
+		// The plain image is shown as the pin, never compared and never "stimmt",
+		// whatever the build reports; the expected measurement and the node neither.
+		const rows = ok({ plainSha256: '0'.repeat(64), measurement: '0'.repeat(96) });
+		expect(rows.plain).toBeUndefined();
+		expect(rows.expected).toBeUndefined();
+		expect(rows.node).toBeUndefined();
+		expect(evidence({ plainSha256: '0'.repeat(64) }, builder, at).find((r) => r.key === 'plain')?.value).toBe('a'.repeat(64));
+		// A STORE is "stimmt" only once Aleph processed it.
+		expect(ok({ storeHash: 'f'.repeat(64) }).store).toBeUndefined();
+		expect(ok({ storeHash: 'f'.repeat(64), processed: true }).store).toBe(true);
+	});
 });
