@@ -66,6 +66,12 @@ on:
         required: false
         default: ''
         type: string
+      mark:
+        description: 'The vault''s mark on the backup. "marked": VM 1 marks it, VM 2 must verify it. "unmarked": VM 1 runs without the mark key (as before the mark existed), VM 2 must take it because the person chose that piece (restore_unmarked).'
+        required: false
+        default: marked
+        type: choice
+        options: [marked, unmarked]
 
 permissions:
   contents: read
@@ -79,6 +85,7 @@ concurrency:
 env:
   ITEM: ${{ inputs.rootfs_item_hash }}
   CRN: ${{ inputs.crn }}
+  MARK: ${{ inputs.mark || 'marked' }}
   NAME: paperless-roundtrip-${{ github.run_id }}
   BACKUP_TOOL_COMMIT: d18de88e12ab69dd929b7c5e41047138cb853fa3
   FIXED_ADDRESS: ${{ secrets.CLOUDFLARE_DNS_TOKEN != '' && 'yes' || '' }}
@@ -242,8 +249,9 @@ jobs:
           umask 077
           printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=test" \
             --secret "backup_config=$(cat "$RUNNER_TEMP/backup_config.json")" --secret "backup_session_key=$(cat "$RUNNER_TEMP/session.key")" \
-            --secret "backup_mark_key=$(cat "$RUNNER_TEMP/mark.key")" \
             > "$RUNNER_TEMP/secrets1.args"
+          # Without the mark key VM 1 makes a backup as images before the mark did.
+          [ "$MARK" = unmarked ] || printf '%s\0' --secret "backup_mark_key=$(cat "$RUNNER_TEMP/mark.key")" >> "$RUNNER_TEMP/secrets1.args"
           . "$RUNNER_TEMP/fixed.sh"; fixed_args "$hash" "$RUNNER_TEMP/fixed1.args"; cat "$RUNNER_TEMP/fixed1.args" >> "$RUNNER_TEMP/secrets1.args"
           ok=""
           for i in $(seq 1 12); do
@@ -332,6 +340,8 @@ jobs:
             --secret "restore_ledger_entry=$(jq -c . "$RUNNER_TEMP/entry.json")" --secret "age_identity=$(cat "$RUNNER_TEMP/age.txt")" \
             --secret "backup_mark_key=$(cat "$RUNNER_TEMP/mark.key")" \
             > "$RUNNER_TEMP/secrets2.args"
+          # The person's choice of that very backup without the mark, as the app sends it.
+          [ "$MARK" != unmarked ] || printf '%s\0' --secret "restore_unmarked=$(jq -r .pieceCid "$RUNNER_TEMP/entry.json")" >> "$RUNNER_TEMP/secrets2.args"
           . "$RUNNER_TEMP/fixed.sh"; fixed_args "$hash" "$RUNNER_TEMP/fixed2.args"; cat "$RUNNER_TEMP/fixed2.args" >> "$RUNNER_TEMP/secrets2.args"
           ok=""
           for i in $(seq 1 12); do
@@ -358,6 +368,8 @@ jobs:
           echo "RESTORE=$(jq -c . <<<"$result")" >> "$GITHUB_ENV"
           [ "$(jq -r .status <<<"$result")" = done ] || { $SSH 'tail -15 /var/log/paperless-anywhere/restore.log' | grep -vE 'AGE-SECRET' || true; echo "::error::restore did not complete"; exit 1; }
           [ "$(jq -r .documents <<<"$result")" = 5 ] || { echo "::error::VM 2 has $(jq -r .documents <<<"$result") documents, expected 5"; exit 1; }
+          want_mark=verified; [ "$MARK" = unmarked ] && want_mark=accepted
+          [ "$(jq -r .mark <<<"$result")" = "$want_mark" ] || { echo "::error::VM 2's restore says mark $(jq -r .mark <<<"$result"), expected $want_mark"; exit 1; }
           $SSH 'test -e /tmp/secrets/age_identity && echo "AGE IDENTITY STILL THERE" || echo "age identity removed"; ls /srv/paperless/export'
           if [ -n "$DNS_TOKEN" ]; then
             for i in $(seq 1 30); do
@@ -394,6 +406,7 @@ jobs:
             [ -z "$OWN_IMAGE" ] || echo "| Image of its own (built, fetched, uploaded) | \`$OWN_IMAGE\` |"
             echo "| VM 1 up (create + unlock) | ${VM1_UP:-?} s |"
             echo "| Backup with the session key | ${BACKUP_SECONDS:-?} s |"
+            echo "| The vault's mark | ${MARK:-marked} |"
             echo "| Restore in VM 2 | \`${RESTORE:-none}\` |"
             [ -z "$FIXED_ADDRESS" ] || echo "| Fixed address: certificate from the backup | ${CERT_REUSED:-no} |"
           } >> "$GITHUB_STEP_SUMMARY"
