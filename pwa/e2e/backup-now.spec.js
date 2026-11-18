@@ -152,7 +152,8 @@ test.describe('German', () => {
 			backupRequest: null
 		});
 		await open(page, phrase);
-		await expect(page.getByTestId('backup-next')).toHaveText(`nächste Sicherung frühestens ${hhmm(due)}`);
+		// After midnight in Berlin the app names the day too.
+		await expect(page.getByTestId('backup-next')).toHaveText(new RegExp(`^nächste Sicherung frühestens (\\d{2}\\.\\d{2}\\.\\d{2}, )?${hhmm(due)}$`));
 		await expect(page.getByTestId('simple-backup')).toContainText('höchstens alle 6 Stunden');
 		await expect(page.getByTestId('simple-backup')).not.toContainText('Alle zwei Stunden');
 	});
