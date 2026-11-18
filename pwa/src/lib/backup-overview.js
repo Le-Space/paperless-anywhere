@@ -110,7 +110,7 @@ export function backupOverview(status) {
  * }} RetentionView
  */
 
-const REASONS = ['newest', 'restored', 'place', 'last', 'undated', 'day', 'week', 'month'];
+const REASONS = ['newest', 'restored', 'place', 'last', 'undated', 'day', 'week', 'month', 'generation', 'legacy'];
 const POLICY_KEYS = ['keepLast', 'keepDays', 'keepWeeks', 'keepMonths'];
 
 /**

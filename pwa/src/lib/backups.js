@@ -10,6 +10,7 @@ import { tryFrom as pieceFrom } from '@filoz/synapse-core/piece';
 import { filecoinChain } from './permissions.js';
 import { markSnapshots, snapshotRestoreEntry, snapshotsFromPieces } from './snapshots.js';
 import { blockedReason } from './blocked-providers.js';
+import { epochTime } from './backup-chain.js';
 import { format, tr } from './i18n/index.js';
 
 /** The data-set label paperless-backup-filecoin writes, per network. */
@@ -178,7 +179,7 @@ export function backupsFromPieces(sets, { urlOf, placeOf = () => '', sizeOf = pi
 			const entry = byKey.get(key) ?? { parts: g.parts, order: 0, holders: [] };
 			entry.order = Math.max(entry.order, setRank * ORDER_SPAN + g.order);
 			inSet.push([g.order, key]);
-			entry.holders.push({ providerId: ds.providerId, dataSetId: ds.dataSetId, pieceIds: g.pieceIds });
+			entry.holders.push({ providerId: ds.providerId, dataSetId: ds.dataSetId, pieceIds: g.pieceIds, clientDataSetId: ds.clientDataSetId, endsAt: ds.endsAt });
 			byKey.set(key, entry);
 		}
 		const last = new Map();
@@ -215,7 +216,7 @@ export function backupsFromPieces(sets, { urlOf, placeOf = () => '', sizeOf = pi
 	return all
 		.filter((_, i) => !fragment(i))
 		.map((b) => {
-			const copies = b.holders.flatMap(({ providerId, dataSetId, pieceIds }) => {
+			const copies = b.holders.flatMap(({ providerId, dataSetId, pieceIds, clientDataSetId, endsAt }) => {
 				const base = urlOf(providerId);
 				if (!base) return [];
 				const urls = b.parts.map((p) => `${base}/piece/${p.pieceCid}`);
@@ -225,7 +226,8 @@ export function backupsFromPieces(sets, { urlOf, placeOf = () => '', sizeOf = pi
 						retrievalUrl: urls[0],
 						...(b.parts.length > 1 ? { retrievalUrls: urls } : {}),
 						place: placeOf(providerId),
-						...(dataSetId != null ? { dataSetId: String(dataSetId), pieceIds } : {})
+						...(dataSetId != null ? { dataSetId: String(dataSetId), pieceIds } : {}),
+						...copyExtras({ clientDataSetId, endsAt })
 					}
 				];
 			});
@@ -277,7 +279,10 @@ export async function listBackups({ network, owner, label, customer = null, data
 	for (const ds of sets) {
 		const dataSetId = BigInt(ds.dataSetId ?? ds.id);
 		const { items: pieces } = await getActivePiecesByCursor(client, { dataSetId });
-		withPieces.push({ providerId: ds.providerId, dataSetId, pieces: pieces.map((p) => ({ ...p, snapshot: null })) });
+		// An ended data set (terminated: pdpEndEpoch set) is dropped by its provider at that epoch.
+		const end = BigInt(ds.pdpEndEpoch ?? 0n);
+		const endsAt = end > 0n ? epochTime(end, /** @type {any} */ (filecoinChain(network)).genesisTimestamp) : null;
+		withPieces.push({ providerId: ds.providerId, dataSetId, clientDataSetId: ds.clientDataSetId, endsAt, pieces: pieces.map((p) => ({ ...p, snapshot: null })) });
 	}
 	// Which backups are snapshot packs (incremental backups): their first bytes, from a provider.
 	await markSnapshots(withPieces, { baseOf: askedBase(network, (id) => byId(id)?.pdp?.serviceURL?.replace(/\/+$/, '')), groups: (pieces) => groupPieces(pieces), cidText });
@@ -412,7 +417,8 @@ export function backupConfigFor(network, recipient, places = defaultPlaces(netwo
  * newest of a data set, never one whose date is unknown.
  */
 export const DEFAULT_RETENTION = Object.freeze({
-	mainnet: Object.freeze({ keepLast: 3, keepDays: 7, keepWeeks: 4, keepMonths: 6 }),
+	// The last 5 and one per week of the last 4 weeks: at most about 9 (2026-11-18; before: 3 + 7 days + 4 weeks + 6 months).
+	mainnet: Object.freeze({ keepLast: 5, keepDays: 0, keepWeeks: 4, keepMonths: 0 }),
 	calibration: Object.freeze({ keepLast: 2, keepDays: 2, keepWeeks: 1, keepMonths: 0 })
 });
 
@@ -706,3 +712,115 @@ export function selfRestoreGuide(backup) {
 
 /** A backup key as age writes it, or null. @param {unknown} identity */
 export const ageSecretKey = (identity) => (typeof identity === 'string' && /^AGE-SECRET-KEY-1[0-9A-Z]{58}$/.test(identity.trim()) ? identity.trim() : null);
+
+/** What a copy also says when the data set tells: its client data set id (what a removal names) and when it ends. */
+const copyExtras = ({ clientDataSetId, endsAt }) => ({
+	...(clientDataSetId != null ? { clientDataSetId: String(clientDataSetId) } : {}),
+	...(Number.isFinite(endsAt) ? { endsAt } : {})
+});
+
+/**
+ * The backups a restore can use: copies at providers Le Space blocked
+ * (blocked-providers.js) are left out, and a backup with no other copy is not
+ * offered at all (`hidden`).
+ * @param {string} network @param {any[]} backups
+ * @returns {{ usable: any[], hidden: any[] }}
+ */
+export function withoutBlocked(network, backups) {
+	const usable = [];
+	const hidden = [];
+	for (const b of backups ?? []) {
+		const copies = (b.copies ?? []).filter((c) => !blockedReason(network, c.providerId));
+		if (copies.length) usable.push(copies.length === b.copies.length ? b : { ...b, copies });
+		else if ((b.copies ?? []).length) hidden.push(b);
+	}
+	return { usable, hidden };
+}
+
+/**
+ * The copies that run out: data sets that were ended (terminated) are dropped
+ * by their provider at their end epoch. By day, earliest first, with the
+ * providers and how many backups have no copy left after that day.
+ * @param {any[]} backups as listBackups returns them (blocked ones included)
+ * @returns {Array<{ at: number, providers: string[], copies: number, gone: number }>}
+ */
+export function endingCopies(backups) {
+	const DAY = 24 * 60 * 60 * 1000;
+	const days = new Map();
+	for (const b of backups ?? []) {
+		for (const c of b.copies ?? []) {
+			if (!Number.isFinite(c.endsAt)) continue;
+			const day = Math.floor(c.endsAt / DAY) * DAY;
+			const d = days.get(day) ?? { at: c.endsAt, providers: new Set(), copies: 0, gone: 0 };
+			d.at = Math.min(d.at, c.endsAt);
+			d.providers.add(String(c.providerId));
+			d.copies++;
+			days.set(day, d);
+		}
+	}
+	const out = [...days.values()].sort((a, b) => a.at - b.at);
+	for (const b of backups ?? []) {
+		const ends = (b.copies ?? []).map((c) => c.endsAt);
+		if (!ends.length || !ends.every((e) => Number.isFinite(e))) continue;
+		const last = Math.max(...ends);
+		const d = out.find((x) => Math.floor(x.at / DAY) === Math.floor(last / DAY));
+		if (d) d.gone++;
+	}
+	return out.map((d) => ({ at: d.at, providers: [...d.providers], copies: d.copies, gone: d.gone }));
+}
+
+/**
+ * The removals of the VM's last retention plan (retention.json: `remove`,
+ * what the backup tool would remove with the wallet), checked again against
+ * what the chain lists now and grouped by data set: one SchedulePieceRemovals
+ * per data set (a fee per call, not per piece). A backup is left out when it
+ * is the newest one listed, protected (the one a VM was restored from, the
+ * one chosen), something a kept snapshot builds on, or unmarked while no
+ * marked one would remain; and nothing at all when no backup would be left.
+ * @param {{ remove: Array<{ pieceCid: string }> }} plan
+ * @param {any[]} backups as listBackups returns them, newest first
+ * @param {{ protect?: string[], marked?: (b: any) => boolean }} [o]
+ * @returns {{ batches: Array<{ dataSetId: string, clientDataSetId: string, providerId: string, serviceURL: string, pieceIds: string[] }>, backups: any[], skipped: Array<{ pieceCid: string, why: 'newest' | 'protected' | 'generation' | 'unmarked' | 'gone' | 'nothingLeft' }> }}
+ */
+export function removalBatches(plan, backups, { protect = [], marked = () => true } = {}) {
+	const list = backups ?? [];
+	const want = new Set((plan?.remove ?? []).map((r) => String(r?.pieceCid ?? '')));
+	const guard = new Set(protect.map(String));
+	/** @type {Array<{ pieceCid: string, why: any }>} */
+	const skipped = [];
+	const newest = list.find((b) => (b.copies ?? []).length > 0);
+	let chosen = list.filter((b) => want.has(b.pieceCid));
+	for (const cid of want) if (!list.some((b) => b.pieceCid === cid)) skipped.push({ pieceCid: cid, why: 'gone' });
+	const drop = (/** @type {any} */ b, /** @type {any} */ why) => {
+		chosen = chosen.filter((x) => x !== b);
+		skipped.push({ pieceCid: b.pieceCid, why });
+	};
+	for (const b of [...chosen]) {
+		const cids = [b.pieceCid, ...(b.parts ?? []).map((p) => p.pieceCid), ...(b.packs ?? []).flatMap((p) => p.parts.map((x) => x.pieceCid))];
+		if (b === newest) drop(b, 'newest');
+		else if (cids.some((c) => guard.has(c))) drop(b, 'protected');
+	}
+	// A snapshot pack goes only when no kept snapshot of its generation comes after it.
+	const keptSnaps = () => list.filter((b) => b.kind === 'snapshot' && !chosen.includes(b));
+	for (const b of [...chosen]) if (b.kind === 'snapshot' && keptSnaps().some((k) => k.gen === b.gen && k.seq > b.seq)) drop(b, 'generation');
+	// Without a marked backup left, no unmarked one goes in favour of the others.
+	const left = () => list.filter((b) => !chosen.includes(b) && (b.copies ?? []).length > 0);
+	if (!left().some(marked)) for (const b of [...chosen]) if (!marked(b)) drop(b, 'unmarked');
+	if (!left().length) {
+		for (const b of [...chosen]) drop(b, 'nothingLeft');
+	}
+	/** @type {Map<string, { dataSetId: string, clientDataSetId: string, providerId: string, serviceURL: string, pieceIds: string[] }>} */
+	const byDataSet = new Map();
+	for (const b of chosen) {
+		for (const c of b.copies ?? []) {
+			if (c.dataSetId == null || c.clientDataSetId == null || !Array.isArray(c.pieceIds)) continue;
+			const serviceURL = String(c.retrievalUrl ?? '').replace(/\/piece\/[^/]*$/, '');
+			if (!/^https:\/\//.test(serviceURL)) continue;
+			const batch = byDataSet.get(c.dataSetId) ?? { dataSetId: c.dataSetId, clientDataSetId: c.clientDataSetId, providerId: c.providerId, serviceURL, pieceIds: [] };
+			batch.pieceIds.push(...c.pieceIds.map(String));
+			byDataSet.set(c.dataSetId, batch);
+		}
+	}
+	const batches = [...byDataSet.values()].map((x) => ({ ...x, pieceIds: [...new Set(x.pieceIds)].sort((a, b) => (BigInt(a) < BigInt(b) ? -1 : 1)) }));
+	return { batches, backups: chosen, skipped };
+}

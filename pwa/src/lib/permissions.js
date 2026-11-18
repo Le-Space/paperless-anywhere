@@ -4,6 +4,7 @@
 // the owner, and the delegate may forget it); on Filecoin, a session key that
 // may create data sets and add pieces until it expires. Both are revocable.
 import { createPublicClient, createWalletClient, custom, getAddress, http, toHex } from 'viem';
+import { schedulePieceDeletions } from '@filoz/synapse-core/sp';
 import { privateKeyToAccount } from 'viem/accounts';
 import * as SessionKey from '@filoz/synapse-core/session-key';
 import { calibration, mainnet } from '@filoz/synapse-core/chains';
@@ -96,4 +97,34 @@ export async function setFilecoinSessionKey(payer, sessionAddress, network, { da
 	const expiresAt = BigInt(Math.floor(Date.now() / 1000 + days * 86400));
 	await SessionKey.loginSync(wallet, { address: sessionAddress, permissions: SESSION_PERMISSIONS, expiresAt });
 	return expiresAt;
+}
+
+/**
+ * From the payer's wallet: schedule the removal of pieces, one signed
+ * SchedulePieceRemovals per data set (removalBatches in backups.js), sent to
+ * the provider that holds it. The provider carries it out at its next proving
+ * step. Returns each batch's transaction hash, or its error.
+ * @param {string} payer @param {string} network
+ * @param {Array<{ dataSetId: string, clientDataSetId: string, providerId: string, serviceURL: string, pieceIds: string[] }>} batches
+ * @param {{ remove?: typeof schedulePieceDeletions }} [o] for tests
+ */
+export async function removeWithWallet(payer, network, batches, { remove = schedulePieceDeletions } = {}) {
+	const chain = filecoinChain(network);
+	const wallet = createWalletClient({ account: /** @type {`0x${string}`} */ (getAddress(payer)), chain, transport: custom(ethereum()) });
+	try {
+		await wallet.switchChain({ id: chain.id });
+	} catch {
+		await wallet.addChain({ chain });
+		await wallet.switchChain({ id: chain.id });
+	}
+	const out = [];
+	for (const b of batches) {
+		try {
+			const { hash } = await remove(/** @type {any} */ (wallet), { dataSetId: BigInt(b.dataSetId), clientDataSetId: BigInt(b.clientDataSetId), pieceIds: b.pieceIds.map((id) => BigInt(id)), serviceURL: b.serviceURL });
+			out.push({ dataSetId: b.dataSetId, ok: true, hash });
+		} catch (err) {
+			out.push({ dataSetId: b.dataSetId, ok: false, error: String(/** @type {any} */ (err)?.shortMessage ?? /** @type {any} */ (err)?.message ?? err).slice(0, 200) });
+		}
+	}
+	return out;
 }

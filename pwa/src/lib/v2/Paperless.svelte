@@ -239,6 +239,7 @@
 									<label><input type="radio" name="v2-backup-pick" value={b.pieceCid} checked={k.chosenBackup?.pieceCid === b.pieceCid} onchange={() => k.pickBackup(b.pieceCid)} data-testid="v2-backup-pick-{i}" />
 										<span>{s.nth(i + 1)}{dateOf(b) ? ` ${dateOf(b)}` : ''} · {backupSize(b.size) || s.sizeUnknown} · {c.simple.copies(b.copies.length)}{k.marked(b) ? '' : ` · ${s.notConfirmed}`}</span></label>
 								{/each}
+								{#each k.backupHints as h (h.id)}<p class="hint" data-testid="backups-hint-{h.id.split('-')[0]}">{h.text}</p>{/each}
 							</fieldset>
 						{/if}
 					{/if}
@@ -398,6 +399,7 @@
 					{/if}
 				{/if}
 				<label><input type="radio" bind:group={k.choice} value="empty" /> <span>{c.advanced.empty}</span></label>
+				{#each k.backupHints as h (h.id)}<p class="hint" data-testid="backups-hint-{h.id.split('-')[0]}">{h.text}</p>{/each}
 			</fieldset>
 		{/if}
 	{/snippet}
