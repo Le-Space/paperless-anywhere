@@ -5,6 +5,7 @@
 	// the sample from the provider is blue (reported), as in the start panel.
 	// The lights are for the eye; every fact is written out with its state.
 	import { checkBackupOnChain, pdpExplorer, sampleFetch } from '$lib/backup-chain.js';
+	import { blockedReason } from '$lib/blocked-providers.js';
 	import { untrack } from 'svelte';
 	import { format, lang, t } from '$lib/i18n/index.js';
 
@@ -31,11 +32,12 @@
 		const list = named;
 		const [read, fetched] = await Promise.all([
 			checkBackupOnChain({ network, copies: list }),
-			sample ? Promise.all(list.map((c) => sampleFetch(String(c.retrievalUrl ?? '')))) : Promise.resolve(null)
+			// A provider Le Space blocked is not asked: no sample for its copy.
+			sample ? Promise.all(list.map((c) => (blockedReason(network, Number(c.providerId)) ? null : sampleFetch(String(c.retrievalUrl ?? ''))))) : Promise.resolve(null)
 		]);
 		if (mine !== run) return;
 		copies = read;
-		if (fetched) samples = Object.fromEntries(list.map((c, i) => [String(c.dataSetId), fetched[i]]));
+		if (fetched) samples = Object.fromEntries(list.flatMap((c, i) => (fetched[i] ? [[String(c.dataSetId), fetched[i]]] : [])));
 		readAt = Date.now();
 		busy = false;
 	}
