@@ -15,7 +15,7 @@
 	import { BUILDER, hasOwnImage } from '$lib/own-image.js';
 	import { CREDITS_URL } from '$lib/credits.js';
 	import { purchaseLocked } from '$lib/purchase.js';
-	import { place } from '$lib/backups.js';
+	import { backupSize, place } from '$lib/backups.js';
 	import { format, lang as appLanguage, t as i18n } from '$lib/i18n/index.js';
 	import { httpsUrl } from '$lib/evidence.js';
 
