@@ -9,6 +9,9 @@ import { BUILDER } from './own-image.js';
 
 /** @type {{ plainSha256: string, builder: string, since: string }[]} versions before the current one, newest first */
 export const PREVIOUS_VERSIONS = [
+	// Plain image of main edb44b4, the builder with retention and incremental
+	// backups behind their switch, current in v0.1.108 to v0.1.112.
+	{ plainSha256: '1657c6a5ad6480f59c66e1e03841905e6ed0627b6c16da3d0c8c8d24c4bbd0ac', builder: '288f621cf90ee5d9cbba642d90dfd17c1b4878916d1b81b3b2f88ff218998ea1', since: '2026-11-17' },
 	// Plain image of main 57456e7 (#324), the builder with backups bound to
 	// the vault, current in v0.1.88 to v0.1.107.
 	{ plainSha256: 'f08aeec9d1d37bb9a79e4cbe8d7614d58dadca0b527fb4027503313a02610753', builder: 'a86558ef9da93c51770bf3b8198310e01c0921f0b816eb4e532a87f81286bab1', since: '2026-11-16' },
@@ -24,7 +27,7 @@ export const PREVIOUS_VERSIONS = [
 ];
 
 /** The current version, from the builder fixed in the app. */
-export function currentVersion(builder = BUILDER, since = '2026-11-17') {
+export function currentVersion(builder = BUILDER, since = '2026-11-18') {
 	if (!builder?.plain?.sha256) return null;
 	const root = builder.program?.workload?.verification?.roothash ?? builder.program?.workload?.roothash ?? '';
 	return { plainSha256: builder.plain.sha256, builder: String(root), since };

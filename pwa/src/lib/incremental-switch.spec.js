@@ -35,8 +35,9 @@ describe('the incremental switch', () => {
 		expect(JSON.parse(credits.backup_config).incremental).toEqual({ enabled: true });
 	});
 
-	it('only the image of 2026-11-17 (main edb44b4, backup tool f4df5d7) makes them; older images keep the switch greyed out', () => {
-		expect(INCREMENTAL_IMAGES).toEqual(['1657c6a5ad6480f59c66e1e03841905e6ed0627b6c16da3d0c8c8d24c4bbd0ac']);
+	it('the images of 2026-11-17 and 2026-11-18 (backup tool f4df5d7) make them; older images keep the switch greyed out', () => {
+		expect(INCREMENTAL_IMAGES).toEqual(['36c034033e663d153447396b75faee56a513811f3e01ad03f243c173bdfe65b3', '1657c6a5ad6480f59c66e1e03841905e6ed0627b6c16da3d0c8c8d24c4bbd0ac']);
+		expect(supportsIncremental({ ownImage: { plainSha256: '36c034033e663d153447396b75faee56a513811f3e01ad03f243c173bdfe65b3' } })).toBe(true);
 		expect(supportsIncremental({ ownImage: { plainSha256: '1657c6a5ad6480f59c66e1e03841905e6ed0627b6c16da3d0c8c8d24c4bbd0ac' } })).toBe(true);
 		expect(supportsIncremental({ ownImage: { plainSha256: 'f08aeec9d1d37bb9a79e4cbe8d7614d58dadca0b527fb4027503313a02610753' } })).toBe(false);
 		expect(supportsIncremental({})).toBe(false);

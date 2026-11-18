@@ -453,6 +453,8 @@ export function retentionFor(network, set) {
  * @type {readonly string[]}
  */
 export const INCREMENTAL_IMAGES = Object.freeze([
+	// Plain image of main 3e302a8, backup tool f4df5d7 (2026-11-18).
+	'36c034033e663d153447396b75faee56a513811f3e01ad03f243c173bdfe65b3',
 	// Plain image of main edb44b4, backup tool f4df5d7 (2026-11-17).
 	'1657c6a5ad6480f59c66e1e03841905e6ed0627b6c16da3d0c8c8d24c4bbd0ac'
 ]);
