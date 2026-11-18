@@ -57,7 +57,7 @@ export async function filecoinBalance(network, payer) {
  */
 export async function confidentialCreditsPerHour(vm) {
 	try {
-		const res = await fetch(`${ALEPH_API}/api/v0/aggregates/${PRICING_ADDRESS}.json?keys=pricing`, { cache: 'no-store' });
+		const res = await readFetch(`${ALEPH_API}/api/v0/aggregates/${PRICING_ADDRESS}.json?keys=pricing`, 'pricing', { tries: 1 });
 		if (!res.ok) throw new Error(`Aleph answered ${res.status}`);
 		return priceFromList((await res.json())?.data?.pricing?.instance_confidential, vm);
 	} catch {

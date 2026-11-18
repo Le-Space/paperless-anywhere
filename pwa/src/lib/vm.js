@@ -111,7 +111,8 @@ export async function instanceMessage(a) {
  */
 export async function estimateCreditsPerHour(message) {
 	const { signature: _, ...unsigned } = message;
-	const res = await fetch(`${ALEPH_API}/api/v0/price/estimate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: unsigned }) }).catch(() => null);
+	// A read, though a POST: asking the second host when api2 fails is safe.
+	const res = await readFetch(`${ALEPH_API}/api/v0/price/estimate`, 'estimate', { tries: 1, method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: unsigned }) }).catch(() => null);
 	if (!res?.ok) return null;
 	const perSecond = Number((await res.json().catch(() => null))?.cost);
 	return perSecond > 0 ? Math.round(perSecond * 3600) : null;
