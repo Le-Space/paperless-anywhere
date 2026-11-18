@@ -185,6 +185,17 @@ check each link of the chain:
 
    The image lies on Aleph gzipped; the SHA-256 is that of the image itself.
 
+   Le Space keeps the plain image and the builder's volumes of the newest
+   three versions on Aleph, and of every version a release still in use
+   names (a release counts as in use until 14 days after the next one came
+   out). Older ones are forgotten, by hand and only after a dry run
+   (workflow "Image retention"). For such a version the plain image and
+   the builder's volumes can no longer be downloaded, so steps 1 to 3 cannot
+   be redone for it; the image workflow's run, with its commit and GitHub's
+   attestation of the SHA-256, stays. An own image built from it keeps
+   starting: it is a STORE of your own, and the start needs only it and the
+   passphrase your vault derives. A rebuild uses the builder the app names.
+
 2. **It was built from this repository.** The image workflow's summary names
    the commit, and for an image built since this repository is public, GitHub signs that the
    file with this SHA-256 was built by that workflow at that commit:
