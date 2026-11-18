@@ -491,9 +491,19 @@ export function createLifecycleCard(p) {
 		if (profile.backupConfig && !profile.backupsByCredits) return false;
 		return (await creditsBalance(master).catch(() => null))?.backup?.active === false;
 	}
+	// The vault's own image is older than the image version this app knows:
+	// the start asks first, with the rebuild one button away, instead of
+	// starting on the old one with only a grey line saying so (2026-11-18).
+	let oldImage = $state(false);
 	let asking = false;
-	const start = async () => {
+	/** @param {{ oldImageOk?: boolean }} [o] */
+	const start = async ({ oldImageOk = false } = {}) => {
 		if (asking) return;
+		if (!oldImageOk && BUILDER && image.own && image.newer) {
+			oldImage = true;
+			return;
+		}
+		oldImage = false;
 		asking = true;
 		try {
 			unpaidBackup = await backupUnpaid();
@@ -501,6 +511,12 @@ export function createLifecycleCard(p) {
 			asking = false;
 		}
 		if (!unpaidBackup) run(startNow, startAgain);
+	};
+	// Start on the old image after all, or build the new one first (no start after it).
+	const startOnOldImage = () => start({ oldImageOk: true });
+	const rebuildBeforeStart = () => {
+		oldImage = false;
+		rebuildImage();
 	};
 	const startWithoutBackup = () => {
 		unpaidBackup = false;
@@ -1215,6 +1231,10 @@ export function createLifecycleCard(p) {
 		set bought(v) { bought = v; },
 		purchase,
 		askToBuy,
+		get oldImage() { return oldImage; },
+		set oldImage(v) { oldImage = v; },
+		startOnOldImage,
+		rebuildBeforeStart,
 		get unpaidBackup() { return unpaidBackup; },
 		set unpaidBackup(v) { unpaidBackup = v; },
 		start,
