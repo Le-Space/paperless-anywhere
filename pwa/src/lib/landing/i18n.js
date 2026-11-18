@@ -329,7 +329,9 @@ export const texts = {
 					tips: [
 						'Bezahlt werden nur Beweisperioden, in denen der Anbieter bewiesen hat, dass er die Daten noch hat. Ein ausgefallener Anbieter verdient für diese Zeit nichts.',
 						'Jede Kopie kostet nach ihrer Größe, solange sie besteht: 2,5 USDFC je TiB und Monat, dazu 0,12 USDFC im Monat je Datensatz (einer je Anbieter). Stand der Chain am 16.11.2026.',
-						'Die VM entfernt alte Sicherungen bisher nicht von selbst; jede bleibt gespeichert, bis sie gelöscht wird.'
+						'Alte Sicherungen laufen aus. Es bleiben die letzten 5 und je eine pro Woche der letzten 4 Wochen. Nie entfernt werden die neueste vollständige, die, aus der deine VM wiederhergestellt wurde, eine, die du gewählt hast, und jede, auf der eine behaltene inkrementelle Sicherung aufbaut.',
+						'Mit Paket oder Gutschein entfernt die VM die älteren nach einer vollständigen Sicherung selbst, höchstens einmal am Tag. Zahlst du die Sicherungen aus deiner eigenen Wallet, darf nur sie entfernen: Bei laufender VM zeigt die App unter „Aufbewahrung“ die überzähligen und einen Knopf, mit dem du das Entfernen in der Wallet unterschreibst, gegen eine kleine Gebühr je Datensatz.',
+						'Endet der Speicher bei einem Anbieter, löscht er deine Kopien dort zu einem festen Datum; die App nennt es bei der Auswahl einer Sicherung. Sicherungen, die nur noch bei einem von Le Space gesperrten Anbieter liegen, bietet sie nicht mehr an.'
 					],
 					more: { text: 'Beweise, Fristen und Bezahlung im Einzelnen', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/backup-proofs.md' }
 				},
@@ -709,7 +711,9 @@ export const texts = {
 					tips: [
 						'Only proving periods in which the provider proved it still holds the data are paid. A failed provider earns nothing for that time.',
 						'Each copy costs by its size for as long as it exists: 2.5 USDFC per TiB and month, plus 0.12 USDFC a month per data set (one per provider). As read from the chain on 2026-11-16.',
-						'The VM does not remove old backups on its own yet; each stays stored until it is deleted.'
+						'Old backups run out. What stays: the last 5 and one per week of the last 4 weeks. Never removed are the newest complete one, the one your VM was restored from, one you chose, and any that a kept incremental backup builds on.',
+						'With a package or a voucher, the VM removes the older ones itself after a complete backup, at most once a day. If you pay the backups from your own wallet, only the wallet may remove: while the VM runs, the app shows the extra ones under “Retention”, with a button to sign the removal in your wallet, for a small fee per data set.',
+						'When the storage at a provider ends, the provider deletes your copies there on a set date; the app names it when you choose a backup. Backups that sit only at a provider Le Space blocked are no longer offered.'
 					],
 					more: { text: 'Proofs, deadlines and payment in detail', href: 'https://github.com/Le-Space/paperless-anywhere/blob/main/docs/backup-proofs.md' }
 				},
