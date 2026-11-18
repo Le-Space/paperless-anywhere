@@ -779,10 +779,13 @@ export function endingCopies(backups) {
  * marked one would remain; and nothing at all when no backup would be left.
  * @param {{ remove: Array<{ pieceCid: string }> }} plan
  * @param {any[]} backups as listBackups returns them, newest first
- * @param {{ protect?: string[], marked?: (b: any) => boolean }} [o]
+ * `scheduled`: per data set the piece ids whose removal is already scheduled
+ * (they stay listed until the provider's next proving step): left out, so
+ * nothing is scheduled, and paid for, twice.
+ * @param {{ protect?: string[], marked?: (b: any) => boolean, scheduled?: Map<string, Set<string>> }} [o]
  * @returns {{ batches: Array<{ dataSetId: string, clientDataSetId: string, providerId: string, serviceURL: string, pieceIds: string[] }>, backups: any[], skipped: Array<{ pieceCid: string, why: 'newest' | 'protected' | 'generation' | 'unmarked' | 'gone' | 'nothingLeft' }> }}
  */
-export function removalBatches(plan, backups, { protect = [], marked = () => true } = {}) {
+export function removalBatches(plan, backups, { protect = [], marked = () => true, scheduled = new Map() } = {}) {
 	const list = backups ?? [];
 	const want = new Set((plan?.remove ?? []).map((r) => String(r?.pieceCid ?? '')));
 	const guard = new Set(protect.map(String));
@@ -821,6 +824,8 @@ export function removalBatches(plan, backups, { protect = [], marked = () => tru
 			byDataSet.set(c.dataSetId, batch);
 		}
 	}
-	const batches = [...byDataSet.values()].map((x) => ({ ...x, pieceIds: [...new Set(x.pieceIds)].sort((a, b) => (BigInt(a) < BigInt(b) ? -1 : 1)) }));
+	const batches = [...byDataSet.values()]
+		.map((x) => ({ ...x, pieceIds: [...new Set(x.pieceIds)].filter((id) => !scheduled.get(x.dataSetId)?.has(id)).sort((a, b) => (BigInt(a) < BigInt(b) ? -1 : 1)) }))
+		.filter((x) => x.pieceIds.length);
 	return { batches, backups: chosen, skipped };
 }

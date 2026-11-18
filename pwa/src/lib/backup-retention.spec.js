@@ -75,6 +75,11 @@ describe('removing the VM\'s plan with the wallet', () => {
 			{ dataSetId: '4', clientDataSetId: '1004', providerId: '2', serviceURL: 'https://sp2.example', pieceIds: ['1', '2', '6'] }
 		]);
 	});
+	it('leaves out pieces already scheduled for removal, and a batch with nothing left', () => {
+		const scheduled = new Map([['3', new Set(['1', '2', '5'])], ['4', new Set(['1'])]]);
+		const r = removalBatches({ remove: [{ pieceCid: cid('o1') }, { pieceCid: cid('o2') }] }, list, { marked, scheduled });
+		expect(r.batches).toEqual([{ dataSetId: '4', clientDataSetId: '1004', providerId: '2', serviceURL: 'https://sp2.example', pieceIds: ['2', '6'] }]);
+	});
 	it('never the newest, a protected one, or one the chain no longer lists', () => {
 		const r = removalBatches({ remove: [{ pieceCid: cid('n0') }, { pieceCid: cid('o1') }, { pieceCid: cid('o2') }, { pieceCid: cid('zz') }] }, list, { marked, protect: [cid('o2b')] });
 		expect(Object.fromEntries(r.skipped.map((s) => [s.pieceCid, s.why]))).toEqual({ [cid('n0')]: 'newest', [cid('o2')]: 'protected', [cid('zz')]: 'gone' });

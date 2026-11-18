@@ -10,7 +10,9 @@
 	import { BACKUP_TEXTS, backupOverview, retentionView, when } from '$lib/backup-overview.js';
 	import { backupSize, listBackups, protectedPieces, removalBatches } from '$lib/backups.js';
 	import { backupListing } from '$lib/profile.js';
-	import { removeWithWallet } from '$lib/permissions.js';
+	import { filecoinChain, removeWithWallet } from '$lib/permissions.js';
+	import { createPublicClient, http } from 'viem';
+	import { getScheduledRemovals } from '@filoz/synapse-core/pdp-verifier';
 	import { lang as appLang } from '$lib/i18n/index.js';
 
 	/** @type {{ master: Uint8Array, profile: Record<string, any>, known?: { at: string, copies?: number | null } | null, disabled?: boolean, guard?: ((then: () => unknown) => unknown) | null, onbusy?: (busy: boolean) => void, ongood?: (good: { at: string, copies: number, requested: number, providerIds: number[] }) => void }} */
@@ -81,7 +83,11 @@
 			const all = await listBackups({ network, ...backupListing(profile, null) });
 			const marked = (/** @type {any} */ b) => (profile.vaultBackups ?? []).includes(b.pieceCid);
 			const protect = [...protectedPieces(profile.restoreEntry), ...protectedPieces(profile.starting?.restoreEntry)];
-			const plan = removalBatches({ remove: status?.retention?.remove ?? [] }, all, { protect, marked });
+			// Pieces already scheduled for removal are still listed until the provider's next proof.
+			const client = createPublicClient({ chain: filecoinChain(network), transport: http(undefined, { retryCount: 1, timeout: 20_000 }) });
+			const sets = [...new Set(all.flatMap((b) => (b.copies ?? []).map((c) => c.dataSetId)).filter(Boolean))];
+			const scheduled = new Map(await Promise.all(sets.map(async (id) => /** @type {[string, Set<string>]} */ ([String(id), new Set((await getScheduledRemovals(client, { dataSetId: BigInt(id) })).map(String))]))));
+			const plan = removalBatches({ remove: status?.retention?.remove ?? [] }, all, { protect, marked, scheduled });
 			removeSkipped = plan.skipped;
 			if (!plan.batches.length) {
 				removeNote = rt.nothingSafe;
