@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { AddressFailedError, DataAreaFailedError, FIRST_LOOK_FIXED_MS, SILENT_LIMIT_MS, STEP_LIMIT_MS, StartStuckError, waitingStep, watchStart } from './start-watch.js';
 import { setLang } from './i18n/index.js';
+import { startPanel } from './start-panel.js';
 
 const FIXED = 'abc.vm.example.org:24005';
 const TWO_N6 = 'alpha-beta-gamma-delta.2n6.me';
@@ -50,6 +51,24 @@ describe('watchStart', () => {
 		const w = watch((host, t) => (host === FIXED && t >= 3 * MIN ? { phase: 'ready', paperless: true } : null));
 		expect((await w.done).phase).toBe('ready');
 		expect(w.asked.filter((a) => a.host === FIXED && a.t < FIRST_LOOK_FIXED_MS)).toEqual([]);
+	});
+	it('hands the last page to the panel too: a failed restore is seen, not the page before it', async () => {
+		/** @type {any[]} */
+		const pages = [];
+		const failed = { phase: 'restore-failed', paperless: true, restore: { status: 'failed', reason: 'made-up reason' } };
+		const done = await watchStart({
+			host: FIXED,
+			read: async () => (pages.length < 2 ? { phase: 'restoring', waiting: 'restore-download', restore: { status: 'running' } } : failed),
+			onProgress: (p) => p.status && pages.push(p.status),
+			now: () => 0,
+			sleep: async () => {}
+		});
+		expect(done).toBe(failed);
+		expect(pages.at(-1)).toBe(failed);
+		// What the start's panel then shows (start-panel.js): the restore row red, Paperless running.
+		const rows = startPanel({ step: 'ready', status: pages.at(-1), restore: true, finished: true });
+		expect(rows.find((r) => r.id === 'restore')?.state).toBe('failed');
+		expect(rows.find((r) => r.id === 'ready')?.lights.find((l) => l.id === 'paperless')?.state).toBe('reported');
 	});
 	it('follows the start over the 2n6 name while the fixed name has no certificate, and says so', async () => {
 		const w = watch((host, t) => {

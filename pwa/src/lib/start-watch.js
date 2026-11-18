@@ -136,7 +136,13 @@ export async function watchStart({ host, alternate = null, read, onProgress, unl
 			if (status.phase === 'address-failed') throw new AddressFailedError(String(status.fixedAddress?.step ?? 'certificate'));
 			const done = status.phase === 'ready' || (status.phase === 'restore-failed' && status.paperless);
 			// Ready, or a failed restore (Paperless runs, empty, and says why), on the name the app will use.
-			if (done && !viaOther) return status;
+			if (done && !viaOther) {
+				// The last page goes to the start's panel too: without it the panel
+				// kept the one before (a restore still under way), and after a
+				// failed restore its row stayed open instead of red (2026-11-18).
+				onProgress({ step: 'ready', detail: t.starting, status });
+				return status;
+			}
 			const current = done ? 'address' : waitingStep(status);
 			if (current !== step) {
 				step = current;
