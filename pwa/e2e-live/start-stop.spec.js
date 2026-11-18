@@ -80,7 +80,8 @@ test('start and stop a confidential Paperless from the PWA', async ({ page }) =>
 	while (!(await link.isVisible())) {
 		const alert = page.getByRole('alert');
 		if (await alert.isVisible()) throw new Error(`start failed: ${await alert.textContent()}`);
-		const now = (await progress.textContent().catch(() => '')) ?? '';
+		// Only while it is on the page: reading a part that is not there waits for it.
+		const now = (await progress.isVisible()) ? ((await progress.textContent({ timeout: 2_000 }).catch(() => '')) ?? '') : '';
 		if (now && now !== last) console.log(`[start ${Math.round((Date.now() - started) / 1000)} s] ${now}`);
 		last = now;
 		if (Date.now() - started > 40 * 60_000) throw new Error('start took longer than 40 minutes');

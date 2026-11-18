@@ -12,8 +12,9 @@ on:
   workflow_dispatch:
     inputs:
       rootfs_item_hash:
-        description: Encrypted Paperless rootfs (the STORE from "Paperless rootfs")
-        required: true
+        description: Encrypted Paperless rootfs (the STORE from "Paperless rootfs", purpose "test"). Empty with only_cleanup.
+        required: false
+        default: ''
         type: string
       crn:
         description: SEV-SNP node (full hash)
@@ -28,6 +29,16 @@ on:
         options:
           - v0.2
           - app
+      only_cleanup:
+        description: Start no VM; only forget the Paperless VMs of the test wallet started since cleanup_since and take back the PWA authorizations (after a run whose cleanup missed one).
+        required: true
+        default: false
+        type: boolean
+      cleanup_since:
+        description: With only_cleanup, the time from which VMs are forgotten, in UTC (2026-11-18T07:57:00Z).
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -38,9 +49,15 @@ concurrency:
 
 jobs:
   start-stop:
+    if: ${{ !inputs.only_cleanup }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
+      - name: The image is named
+        env:
+          ROOTFS_ITEM_HASH: ${{ inputs.rootfs_item_hash }}
+        run: |
+          [[ "$ROOTFS_ITEM_HASH" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::rootfs_item_hash takes the STORE hash of a test image (64 hex characters)"; exit 1; }
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
@@ -118,16 +135,31 @@ jobs:
         env:
           ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
           GH_TOKEN: ${{ github.token }}
+          ONLY_CLEANUP: ${{ inputs.only_cleanup }}
+          CLEANUP_SINCE: ${{ inputs.cleanup_since }}
         run: |
           addr="$(node -e 'const { Wallet } = require(process.argv[1]); const k = process.env.ALEPH_PRIVATE_KEY.trim(); console.log(new Wallet(k.startsWith("0x") ? k : "0x" + k).address)' "$RUNNER_TEMP/eth/node_modules/ethers")"
           since="$(gh run view ${{ github.run_id }} -R ${{ github.repository }} --json createdAt -q .createdAt 2>/dev/null || date -u -d '-2 hours' +%FT%TZ)"
-          hashes="$(curl -fsS "https://api2.aleph.im/api/v0/messages.json?addresses=$addr&msgTypes=INSTANCE&pagination=50" \
+          if [ "$ONLY_CLEANUP" = true ]; then
+            [[ "$CLEANUP_SINCE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || { echo "::error::cleanup_since takes a time in UTC, as 2026-11-18T07:57:00Z"; exit 1; }
+            since="$CLEANUP_SINCE"
+          fi
+          echo "forgetting the Paperless VMs of $addr started since $since"
+          # By owner, not by sender: the PWA starts the VM with its own key on
+          # behalf of the test wallet, so the wallet owns a message it did not send.
+          hashes="$(curl -fsS "https://api2.aleph.im/api/v0/messages.json?owners=$addr&msgTypes=INSTANCE&pagination=50" \
             | jq -r --arg since "$since" '.messages[] | select((.content.metadata.name // "") | startswith("paperless-")) | select((.time | todate) >= $since) | .item_hash')"
           for h in $hashes; do echo "forgetting $h"; aleph message forget "$h" --reason "pwa e2e ${GITHUB_RUN_ID} (cleanup)" --chain eth -y || true; done
           [ -n "$hashes" ] || echo "no VM of this run is left"
+          # Said, not assumed: what the wallet still owns after the forgets.
+          sleep 20
+          still="$(curl -fsS "https://api2.aleph.im/api/v0/messages.json?owners=$addr&msgTypes=INSTANCE&pagination=50" \
+            | jq -r --arg since "$since" '[.messages[] | select((.content.metadata.name // "") | startswith("paperless-")) | select((.time | todate) >= $since) | .item_hash] | join(" ")')"
+          [ -z "$still" ] || { echo "::error::still on Aleph after the cleanup: $still"; failed=1; }
           left="$(curl -fsS "https://api2.aleph.im/api/v0/aggregates/$addr.json?keys=security" | jq -c '[.data.security.authorizations[]? | select((.aggregate_keys // []) | index("port-forwarding"))] | length')"
           if [ "${left:-0}" != 0 ]; then
             for a in $(curl -fsS "https://api2.aleph.im/api/v0/aggregates/$addr.json?keys=security" | jq -r '.data.security.authorizations[]? | select((.aggregate_keys // []) | index("port-forwarding")) | .address'); do
               aleph authorization revoke "$a" --chain eth || true
             done
           fi
+          exit "${failed:-0}"
