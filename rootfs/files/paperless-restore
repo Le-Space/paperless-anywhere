@@ -111,6 +111,11 @@ if [ ! -s "$secrets/restore_ledger_entry" ]; then
 fi
 [ -s "$secrets/age_identity" ] || fail "a restore_ledger_entry came without an age_identity"
 status running
+# The piece the person chose to restore without the vault's mark, read now:
+# forget_secrets removes the file right after the decryption, before the mark
+# is checked (until 2026-11-18 it was read there, empty, and every such
+# backup was refused as "missing").
+unmarked="$(tr -cd 'a-z0-9' < "$secrets/restore_unmarked" 2>/dev/null | head -c 200)"
 t0=$(date +%s)
 
 # The entry, read without a shell parser. It names the piece and where to get
@@ -411,7 +416,6 @@ PY
 )"
 rm -f "$work/extra/vault-mark.json"
 if [ "$mark" != verified ]; then
-  unmarked="$(tr -cd 'a-z0-9' < "$secrets/restore_unmarked" 2>/dev/null)"
   if [ "$mark" = missing ] && [ -n "$unmarked" ] && [ "$unmarked" = "$cid" ]; then
     mark=accepted
   else
