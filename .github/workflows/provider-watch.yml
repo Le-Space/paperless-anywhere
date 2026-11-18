@@ -1,0 +1,70 @@
+name: Provider watch
+
+# Once a day: are the storage providers Le Space uses up and proving, has a
+# blocked one come back, was one approved or did one lose its approval?
+# Reads only public data (the Filecoin mainnet contracts, each provider's PDP
+# ping): no secret, no payment. Reports as issues labelled "provider-watch",
+# one open issue per event (pwa/src/lib/provider-watch.js); GitHub mails them
+# to the repository's watchers.
+#
+# The state between runs (approved ids, days a blocked provider answered)
+# travels as the artifact "provider-watch-state" of the last successful run.
+# Without it the run only takes stock.
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+concurrency:
+  group: provider-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: Watch the storage providers
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.x
+      - name: Install
+        working-directory: pwa
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: The state of the last run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p state
+          run=$(gh run list -R "$GITHUB_REPOSITORY" --workflow provider-watch.yml --status success -L 1 --json databaseId -q '.[0].databaseId')
+          if [ -n "$run" ] && gh run download "$run" -R "$GITHUB_REPOSITORY" -n provider-watch-state -D state; then
+            echo "state of run $run"
+          else
+            echo "no state: this run takes stock"
+          fi
+      - name: The label
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh label create provider-watch -R "$GITHUB_REPOSITORY" --color C5DEF5 --description "Daily storage provider watch" 2>/dev/null || true
+      - name: Watch
+        working-directory: pwa
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/provider-watch.mjs ../state/provider-watch-state.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: provider-watch-state
+          path: state/provider-watch-state.json
+          retention-days: 30
