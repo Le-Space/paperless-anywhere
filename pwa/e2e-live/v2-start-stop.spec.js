@@ -101,12 +101,14 @@ test('start and stop a confidential Paperless from the v0.2 interface', async ({
 	await startButton.click();
 	const open = page.getByTestId('v2-open');
 	const failed = page.getByTestId('start-error');
-	// Print what the page says as it comes.
+	// Print what the page says as it comes. Only what is on the page is read: reading a
+	// part that is not there waits for it, and "Standard" has no step list.
+	const said = async (id) => ((await page.getByTestId(id).isVisible()) ? ((await page.getByTestId(id).textContent({ timeout: 2_000 }).catch(() => '')) ?? '') : '');
 	let last = '';
 	while (!(await open.isVisible())) {
 		if (await failed.isVisible()) throw new Error(`start failed: ${await failed.textContent()}`);
 		if (await page.getByTestId('v2-resume').isVisible()) throw new Error('the start was interrupted');
-		const now = [await page.getByTestId('v2-progress').textContent().catch(() => ''), await page.getByTestId('progress').textContent().catch(() => '')].filter(Boolean).join(' | ');
+		const now = [await said('v2-progress'), await said('progress')].filter(Boolean).join(' | ');
 		if (now && now !== last) console.log(`[start ${seconds(started)} s] ${now.replace(/\s+/g, ' ').slice(0, 300)}`);
 		last = now;
 		if (Date.now() - started > 40 * 60_000) throw new Error('start took longer than 40 minutes');
