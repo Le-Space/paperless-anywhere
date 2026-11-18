@@ -5,7 +5,8 @@ name: PWA start and stop
 # account (injected as window.ethereum), the real Aleph, a real SEV-SNP node,
 # and relay-button's attest relay beside the test. The PWA's key starts and
 # forgets the VM on behalf of the test wallet. Made-up nothing: an empty
-# Paperless, no backups.
+# Paperless, no backups. The round is done in the v0.2 interface (/v0.2/) or in
+# the app (/app/), as chosen.
 
 on:
   workflow_dispatch:
@@ -19,6 +20,14 @@ on:
         required: true
         default: bb0aa1a9fc7566286c0db32cd5c660066017430390ca779da4d3a241fa07c337
         type: string
+      interface:
+        description: Which interface does the round (one VM per run)
+        required: true
+        default: v0.2
+        type: choice
+        options:
+          - v0.2
+          - app
 
 permissions:
   contents: read
@@ -70,7 +79,9 @@ jobs:
           ROOTFS_ITEM_HASH: ${{ inputs.rootfs_item_hash }}
           CRN_HASH: ${{ inputs.crn }}
           RELAY_URL: ws://127.0.0.1:8787/attest
-        run: pnpm exec playwright test -c playwright.live.config.js --reporter=line
+          INTERFACE: ${{ inputs.interface }}
+        # One round per run: the chosen interface's test only.
+        run: pnpm exec playwright test -c playwright.live.config.js "e2e-live/$([ "$INTERFACE" = app ] && echo start-stop || echo v2-start-stop).spec.js" --reporter=line
 
       - name: Attest relay log
         if: always()

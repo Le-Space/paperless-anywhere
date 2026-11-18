@@ -37,7 +37,7 @@ are started from the Actions tab, never by a pull request.
 |---|---|
 | Paperless rootfs | Builds and publishes the image |
 | Paperless on a confidential node (`try.yml`) | Start, attestation, unlock, HTTPS, stop on a real SEV-SNP node |
-| PWA start and stop (`pwa-e2e.yml`) | The PWA starts and stops a real VM (`e2e-live/`) |
+| PWA start and stop (`pwa-e2e.yml`) | The PWA starts and stops a real VM (`e2e-live/`): in the v0.2 interface or in `/app/`, as chosen; with the test image, no backups |
 | Paperless backup and restore round trip | Backup on the Calibration testnet, restore in a second VM |
 | Paperless backup round trip through Le Space Credits | The same, paid through Le Space Credits (`stage=address` spends nothing) |
 | Own image: fetch through a relay / upload from a browser | The image of its own: sealed by the builder, fetched, uploaded (`e2e-upload/`) |
