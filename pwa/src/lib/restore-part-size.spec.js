@@ -7,14 +7,23 @@ vi.mock('./attest-wasm-load.js', () => ({ loadAttestWasm: async () => ({}) }));
 vi.mock('./own-image-check.js', async (orig) => ({ ...(await orig()), ownImageVerified: () => true }));
 vi.mock('./vm.js', async (orig) => ({ ...(await orig()), sendInstance: (...a) => sent.instance(...a) }));
 
-const { FULL_PART_IMAGES, OLD_PART_LIMIT, restoreFitsImage } = await import('./backups.js');
+const { FULL_PART_IMAGES, INCREMENTAL_IMAGES, OLD_PART_LIMIT, restoreFitsImage } = await import('./backups.js');
 const { startPaperless } = await import('./lifecycle.js');
+const { BUILDER } = await import('./own-image.js');
+const { ownImageVersions } = await import('./own-image-versions.js');
 
-const newImage = { ownImage: { plainSha256: FULL_PART_IMAGES[0] } };
+// The image a vault builds now: the BUILDER on main, not an entry of the list.
+const newImage = { ownImage: { plainSha256: BUILDER.plain.sha256 } };
 const oldImage = { ownImage: { plainSha256: 'f'.repeat(64) } };
 const twoParts = (first) => ({ pieceCid: 'baga-whole', size: first + 83e6, parts: [{ pieceCid: 'baga-1', size: first }, { pieceCid: 'baga-2', size: 83e6 }], copies: [] });
 
 describe('a backup part and the image that restores it', () => {
+	it('the image of the BUILDER on main, and every one built since 2026-11-17, takes a full part', () => {
+		// 2026-11-19: the list still named only the image before, so the newest one refused every backup with a full part.
+		expect(FULL_PART_IMAGES).toContain(BUILDER.plain.sha256);
+		expect(INCREMENTAL_IMAGES).toContain(BUILDER.plain.sha256);
+		for (const v of ownImageVersions().versions.filter((x) => x.since >= '2026-11-17')) expect(FULL_PART_IMAGES).toContain(v.plainSha256);
+	});
 	it('a full part needs an image from the list', () => {
 		expect(restoreFitsImage(oldImage, twoParts(1_000_420_000))).toBe(false);
 		expect(restoreFitsImage(newImage, twoParts(1_000_420_000))).toBe(true);
