@@ -178,7 +178,15 @@ export const v2 = {
 					paperless: { text: 'Deine Maschine startet, ihre Echtheit wird geprüft, deine Daten werden aufgeschlossen – gleich ist alles bereit.' }
 				},
 				nodes: { relay: 'Vermittler', node: 'Geschützte Maschine', aleph: 'Ablage', filecoin: 'Sicherungen' },
-				flow: { program: 'Auftrag für deine Werkstatt', report: 'Bestätigung des Prozessors', passphrase: 'Dein Schlüssel, verschlüsselt', pieces: 'Stücke deines versiegelten Paperless', image: 'Dein versiegeltes Paperless', instance: 'Auftrag für deine Maschine', vmReport: 'Bestätigung des Prozessors deiner Maschine' },
+				flow: { program: 'Auftrag für deine Werkstatt', report: 'Bestätigung des Prozessors', passphrase: 'Dein Schlüssel, verschlüsselt', pieces: 'Stücke deines versiegelten Paperless', image: 'Dein versiegeltes Paperless', instance: 'Auftrag für deine Maschine', vmReport: 'Bestätigung des Prozessors deiner Maschine', backup: 'Deine Sicherung', unlockKey: 'Dein Schlüssel zum Aufschließen' },
+				marks: {
+					measuring: 'prüft…', measured: 'geprüft', attested: 'echt', mismatch: 'nicht echt',
+					sealing: 'Schlüssel kommt an', sealed: 'mit deinem Schlüssel verschlossen',
+					lanes: (/** @type {number} */ n) => `${n} ${n === 1 ? 'Verbindung' : 'Verbindungen'} geprüft`,
+					signing: 'unterschreibt…', signed: 'von dir unterschrieben', stored: 'gespeichert',
+					vmMeasuring: 'prüft deine Maschine…', vmMeasured: 'Maschine geprüft', vmAttested: 'Maschine echt',
+					unlocking: 'Schlüssel kommt an', unlocked: 'aufgeschlossen'
+				},
 				retryNote: 'Die Verbindung ist abgerissen – kein Problem: Dein Paperless ist schon da, nur das Ablegen läuft noch einmal.',
 				tab: (/** @type {number} */ pct) => `${pct} % · Dein Paperless entsteht`,
 				leave: 'Dein Paperless entsteht gerade. Wenn du die Seite jetzt verlässt, bricht die Einrichtung ab.',
@@ -431,7 +439,15 @@ export const v2 = {
 					paperless: { text: 'Your machine starts, its authenticity is checked, your data is unlocked – everything is ready in a moment.' }
 				},
 				nodes: { relay: 'Go-between', node: 'Protected machine', aleph: 'Store', filecoin: 'Backups' },
-				flow: { program: 'Order for your workshop', report: 'The processor’s confirmation', passphrase: 'Your key, encrypted', pieces: 'Pieces of your sealed Paperless', image: 'Your sealed Paperless', instance: 'Order for your machine', vmReport: 'The confirmation of your machine’s processor' },
+				flow: { program: 'Order for your workshop', report: 'The processor’s confirmation', passphrase: 'Your key, encrypted', pieces: 'Pieces of your sealed Paperless', image: 'Your sealed Paperless', instance: 'Order for your machine', vmReport: 'The confirmation of your machine’s processor', backup: 'Your backup', unlockKey: 'Your key to unlock it' },
+				marks: {
+					measuring: 'checking…', measured: 'checked', attested: 'genuine', mismatch: 'not genuine',
+					sealing: 'key arriving', sealed: 'locked with your key',
+					lanes: (/** @type {number} */ n) => `${n} ${n === 1 ? 'connection' : 'connections'} checked`,
+					signing: 'signing…', signed: 'signed by you', stored: 'stored',
+					vmMeasuring: 'checking your machine…', vmMeasured: 'machine checked', vmAttested: 'machine genuine',
+					unlocking: 'key arriving', unlocked: 'unlocked'
+				},
 				retryNote: 'The connection dropped – no problem: your Paperless is already here, only putting it away runs once more.',
 				tab: (/** @type {number} */ pct) => `${pct} % · Your Paperless is being made`,
 				leave: 'Your Paperless is being made right now. If you leave the page now, the setup stops.',
