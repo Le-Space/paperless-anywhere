@@ -453,6 +453,8 @@ export function retentionFor(network, set) {
  * @type {readonly string[]}
  */
 export const INCREMENTAL_IMAGES = Object.freeze([
+	// Plain image of main cb933b9 backup tool f4df5d7 (2026-11-19).
+	'cce108fdbcda36dfe1e6824567bb8400274de60c8aee96b06234347a9e756fd2',
 	// Plain image of main 3e302a8, backup tool f4df5d7 (2026-11-18).
 	'36c034033e663d153447396b75faee56a513811f3e01ad03f243c173bdfe65b3',
 	// Plain image of main edb44b4, backup tool f4df5d7 (2026-11-17).
@@ -481,6 +483,8 @@ export const OLD_PART_LIMIT = 1_000_000_000;
  * @type {readonly string[]}
  */
 export const FULL_PART_IMAGES = Object.freeze([
+	// Plain image of main cb933b9 (2026-11-19).
+	'cce108fdbcda36dfe1e6824567bb8400274de60c8aee96b06234347a9e756fd2',
 	// Plain image of main 3e302a8 (2026-11-18).
 	'36c034033e663d153447396b75faee56a513811f3e01ad03f243c173bdfe65b3',
 	// Plain image of main edb44b4 (2026-11-17).
