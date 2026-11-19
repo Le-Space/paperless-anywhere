@@ -476,10 +476,13 @@ export const OLD_PART_LIMIT = 1_000_000_000;
  * (1,000,000,000 bytes before encryption, a little more as stored): rootfs
  * from 9d2da9b on. Older ones stop at OLD_PART_LIMIT, so a backup with such
  * a part never arrives there (2026-11-17: a start sat silent while the VM
- * tried in vain).
+ * tried in vain). Every image built since belongs here: the image of the
+ * BUILDER on main must be in it (restore-part-size.spec.js).
  * @type {readonly string[]}
  */
 export const FULL_PART_IMAGES = Object.freeze([
+	// Plain image of main 3e302a8 (2026-11-18).
+	'36c034033e663d153447396b75faee56a513811f3e01ad03f243c173bdfe65b3',
 	// Plain image of main edb44b4 (2026-11-17).
 	'1657c6a5ad6480f59c66e1e03841905e6ed0627b6c16da3d0c8c8d24c4bbd0ac'
 ]);
