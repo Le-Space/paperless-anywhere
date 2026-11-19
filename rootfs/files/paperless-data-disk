@@ -75,8 +75,9 @@ print(json.dumps({
 }))
 PY
 }
+swap_mib=0
 report() {
-  printf '{"status":"%s","reason":"%s","bytes":%s,"seconds":%s,"probe":%s}\n' "$1" "$2" "${3:-0}" "$(( $(date +%s) - started ))" "$(probe 2>/dev/null || echo null)" > "$state/data-disk.json"
+  printf '{"status":"%s","reason":"%s","bytes":%s,"swapMiB":%s,"seconds":%s,"probe":%s}\n' "$1" "$2" "${3:-0}" "$swap_mib" "$(( $(date +%s) - started ))" "$(probe 2>/dev/null || echo null)" > "$state/data-disk.json"
 }
 plain() {
   echo "paperless-data-disk: $1; the stack will not start on the shared-key rootfs" >&2
@@ -149,4 +150,21 @@ for path in /srv/paperless /var/lib/docker /var/lib/caddy /root/.local/share/cad
   chown --reference="$path" "$target" 2>/dev/null
   mount --bind "$target" "$path" || plain "bind mount of $path failed"
 done
+# Swap, 2 GiB, as a file on the sealed area: what is swapped out is
+# encrypted with the key that never leaves this VM, like everything else
+# here, and never touches the shared-key rootfs. Without swap a 4 GiB VM that
+# ran out of memory during a 1.1 GB restore stopped answering altogether
+# (2026-11-19). Only on an area of 8 GiB or more; a guest that cannot swap
+# (no kernel support) starts as before, without.
+swap="$mnt/swapfile"
+if [ "$size" -ge 8589934592 ] && ! grep -q "^$swap " /proc/swaps 2>/dev/null; then
+  rm -f "$swap"
+  if { fallocate -l 2G "$swap" 2>/dev/null || dd if=/dev/zero of="$swap" bs=1M count=2048 2>/dev/null; } \
+    && chmod 600 "$swap" && mkswap "$swap" >/dev/null 2>&1 && swapon "$swap" 2>/dev/null; then
+    swap_mib=2048
+  else
+    swapoff "$swap" 2>/dev/null; rm -f "$swap"
+    echo "paperless-data-disk: no swap on the sealed area; going on without" >&2
+  fi
+fi
 report encrypted "${spare:-file}" "$size"
