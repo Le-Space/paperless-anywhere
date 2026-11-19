@@ -73,6 +73,12 @@ export const life = {
 			network: 'Port 443 und Adresse',
 			withoutBackups: (/** @type {string} */ reason) => `Ohne Sicherungen: ${reason}`,
 			unlock: 'VM prüfen (AMD) und entsperren',
+			unlockPhase: {
+				attest: 'Die VM wird geprüft (AMD)',
+				attestTry: (/** @type {number} */ n, /** @type {number} */ of) => `Die VM wird geprüft (AMD), Versuch ${n} von ${of}`,
+				wait: 'Die VM antwortet noch nicht; die App fragt in 10 s wieder',
+				unlock: 'Passphrase und Geheimnisse werden signiert übergeben'
+			},
 			alreadyUnlocked: 'schon entsperrt',
 			unlocked: 'entsperrt',
 			starting: 'Paperless startet',
@@ -223,6 +229,12 @@ export const life = {
 			network: 'Port 443 and address',
 			withoutBackups: (/** @type {string} */ reason) => `Without backups: ${reason}`,
 			unlock: 'Checking the VM (AMD) and unlocking',
+			unlockPhase: {
+				attest: 'Checking the VM (AMD)',
+				attestTry: (/** @type {number} */ n, /** @type {number} */ of) => `Checking the VM (AMD), try ${n} of ${of}`,
+				wait: 'The VM does not answer yet; the app asks again in 10 s',
+				unlock: 'Handing over the passphrase and secrets, signed'
+			},
 			alreadyUnlocked: 'already unlocked',
 			unlocked: 'unlocked',
 			starting: 'Paperless is starting',

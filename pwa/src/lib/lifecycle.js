@@ -24,6 +24,7 @@ import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from
 import { relayTransports } from './attest-p2p.js';
 import { backupFacts, pieceCidOfStop, reportedMarks, restoreFitsImage, vaultBound, vmBackupSecrets, withVaultBackups } from './backups.js';
 import { attestRelaysFor, relayUsed } from './relays.js';
+import { unlockDetail } from './unlock-progress.js';
 import { updateProfile, vmPayer } from './profile.js';
 import { ALEPH_API, readFetch } from './aleph.js';
 import { format, tr } from './i18n/index.js';
@@ -659,7 +660,7 @@ async function bringUp(master, profile, starting, wasm, onProgress, { resumed = 
 			passphrase: profile.luksPassphrase,
 			secrets,
 			sign: (payload) => app.signMessage({ message: payload }),
-			onProgress: ({ detail, phase }) => report({ step: 'unlock', detail, phase })
+			onProgress: ({ detail, phase }) => report({ step: 'unlock', detail: unlockDetail({ phase, detail }), phase })
 		});
 	};
 	// A resumed start may find the VM unlocked already: its status page answers

@@ -11,8 +11,8 @@
 /** @typedef {{ action?: string, step?: string, message: string, at: number }} LastError */
 /** @typedef {{ phase?: string, instanceHash?: string | null, node?: string | null, host?: string | null, relay?: string | null, image?: 'own' | 'public' | null, network?: string | null, pays?: string | null, payer?: string | null }} State */
 
-/** @type {{ state: State, error: LastError | null }} */
-const kept = { state: {}, error: null };
+/** @type {{ state: State, error: LastError | null, wait: { message: string, at: number } | null }} */
+const kept = { state: {}, error: null, wait: null };
 
 /** What the Paperless card shows now (Lifecycle.svelte). @param {State} state */
 export function noteState(state) {
@@ -25,10 +25,20 @@ export function noteError(e) {
 	kept.error = { action: e.action, step: e.step, message: String(e.message), at: e.at ?? Date.now() };
 }
 
+/**
+ * Why the attestation library waited last (its own words, e.g. "WebSocket to
+ * … failed"): the start shows a sentence of the app's, this keeps the detail.
+ * @param {string} message
+ */
+export function noteWait(message, at = Date.now()) {
+	if (message) kept.wait = { message: String(message), at };
+}
+
 /** For tests: forget what was noted. */
 export function resetDiagnosis() {
 	kept.state = {};
 	kept.error = null;
+	kept.wait = null;
 }
 
 const HEX64 = /^[0-9a-f]{64}$/i;
@@ -48,7 +58,7 @@ export function scrub(text) {
 		.replace(/\bbearer\s+\S+/gi, 'Bearer [hidden]')
 		.replace(/\b(token|authorization|passphrase|password|secret|key)\s*[:=]\s*("[^"]*"|'[^']*'|\S+)/gi, '$1: [hidden]')
 		.replace(/\b[\w.+-]+@[\w-]+(\.[\w-]+)+\b/g, '[mail]')
-		.replace(/(https?:\/\/[^\s?#"']+)[?#][^\s"']*/gi, '$1')
+		.replace(/((?:https?|wss?):\/\/[^\s?#"']+)[?#][^\s"']*/gi, '$1')
 		.replace(/\b0x[0-9a-f]{40}\b/gi, (a) => shortAddress(a) ?? '[address]')
 		.replace(/\b0x[0-9a-f]{41,}\b/gi, '[hex]')
 		// 12 or more lowercase words in a row look like a recovery phrase.
@@ -71,9 +81,9 @@ export function browserOf(ua) {
 /**
  * The diagnosis as lines of text. Only values that look like what they claim
  * are taken; everything free passes `scrub`.
- * @param {{ build: { version?: string, commit?: string, time?: string }, cid?: string, unlocked?: boolean, state?: State, error?: LastError | null, userAgent?: string, now?: number, lang?: string }} a
+ * @param {{ build: { version?: string, commit?: string, time?: string }, cid?: string, unlocked?: boolean, state?: State, error?: LastError | null, wait?: { message: string, at: number } | null, userAgent?: string, now?: number, lang?: string }} a
  */
-export function diagnosisText({ build, cid = '', unlocked = false, state = kept.state, error = kept.error, userAgent = globalThis.navigator?.userAgent ?? '', now = Date.now(), lang = '' }) {
+export function diagnosisText({ build, cid = '', unlocked = false, state = kept.state, error = kept.error, wait = kept.wait, userAgent = globalThis.navigator?.userAgent ?? '', now = Date.now(), lang = '' }) {
 	const lines = ['Paperless anywhere – diagnosis'];
 	const add = (/** @type {string} */ k, /** @type {unknown} */ v) => {
 		if (v !== undefined && v !== null && v !== '') lines.push(`${k}: ${v}`);
@@ -102,5 +112,9 @@ export function diagnosisText({ build, cid = '', unlocked = false, state = kept.
 		add('error step', error.step ? scrub(error.step) : null);
 		add('error', scrub(error.message));
 	} else add('error', 'none noted in this tab');
+	if (wait) {
+		add('last wait at', new Date(wait.at).toISOString());
+		add('last wait', scrub(wait.message));
+	}
 	return lines.join('\n');
 }
