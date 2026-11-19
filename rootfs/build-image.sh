@@ -88,6 +88,10 @@ install -m 644 "$work/backup-tool/dist/piece-cid.mjs" "$root/opt/backup-filecoin
 
 install -D -m 644 "$here/files/daemon.json" "$root/etc/docker/daemon.json"
 install -D -m 644 "$here/files/compose.yml" "$root/opt/paperless/compose.yml"
+# What this image can do, for the app and the build's summary
+# (rootfs-capabilities.spec.js keeps it true to the scripts). Under /usr, not
+# /etc/paperless-anywhere: paperless-data-disk moves that onto the sealed area.
+install -D -m 644 "$here/files/capabilities.json" "$root/usr/share/paperless-anywhere/capabilities.json"
 install -D -m 644 "$here/files/Caddyfile" "$root/etc/caddy/Caddyfile"
 install -D -m 644 "$here/files/paperless-stack.service" "$root/etc/systemd/system/paperless-stack.service"
 install -D -m 644 "$here/files/docker.service" "$root/etc/systemd/system/docker.service"
