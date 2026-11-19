@@ -72,6 +72,7 @@
 			case 'left': return x.left(v.minutes * 60);
 			case 'endsAt': return x.endsAt(v.time);
 			case 'tab': return x.tab(v.pct);
+			case 'marks.lanes': return x.marks?.lanes ? x.marks.lanes(v.count) : '';
 			case 'evidenceNone':
 			case 'evidenceNoneStopped':
 			case 'cameBack':
@@ -80,6 +81,8 @@
 		const [head, ...rest] = key.split('.');
 		const root = head === 'places' ? x.nodes : /** @type {any} */ (x)[head];
 		const found = rest.reduce((/** @type {any} */ o, k) => o?.[k], root);
+		// A note on the picture Paperless has no words for stays out.
+		if (head === 'marks') return typeof found === 'string' ? found : '';
 		return typeof found === 'string' ? found : key;
 	}
 </script>

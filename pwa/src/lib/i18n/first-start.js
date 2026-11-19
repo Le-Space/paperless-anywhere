@@ -55,7 +55,15 @@ export const first = {
 		rate: (/** @type {string} */ r) => `${r} MiB/s`,
 		flowTitle: 'Was gerade wohin fließt',
 		nodes: { browser: 'Dein Browser', relay: 'Relay', node: 'Vertraulicher Knoten', aleph: 'Aleph-Speicher', filecoin: 'Filecoin' },
-		flow: { program: 'Auftrag für den Build-Dienst', report: 'Bericht des Prozessors', passphrase: 'Passphrase, verschlüsselt', pieces: 'Stücke deines versiegelten Images', image: 'Dein versiegeltes Image', instance: 'Auftrag für deine VM', vmReport: 'Bericht des Prozessors deiner VM', backup: 'Deine Sicherung' },
+		flow: { program: 'Auftrag für den Build-Dienst', report: 'Bericht des Prozessors', passphrase: 'Passphrase, verschlüsselt', pieces: 'Stücke deines versiegelten Images', image: 'Dein versiegeltes Image', instance: 'Auftrag für deine VM', vmReport: 'Bericht des Prozessors deiner VM', backup: 'Deine Sicherung', unlockKey: 'Schlüssel zum Entsperren' },
+		marks: {
+			measuring: 'misst…', measured: 'gemessen', attested: 'Bericht geprüft', mismatch: 'stimmt nicht',
+			sealing: 'Schlüssel kommt an', sealed: 'mit deinem Schlüssel versiegelt',
+			lanes: (/** @type {number} */ n) => `${n} ${n === 1 ? 'Verbindung' : 'Verbindungen'} geprüft`,
+			signing: 'signiert…', signed: 'von dir signiert', stored: 'gespeichert',
+			vmMeasuring: 'misst deine VM…', vmMeasured: 'VM gemessen', vmAttested: 'VM geprüft',
+			unlocking: 'Schlüssel kommt an', unlocked: 'entsperrt'
+		},
 		evidenceTitle: 'Belege – zum Nachprüfen',
 		evidence: { commit: 'Quelltext-Stand', plain: 'Ausgangs-Image (SHA-256)', expected: 'Erwarteter Messwert (in der App)', vprogram: 'Build-Dienst (V-PROGRAM)', node: 'Knoten', relay: 'Relay', measured: 'Gemessen vom AMD-Prozessor', cid: 'Inhaltsadresse deines Images', store: 'Dein Image bei Aleph (STORE)', instance: 'Deine VM (INSTANCE)', vmMeasured: 'Messwert deiner VM (AMD)' },
 		matches: 'stimmt',
@@ -141,7 +149,15 @@ export const first = {
 		rate: (/** @type {string} */ r) => `${r} MiB/s`,
 		flowTitle: 'What is flowing where right now',
 		nodes: { browser: 'Your browser', relay: 'Relay', node: 'Confidential node', aleph: 'Aleph storage', filecoin: 'Filecoin' },
-		flow: { program: 'Order for the builder', report: 'The processor’s report', passphrase: 'Passphrase, encrypted', pieces: 'Pieces of your sealed image', image: 'Your sealed image', instance: 'Order for your VM', vmReport: 'The report of your VM’s processor', backup: 'Your backup' },
+		flow: { program: 'Order for the builder', report: 'The processor’s report', passphrase: 'Passphrase, encrypted', pieces: 'Pieces of your sealed image', image: 'Your sealed image', instance: 'Order for your VM', vmReport: 'The report of your VM’s processor', backup: 'Your backup', unlockKey: 'Key to unlock' },
+		marks: {
+			measuring: 'measuring…', measured: 'measured', attested: 'report checked', mismatch: 'does not match',
+			sealing: 'key arriving', sealed: 'sealed with your key',
+			lanes: (/** @type {number} */ n) => `${n} ${n === 1 ? 'connection' : 'connections'} checked`,
+			signing: 'signing…', signed: 'signed by you', stored: 'stored',
+			vmMeasuring: 'measuring your VM…', vmMeasured: 'VM measured', vmAttested: 'VM checked',
+			unlocking: 'key arriving', unlocked: 'unlocked'
+		},
 		evidenceTitle: 'Evidence – to check yourself',
 		evidence: { commit: 'Source at', plain: 'Base image (SHA-256)', expected: 'Expected measurement (in the app)', vprogram: 'Builder (V-PROGRAM)', node: 'Node', relay: 'Relay', measured: 'Measured by the AMD processor', cid: 'Your image’s content address', store: 'Your image on Aleph (STORE)', instance: 'Your VM (INSTANCE)', vmMeasured: 'Your VM’s measurement (AMD)' },
 		matches: 'matches',

@@ -58,9 +58,12 @@ describe('what the full screen shows besides the stations', () => {
 
 	it('says what flows where, with how far the fetch is', () => {
 		const now = (/** @type {string} */ station, /** @type {any} */ facts) => flowNow({ stations: STATIONS, station, facts });
-		expect(now('fetch', { got: 434 * 1048576, size: 868 * 1048576 })).toEqual({ path: ['node', 'relay', 'browser'], what: 'pieces', share: 0.5 });
+		expect(now('fetch', { got: 434 * 1048576, size: 868 * 1048576 })).toEqual({ path: ['node', 'relay', 'browser'], what: 'pieces', share: 0.5, kind: 'data' });
 		expect(now('seal', {}).path).toEqual(['browser', 'relay', 'node']);
+		expect(now('seal', {}).kind).toBe('key');
 		expect(now('paperless', { vmStep: 'ready' }).what).toBe('backup');
+		// The VM's report checked, the key that unlocks it goes to the VM.
+		expect(now('paperless', { vmStep: 'unlock', vmMeasurement: 'ab'.repeat(48) })).toMatchObject({ what: 'unlockKey', kind: 'key', path: ['browser', 'relay', 'node'] });
 	});
 
 	it('measures the fetch’s speed and counts the time left from it', () => {
