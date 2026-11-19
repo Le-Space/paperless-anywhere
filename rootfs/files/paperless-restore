@@ -50,6 +50,19 @@ mkdir -p "$state_dir" "$log_dir" /var/lib/paperless-anywhere
 chmod 700 "$log_dir"
 log="$log_dir/restore.log"
 
+# Memory, for the outcome: MemAvailable at the start, before and after the
+# import, the swap, and how many processes the kernel's OOM killer ended
+# meanwhile (/proc/vmstat oom_kill). A restore that dies then names why.
+meminfo() { [ -r /proc/meminfo ] || { echo "0 0 0"; return; }; awk '/^MemAvailable:/ { a = $2 } /^SwapTotal:/ { t = $2 } /^SwapFree:/ { f = $2 } END { printf "%d %d %d\n", a / 1024, t / 1024, (t - f) / 1024 }' /proc/meminfo; }
+oomkills() { [ -r /proc/vmstat ] || { echo 0; return; }; awk '$1 == "oom_kill" { print $2; found = 1 } END { if (!found) print 0 }' /proc/vmstat 2>/dev/null; }
+# Not `set --` out here: that would replace the script's own arguments.
+mem_start="$(meminfo | cut -d" " -f1)"; mem_import=""
+oom_start="$(oomkills)"
+memory() {
+  set -- $(meminfo)
+  printf ',"memory":{"availableMiBAtStart":%s,"availableMiBBeforeImport":%s,"availableMiBNow":%s,"swapMiB":%s,"swapUsedMiB":%s,"oomKills":%s}' \
+    "${mem_start:-0}" "${mem_import:-null}" "$1" "$2" "$3" "$(( $(oomkills) - ${oom_start:-0} ))"
+}
 status() { # status <state> [extra json fields]
   printf '{"status":"%s","at":"%s"%s}\n' "$1" "$(date -u +%FT%TZ)" "${2:-}" > "$state.tmp" && mv "$state.tmp" "$state"
 }
@@ -73,7 +86,7 @@ for l in lines:
 print(found[-1] if found else "")
 WHY
 )"
-  status failed ",\"reason\":\"$(printf '%s' "$*" | tr -d '"\\\n' | cut -c1-200)\",\"error\":\"$(printf '%s' "$why" | tr -d '"\\\n' | cut -c1-200)\""
+  status failed ",\"reason\":\"$(printf '%s' "$*" | tr -d '"\\\n' | cut -c1-200)\",\"error\":\"$(printf '%s' "$why" | tr -d '"\\\n' | cut -c1-200)\"$(memory)"
   exit 1
 }
 forget_secrets() {
@@ -84,7 +97,23 @@ forget_secrets() {
     rm -f "$f"
   done
 }
+# Tika and Gotenberg convert documents while Paperless consumes them; the
+# importer needs neither. They hold well over a gigabyte together (Tika's JVM
+# takes a quarter of the memory by default), and a 1.1 GB import beside them
+# left a 4 GiB VM without memory (2026-11-19: the whole VM stopped answering).
+# So they pause for the import and start again afterwards, whatever happened.
+paused=""
+pause_helpers() {
+  docker compose --project-directory /opt/paperless stop tika gotenberg >>"$log" 2>&1 && paused=1
+}
+resume_helpers() {
+  [ -n "$paused" ] || return 0
+  docker compose --project-directory /opt/paperless start gotenberg tika >>"$log" 2>&1 \
+    || echo "paperless-restore: Tika/Gotenberg did not start again; paperless-stack-up's next start brings them" >&2
+  paused=""
+}
 cleanup() {
+  resume_helpers
   forget_secrets
   rm -rf "$work"
 }
@@ -448,7 +477,10 @@ done
 count="$(paperless-manage shell -c 'from documents.models import Document; print("count", Document.global_objects.count() if hasattr(Document, "global_objects") else Document.objects.count())' 2>>"$log" | sed -n 's/^count //p' | tail -1)"
 [ "$count" = 0 ] || fail "Paperless is not empty (${count:-unknown} documents); refusing to import over it"
 
+pause_helpers || echo "paperless-restore: could not pause Tika/Gotenberg; importing beside them" >&2
+mem_import="$(meminfo | cut -d" " -f1)"
 paperless-manage document_importer ../export/restore/import --no-progress-bar >>"$log" 2>&1 || fail "document_importer failed (see $log)"
+resume_helpers
 t4=$(date +%s)
 # A snapshot's folder is what the next incremental backup starts from: the
 # exporter updates it in place (only what changed is rewritten).
@@ -507,5 +539,5 @@ documents="${counts%% *}"; trash="${counts##* }"
 # What was restored needs no new backup: the first check compares against it.
 paperless-backup fingerprint > /var/lib/paperless-anywhere/backed-up.fingerprint 2>>"$log" || true
 
-status done ",\"backup\":\"$name\",\"provider\":\"$got\",\"documents\":${documents:-0},\"trash\":${trash:-0},\"mail_rules\":\"$mail\",\"admin\":\"${admin:-unknown}\",\"superusers\":${superusers:-0},\"mark\":\"${mark:-unknown}\",\"role\":\"$role\",\"seconds\":{\"download\":$((t2 - t1)),\"decrypt\":$((t3 - t2)),\"import\":$((t4 - t3)),\"total\":$((t4 - t0))}"
+status done ",\"backup\":\"$name\",\"provider\":\"$got\",\"documents\":${documents:-0},\"trash\":${trash:-0},\"mail_rules\":\"$mail\",\"admin\":\"${admin:-unknown}\",\"superusers\":${superusers:-0},\"mark\":\"${mark:-unknown}\",\"role\":\"$role\",\"seconds\":{\"download\":$((t2 - t1)),\"decrypt\":$((t3 - t2)),\"import\":$((t4 - t3)),\"total\":$((t4 - t0))}$(memory)"
 echo "paperless-restore: $name restored, ${documents:-?} documents, mail rules $mail, admin ${admin:-unknown}"

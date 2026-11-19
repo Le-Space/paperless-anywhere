@@ -72,6 +72,11 @@ on:
         default: marked
         type: choice
         options: [marked, unmarked]
+      big_mib:
+        description: 'A large backup: VM 1 also holds made-up documents of this many MiB (random bytes, incompressible), so the backup comes in parts and VM 2 restores it as Nico''s 1.1 GB one. 0: only the 5 small documents.'
+        required: false
+        default: '0'
+        type: string
 
 permissions:
   contents: read
@@ -86,6 +91,7 @@ env:
   ITEM: ${{ inputs.rootfs_item_hash }}
   CRN: ${{ inputs.crn }}
   MARK: ${{ inputs.mark || 'marked' }}
+  BIG_MIB: ${{ inputs.big_mib || '0' }}
   NAME: paperless-roundtrip-${{ github.run_id }}
   BACKUP_TOOL_COMMIT: d18de88e12ab69dd929b7c5e41047138cb853fa3
   FIXED_ADDRESS: ${{ secrets.CLOUDFLARE_DNS_TOKEN != '' && 'yes' || '' }}
@@ -104,6 +110,7 @@ jobs:
           BUILDER_CRN: ${{ inputs.builder_crn }}
           PLAIN_SHA256: ${{ inputs.plain_sha256 }}
         run: |
+          [[ "$BIG_MIB" =~ ^[0-9]{1,4}$ ]] && [ "$BIG_MIB" -le 3000 ] || { echo "::error::big_mib is a number of MiB, 0 to 3000"; exit 1; }
           if [ -n "$BUILDER" ]; then
             for v in "$BUILDER" "$BUILDER_CRN" "$PLAIN_SHA256"; do [[ "$v" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::builder, builder_crn and plain_sha256 are 64 hex"; exit 1; }; done
           else
@@ -291,9 +298,33 @@ jobs:
           done
           EOS
           for i in $(seq 1 60); do [ "$($SSH 'ls /srv/paperless/consume | wc -l')" = 0 ] && break; sleep 10; done
+          # A large backup: made-up documents of 50 MiB of random bytes each,
+          # written straight into Paperless (no OCR, nothing to compress), so
+          # the backup has the size of a real one and comes in parts.
+          big=$(( (BIG_MIB + 49) / 50 ))
+          if [ "$big" -gt 0 ]; then
+            $SSH "paperless-manage shell -c '
+          import hashlib, os
+          from documents.models import Document
+          from django.conf import settings
+          for i in range($big):
+              name = \"roundtrip-big-%03d.pdf\" % i
+              digest = hashlib.md5()
+              with open(os.path.join(settings.ORIGINALS_DIR, name), \"wb\") as f:
+                  for _ in range(50):
+                      chunk = os.urandom(1048576)
+                      digest.update(chunk)
+                      f.write(chunk)
+              d = Document.objects.create(title=\"Made-up large document %d\" % i, content=\"Made-up document for a large round trip.\", mime_type=\"application/pdf\", checksum=digest.hexdigest(), filename=name)
+              with open(d.thumbnail_path, \"wb\") as t:
+                  t.write(os.urandom(2048))
+          print(\"made\", $big)
+          '"
+          fi
+          echo "EXPECT_DOCS=$(( 5 + big ))" >> "$GITHUB_ENV"; EXPECT_DOCS=$(( 5 + big ))
           docs="$($SSH 'paperless-backup fingerprint' | jq -r .documents)"
           echo "documents in VM 1: $docs"
-          [ "$docs" = 5 ] || { echo "::error::VM 1 has $docs documents, expected 5"; exit 1; }
+          [ "$docs" = "$EXPECT_DOCS" ] || { echo "::error::VM 1 has $docs documents, expected $EXPECT_DOCS"; exit 1; }
           start=$(date +%s)
           $SSH 'paperless-backup run' || { $SSH 'cat /run/paperless-anywhere/backup.json; tail -40 /var/log/paperless-anywhere/backup.log' | grep -vE 'AGE-SECRET|0x[0-9a-fA-F]{64}'; echo "::error::the backup failed"; exit 1; }
           $SSH 'cat /run/paperless-anywhere/backup.json'
@@ -359,7 +390,7 @@ jobs:
           SSH="ssh -i $RUNNER_TEMP/rt_ed25519 -p $PORT -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@$HOST"
           wait_ssh "$hash" "$RUNNER_TEMP/secrets2.args" || exit 1
           result=""
-          for i in $(seq 1 120); do
+          for i in $(seq 1 $(( BIG_MIB > 0 ? 240 : 120 ))); do
             result="$($SSH 'cat /run/paperless-anywhere/restore.json 2>/dev/null' || true)"
             case "$(jq -r '.status // empty' <<<"$result" 2>/dev/null)" in done|failed|skipped) break ;; esac
             sleep 15
@@ -367,7 +398,9 @@ jobs:
           echo "$result" | jq .
           echo "RESTORE=$(jq -c . <<<"$result")" >> "$GITHUB_ENV"
           [ "$(jq -r .status <<<"$result")" = done ] || { $SSH 'tail -15 /var/log/paperless-anywhere/restore.log' | grep -vE 'AGE-SECRET' || true; echo "::error::restore did not complete"; exit 1; }
-          [ "$(jq -r .documents <<<"$result")" = 5 ] || { echo "::error::VM 2 has $(jq -r .documents <<<"$result") documents, expected 5"; exit 1; }
+          [ "$(jq -r .documents <<<"$result")" = "$EXPECT_DOCS" ] || { echo "::error::VM 2 has $(jq -r .documents <<<"$result") documents, expected $EXPECT_DOCS"; exit 1; }
+          # The helpers paused for the import are back, and the VM still has memory.
+          $SSH 'docker compose --project-directory /opt/paperless ps --format "{{.Service}} {{.State}}"; grep -E "^(MemAvailable|SwapTotal|SwapFree):" /proc/meminfo'
           want_mark=verified; [ "$MARK" = unmarked ] && want_mark=accepted
           [ "$(jq -r .mark <<<"$result")" = "$want_mark" ] || { echo "::error::VM 2's restore says mark $(jq -r .mark <<<"$result"), expected $want_mark"; exit 1; }
           $SSH 'test -e /tmp/secrets/age_identity && echo "AGE IDENTITY STILL THERE" || echo "age identity removed"; ls /srv/paperless/export'
@@ -386,7 +419,7 @@ jobs:
             $SSH "openssl x509 -checkend 86400 -noout -in /etc/paperless-anywhere/tls/certificates/$FIXED_NAME.crt" >/dev/null || { echo "::error::VM 2 has no valid certificate for the fixed address"; exit 1; }
             if [ -n "$serial" ] && [ "$serial" = "$VM1_SERIAL" ]; then echo "CERT_REUSED=yes" >> "$GITHUB_ENV"; else echo "CERT_REUSED=no (a new one)" >> "$GITHUB_ENV"; fi
           fi
-          echo "round trip: 5 made-up documents backed up from VM 1 and restored in VM 2"
+          echo "round trip: $EXPECT_DOCS made-up documents ($BIG_MIB MiB large ones) backed up from VM 1 and restored in VM 2"
 
       - name: Revoke the session key
         if: always() && steps.keys.outputs.session != ''
@@ -407,6 +440,7 @@ jobs:
             echo "| VM 1 up (create + unlock) | ${VM1_UP:-?} s |"
             echo "| Backup with the session key | ${BACKUP_SECONDS:-?} s |"
             echo "| The vault's mark | ${MARK:-marked} |"
+            echo "| Large made-up documents | ${BIG_MIB:-0} MiB |"
             echo "| Restore in VM 2 | \`${RESTORE:-none}\` |"
             [ -z "$FIXED_ADDRESS" ] || echo "| Fixed address: certificate from the backup | ${CERT_REUSED:-no} |"
           } >> "$GITHUB_STEP_SUMMARY"
