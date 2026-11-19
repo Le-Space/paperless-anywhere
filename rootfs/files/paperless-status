@@ -64,6 +64,11 @@ def read(name):
         return None
 restore, backup, stop, data_disk, fixed = read("restore.json"), read("backup.json"), read("stop.json"), read("data-disk.json"), read("fixed-address.json")
 net = read("net-hardening.json")
+# What this image can do (build-image.sh installs it read-only).
+try:
+    capabilities = json.load(open("/usr/share/paperless-anywhere/capabilities.json"))
+except Exception:
+    capabilities = None
 # The backup tool's last retention plan (paperless-backup): which backups stay
 # and why, which it scheduled for removal. Piece CIDs, dates, sizes; private page only.
 retention = read("retention.json")
@@ -194,7 +199,7 @@ def waiting():
 wait = waiting()
 stop_reason = (stop.get("reason") if stop.get("reason") in ("app", "period-end") else "app") if stop and phase in ("stopping", "stopped", "stop-partial", "stop-failed") else None
 public = {"v": 2, "phase": phase, "paperless": up, **({"stopReason": stop_reason} if stop_reason else {}), **({"waiting": wait} if wait else {}), "at": now}
-full = {"v": 2, "phase": phase, "waiting": wait, "stopReason": stop_reason, "periodEnd": period_end(), "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "lastBackup": last, "backupSchedule": schedule, "backupRequest": request, "backupMarks": marks, "retention": retention, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "netHardening": net, "disks": disks, "memory": memory(), "storage": storage(), "at": now}
+full = {"v": 2, "phase": phase, "waiting": wait, "stopReason": stop_reason, "periodEnd": period_end(), "paperless": up, "start": {"images": images, "imagesTotal": total, "containers": running, "timeline": timeline}, "restore": restore, "backup": backup, "lastBackup": last, "backupSchedule": schedule, "backupRequest": request, "backupMarks": marks, "retention": retention, "stop": stop, "dataDisk": data_disk, "fixedAddress": fixed, "netHardening": net, "disks": disks, "memory": memory(), "storage": storage(), "capabilities": capabilities, "at": now}
 # The details only at a path the app that started this VM derives from its
 # vault (the status_token secret); the public page says no more than the phase.
 token = ""

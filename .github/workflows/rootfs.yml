@@ -162,6 +162,11 @@ jobs:
           sha="$(sha256sum "$plain" | cut -d' ' -f1)"
           echo "sha256=$sha" >> "$GITHUB_OUTPUT"
           echo "bytes=$bytes" >> "$GITHUB_OUTPUT"
+          # What the image says it can do, read from the image itself.
+          caps="$(debugfs -R 'cat /usr/share/paperless-anywhere/capabilities.json' "$RUNNER_TEMP/paperless.ext4" 2>/dev/null | jq -c .)" \
+            || { echo "::error::the image carries no capabilities.json"; exit 1; }
+          echo "capabilities=$caps" >> "$GITHUB_OUTPUT"
+          echo "PLAIN_CAPABILITIES=$caps" >> "$GITHUB_ENV"
 
           dir="$RUNNER_TEMP/plain-store"
           mkdir -p "$dir"
@@ -254,6 +259,7 @@ jobs:
               echo "| SHA-256 (of the image, unpacked) | \`${PLAIN_SHA256}\` |"
               echo "| Size | $(( ${PLAIN_PUBLISHED_BYTES:-0} / 1048576 )) MiB; stored gzipped, $(( ${PLAIN_STORED_BYTES:-0} / 1048576 )) MiB |"
               echo "| Built from | commit \`${GITHUB_SHA}\` |"
+              echo "| Capabilities | \`${PLAIN_CAPABILITIES:-none}\` |"
               echo "| Provenance | ${PROVENANCE:-none: GitHub signs it only for a public repository} |"
             fi
             if [ -s "$RUNNER_TEMP/image-key.age" ] && [ -n "$STORE" ]; then
