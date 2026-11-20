@@ -16,6 +16,9 @@ name: Paperless backup and restore round trip
 # address (#26): VM 1 orders its certificate over DNS, the backup carries it,
 # and VM 2 must come up with the same certificate (same serial) instead of
 # ordering a new one. The run deletes the name's records at the end.
+# With it the run also reads each VM's status page as the app does, over the
+# VM's 2n6 name (public page and the one at the status token's path): right
+# after the unlock, so during the restore on VM 2, and after it.
 #
 # With "builder" (step 6 of #202), both VMs run an image of their own instead
 # of "rootfs_item_hash": the app's own code has that builder seal the image
@@ -214,6 +217,42 @@ jobs:
             return 1
           }
           EOS
+          # The status page as the app reads it (pwa/src/lib/vm.js: hostname,
+          # vmStatus): the VM's 2n6 name from 2n6, then the public page and the
+          # detailed one at the status token's path. Never over SSH: on
+          # 2026-11-19 and -20 two starts had a VM that ran and no status page,
+          # and a run that reads the VM's files over SSH cannot see that.
+          # status_page <hash> <seconds>: 0 once both pages answer (STATUS_PUBLIC,
+          # STATUS_FULL, STATUS_AFTER), 1 when they do not within that time.
+          # Only with a fixed address: without a name the image serves no page.
+          openssl rand -hex 16 > "$RUNNER_TEMP/status.token"
+          cat > "$RUNNER_TEMP/status_page.sh" <<'EOS'
+          status_page() {
+            STATUS_PUBLIC=""; STATUS_FULL=""; STATUS_AFTER=""
+            [ -n "$FIXED_ADDRESS" ] || { echo "no fixed address in this run: no status page to read"; return 0; }
+            local token name t0
+            token="$(cat "$RUNNER_TEMP/status.token")"; t0=$(date +%s)
+            while [ $(( $(date +%s) - t0 )) -lt "$2" ]; do
+              name="$(curl -fs --max-time 15 "https://api.2n6.me/api/hash/$1" | jq -r '.subdomain // .url // empty' 2>/dev/null | sed -e 's#^https://##' -e 's#/$##' || true)"
+              case "$name" in "") ;; *.*) ;; *) name="$name.2n6.me" ;; esac
+              if printf '%s' "$name" | grep -qE '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.2n6\.me$'; then
+                STATUS_PUBLIC="$(curl -fs --max-time 15 "https://$name/anywhere/status.json" || true)"
+                STATUS_FULL="$(curl -fs --max-time 15 "https://$name/anywhere/s/$token.json" || true)"
+                if jq -e '.phase' <<<"$STATUS_PUBLIC" >/dev/null 2>&1 && jq -e '.phase' <<<"$STATUS_FULL" >/dev/null 2>&1; then
+                  STATUS_AFTER=$(( $(date +%s) - t0 ))
+                  # In public only the phase: nothing of the restore, the backups or the disks.
+                  extra="$(jq -r 'keys - ["v","phase","paperless","stopReason","waiting","at"] | join(" ")' <<<"$STATUS_PUBLIC")"
+                  [ -z "$extra" ] || { echo "::error::the public status page also says: $extra"; return 1; }
+                  echo "status page over the 2n6 name after $STATUS_AFTER s: $(jq -c '{phase, waiting}' <<<"$STATUS_PUBLIC")"
+                  return 0
+                fi
+              fi
+              sleep 10
+            done
+            echo "::error::no status page over the 2n6 name within $2 s (the app gives up after 20 minutes)"
+            return 1
+          }
+          EOS
           echo "payer=$payer" >> "$GITHUB_OUTPUT"
 
       - name: The fixed address (only with the CLOUDFLARE_DNS_TOKEN secret)
@@ -254,7 +293,7 @@ jobs:
           echo "hash=$hash" >> "$GITHUB_OUTPUT"
           ok=""
           umask 077
-          printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=test" \
+          printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=test" --secret "status_token=$(cat "$RUNNER_TEMP/status.token")" \
             --secret "backup_config=$(cat "$RUNNER_TEMP/backup_config.json")" --secret "backup_session_key=$(cat "$RUNNER_TEMP/session.key")" \
             > "$RUNNER_TEMP/secrets1.args"
           # Without the mark key VM 1 makes a backup as images before the mark did.
@@ -267,6 +306,9 @@ jobs:
             tail -2 "$RUNNER_TEMP/unlock1.log" | grep -v -i secret; sleep 20
           done
           [ -n "$ok" ] || { echo "::error::VM 1 could not be unlocked"; exit 1; }
+          # A start without a restore: the page answers while the stack comes up.
+          . "$RUNNER_TEMP/status_page.sh"; status_page "$hash" 900 || exit 1
+          [ -z "$STATUS_AFTER" ] || echo "VM1_STATUS=$STATUS_AFTER s, $(jq -c '{phase, waiting}' <<<"$STATUS_PUBLIC")" >> "$GITHUB_ENV"
           echo "VM1_UP=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
 
       - name: VM 1 - wait for the stack, import made-up documents, back up
@@ -367,7 +409,7 @@ jobs:
           echo "hash=$hash" >> "$GITHUB_OUTPUT"
           ok=""
           umask 077
-          printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=test" \
+          printf '%s\0' --secret "authorized_keys=$(cat "$RUNNER_TEMP/rt_ed25519.pub")" --secret "paperless_role=test" --secret "status_token=$(cat "$RUNNER_TEMP/status.token")" \
             --secret "restore_ledger_entry=$(jq -c . "$RUNNER_TEMP/entry.json")" --secret "age_identity=$(cat "$RUNNER_TEMP/age.txt")" \
             --secret "backup_mark_key=$(cat "$RUNNER_TEMP/mark.key")" \
             > "$RUNNER_TEMP/secrets2.args"
@@ -381,6 +423,10 @@ jobs:
             tail -2 "$RUNNER_TEMP/unlock2.log" | grep -v -i secret; sleep 20
           done
           [ -n "$ok" ] || { echo "::error::VM 2 could not be unlocked"; exit 1; }
+          # A start with a restore: the page must answer while the backup is
+          # still fetched or imported, long before the app would give up.
+          . "$RUNNER_TEMP/status_page.sh"; status_page "$hash" 900 || exit 1
+          [ -z "$STATUS_AFTER" ] || echo "VM2_STATUS=$STATUS_AFTER s, $(jq -c '{phase, waiting}' <<<"$STATUS_PUBLIC"), restore $(jq -c '.restore | {status, stage}' <<<"$STATUS_FULL")" >> "$GITHUB_ENV"
           . "$RUNNER_TEMP/wait_ssh.sh"
           for i in $(seq 1 30); do
             entry="$(curl -fsS --max-time 15 "$CRN_URL/v2/about/executions/list" | jq -c --arg h "$hash" '.[$h] // {}' || echo '{}')"
@@ -419,6 +465,19 @@ jobs:
             $SSH "openssl x509 -checkend 86400 -noout -in /etc/paperless-anywhere/tls/certificates/$FIXED_NAME.crt" >/dev/null || { echo "::error::VM 2 has no valid certificate for the fixed address"; exit 1; }
             if [ -n "$serial" ] && [ "$serial" = "$VM1_SERIAL" ]; then echo "CERT_REUSED=yes" >> "$GITHUB_ENV"; else echo "CERT_REUSED=no (a new one)" >> "$GITHUB_ENV"; fi
           fi
+          # And after it, what the app shows: ready, the restore's outcome and
+          # its count on the detailed page, the fixed address ready.
+          if [ -n "$FIXED_ADDRESS" ]; then
+            for i in $(seq 1 30); do
+              status_page "$hash" 120 || exit 1
+              [ "$(jq -r .phase <<<"$STATUS_FULL")" = ready ] && break; sleep 10
+            done
+            jq -c '{phase, waiting, restore: (.restore | {status, documents}), fixedAddress: (.fixedAddress | {status}), capabilities}' <<<"$STATUS_FULL"
+            [ "$(jq -r .phase <<<"$STATUS_PUBLIC")" = ready ] && [ "$(jq -r .phase <<<"$STATUS_FULL")" = ready ] || { echo "::error::the status page does not say ready after the restore"; exit 1; }
+            [ "$(jq -r '.restore.status' <<<"$STATUS_FULL")" = done ] && [ "$(jq -r '.restore.documents' <<<"$STATUS_FULL")" = "$EXPECT_DOCS" ] || { echo "::error::the status page does not show the restore's outcome"; exit 1; }
+            [ "$(jq -r '.fixedAddress.status' <<<"$STATUS_FULL")" = ready ] || { echo "::error::the status page does not say the fixed address is ready"; exit 1; }
+            echo "VM2_STATUS_END=ready, restore done with $EXPECT_DOCS documents" >> "$GITHUB_ENV"
+          fi
           echo "round trip: $EXPECT_DOCS made-up documents ($BIG_MIB MiB large ones) backed up from VM 1 and restored in VM 2"
 
       - name: Revoke the session key
@@ -443,6 +502,9 @@ jobs:
             echo "| Large made-up documents | ${BIG_MIB:-0} MiB |"
             echo "| Restore in VM 2 | \`${RESTORE:-none}\` |"
             [ -z "$FIXED_ADDRESS" ] || echo "| Fixed address: certificate from the backup | ${CERT_REUSED:-no} |"
+            [ -z "$FIXED_ADDRESS" ] || echo "| Status page of VM 1 over its 2n6 name, after the unlock | ${VM1_STATUS:-did not answer} |"
+            [ -z "$FIXED_ADDRESS" ] || echo "| Status page of VM 2 over its 2n6 name, after the unlock | ${VM2_STATUS:-did not answer} |"
+            [ -z "$FIXED_ADDRESS" ] || echo "| Status page of VM 2 after the restore | ${VM2_STATUS_END:-not ready} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Runs even when the round trip was cancelled or timed out.
