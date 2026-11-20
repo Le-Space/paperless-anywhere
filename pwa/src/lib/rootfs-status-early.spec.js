@@ -189,11 +189,11 @@ describe('paperless-fixed-address', () => {
 		expect(script.indexOf('report waiting')).toBeLessThan(script.indexOf('paperless-require-sealed'));
 		expect(script).toMatch(/paperless-require-sealed paperless-fixed-address \|\| \{ report failed ',"step":"data-area","final":true'; exit 1; \}/);
 	});
-	it('orders the certificate before it would wait for the backup, and waits for it only when the order failed', () => {
+	it('waits for the backup before it would order a certificate (rootfs-certificate-first.spec.js runs the cases)', () => {
 		const order = script.indexOf('elif ! order run; then');
 		expect(order).toBeGreaterThan(0);
-		expect(script.indexOf('paperless-restore fetch')).toBeGreaterThan(order);
-		expect(script.indexOf('report restore')).toBeGreaterThan(order);
+		expect(script.indexOf('paperless-restore fetch')).toBeLessThan(order);
+		expect(script.indexOf('report restore')).toBeLessThan(script.indexOf('paperless-restore fetch'));
 	});
 	it('marks the last failure final', () => {
 		expect(script).toMatch(/report failed ",\\"step\\":\\"\$\{step:-certificate\}\\",\\"final\\":true"\nexit 1\n$/);
