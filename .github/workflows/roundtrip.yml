@@ -230,14 +230,20 @@ jobs:
           status_page() {
             STATUS_PUBLIC=""; STATUS_FULL=""; STATUS_AFTER=""
             [ -n "$FIXED_ADDRESS" ] || { echo "no fixed address in this run: no status page to read"; return 0; }
-            local token name t0
+            local token name t0 tries=0 c1 c2
             token="$(cat "$RUNNER_TEMP/status.token")"; t0=$(date +%s)
             while [ $(( $(date +%s) - t0 )) -lt "$2" ]; do
+              tries=$((tries + 1))
               name="$(curl -fs --max-time 15 "https://api.2n6.me/api/hash/$1" | jq -r '.subdomain // .url // empty' 2>/dev/null | sed -e 's#^https://##' -e 's#/$##' || true)"
               case "$name" in "") ;; *.*) ;; *) name="$name.2n6.me" ;; esac
               if printf '%s' "$name" | grep -qE '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.2n6\.me$'; then
-                STATUS_PUBLIC="$(curl -fs --max-time 15 "https://$name/anywhere/status.json" || true)"
-                STATUS_FULL="$(curl -fs --max-time 15 "https://$name/anywhere/s/$token.json" || true)"
+                STATUS_NAME="$name"
+                # The answer's code, or curl's exit (000: no answer; the error says why).
+                c1="$(curl -sS --max-time 15 -o "$RUNNER_TEMP/status.public" -w '%{http_code}' "https://$name/anywhere/status.json" 2> "$RUNNER_TEMP/status.err" || true)"
+                c2="$(curl -s --max-time 15 -o "$RUNNER_TEMP/status.full" -w '%{http_code}' "https://$name/anywhere/s/$token.json" || true)"
+                STATUS_PUBLIC=""; STATUS_FULL=""
+                [ "$c1" = 200 ] && STATUS_PUBLIC="$(cat "$RUNNER_TEMP/status.public")"
+                [ "$c2" = 200 ] && STATUS_FULL="$(cat "$RUNNER_TEMP/status.full")"
                 if jq -e '.phase' <<<"$STATUS_PUBLIC" >/dev/null 2>&1 && jq -e '.phase' <<<"$STATUS_FULL" >/dev/null 2>&1; then
                   STATUS_AFTER=$(( $(date +%s) - t0 ))
                   # In public only the phase: nothing of the restore, the backups or the disks.
@@ -246,11 +252,47 @@ jobs:
                   echo "status page over the 2n6 name after $STATUS_AFTER s: $(jq -c '{phase, waiting}' <<<"$STATUS_PUBLIC")"
                   return 0
                 fi
+                # Once a minute, what the two pages answered.
+                [ $((tries % 6)) = 1 ] && echo "after $(( $(date +%s) - t0 )) s: $name public $c1, detailed $c2 $(head -c 200 "$RUNNER_TEMP/status.err" | tr '\n' ' ')"
+              else
+                [ $((tries % 6)) = 1 ] && echo "after $(( $(date +%s) - t0 )) s: 2n6 names no host for this VM yet"
               fi
               sleep 10
             done
             echo "::error::no status page over the 2n6 name within $2 s (the app gives up after 20 minutes)"
+            status_why "$1" || true
             return 1
+          }
+          # status_why <hash>: what the VM itself says when its page did not
+          # answer, read over SSH (these VMs have the test role). The made-up
+          # run's state only: no secret, and of the token's page only whether it is there.
+          status_why() {
+            local entry host port ssh i
+            for i in $(seq 1 6); do
+              entry="$(curl -fsS --max-time 15 "$CRN_URL/v2/about/executions/list" | jq -c --arg h "$1" '.[$h] // {}' || echo '{}')"
+              host="$(jq -r '.networking.host_ipv4 // empty' <<<"$entry")"; port="$(jq -r '.networking.mapped_ports["22"].host // empty' <<<"$entry")"
+              [ -n "$host" ] && [ -n "$port" ] && break; sleep 10
+            done
+            [ -n "$host" ] && [ -n "$port" ] || { echo "no SSH port for the VM: nothing read from it"; return 0; }
+            ssh="ssh -i $RUNNER_TEMP/rt_ed25519 -p $port -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@$host"
+            echo "--- the VM, over SSH"
+            $ssh "NAME='${STATUS_NAME:-}' sh -s" <<'WHY' || echo "nothing read over SSH"
+          d=/run/paperless-anywhere
+          echo "state files:"; ls -la "$d" "$d/public" 2>&1 | sed 's/^/  /'
+          echo "detailed page there: $(ls "$d/public/s" 2>/dev/null | grep -c '\.json$')"
+          echo "public page: $(cat "$d/public/status.json" 2>&1 | head -c 300)"
+          echo "fixed address: $(cat "$d/fixed-address.json" 2>&1 | head -c 300)"
+          echo "data area: $(sed 's/,"probe".*/}/' "$d/data-disk.json" 2>&1 | head -c 300)"
+          for u in caddy paperless-status paperless-2n6-ask paperless-fixed-address paperless-stack paperless-restore ssh; do echo "unit $u: $(systemctl is-active "$u.service" 2>&1 | head -1)"; done
+          echo "processes:"; ps -eo pid,etimes,args | grep -E 'caddy|paperless-|lego|systemctl|timeout' | grep -v grep | cut -c1-160 | sed 's/^/  /'
+          echo "Caddyfile:"; grep -nE '^https|^\{|on_demand|ask |handle|tls |reverse_proxy' /etc/caddy/Caddyfile 2>&1 | sed 's/^/  /'
+          echo "listening:"; ss -ltnp 2>/dev/null | grep -E ':(443|80|9180|8000)\b' | cut -c1-160 | sed 's/^/  /'
+          [ -z "$NAME" ] || echo "2n6-ask for $NAME: $(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "http://127.0.0.1:9180/?domain=$NAME" 2>&1)"
+          [ -z "$NAME" ] || echo "Caddy asked locally for $NAME: $(curl -sk -o /dev/null -w '%{http_code}' --max-time 20 --resolve "$NAME:443:127.0.0.1" "https://$NAME/anywhere/status.json" 2>&1)"
+          for f in /var/log/journal/caddy.service.log /var/log/journal/paperless-status.service.log /var/log/journal/paperless-2n6-ask.service.log /var/log/journal/paperless-fixed-address.service.log; do
+            echo "--- $f"; tail -n 25 "$f" 2>&1 | cut -c1-400
+          done
+          WHY
           }
           EOS
           echo "payer=$payer" >> "$GITHUB_OUTPUT"
