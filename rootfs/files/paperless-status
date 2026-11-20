@@ -15,9 +15,21 @@ chmod 755 "$pub"
 # Caddy serves this page from the first moments, before the sealed data area
 # is known and also when it failed: with a fixed address over the instance's
 # 2n6 name until the fixed name has its certificate (paperless-https).
+# That setup runs beside the loop below, never before it, and with a time
+# limit: the page is written from the first seconds whatever Caddy, its lock
+# or systemctl do. 2026-11-19 and -20: two starts had a Caddy that answered
+# and no status.json for over 20 minutes, and the app gave up on a VM that ran.
 host="$(head -c 253 /tmp/secrets/https_hostname 2>/dev/null | tr -d '\r\n')"
-[ -z "$host" ] || /usr/local/sbin/paperless-https --status "$host" \
-  || echo "paperless-status: Caddy could not be set up for the status page" >&2
+https_pid=""
+https_setup() {
+  [ -n "$host" ] || return 0
+  [ -z "$https_pid" ] || ! kill -0 "$https_pid" 2>/dev/null || return 0
+  ( timeout 180 /usr/local/sbin/paperless-https --status "$host" \
+      || echo "paperless-status: Caddy could not be set up for the status page" >&2 ) &
+  https_pid=$!
+}
+https_setup
+loops=0
 compose="docker compose --project-directory /opt/paperless"
 while :; do
   code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8000/api/ || true)"
@@ -25,13 +37,14 @@ while :; do
   # How far the start is: dockerd, the images (pulled after the unlock, the
   # slow part on vfs), the containers, Caddy's certificate.
   docker=false; images=0; total=0; running=0
-  if docker info >/dev/null 2>&1; then
+  # Each with a time limit: a dockerd that hangs must not stop the page.
+  if timeout 10 docker info >/dev/null 2>&1; then
     docker=true
-    for image in $($compose config --images 2>/dev/null); do
+    for image in $(timeout 10 $compose config --images 2>/dev/null); do
       total=$((total + 1))
-      docker image inspect "$image" >/dev/null 2>&1 && images=$((images + 1))
+      timeout 10 docker image inspect "$image" >/dev/null 2>&1 && images=$((images + 1))
     done
-    running="$($compose ps --status running -q 2>/dev/null | wc -l | tr -d ' ')"
+    running="$(timeout 10 $compose ps --status running -q 2>/dev/null | wc -l | tr -d ' ')"
   fi
   # The certificate of the name Paperless is served on: with a fixed address
   # that one (a 2n6 name's for the status page does not count).
@@ -226,5 +239,9 @@ else:
     print(json.dumps(public))
 PY
   chmod 644 "$pub/status.json" 2>/dev/null
+  # Once a minute: if Caddy still has no route for this page (the setup above
+  # failed or ran out of time), set it up again.
+  loops=$((loops + 1))
+  if [ $((loops % 12)) = 0 ] && ! grep -q '/anywhere/status.json' /etc/caddy/Caddyfile 2>/dev/null; then https_setup; fi
   sleep 5
 done
