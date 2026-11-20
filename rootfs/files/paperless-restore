@@ -112,6 +112,12 @@ resume_helpers() {
     || echo "paperless-restore: Tika/Gotenberg did not start again; paperless-stack-up's next start brings them" >&2
   paused=""
 }
+own_certificate() {
+  for c in "${PAPERLESS_TLS:-/etc/paperless-anywhere/tls}"/certificates/*.crt; do
+    [ -s "$c" ] && return 0
+  done
+  return 1
+}
 cleanup() {
   resume_helpers
   forget_secrets
@@ -125,13 +131,17 @@ cmd="${1:-run}"
 case "$cmd" in fetch|run) ;; *) echo "usage: paperless-restore [fetch|run]" >&2; exit 2 ;; esac
 # A backup is decrypted and unpacked only onto the sealed data area.
 /usr/local/sbin/paperless-require-sealed paperless-restore || exit 1
+# One at a time (the service's run, and paperless-fixed-address's fetch). The
+# wait has an end: a holder that hangs must not hold the other for good.
 exec 8>"$state_dir/restore.lock"
-flock 8
+flock -w 7200 8 || { echo "paperless-restore: another restore held the lock for two hours" >&2; exit 1; }
 entry_env="$state_dir/restore-entry.env"   # name, provider, times: no secrets
 [ "$cmd" = run ] && trap cleanup EXIT
 
 fetch() {
 [ -s "$work/import/manifest.json" ] && [ -s "$entry_env" ] && return 0
+# A restore that is through (a fetch asked for after the run) stays as it is.
+grep -q '"status":"done"' "$state" 2>/dev/null && exit 0
 if [ ! -s "$secrets/restore_ledger_entry" ]; then
   # An earlier fetch that failed after the secrets were forgotten stays failed.
   grep -q '"status":"failed"' "$state" 2>/dev/null && exit 1
@@ -453,8 +463,11 @@ if [ "$mark" != verified ]; then
     fail "the backup does not carry this vault's mark (${mark:-unreadable})"
   fi
 fi
-# The certificate and the lego account, unless this VM already has its own.
-if [ -d "$work/extra" ] && ! [ -d /etc/paperless-anywhere/tls/certificates ]; then
+# The certificate and the lego account, unless this VM already has a
+# certificate of its own. The folder alone does not say so: lego makes it
+# before an order, also one that is then refused, and the backup's certificate
+# is exactly what such a start waits for.
+if [ -d "$work/extra" ] && ! own_certificate; then
   install -d -m 700 /etc/paperless-anywhere/tls
   cp -a "$work/extra/." /etc/paperless-anywhere/tls/
 fi

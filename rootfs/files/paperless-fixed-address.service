@@ -3,7 +3,13 @@ Description=paperless-fixed-address (see /usr/local/sbin/paperless-fixed-address
 After=network-online.target
 
 [Service]
-Type=oneshot
+# Not oneshot: the confidential systemctl replacement starts enabled units one
+# after another and waits for a oneshot to finish, with no time limit. This
+# one may wait for a refused certificate order, then for the whole backup, and
+# try four times: every unit after it (the status page among them) would start
+# only then. As a simple unit it runs beside them; the others do not need it.
+Type=simple
+Restart=no
 ExecStart=/usr/local/sbin/paperless-fixed-address
 
 [Install]
