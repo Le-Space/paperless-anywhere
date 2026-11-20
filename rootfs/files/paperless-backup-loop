@@ -9,7 +9,8 @@
 # A plain loop instead of a .timer: the confidential guest has no systemd, and
 # its systemctl replacement ran the timer's oneshot service once and never
 # again (production, 2026-11-04: one check at 09:00, none at 11:00 or later).
-# First look 20 minutes after boot, as the timer did. paperless-backup takes a
+# First look 20 minutes after boot, as the timer did, and never while a
+# restore runs. paperless-backup takes a
 # lock, so a check, a requested backup and the stop's last backup never run at
 # the same time.
 #
@@ -40,6 +41,16 @@ due() {
 request_status() {
   printf '{"status":"%s","mode":"%s","at":"%s"%s}\n' "$1" "$2" "$(date -u +%FT%TZ)" "${3:-}" > "$dir/backup-request.json.tmp" && mv "$dir/backup-request.json.tmp" "$dir/backup-request.json"
 }
+# A restore that runs, or one the unlock named that has not begun: until it is
+# through, Paperless holds only part of the backup it comes from, and an
+# export beside the import takes the memory and the disk the import needs.
+# The loop waits: no look, no scheduled backup, and a requested one runs when
+# the restore is through. (After a restore that failed, paperless-backup
+# refuses by itself.)
+restoring() {
+  grep -q '"status":"running"' "$dir/restore.json" 2>/dev/null && return 0
+  [ -s /tmp/secrets/restore_ledger_entry ] && ! [ -s "$dir/restore.json" ]
+}
 # The last request handled, kept so a restarted loop does not run it again.
 handled="$(cat "$lib/backup-request.handled" 2>/dev/null || true)"
 # A request this loop was running when it stopped did not finish.
@@ -47,6 +58,15 @@ grep -q '"status":"running"' "$dir/backup-request.json" 2>/dev/null && request_s
 next=$(( $(date +%s) + FIRST ))
 schedule
 while :; do
+  if restoring; then
+    # The next look comes a full interval after the restore, not right at its end.
+    if [ $(( next - $(date +%s) )) -lt $(( CHECK - 60 )) ]; then
+      next=$(( $(date +%s) + CHECK ))
+      schedule
+    fi
+    sleep 5
+    continue
+  fi
   if [ -s /tmp/secrets/backup_request ]; then
     request="$(head -c 128 /tmp/secrets/backup_request)"
     if [ "$request" != "$handled" ]; then
