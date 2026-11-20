@@ -34,8 +34,8 @@ import { sha256Hex } from './vm.js';
 export const BUILDER = {
 	// Published 2026-11-19 (workflow "Image builder on Aleph", run 44523294597,
 	// V-PROGRAM f423e954…) for the plain image of rootfs run 44519395082
-	// (main cb933b9: a large restore pauses Tika and Gotenberg and has swap
-	// on the sealed area, #403; the image says what it can do, #407),
+	// (main cb933b9: a large restore pauses Tika and Gotenberg, #403; its swap
+	// on the sealed area did not come up; the image says what it can do, #407),
 	// attested: its volumes stay on Aleph, and each build starts a V-PROGRAM
 	// from this content.
 	program: {

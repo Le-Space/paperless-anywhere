@@ -14,7 +14,7 @@ const status = file('rootfs/files/paperless-status');
 
 describe('the image’s capabilities', () => {
 	it('names only what is checked here, in version 1', () => {
-		expect(caps).toEqual({ v: 1, fullPart: true, incremental: 'pa-snap-1', restoreUnmarked: true, restoreMemory: true, helpersPausedForImport: true, swap: true });
+		expect(caps).toEqual({ v: 1, fullPart: true, incremental: 'pa-snap-1', restoreUnmarked: true, restoreMemory: true, helpersPausedForImport: true });
 	});
 
 	it('fullPart: the restore takes a part of 1,000,000,000 bytes and more (9d2da9b)', () => {
@@ -32,10 +32,18 @@ describe('the image’s capabilities', () => {
 		expect(fetchBody.indexOf('restore_unmarked')).toBeLessThan(fetchBody.search(/^\s*forget_secrets$/m));
 	});
 
-	it('restoreMemory, helpersPausedForImport, swap (#403)', () => {
+	it('restoreMemory, helpersPausedForImport (#403)', () => {
 		expect(restore).toMatch(/status done ".*\$\(memory\)"$/m);
 		expect(restore).toContain('pause_helpers ||');
-		expect(disk).toContain('swapon "$swap"');
+	});
+
+	it('does not claim swap: on the image of main cb933b9 it did not come up (swapMiB 0)', () => {
+		// Whether a VM has swap is a fact of that VM: memory.swapBytes and
+		// dataDisk.swapMiB on its status page, and dataDisk.swapError says why not.
+		expect(caps).not.toHaveProperty('swap');
+		expect(disk).toMatch(/"swapMiB":%s,"swapError":"%s"/);
+		expect(disk).toMatch(/&& step=enable && swapon "\$swap" 2>>"\$swap_log"; then/);
+		expect(disk).toMatch(/swap_error="\$step: \$\(tail -1 "\$swap_log" \| tr -d /);
 	});
 
 	it('is installed read-only outside what the data area takes over, and reported', () => {
