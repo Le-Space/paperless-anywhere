@@ -226,7 +226,15 @@ jobs:
           # Once, without a retry: a second try after a half-done publication
           # could start a second builder.
           [ -n "$CRN" ] && create+=(--crn "$CRN")
-          "${create[@]}" --wait 600 > "$RUNNER_TEMP/publish.json" 2> >(tee "$RUNNER_TEMP/publish.log" >&2)
+          # When it fails, what the CLI wrote is shown before the step ends: on
+          # 2026-11-20 two publications ended in "API request failed (HTTP 422)"
+          # after all four uploads, and the answer that says why was never printed.
+          "${create[@]}" --wait 600 > "$RUNNER_TEMP/publish.json" 2> >(tee "$RUNNER_TEMP/publish.log" >&2) || {
+            rc=$?
+            echo "--- the CLI's answer (stdout)"; cat "$RUNNER_TEMP/publish.json" || true
+            echo "::error::the publication failed (exit $rc); the uploads before it stay on Aleph as STOREs of this account"
+            exit "$rc"
+          }
           cat "$RUNNER_TEMP/publish.json"
           hash="$(jq -rs '[.. | objects | .item_hash? | strings | select(test("^[0-9a-f]{64}$"))] | first // empty' "$RUNNER_TEMP/publish.json")"
           [ -n "$hash" ] || { echo "::error::published, but no item hash in the CLI's answer: look at the account's V-PROGRAMs and delete by hand"; exit 1; }
