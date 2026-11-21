@@ -46,3 +46,52 @@ describe('builderVolumesToForget', () => {
 		expect(builderVolumesToForget([store('1'), store('2', { size: 2e6 })], o(['1', '2'])).forget).toEqual([h('1'), h('2')]);
 	});
 });
+
+describe('leftovers of a refused publication', async () => {
+	const { leftoverRefusal, leftoversToForget } = await import('./forget-guard.js');
+	const left = (c, over = {}) => store(c, { file: `Qm${c.repeat(44)}`, ...over });
+	const sets = ({ named = [], namedFiles = [], referenced = [] } = {}) => ({ account, named: new Set(named), namedFiles: new Set(namedFiles), referenced: new Set(referenced) });
+
+	it('lets a STORE go that nothing names', () => {
+		expect(leftoverRefusal(left('1'), sets())).toBeNull();
+		expect(leftoversToForget([left('1'), left('2', { size: 2e6 })], sets())).toEqual({ forget: [h('1'), h('2')], refused: [] });
+	});
+	it('refuses what the repository, a version of own-image.js or a release names', () => {
+		expect(leftoverRefusal(left('1'), sets({ named: [h('1')] }))).toMatch(/named in the repository/);
+	});
+	it('refuses a STORE whose file a named STORE holds too', () => {
+		expect(leftoverRefusal(left('1'), sets({ namedFiles: [left('1').file] }))).toMatch(/also the file of a STORE that is named/);
+		expect(leftoverRefusal(left('1', { file: h('7') }), sets({ named: [h('7')] }))).toMatch(/also the file/);
+	});
+	it("refuses what a program, an instance or an aggregate names: a running builder's volume, a deploy of the site", () => {
+		expect(leftoverRefusal(left('1'), sets({ referenced: [h('1')] }))).toMatch(/aggregate of the account names it/);
+		expect(leftoverRefusal(left('1'), sets({ referenced: [left('1').file] }))).toMatch(/names it/);
+	});
+	it('refuses an image, a STORE of another account, one not processed, one without file or size', () => {
+		expect(leftoverRefusal(left('1', { size: 944766976 }), sets())).toMatch(/larger than any builder volume/);
+		expect(leftoverRefusal(left('1', { sender: '0x' + 'b'.repeat(40) }), sets())).toMatch(/sent by/);
+		expect(leftoverRefusal(left('1', { status: 'pending' }), sets())).toMatch(/not a processed STORE/);
+		expect(leftoverRefusal(left('1', { type: 'PROGRAM' }), sets())).toMatch(/not a processed STORE/);
+		expect(leftoverRefusal(left('1', { file: null }), sets())).toMatch(/file is unknown/);
+		expect(leftoverRefusal(left('1', { size: null }), sets())).toMatch(/size unknown/);
+		expect(leftoverRefusal({ ...left('1'), hash: 'abc' }, sets())).toMatch(/no item hash/);
+	});
+	it('one refusal forgets nothing; an empty list and a hash named twice are refused', () => {
+		expect(leftoversToForget([left('1'), left('2')], sets({ named: [h('2')] })).forget).toEqual([]);
+		expect(leftoversToForget([], sets()).refused).toEqual(['no STORE named']);
+		expect(leftoversToForget([left('1'), left('1')], sets()).refused[0]).toMatch(/named twice/);
+	});
+	it('the workflow forgets only the list a dry run printed, and the script reads the aggregates', async () => {
+		const { readFileSync } = await import('node:fs');
+		const flow = readFileSync(new URL('../../../.github/workflows/forget-leftovers.yml', import.meta.url), 'utf8');
+		expect(flow).toMatch(/\[ "\$ACTION" = forget \] && expect=\(--expect "\$LIST_ID"\)/);
+		expect(flow).toMatch(/node scripts\/forget-leftovers\.mjs --account "\$ACCOUNT" --hashes "\$HASHES"/);
+		expect(flow.match(/aleph message forget/g)).toHaveLength(1);
+		expect(flow).toMatch(/- name: Forget them\n\s+if: inputs\.action == 'forget'/);
+		// An input reaches a script only as an environment variable.
+		for (const line of flow.split('\n').filter((l) => l.includes('${{ inputs.'))) expect(line).toMatch(/^\s+[A-Z_]+: \$\{\{ inputs\.[a-z_]+ \}\}$/);
+		const script = readFileSync(new URL('../../scripts/forget-leftovers.mjs', import.meta.url), 'utf8');
+		expect(script).toMatch(/aggregates\/\$\{account\}\.json/);
+		expect(script).toMatch(/if \(refused\.length\) process\.exit\(1\);/);
+	});
+});
