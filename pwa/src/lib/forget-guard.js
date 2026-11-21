@@ -96,3 +96,48 @@ export function retiredStoresToForget(stores, o) {
 	const refused = stores.map((s) => retiredStoreRefusal(s, o)).filter((r) => r !== null);
 	return refused.length ? { forget: [], refused } : { forget: stores.map((s) => s.hash), refused: [] };
 }
+
+// What is left of a publication that Aleph refused (builder-publish.yml
+// uploads the builder's four files, then posts the V-PROGRAM; when that is
+// refused, the four STOREs stay and no V-PROGRAM names them). Nothing says by
+// itself that a STORE is such a leftover, so the person names them, and one is
+// forgotten only when all of this holds; one refusal stops all of it.
+// - The account that forgets sent it, and Aleph has it processed.
+// - Nothing names it: no file of this repository, no version of own-image.js
+//   in its history, no release, no program, instance or aggregate of the account (the
+//   site's deploys are named in an aggregate).
+// - Its file is not the file of a STORE that is named.
+// - It is smaller than any image (BUILDER_VOLUME_MAX_BYTES).
+
+/**
+ * Why the leftover `store` must not be forgotten, or null when it may.
+ * @param {{ hash: string, file?: string | null, status?: string, type?: string, sender?: string, size?: number | null }} store
+ * @param {{ account: string, named: Set<string>, namedFiles: Set<string>, referenced: Set<string> }} o
+ *   named: every hash the repository, the history of own-image.js or a release names; namedFiles: the files of the account's STOREs among them; referenced: every hash a program, an instance or an aggregate of the account names
+ */
+export function leftoverRefusal(store, { account, named, namedFiles, referenced }) {
+	const h = store.hash;
+	if (!/^[0-9a-f]{64}$/.test(h)) return `${h}: no item hash`;
+	if (named.has(h)) return `${h}: named in the repository, in the history of own-image.js or in a release`;
+	if (store.type !== 'STORE' || store.status !== 'processed') return `${h}: not a processed STORE (${store.status} ${store.type})`;
+	if (String(store.sender).toLowerCase() !== String(account).toLowerCase()) return `${h}: sent by ${store.sender}, not by ${account}`;
+	if (!store.file) return `${h}: its file is unknown`;
+	if (namedFiles.has(store.file) || named.has(store.file)) return `${h}: its file ${store.file} is also the file of a STORE that is named`;
+	if (referenced.has(h) || referenced.has(store.file)) return `${h}: a program, an instance or an aggregate of the account names it`;
+	if (typeof store.size !== 'number' || !(store.size > 0)) return `${h}: size unknown`;
+	if (store.size > BUILDER_VOLUME_MAX_BYTES) return `${h}: ${Math.round(store.size / 1e6)} MB, larger than any builder volume`;
+	return null;
+}
+
+/**
+ * The leftovers to forget, or the reasons not to forget any.
+ * @param {Parameters<typeof leftoverRefusal>[0][]} stores
+ * @param {Parameters<typeof leftoverRefusal>[1]} o
+ * @returns {{ forget: string[], refused: string[] }}
+ */
+export function leftoversToForget(stores, o) {
+	const seen = new Set();
+	const refused = stores.map((s) => (seen.has(s.hash) ? `${s.hash}: named twice` : (seen.add(s.hash), leftoverRefusal(s, o)))).filter((r) => r !== null);
+	if (!stores.length) return { forget: [], refused: ['no STORE named'] };
+	return refused.length ? { forget: [], refused } : { forget: stores.map((s) => s.hash), refused: [] };
+}

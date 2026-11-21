@@ -1,0 +1,128 @@
+name: Forget leftovers
+
+# What a publication of the builder leaves behind when Aleph refuses its
+# V-PROGRAM (builder-publish.yml, "publish"): the four STOREs it uploaded
+# before, which no V-PROGRAM names. Neither "delete" with "forget_volumes" nor
+# "Image retention" finds them. Started by hand only.
+#
+#   dry-run  checks the STOREs named here and prints them, their size and the
+#            list's id. Forgets nothing.
+#   forget   the same, then forgets exactly that list: only when the id given
+#            here is the one the dry run printed. A FORGET is final.
+#
+# A STORE goes only when nothing names it: no file of this repository, no
+# version of own-image.js, no release, no program, instance or aggregate of
+# the account; when its file is not a named STORE's file; and when it is
+# smaller than any image. The rules: pwa/src/lib/forget-guard.js
+# (leftoverRefusal); one refusal forgets nothing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: '"dry-run": check and show the list. "forget": forget exactly the list of a dry run (needs its list id).'
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - forget
+      hashes:
+        description: The STOREs' item hashes (64 hex each), separated by spaces.
+        required: true
+      list_id:
+        description: 'For "forget": the list id the dry run printed.'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-retention
+  cancel-in-progress: false
+
+env:
+  ALEPH_CLI_VERSION: v0.22.0
+  ALEPH_CLI_SHA256: 41b8ced717d9962683ce2d4409725774e826643be0bae1bfc623f6c0c7fb19d7
+
+jobs:
+  leftovers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Check the inputs
+        env:
+          ACTION: ${{ inputs.action }}
+          HASHES: ${{ inputs.hashes }}
+          LIST_ID: ${{ inputs.list_id }}
+        run: |
+          [[ "$HASHES" =~ ^[0-9a-f]{64}(\ +[0-9a-f]{64}){0,31}$ ]] || { echo "::error::hashes: 1 to 32 item hashes (64 hex), separated by spaces"; exit 1; }
+          if [ "$ACTION" = forget ]; then
+            [[ "$LIST_ID" =~ ^[0-9a-f]{16}$ ]] || { echo "::error::\"forget\" needs the list id of a dry run (16 hex)"; exit 1; }
+          fi
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.x
+      # No install scripts, and no secret in the step that installs.
+      - name: The PWA's modules
+        working-directory: pwa
+        run: pnpm install --frozen-lockfile --ignore-scripts > /dev/null
+
+      - name: The account
+        id: account
+        working-directory: pwa
+        env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+        run: |
+          [ -n "$ALEPH_PRIVATE_KEY" ] || { echo "::error::set the ALEPH_PRIVATE_KEY secret"; exit 1; }
+          # Only the address leaves this step, never the key.
+          address="$(node --input-type=module -e "
+            import { privateKeyToAccount } from 'viem/accounts';
+            const k = process.env.ALEPH_PRIVATE_KEY.trim();
+            console.log(privateKeyToAccount(k.startsWith('0x') ? k : '0x' + k).address);")"
+          echo "address=$address" >> "$GITHUB_OUTPUT"
+
+      - name: What may go
+        working-directory: pwa
+        env:
+          ACTION: ${{ inputs.action }}
+          HASHES: ${{ inputs.hashes }}
+          LIST_ID: ${{ inputs.list_id }}
+          ACCOUNT: ${{ steps.account.outputs.address }}
+        run: |
+          # A refusal or another list id ends the run here, before anything is forgotten.
+          set -o pipefail
+          expect=()
+          [ "$ACTION" = forget ] && expect=(--expect "$LIST_ID")
+          node scripts/forget-leftovers.mjs --account "$ACCOUNT" --hashes "$HASHES" \
+            --list "$RUNNER_TEMP/forget.txt" "${expect[@]}" | tee "$RUNNER_TEMP/report.md"
+          cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Aleph's CLI
+        if: inputs.action == 'forget'
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/aleph" \
+            "https://github.com/aleph-im/aleph-rs/releases/download/${ALEPH_CLI_VERSION}/aleph-cli-linux-x86_64"
+          echo "${ALEPH_CLI_SHA256}  $RUNNER_TEMP/aleph" | sha256sum -c - >/dev/null
+          sudo install -m 755 "$RUNNER_TEMP/aleph" /usr/local/bin/aleph
+
+      - name: Forget them
+        if: inputs.action == 'forget'
+        env:
+          ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
+        run: |
+          [ -s "$RUNNER_TEMP/forget.txt" ] || { echo "nothing to forget"; exit 0; }
+          echo "forgetting:"; cat "$RUNNER_TEMP/forget.txt"
+          aleph message forget $(cat "$RUNNER_TEMP/forget.txt") --reason "left by a refused builder publication" --chain eth --yes
+          { echo; echo "### Forgotten"; echo; sed 's/^/- `/; s/$/`/' "$RUNNER_TEMP/forget.txt"; } >> "$GITHUB_STEP_SUMMARY"
