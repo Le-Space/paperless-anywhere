@@ -128,6 +128,10 @@ export async function watchStart({ host, alternate = null, read, onProgress, unl
 	let stepSince = start;
 	// Past SILENT_LIMIT_MS because the node says the VM runs.
 	let waitingOn = false;
+	// Whether the VM's 2n6 name is known: without a fixed address `host` is
+	// that name itself (a trial, a start without a DNS token; 2026-11-21: a
+	// trial was given up at 20 minutes although the node ran the VM).
+	const twoN6Known = () => (alternate ? Boolean(other) : true);
 	for (;;) {
 		const elapsed = now() - start;
 		const direct = elapsed >= firstLookMs ? await read(host).catch(() => null) : null;
@@ -169,7 +173,7 @@ export async function watchStart({ host, alternate = null, read, onProgress, unl
 			const silentFor = now() - lastAnswer;
 			if (silentFor > SILENT_LIMIT_MS) {
 				// Never an answer, but 2n6 names the VM: ask the node before giving up.
-				const mayRun = !answered && Boolean(other) && Boolean(running) && silentFor <= SILENT_RUNNING_LIMIT_MS;
+				const mayRun = !answered && twoN6Known() && Boolean(running) && silentFor <= SILENT_RUNNING_LIMIT_MS;
 				const runs = mayRun && running ? await running().catch(() => false) : false;
 				if (!runs) throw new StartStuckError(waitingOn ? 'silentRunning' : alternate ? 'silent' : 'silentOne', silentFor);
 				waitingOn = true;
@@ -180,7 +184,7 @@ export async function watchStart({ host, alternate = null, read, onProgress, unl
 					onProgress({ step: 'ready', detail: t.passphraseAgain });
 					await unlockAgain().catch((e) => onProgress({ step: 'ready', detail: t.passphraseAgainFailed(e instanceof Error ? e.message : String(e)) }));
 				}
-			} else if (!answered && other && silentFor > SAY_NO_ANSWER_AFTER_MS) {
+			} else if (!answered && twoN6Known() && silentFor > SAY_NO_ANSWER_AFTER_MS) {
 				const minutes = Math.round(silentFor / 60_000);
 				onProgress({ step: 'ready', detail: waitingOn ? t.runningNoAnswer(minutes) : t.noAnswerYet(minutes) });
 			}

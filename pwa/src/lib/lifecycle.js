@@ -1055,6 +1055,22 @@ export async function startTrial(master, profile, entry, onProgress, options) {
 }
 
 /**
+ * Carry on with a trial whose start was interrupted or given up (see
+ * resumeStart): the same VM, never a second one. `profile.trial` is the
+ * start as onRequested got it.
+ * @param {Uint8Array} master @param {Record<string, any>} profile with `trial`
+ * @param {(p: { step: string, detail?: string, instanceHash?: string }) => void} onProgress
+ * @param {{ resume?: typeof resumeStart, read?: typeof vmStatus }} [deps]
+ */
+export async function resumeTrial(master, profile, onProgress, { resume = resumeStart, read = vmStatus } = {}) {
+	const { backup: _backup, ...starting } = profile.trial ?? {};
+	if (!starting.instanceHash) throw new Error(tr().life.errors.noInterruptedStart);
+	const run = await resume(master, { ...trialProfile(profile, starting.restoreEntry ?? null), starting }, onProgress);
+	const status = await read(run.host, statusToken(master)).catch(() => null);
+	return { ...run, restore: status?.restore ?? run.restore ?? null };
+}
+
+/**
  * End a trial: the VM goes without a backup (it never makes one).
  * @param {Uint8Array} master @param {Record<string, any>} trial `profile.trial`
  * @param {Record<string, any>} profile

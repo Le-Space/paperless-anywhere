@@ -84,6 +84,26 @@ describe('trialProfile', () => {
 	});
 });
 
+describe('resumeTrial', () => {
+	const master = new Uint8Array(32).fill(7);
+	it('carries on with the trial\'s own VM, as a test and with its backup, never a second request', async () => {
+		const { resumeTrial } = await import('./lifecycle.js');
+		const trial = { instanceHash: 'ab'.repeat(32), crnHash: 'c'.repeat(64), payer: '0x1', trustedExecution: null, restoreEntry: { pieceCid: 'bafk' }, at: 5, backup: 'bafk' };
+		const seen = [];
+		const run = await resumeTrial(master, { role: 'primary', dnsToken: 't', backupConfig: {}, running: { host: 'x' }, starting: { instanceHash: 'other' }, ageIdentity: 'AGE-SECRET-KEY-1X', trial }, () => {}, {
+			resume: async (_m, p) => (seen.push(p), { instanceHash: trial.instanceHash, host: 'h.example' }),
+			read: async () => ({ restore: { status: 'done', documents: 4 } })
+		});
+		const { backup: _b, ...starting } = trial;
+		expect(seen).toEqual([{ role: 'test', ageIdentity: 'AGE-SECRET-KEY-1X', restoreEntry: { pieceCid: 'bafk' }, starting }]);
+		expect(run).toEqual({ instanceHash: trial.instanceHash, host: 'h.example', restore: { status: 'done', documents: 4 } });
+	});
+	it('says so when there is no trial to carry on with', async () => {
+		const { resumeTrial } = await import('./lifecycle.js');
+		await expect(resumeTrial(master, {}, () => {}, { resume: async () => ({}) })).rejects.toThrow();
+	});
+});
+
 describe('refreshBackupSigner', () => {
 	const master = new Uint8Array(32).fill(7);
 	const old = { payer: '0x' + '0'.repeat(39) + '1', signer: '0x' + '0'.repeat(39) + '2', tag: 'ab'.repeat(16), label: 'paperless-backup-test', network: 'calibration' };

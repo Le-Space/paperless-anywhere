@@ -41,7 +41,7 @@ export const life = {
 						paperless: `Paperless-ngx antwortet seit ${minutes} Minuten nicht.`,
 						address: `Paperless-ngx läuft, aber die feste Adresse antwortet diesem Browser seit ${minutes} Minuten nicht.`
 					}[step] ?? `Der Start wartet seit ${minutes} Minuten.`
-				} Die App wartet nicht länger; die VM läuft weiter und kostet. „Noch einmal“ schaut wieder nach, oder lösche die VM unter „Meine VMs“.`,
+				} Die App wartet nicht länger; die VM läuft weiter und kostet. „Noch einmal“ schaut wieder nach derselben VM, oder lösche sie unter „Meine VMs“ (eine Probe: „Probe beenden“).`,
 			noReason: 'ohne Angabe',
 			noVm: 'Es läuft keine VM.',
 			noAttestation: 'Die Prüfung hat kein Ergebnis geliefert.',
@@ -148,6 +148,7 @@ export const life = {
 			noBackup: 'Es gibt noch keine Sicherung mit dem Siegel deines Tresors zum Prüfen. Die nächste Sicherung bekommt es.',
 			endConfirm: 'Die Probe beenden? Die zweite VM wird ohne Sicherung gelöscht; was du dort geändert hast, ist dann weg. Die laufende Instanz bleibt.',
 			removing: 'Probe-VM löschen',
+			lookingAgain: 'Nach der Probe-VM sehen',
 			hint: 'Startet eine zweite Paperless-ngx-Instanz aus der neuesten Sicherung, neben der laufenden: ohne Mail-Abruf, ohne eigene Sicherungen, mit eigener Adresse. Dort siehst du nach, ob alles da ist, und beendest sie dann.',
 			start: 'Probe aus der neuesten Sicherung starten',
 			requested: 'Die Probe-VM wurde angefordert, ist aber nicht fertig gestartet',
@@ -202,7 +203,7 @@ export const life = {
 						paperless: `Paperless-ngx has not answered for ${minutes} minutes.`,
 						address: `Paperless-ngx runs, but the fixed address has not answered this browser for ${minutes} minutes.`
 					}[step] ?? `The start has been waiting for ${minutes} minutes.`
-				} The app waits no longer; the VM runs on and costs. “Try again” looks again, or delete the VM under “My VMs”.`,
+				} The app waits no longer; the VM runs on and costs. “Try again” looks for the same VM again, or delete it under “My VMs” (a trial: “End the trial”).`,
 			noReason: 'no reason given',
 			noVm: 'No VM is running.',
 			noAttestation: 'The check returned no result.',
@@ -309,6 +310,7 @@ export const life = {
 			noBackup: 'There is no backup with your vault’s mark to check yet. The next backup gets it.',
 			endConfirm: 'End the trial? The second VM is deleted without a backup; what you changed there is gone then. The running instance stays.',
 			removing: 'Deleting the trial VM',
+			lookingAgain: 'Looking for the trial VM',
 			hint: 'Starts a second Paperless-ngx instance from the newest backup, beside the running one: no mail fetching, no backups of its own, an address of its own. There you look whether everything is there, and then end it.',
 			start: 'Start a trial from the newest backup',
 			requested: 'The trial VM was requested but has not finished starting',

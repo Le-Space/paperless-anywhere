@@ -3,7 +3,7 @@
 	// restored from the newest backup, as a test (mail rules off, no backups of
 	// its own, its own address), to look at and then end without a backup.
 	import { updateProfile } from '$lib/profile.js';
-	import { endTrial, startTrial } from '$lib/lifecycle.js';
+	import { endTrial, resumeTrial, startTrial } from '$lib/lifecycle.js';
 	import { listBackups, restoreEntry } from '$lib/backups.js';
 	import { creditsBalance } from '$lib/credits.js';
 	import { paperlessSecrets } from '$lib/keys/derive.js';
@@ -49,6 +49,24 @@
 		}
 	}
 
+	// The same VM again: an interrupted or given-up start is carried on, never
+	// requested a second time (the first would go on costing beside it).
+	async function again() {
+		busy = true;
+		error = '';
+		step = tr().life.trial.lookingAgain;
+		try {
+			const run = await resumeTrial(master, $state.snapshot(profile), ({ detail, step: s }) => (step = detail ?? s));
+			await updateProfile(master, (p) => ({ ...p, trial: { ...(p.trial ?? {}), ...run, readyAt: Date.now() } }));
+			onchange();
+		} catch (e) {
+			error = e instanceof Error ? e.message : String(e);
+		} finally {
+			busy = false;
+			step = '';
+		}
+	}
+
 	async function end() {
 		if (!confirm(tr().life.trial.endConfirm)) return;
 		busy = true;
@@ -76,7 +94,7 @@
 		<button type="button" class="small" onclick={start} disabled={busy} data-testid="trial-start">{x.start}</button>
 	{:else if !trial.host}
 		<p class="hint">{x.requested}{busy ? '' : x.requestedInterrupted}.</p>
-		{#if !busy}<button type="button" class="small" onclick={end} data-testid="trial-end">{x.end}</button>{/if}
+		{#if !busy}<button type="button" class="small" onclick={again} data-testid="trial-again">{$t.net.again}</button> <button type="button" class="small" onclick={end} data-testid="trial-end">{x.end}</button>{/if}
 	{:else}
 		<p>{x.running} <code>…{String(trial.backup ?? '').slice(-12)}</code>{#if trial.restore?.status === 'done'}: <strong class="ok">{x.restored}{docs != null ? x.documents(docs) : ''}</strong>{:else if trial.restore?.status === 'failed'}: <strong class="bad">{x.restoreFailed}{trial.restore.reason ? ` (${trial.restore.reason})` : ''}</strong>{/if}</p>
 		<a class="open" href={`https://${trial.host}/`} target="_blank" rel="noopener" data-testid="trial-open">{x.open}</a>
