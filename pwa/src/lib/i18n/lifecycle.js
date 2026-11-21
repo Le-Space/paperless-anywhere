@@ -30,6 +30,7 @@ export const life = {
 					{
 						silent: `Die VM antwortet seit ${minutes} Minuten nicht, weder unter der festen Adresse noch unter ihrem 2n6-Namen.`,
 						silentOne: `Die VM antwortet seit ${minutes} Minuten nicht.`,
+						silentRunning: `Der Knoten meldet, dass die VM läuft, aber sie antwortet seit ${minutes} Minuten nicht über ihren 2n6-Namen; vermutlich hat dieser Name noch kein Zertifikat.`,
 						'data-area': `Die VM legt seit ${minutes} Minuten ihren versiegelten Datenbereich an.`,
 						dns: `Die feste Adresse wird seit ${minutes} Minuten bei Cloudflare eingetragen.`,
 						certificate: `Die feste Adresse wartet seit ${minutes} Minuten auf das Zertifikat.`,
@@ -96,6 +97,10 @@ export const life = {
 			},
 			viaOther: (/** @type {string} */ what) => `${what} (Stand über den 2n6-Namen der VM, die feste Adresse antwortet noch nicht)`,
 			passphraseAgain: 'Noch keine Antwort der VM: Passphrase erneut übergeben',
+			noAnswerYet: (/** @type {number} */ minutes) =>
+				`Die VM antwortet seit ${minutes} Minuten noch nicht. Ihr 2n6-Name braucht zuerst ein Zertifikat; das dauert meist wenige Minuten, manchmal über 15.`,
+			runningNoAnswer: (/** @type {number} */ minutes) =>
+				`Der Knoten meldet, dass die VM läuft; sie antwortet seit ${minutes} Minuten noch nicht. Die App wartet weiter auf das Zertifikat ihres 2n6-Namens.`,
 			passphraseAgainFailed: (/** @type {string} */ reason) => `Erneute Übergabe fehlgeschlagen: ${reason}`,
 			stop: 'Stopp anfordern (letzte Sicherung)',
 			confirmBackup: 'Neue Sicherung auf der Blockchain prüfen',
@@ -186,6 +191,7 @@ export const life = {
 					{
 						silent: `The VM has not answered for ${minutes} minutes, neither at the fixed address nor at its 2n6 name.`,
 						silentOne: `The VM has not answered for ${minutes} minutes.`,
+						silentRunning: `The node says the VM runs, but it has not answered at its 2n6 name for ${minutes} minutes; that name probably has no certificate yet.`,
 						'data-area': `The VM has been creating its sealed data area for ${minutes} minutes.`,
 						dns: `The fixed address has been entered at Cloudflare for ${minutes} minutes.`,
 						certificate: `The fixed address has been waiting for its certificate for ${minutes} minutes.`,
@@ -252,6 +258,10 @@ export const life = {
 			},
 			viaOther: (/** @type {string} */ what) => `${what} (as the VM's 2n6 name reports; the fixed address does not answer yet)`,
 			passphraseAgain: 'No answer from the VM yet: handing over the passphrase again',
+			noAnswerYet: (/** @type {number} */ minutes) =>
+				`The VM has not answered for ${minutes} minutes yet. Its 2n6 name needs a certificate first; that mostly takes a few minutes, sometimes over 15.`,
+			runningNoAnswer: (/** @type {number} */ minutes) =>
+				`The node says the VM runs; it has not answered for ${minutes} minutes yet. The app keeps waiting for the certificate of its 2n6 name.`,
 			passphraseAgainFailed: (/** @type {string} */ reason) => `Handing it over again failed: ${reason}`,
 			stop: 'Requesting the stop (last backup)',
 			confirmBackup: 'Checking the new backup on the blockchain',

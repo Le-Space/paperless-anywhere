@@ -26,6 +26,16 @@ export const STEP_LIMIT_MS = Object.freeze({
 });
 /** No answer at all, from neither name, this long after the unlock or the last answer. */
 export const SILENT_LIMIT_MS = 20 * 60_000;
+/**
+ * No answer at all yet, but 2n6 names the VM and the node says it runs: then
+ * the VM's Caddy still orders the 2n6 name's certificate (on the first
+ * request for it), and a browser cannot tell that from silence. Round trips
+ * of 2026-11-20 and -21 had the page after 1 to 6 minutes, one not within 15.
+ * The app waits this long instead of giving up on a VM that is starting.
+ */
+export const SILENT_RUNNING_LIMIT_MS = 45 * 60_000;
+/** Without any answer for this long, the app says what it is waiting for. */
+export const SAY_NO_ANSWER_AFTER_MS = 3 * 60_000;
 /** When to hand the secrets over again while nothing answered (the guest's init sometimes misses the first). */
 export const UNLOCK_AGAIN_AFTER_MS = Object.freeze([5 * 60_000, 12 * 60_000]);
 /**
@@ -96,14 +106,16 @@ export class AddressFailedError extends Error {
  *   read: (host: string) => Promise<any>,
  *   onProgress: (p: { step: string, detail?: string, status?: any }) => void,
  *   unlockAgain?: (() => Promise<void>) | null,
+ *   running?: (() => Promise<boolean>) | null,
  *   firstLookMs?: number,
  *   pollMs?: number,
  *   now?: () => number,
  *   sleep?: (ms: number) => Promise<void>
- * }} a `alternate` gives the 2n6 name (for a fixed address), `read` the status page of a host or null
+ * }} a `alternate` gives the 2n6 name (for a fixed address), `read` the status page of a host or null,
+ *   `running` whether the node says the VM runs (asked only when nothing answered for SILENT_LIMIT_MS)
  * @returns {Promise<any>} the ready status
  */
-export async function watchStart({ host, alternate = null, read, onProgress, unlockAgain = null, firstLookMs = 0, pollMs = 10_000, now = Date.now, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
+export async function watchStart({ host, alternate = null, read, onProgress, unlockAgain = null, running = null, firstLookMs = 0, pollMs = 10_000, now = Date.now, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
 	const t = tr().life.progress;
 	const start = now();
 	const again = [...UNLOCK_AGAIN_AFTER_MS];
@@ -114,6 +126,8 @@ export async function watchStart({ host, alternate = null, read, onProgress, unl
 	/** @type {string | null} */
 	let step = null;
 	let stepSince = start;
+	// Past SILENT_LIMIT_MS because the node says the VM runs.
+	let waitingOn = false;
 	for (;;) {
 		const elapsed = now() - start;
 		const direct = elapsed >= firstLookMs ? await read(host).catch(() => null) : null;
@@ -151,13 +165,24 @@ export async function watchStart({ host, alternate = null, read, onProgress, unl
 			const what = current ? t.waiting[current] : t.startingPhase(status.phase);
 			onProgress({ step: 'ready', detail: viaOther ? t.viaOther(what) : what, status });
 			if (current && now() - stepSince > STEP_LIMIT_MS[/** @type {keyof typeof STEP_LIMIT_MS} */ (current)]) throw new StartStuckError(current, now() - stepSince);
-		} else if (now() - lastAnswer > SILENT_LIMIT_MS) {
-			throw new StartStuckError(alternate ? 'silent' : 'silentOne', now() - lastAnswer);
-		} else if (!answered && again.length && now() - start > again[0]) {
-			again.shift();
-			if (unlockAgain) {
-				onProgress({ step: 'ready', detail: t.passphraseAgain });
-				await unlockAgain().catch((e) => onProgress({ step: 'ready', detail: t.passphraseAgainFailed(e instanceof Error ? e.message : String(e)) }));
+		} else {
+			const silentFor = now() - lastAnswer;
+			if (silentFor > SILENT_LIMIT_MS) {
+				// Never an answer, but 2n6 names the VM: ask the node before giving up.
+				const mayRun = !answered && Boolean(other) && Boolean(running) && silentFor <= SILENT_RUNNING_LIMIT_MS;
+				const runs = mayRun && running ? await running().catch(() => false) : false;
+				if (!runs) throw new StartStuckError(waitingOn ? 'silentRunning' : alternate ? 'silent' : 'silentOne', silentFor);
+				waitingOn = true;
+			}
+			if (!answered && again.length && now() - start > again[0]) {
+				again.shift();
+				if (unlockAgain) {
+					onProgress({ step: 'ready', detail: t.passphraseAgain });
+					await unlockAgain().catch((e) => onProgress({ step: 'ready', detail: t.passphraseAgainFailed(e instanceof Error ? e.message : String(e)) }));
+				}
+			} else if (!answered && other && silentFor > SAY_NO_ANSWER_AFTER_MS) {
+				const minutes = Math.round(silentFor / 60_000);
+				onProgress({ step: 'ready', detail: waitingOn ? t.runningNoAnswer(minutes) : t.noAnswerYet(minutes) });
 			}
 		}
 		await sleep(pollMs);
