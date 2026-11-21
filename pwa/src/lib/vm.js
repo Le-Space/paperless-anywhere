@@ -158,6 +158,17 @@ export async function mapped443(crnUrl, itemHash) {
 }
 
 /**
+ * Whether the node lists the instance among its executions, as running.
+ * False when it does not; throws when the node cannot be read.
+ */
+export async function runsOnNode(crnUrl, itemHash) {
+	const res = await fetch(`${crnUrl}/v2/about/executions/list`, inTime());
+	if (!res.ok) throw new Error(`the node's list of executions: ${res.status}`);
+	const entry = (await res.json())?.[itemHash];
+	return entry?.running === true && !entry.status?.stopped_at;
+}
+
+/**
  * Where the VM's 443 is reached from IPv4: the node's address and the port it
  * maps to 443. Null until the node lists both.
  * @returns {Promise<{ ipv4: string, port: number } | null>}

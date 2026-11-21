@@ -1,7 +1,7 @@
 // Following a start after the unlock (start-watch.js): the 2n6 name while the
 // fixed one does not answer, the time limits per step, and what is said.
 import { describe, expect, it } from 'vitest';
-import { AddressFailedError, DataAreaFailedError, FIRST_LOOK_FIXED_MS, SILENT_LIMIT_MS, STEP_LIMIT_MS, StartStuckError, waitingStep, watchStart } from './start-watch.js';
+import { AddressFailedError, DataAreaFailedError, FIRST_LOOK_FIXED_MS, SAY_NO_ANSWER_AFTER_MS, SILENT_LIMIT_MS, SILENT_RUNNING_LIMIT_MS, STEP_LIMIT_MS, StartStuckError, waitingStep, watchStart } from './start-watch.js';
 import { setLang } from './i18n/index.js';
 import { startPanel } from './start-panel.js';
 
@@ -13,9 +13,9 @@ const MIN = 60_000;
  * A start against a script of answers: `answer(host, t)` is what the status
  * page of `host` says at `t` ms after the unlock (null: no answer).
  * @param {(host: string, t: number) => any} answer
- * @param {{ fixed?: boolean, unlockAgain?: () => Promise<void> }} [o]
+ * @param {{ fixed?: boolean, unlockAgain?: () => Promise<void>, running?: (t: number) => Promise<boolean> }} [o]
  */
-function watch(answer, { fixed = true, unlockAgain } = {}) {
+function watch(answer, { fixed = true, unlockAgain, running } = {}) {
 	let t = 0;
 	/** @type {{ host: string, t: number }[]} */
 	const asked = [];
@@ -36,6 +36,7 @@ function watch(answer, { fixed = true, unlockAgain } = {}) {
 		},
 		onProgress: (p) => p.detail && said.push(p.detail),
 		unlockAgain,
+		running: running ? () => running(t) : null,
 		firstLookMs: fixed ? FIRST_LOOK_FIXED_MS : 0,
 		now: () => t,
 		sleep: async (ms) => {
@@ -140,6 +141,61 @@ describe('watchStart', () => {
 		expect(e.message).toMatch(/^Die VM antwortet seit 2\d Minuten nicht, weder unter der festen Adresse noch unter ihrem 2n6-Namen\./);
 		expect(again).toBe(2);
 		expect(w.at()).toBeLessThanOrEqual(SILENT_LIMIT_MS + 20_000);
+	});
+	it('waits on past 20 minutes of silence when the node says the VM runs, and says what for', async () => {
+		// 2026-11-20: a VM whose 2n6 name got its certificate only after more than 15 minutes.
+		let asked = 0;
+		const w = watch((host, t) => (host === TWO_N6 && t >= 31 * MIN ? { phase: 'ready', paperless: true } : host === FIXED && t >= 32 * MIN ? { phase: 'ready', paperless: true } : null), {
+			running: async () => {
+				asked++;
+				return true;
+			}
+		});
+		expect((await w.done).phase).toBe('ready');
+		expect(w.at()).toBeGreaterThan(SILENT_LIMIT_MS);
+		expect(asked).toBeGreaterThan(0);
+		expect(w.said.some((d) => /^Die VM antwortet seit \d+ Minuten noch nicht\. Ihr 2n6-Name braucht zuerst ein Zertifikat/.test(d))).toBe(true);
+		expect(w.said.some((d) => /^Der Knoten meldet, dass die VM läuft; sie antwortet seit 2\d Minuten noch nicht\./.test(d))).toBe(true);
+	});
+	it('does not ask the node before 20 minutes of silence', async () => {
+		/** @type {number[]} */
+		const at = [];
+		const w = watch((host, t) => (t >= 25 * MIN && host === FIXED ? { phase: 'ready', paperless: true } : null), {
+			running: async (t) => {
+				at.push(t);
+				return true;
+			}
+		});
+		await w.done;
+		expect(Math.min(...at)).toBeGreaterThan(SILENT_LIMIT_MS);
+		expect(w.said.filter((d) => /noch nicht/.test(d)).length).toBeGreaterThan(0);
+		expect(SAY_NO_ANSWER_AFTER_MS).toBeLessThan(SILENT_LIMIT_MS);
+	});
+	it('gives up after 45 minutes even then, and says the node runs the VM', async () => {
+		const w = watch(() => null, { running: async () => true });
+		const e = await w.done.catch((x) => x);
+		expect(e).toBeInstanceOf(StartStuckError);
+		expect(e.step).toBe('silentRunning');
+		expect(e.message).toMatch(/^Der Knoten meldet, dass die VM läuft, aber sie antwortet seit 4\d Minuten nicht über ihren 2n6-Namen; vermutlich hat dieser Name noch kein Zertifikat\./);
+		expect(w.at()).toBeLessThanOrEqual(SILENT_RUNNING_LIMIT_MS + 20_000);
+	});
+	it('gives up at 20 minutes when the node does not run the VM, cannot be read, or the VM has no 2n6 name', async () => {
+		for (const running of [async () => false, async () => Promise.reject(new Error('no answer'))]) {
+			const w = watch(() => null, { running });
+			const e = await w.done.catch((x) => x);
+			expect(e.step).toBe('silent');
+			expect(w.at()).toBeLessThanOrEqual(SILENT_LIMIT_MS + 20_000);
+		}
+		const w = watch(() => null, { fixed: false, running: async () => true });
+		const e = await w.done.catch((x) => x);
+		expect(e.step).toBe('silentOne');
+		expect(w.at()).toBeLessThanOrEqual(SILENT_LIMIT_MS + 20_000);
+	});
+	it('a VM that answered once and then fell silent is not waited for longer', async () => {
+		const w = watch((host, t) => (host === TWO_N6 && t < 5 * MIN ? { phase: 'starting', waiting: 'images' } : null), { running: async () => true });
+		const e = await w.done.catch((x) => x);
+		expect(e.step).toBe('silent');
+		expect(w.at()).toBeLessThanOrEqual(5 * MIN + SILENT_LIMIT_MS + 20_000);
 	});
 	it('asks 2n6 for the name again while it has none', async () => {
 		let n = 0;

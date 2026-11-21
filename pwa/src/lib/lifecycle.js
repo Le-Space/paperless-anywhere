@@ -28,7 +28,7 @@ import { unlockDetail } from './unlock-progress.js';
 import { updateProfile, vmPayer } from './profile.js';
 import { ALEPH_API, readFetch } from './aleph.js';
 import { format, tr } from './i18n/index.js';
-import { crnAddress, credits, estimateCreditsPerHour, FIXED_HOST_DOMAIN, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, sendInstance, vmStatus, eraseOnNode } from './vm.js';
+import { crnAddress, credits, estimateCreditsPerHour, FIXED_HOST_DOMAIN, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, runsOnNode, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
 /** Aleph would refuse the start: the payer holds less than a day of reserve. */
 export class AlephShortError extends Error {
@@ -694,6 +694,9 @@ async function bringUp(master, profile, starting, wasm, onProgress, { resumed = 
 		alternate: twoN6,
 		read: readStatus,
 		onProgress,
+		// Asked only when nothing answered for 20 minutes: a VM the node runs
+		// is waited for longer (its 2n6 name's certificate may still be ordered).
+		running: () => runsOnNode(crnUrl, instanceHash),
 		firstLookMs: fixed ? FIRST_LOOK_FIXED_MS : 0,
 		// The second hand-over is part of waiting for the VM: said in the last
 		// step (the panel stays there), and given up after a while, so the
