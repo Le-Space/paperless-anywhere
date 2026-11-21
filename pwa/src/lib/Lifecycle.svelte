@@ -182,6 +182,7 @@
 {/snippet}
 
 {#snippet superusersWarning()}
+	{#if profile.running?.restore?.empty === true}<p class="warn" role="alert" data-testid="restore-empty">{c.restoreEmpty}</p>{/if}
 	{#if Number(profile.running?.restore?.superusers) > 0}<p class="warn" data-testid="restore-superusers">{c.superusers(Number(profile.running?.restore?.superusers))}</p>{/if}
 {/snippet}
 

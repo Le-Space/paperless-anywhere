@@ -68,6 +68,7 @@ export const card = {
 			text: (/** @type {string} */ cid, /** @type {string} */ dated) => `Die Sicherung ${cid}${dated} trägt nicht das Siegel deines Tresors. Entweder ist sie älter als dieses Siegel, oder sie stammt nicht von deinem Paperless. Spiel sie nur ein, wenn du weißt, dass sie deine ist.`,
 			accept: 'Sie ist meine: trotzdem einspielen'
 		},
+		restoreEmpty: 'Die eingespielte Sicherung enthielt keine Dokumente; Paperless-ngx ist leer. Vermutlich stammt sie von einem leeren Paperless. Deine älteren Sicherungen sind unverändert: Stoppe und wähle beim nächsten Start eine ältere aus der Liste.',
 		superusers: (/** @type {number} */ n) => `Mit der Sicherung kam${n === 1 ? ' ein weiterer Administrator' : `en ${n} weitere Administratoren`} außer „admin“. Wenn du ${n === 1 ? 'ihn' : 'sie'} nicht kennst, prüfe die Benutzer in Paperless-ngx.`,
 		gap: {
 			missing: (/** @type {string} */ known, /** @type {string} */ dated, /** @type {boolean} */ other) => `Die letzte Sicherung, die diese App kennt (${known}${dated}), steht gerade nicht in der Liste der Sicherungen. Ein Start jetzt beginnt ${other ? 'mit einem anderen Stand' : 'ohne Daten'}.`,
@@ -258,6 +259,7 @@ export const card = {
 			text: (/** @type {string} */ cid, /** @type {string} */ dated) => `The backup ${cid}${dated} does not carry your vault’s mark. Either it is older than this mark, or it does not come from your Paperless. Restore it only if you know it is yours.`,
 			accept: 'It is mine: restore it anyway'
 		},
+		restoreEmpty: 'The restored backup held no documents; Paperless-ngx is empty. It probably came from an empty Paperless. Your older backups are unchanged: stop and choose an older one from the list at the next start.',
 		superusers: (/** @type {number} */ n) => `${n === 1 ? 'One more administrator' : `${n} more administrators`} besides “admin” came with the backup. If you do not know ${n === 1 ? 'it' : 'them'}, check the users in Paperless-ngx.`,
 		gap: {
 			missing: (/** @type {string} */ known, /** @type {string} */ dated, /** @type {boolean} */ other) => `The last backup this app knows (${known}${dated}) is not in the list of backups right now. A start now begins ${other ? 'with another state' : 'without data'}.`,

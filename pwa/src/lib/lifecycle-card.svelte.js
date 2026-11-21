@@ -31,7 +31,7 @@ import { blockedAmong, blockedReason } from '$lib/blocked-providers.js';
 import { avoidedNodes, nodeBlockedReason, noteProven, noteUnsuitable, provenNodes } from '$lib/blocked-nodes.js';
 import { DataAreaFailedError } from '$lib/start-watch.js';
 import { keptDe, keptEn } from '$lib/i18n/backup.js';
-import { backupSize, endingCopies, knownBackup, listBackups, newerBackup, pieceCidOfStop, restoreEntry, restoreGap, retentionFor, splitOwn, withoutBlocked } from '$lib/backups.js';
+import { backupSize, endingCopies, knownBackup, listBackups, newerBackup, pickRestorable, pieceCidOfStop, restoreEntry, restoreGap, retentionFor, splitOwn, tinyNewest as tinyNewestOf, withoutBlocked } from '$lib/backups.js';
 import { paperlessSecrets } from '$lib/keys/derive.js';
 import { startingInstance } from '$lib/starting.js';
 import { choiceAfterReading } from '$lib/restore-choice.js';
@@ -315,19 +315,15 @@ export function createLifecycleCard(p) {
 	// become the newest, ahead of the real ones (2026-11-17). Such a start
 	// makes no backups unless the person says to begin anew.
 	let freshConfirmed = $state(false);
-	/** The newest backup is far smaller than the one before it: likely an empty Paperless's. */
-	const tinyNewest = $derived.by(() => {
-		const list = (backups ?? []).filter((b) => b.size != null);
-		const [first, second] = list;
-		return first && second && first.size * 100 < second.size ? { newest: first, before: second } : null;
-	});
+	/** The newest backup is far smaller than a later one in the list: likely an empty Paperless's. */
+	const tinyNewest = $derived(tinyNewestOf(backups ?? []));
 	// The newest one: a backup counts once it reached at least one provider
 	// (the restore checks the piece itself); "complete" only compared the copies
 	// with every data set the wallet ever used, and a backup that went to a
 	// replacement provider never looked complete (2026-11-06).
-	// A newest backup far smaller than the one after it in the list (an empty
-	// Paperless's, 2026-11-17) is never taken silently: the next one is.
-	const pick = (list) => list.find((b, i) => !(b?.size != null && list[i + 1]?.size != null && b.size * 100 < list[i + 1].size)) ?? list[0];
+	// A backup far smaller than a later one in the list (an empty Paperless's,
+	// 2026-11-17) is never taken silently: the newest that is not is (backups.js).
+	const pick = pickRestorable;
 	// A backup the person picked from the list (choice "pick"), by its piece CID.
 	let pickedCid = $state('');
 	const marked = (/** @type {any} */ b) => Boolean(b) && (profile.vaultBackups ?? []).includes(b.pieceCid);

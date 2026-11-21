@@ -622,6 +622,43 @@ export function withVaultBackups(known = [], found, max = 200) {
 	return fresh.length ? [...fresh, ...known].slice(0, max) : known;
 }
 
+/**
+ * A backup whose size says something about what it holds: a full one, or the
+ * baseline of incremental ones (seq 0). A later pack holds only what changed.
+ * @param {any} b
+ */
+const weighable = (b) => b?.size != null && (b.kind !== 'snapshot' || b.seq === 0);
+
+/**
+ * Is the backup at `i` far smaller (over 100 times) than the largest one
+ * after it in the list (newest first)? Then it is likely an empty Paperless's.
+ * Compared with all later ones, not the next: two empty ones in a row hid
+ * each other, and the first was restored (2026-11-21).
+ * @param {any[]} list @param {number} i
+ * @returns {any | null} the largest later backup it is far smaller than
+ */
+export function tinyAgainst(list, i) {
+	const b = list[i];
+	if (!weighable(b)) return null;
+	let largest = null;
+	for (const later of list.slice(i + 1)) if (weighable(later) && (!largest || later.size > largest.size)) largest = later;
+	return largest && b.size * 100 < largest.size ? largest : null;
+}
+
+/** The newest backup of the list that is not far smaller than a later one; the newest when all are. @param {any[]} list */
+export const pickRestorable = (list) => list.find((_, i) => !tinyAgainst(list, i)) ?? list[0];
+
+/**
+ * The newest backup when it is far smaller than a later one, with the newest
+ * that is not (what to restore instead); else null.
+ * @param {any[]} list @returns {{ newest: any, before: any } | null}
+ */
+export function tinyNewest(list) {
+	if (!list.length || !tinyAgainst(list, 0)) return null;
+	const before = pickRestorable(list);
+	return before && before !== list[0] ? { newest: list[0], before } : null;
+}
+
 /** Backups split into this vault's own (newest first) and the rest. @param {any[]} backups @param {string[]} own */
 export function splitOwn(backups, own = []) {
 	const mine = new Set(own);

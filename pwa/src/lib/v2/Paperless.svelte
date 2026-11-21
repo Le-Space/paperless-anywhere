@@ -193,6 +193,7 @@
 		{:else if phase === 'running'}
 			{#if technical}<p class="tline" data-testid="v2-host">{s.host}: {profile.running.host}</p>{/if}
 			<a class="cta" href={`https://${profile.running.host}/`} target="_blank" rel="noopener" data-testid="v2-open">{s.open}</a>
+			{#if profile.running?.restore?.empty === true}<p class="warn" role="alert" data-testid="restore-empty">{c.restoreEmpty}</p>{/if}
 			{#if Number(profile.running?.restore?.superusers) > 0}<p class="warn" data-testid="restore-superusers">{c.superusers(Number(profile.running?.restore?.superusers))}</p>{/if}
 			{#if k.restoreFailed}
 				<p class="error" role="alert" data-testid="v2-restore-failed">{c.simple.restoreFailed}{#if technical} {c.advanced.restoreFailed(`${profile.running.restore.reason ?? c.advanced.noReason}${profile.running.restore.error ? `: ${profile.running.restore.error}` : ''}`)}{/if}</p>

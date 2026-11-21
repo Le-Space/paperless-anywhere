@@ -189,15 +189,55 @@ describe('choosing the backup a start restores', () => {
 		const card = readFileSync(new URL('./lifecycle-card.svelte.js', import.meta.url), 'utf8');
 		expect(card).toMatch(/choice === 'pick' \? \(\(backups \?\? \[\]\)\.find\(\(b\) => b\.pieceCid === pickedCid\)/);
 		expect(card).toMatch(/const chosenUnmarked = \$derived\(choice === 'any' \|\| \(choice === 'pick' && Boolean\(chosenBackup\) && !marked\(chosenBackup\)\)\)/);
-		expect(card).toMatch(/b\.size \* 100 < list\[i \+ 1\]\.size/);
+		expect(card).toMatch(/const pick = pickRestorable;/);
+		expect(card).toMatch(/const tinyNewest = \$derived\(tinyNewestOf\(backups \?\? \[\]\)\);/);
 		const view = readFileSync(new URL('./Lifecycle.svelte', import.meta.url), 'utf8');
 		expect(view).toMatch(/data-testid="backup-pick-list"/);
 		expect(view).toMatch(/data-testid="tiny-pick-before"/);
 	});
-	it('the pick rule: the first backup not far smaller than the one after it', () => {
-		const pick = (list) => list.find((b, i) => !(b?.size != null && list[i + 1]?.size != null && b.size * 100 < list[i + 1].size)) ?? list[0];
-		expect(pick([{ pieceCid: 'empty', size: 3633 }, { pieceCid: 'good', size: 1_083_296_209 }, { pieceCid: 'older', size: 1_000_000_000 }]).pieceCid).toBe('good');
+	it('the pick rule: the newest backup not far smaller than a later one', async () => {
+		const { pickRestorable: pick, tinyNewest } = await import('./backups.js');
+		const empty = { pieceCid: 'empty', size: 3633 };
+		const good = { pieceCid: 'good', size: 1_083_296_209 };
+		const older = { pieceCid: 'older', size: 1_000_000_000 };
+		expect(pick([empty, good, older]).pieceCid).toBe('good');
 		expect(pick([{ pieceCid: 'a', size: 900 }, { pieceCid: 'b', size: 1000 }]).pieceCid).toBe('a');
 		expect(pick([{ pieceCid: 'only', size: 10 }]).pieceCid).toBe('only');
+		expect(pick([])).toBeUndefined();
+		// 2026-11-21: two empty ones in a row hid each other, and the first was restored.
+		const empty2 = { pieceCid: 'empty2', size: 3700 };
+		expect(pick([empty2, empty, good, older]).pieceCid).toBe('good');
+		expect(tinyNewest([empty2, empty, good, older])).toEqual({ newest: empty2, before: good });
+		expect(tinyNewest([empty, good])).toEqual({ newest: empty, before: good });
+		expect(tinyNewest([good, empty, older])).toBeNull();
+		expect(tinyNewest([empty2, empty])).toBeNull();
+		expect(tinyNewest([])).toBeNull();
+		// A size the chain did not tell decides nothing.
+		expect(pick([{ pieceCid: 'unknown', size: null }, good]).pieceCid).toBe('unknown');
+	});
+	it('a later pack of incremental backups is small by nature and never counts as empty', async () => {
+		const { pickRestorable: pick, tinyNewest } = await import('./backups.js');
+		const full = { pieceCid: 'full', size: 1_083_296_209 };
+		const base = { pieceCid: 'base', kind: 'snapshot', gen: 'a', seq: 0, size: 1_050_000_000 };
+		const pack = { pieceCid: 'pack', kind: 'snapshot', gen: 'a', seq: 1, size: 2_000_000 };
+		expect(pick([pack, base, full]).pieceCid).toBe('pack');
+		expect(tinyNewest([pack, base, full])).toBeNull();
+		// An empty baseline is weighed like a full backup, and not against a pack.
+		const emptyBase = { pieceCid: 'empty-base', kind: 'snapshot', gen: 'b', seq: 0, size: 4000 };
+		expect(pick([emptyBase, pack, base, full]).pieceCid).toBe('pack');
+		expect(pick([emptyBase, pack]).pieceCid).toBe('empty-base');
+	});
+	it('a restore that brought no documents is kept for the card, which says so', async () => {
+		const { restoreNote } = await import('./lifecycle.js');
+		expect(restoreNote({ status: 'done', documents: 0, trash: 0, superusers: 0 })).toEqual({ restore: { status: 'done', empty: true } });
+		expect(restoreNote({ status: 'done', documents: 0, trash: 0, superusers: 2 })).toEqual({ restore: { status: 'done', superusers: 2, empty: true } });
+		expect(restoreNote({ status: 'done', documents: 27, trash: 0, superusers: 1 })).toEqual({ restore: { status: 'done', superusers: 1 } });
+		// Documents only in the trash, no count, or no restore: nothing to say.
+		expect(restoreNote({ status: 'done', documents: 0, trash: 3 })).toEqual({});
+		expect(restoreNote({ status: 'done' })).toEqual({});
+		expect(restoreNote({ status: 'skipped', documents: 0 })).toEqual({});
+		expect(restoreNote(null)).toEqual({});
+		const { readFileSync } = await import('node:fs');
+		for (const f of ['./Lifecycle.svelte', './v2/Paperless.svelte']) expect(readFileSync(new URL(f, import.meta.url), 'utf8')).toMatch(/profile\.running\?\.restore\?\.empty === true\}<p class="warn" role="alert" data-testid="restore-empty">\{c\.restoreEmpty\}/);
 	});
 });
