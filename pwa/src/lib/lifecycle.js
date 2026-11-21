@@ -716,7 +716,7 @@ async function bringUp(master, profile, starting, wasm, onProgress, { resumed = 
 	});
 	// Whether the VM sealed its data area with a key of its own (image paperless-data-disk).
 	const dataDisk = ready.dataDisk?.status === 'encrypted' ? 'encrypted' : ready.dataDisk ? 'plain' : 'unknown';
-	return { instanceHash, crnHash: starting.crnHash, payer, host, trustedExecution, dataDisk, ...(attestation ? { attestation } : {}), ...(ready.phase === 'restore-failed' ? { restore: ready.restore } : Number(ready.restore?.superusers) > 0 ? { restore: { status: 'done', superusers: Number(ready.restore.superusers) } } : {}) };
+	return { instanceHash, crnHash: starting.crnHash, payer, host, trustedExecution, dataDisk, ...(attestation ? { attestation } : {}), ...(ready.phase === 'restore-failed' ? { restore: ready.restore } : restoreNote(ready.restore)) };
 }
 
 /**
@@ -1024,6 +1024,19 @@ export async function resumeAfterPartial(master, profile, { send = sendToGuest, 
 export function trialProfile(profile, entry) {
 	const { running, starting, trial, dnsToken, backupConfig, ...rest } = profile;
 	return { ...rest, role: 'test', restoreEntry: entry };
+}
+
+/**
+ * What the card keeps of a restore that went through: other administrators
+ * that came with the backup, and that it brought no documents at all (an
+ * empty Paperless's backup; "restored" alone would hide it, 2026-11-21).
+ * @param {any} restore the status page's restore.json
+ * @returns {{ restore?: { status: 'done', superusers?: number, empty?: true } }}
+ */
+export function restoreNote(restore) {
+	const superusers = Number(restore?.superusers) > 0 ? { superusers: Number(restore.superusers) } : {};
+	const empty = restore?.status === 'done' && restore.documents === 0 && (restore.trash ?? 0) === 0 ? { empty: /** @type {const} */ (true) } : {};
+	return 'superusers' in superusers || 'empty' in empty ? { restore: { status: 'done', ...superusers, ...empty } } : {};
 }
 
 /**
