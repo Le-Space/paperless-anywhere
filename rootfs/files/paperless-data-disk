@@ -75,10 +75,8 @@ print(json.dumps({
 }))
 PY
 }
-swap_mib=0
-swap_error=""
 report() {
-  printf '{"status":"%s","reason":"%s","bytes":%s,"swapMiB":%s,"swapError":"%s","seconds":%s,"probe":%s}\n' "$1" "$2" "${3:-0}" "$swap_mib" "$swap_error" "$(( $(date +%s) - started ))" "$(probe 2>/dev/null || echo null)" > "$state/data-disk.json"
+  printf '{"status":"%s","reason":"%s","bytes":%s,"seconds":%s,"probe":%s}\n' "$1" "$2" "${3:-0}" "$(( $(date +%s) - started ))" "$(probe 2>/dev/null || echo null)" > "$state/data-disk.json"
 }
 plain() {
   echo "paperless-data-disk: $1; the stack will not start on the shared-key rootfs" >&2
@@ -151,31 +149,8 @@ for path in /srv/paperless /var/lib/docker /var/lib/caddy /root/.local/share/cad
   chown --reference="$path" "$target" 2>/dev/null
   mount --bind "$target" "$path" || plain "bind mount of $path failed"
 done
-# Swap, 2 GiB, as a file on the sealed area: what is swapped out is
-# encrypted with the key that never leaves this VM, like everything else
-# here, and never touches the shared-key rootfs. Only on an area of 8 GiB or
-# more; a guest that cannot swap starts as before, without.
-# 2026-11-19: on the first image with this, the swap did not come up (swapMiB
-# 0) and nothing said why. So the image does not claim swap
-# (capabilities.json), and the step that failed and its message go to
-# data-disk.json (swapError: the tool's own words, no path of ours but the
-# swap file's).
-swap="$mnt/swapfile"
-if [ "$size" -ge 8589934592 ] && ! grep -q "^$swap " /proc/swaps 2>/dev/null; then
-  rm -f "$swap"
-  swap_log="$state/swap.log"
-  : > "$swap_log"
-  step=allocate
-  if { fallocate -l 2G "$swap" 2>>"$swap_log" || dd if=/dev/zero of="$swap" bs=1M count=2048 2>>"$swap_log"; } \
-    && step=chmod && chmod 600 "$swap" 2>>"$swap_log" \
-    && step=mkswap && mkswap "$swap" >/dev/null 2>>"$swap_log" \
-    && step=enable && swapon "$swap" 2>>"$swap_log"; then
-    swap_mib=2048
-  else
-    swap_error="$step: $(tail -1 "$swap_log" | tr -d '"\\\n' | tr -c '[:print:]' ' ' | cut -c1-160)"
-    swapoff "$swap" 2>/dev/null; rm -f "$swap"
-    echo "paperless-data-disk: no swap on the sealed area ($swap_error); going on without" >&2
-  fi
-  rm -f "$swap_log"
-fi
+# No swap: the guest kernel has none (2026-11-21: swapon on a file here ended
+# in "Function not implemented"), so a swap file would only take 2 GiB of the
+# area. Memory was not short without it: a 1.1 GB restore on 4 GiB left over
+# 2 GiB available (round trips of 2026-11-19 to -21).
 report encrypted "${spare:-file}" "$size"

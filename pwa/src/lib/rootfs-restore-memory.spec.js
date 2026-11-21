@@ -1,9 +1,7 @@
-// A large restore and the VM's memory (rootfs/files/paperless-restore,
-// paperless-data-disk). Tika and Gotenberg pause for the import and start
-// again whatever happened; the outcome carries the memory figures; the swap
-// lives on the sealed area only. 2026-11-19: a 1.1 GB import on a 4 GiB VM
-// without swap left the whole VM silent. The script's own lines run here
-// with sh and a made-up docker.
+// A large restore and the VM's memory (rootfs/files/paperless-restore).
+// Tika and Gotenberg pause for the import and start again whatever happened; the outcome carries the memory figures. There is
+// no swap: the guest kernel has none (rootfs-capabilities.spec.js). The
+// script's own lines run here with sh and a made-up docker.
 import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -11,7 +9,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const script = readFileSync(new URL('../../../rootfs/files/paperless-restore', import.meta.url), 'utf8');
-const disk = readFileSync(new URL('../../../rootfs/files/paperless-data-disk', import.meta.url), 'utf8');
 const fn = (/** @type {string} */ name) => script.match(new RegExp(`^${name}\\(\\) \\{[\\s\\S]*?^\\}`, 'm'))?.[0] ?? script.match(new RegExp(`^${name}\\(\\) \\{.*\\}$`, 'm'))?.[0];
 const helpers = script.slice(script.indexOf('\npaused=""'), script.indexOf('\ncleanup() {'));
 
@@ -76,16 +73,5 @@ describe('the memory figures in restore.json', { timeout: 30_000 }, () => {
 		expect(script).toMatch(/^status done ".*\$\(memory\)"$/m);
 		const top = script.slice(0, script.indexOf('\ncmd="${1:-run}"'));
 		expect(top.replace(/^[a-z_]+\(\) \{[\s\S]*?^\}/gm, '')).not.toMatch(/^set -- /m);
-	});
-});
-
-describe('the swap', () => {
-	it('is a file on the sealed area, made after the area is mounted, never on the rootfs', () => {
-		const at = disk.indexOf('swap="$mnt/swapfile"');
-		expect(at).toBeGreaterThan(disk.indexOf('mount /dev/mapper/sealed "$mnt"'));
-		expect(disk.slice(at)).toMatch(/swapon "\$swap"/);
-		expect(disk).not.toMatch(/swapon (?!"\$swap")/);
-		// A guest that cannot swap starts as before.
-		expect(disk.slice(at, disk.indexOf('report encrypted', at))).toContain('going on without');
 	});
 });

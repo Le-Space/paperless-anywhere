@@ -516,8 +516,6 @@ jobs:
               [ "$(jq -r .phase <<<"$STATUS_FULL")" = ready ] && break; sleep 10
             done
             jq -c '{phase, waiting, restore: (.restore | {status, documents}), fixedAddress: (.fixedAddress | {status}), capabilities}' <<<"$STATUS_FULL"
-            # Why this VM has no swap, in the image's own words (dataDisk.swapError, #410).
-            echo "SWAP=$(jq -c '{swapMiB: .dataDisk.swapMiB, swapError: .dataDisk.swapError, swapBytes: .memory.swapBytes}' <<<"$STATUS_FULL")" | tee -a "$GITHUB_ENV"
             [ "$(jq -r .phase <<<"$STATUS_PUBLIC")" = ready ] && [ "$(jq -r .phase <<<"$STATUS_FULL")" = ready ] || { echo "::error::the status page does not say ready after the restore"; exit 1; }
             [ "$(jq -r '.restore.status' <<<"$STATUS_FULL")" = done ] && [ "$(jq -r '.restore.documents' <<<"$STATUS_FULL")" = "$EXPECT_DOCS" ] || { echo "::error::the status page does not show the restore's outcome"; exit 1; }
             [ "$(jq -r '.fixedAddress.status' <<<"$STATUS_FULL")" = ready ] || { echo "::error::the status page does not say the fixed address is ready"; exit 1; }
@@ -550,7 +548,6 @@ jobs:
             [ -z "$FIXED_ADDRESS" ] || echo "| Status page of VM 1 over its 2n6 name, after the unlock | ${VM1_STATUS:-did not answer} |"
             [ -z "$FIXED_ADDRESS" ] || echo "| Status page of VM 2 over its 2n6 name, after the unlock | ${VM2_STATUS:-did not answer} |"
             [ -z "$FIXED_ADDRESS" ] || echo "| Status page of VM 2 after the restore | ${VM2_STATUS_END:-not ready} |"
-            [ -z "$SWAP" ] || echo "| Swap on VM 2 | \`$SWAP\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Runs even when the round trip was cancelled or timed out.
