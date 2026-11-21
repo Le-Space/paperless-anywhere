@@ -4,10 +4,15 @@
 // and lets age unwrap the file key and check the header's MAC. Nothing else
 // of the backup is read; the file key is dropped at once, and the identity
 // goes to the age library only: no address, no header, no log, no DOM.
+//
+// An incremental backup (a pack) carries a public prefix of 64 bytes before
+// the age stream (snapshots.js); it is skipped, after it named the pack the
+// VM reported. 2026-11-21: without that, every pack read as "refused".
 import { pieceSources } from './backups.js';
+import { PREFIX_BYTES, classifyPrefix } from './snapshots.js';
 
 /** Enough for an age v1 header with one X25519 recipient (about 200 bytes). */
-const HEADER_BYTES = 4096;
+const HEADER_BYTES = 4096 + PREFIX_BYTES;
 
 /**
  * @param {{
@@ -25,11 +30,15 @@ export async function checkBackupHeader({ backup, identity, fetchImpl = fetch, a
 	for (const url of urls) {
 		const head = await firstBytes(url, fetchImpl).catch(() => null);
 		if (!head) continue;
+		const said = classifyPrefix(head);
+		const pack = said && said !== 'full' ? said : null;
+		// A pack other than the one the VM reported is not this backup.
+		if (pack && backup.kind === 'snapshot' && (backup.gen !== pack.gen || Number(backup.seq) !== pack.seq)) return 'refused';
 		const { Decrypter } = await age();
 		const d = new Decrypter();
 		d.addIdentity(identity);
 		try {
-			const fileKey = await d.decryptHeader(head);
+			const fileKey = await d.decryptHeader(pack ? head.subarray(PREFIX_BYTES) : head);
 			fileKey.fill(0);
 			return 'opens';
 		} catch {

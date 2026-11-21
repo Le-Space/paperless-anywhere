@@ -48,4 +48,35 @@ describe('the backup header check', () => {
 		// Never anything but a provider's piece address.
 		expect(await checkBackupHeader({ backup: entry(['http://sp1.example/x']), identity, fetchImpl: serving(file) })).toBe('unreachable');
 	});
+
+	// An incremental backup: the public prefix, then the age stream (snapshots.js).
+	const pack = async (recipient, gen, seq) => {
+		const prefix = new TextEncoder().encode(`PA-SNAP/1 ${gen} ${seq}`.padEnd(63, ' ') + '\n');
+		const body = await sealed(recipient);
+		const out = new Uint8Array(prefix.length + body.length);
+		out.set(prefix);
+		out.set(body, prefix.length);
+		return out;
+	};
+
+	it('opens a pack behind its public prefix (2026-11-21: every pack read as refused)', async () => {
+		const identity = await generateX25519Identity();
+		const gen = 'ab'.repeat(8);
+		const file = await pack(await identityToRecipient(identity), gen, 3);
+		const url = [`https://sp1.example/piece/${CID}`];
+		expect(await checkBackupHeader({ backup: { ...entry(url), kind: 'snapshot', gen, seq: 3 }, identity, fetchImpl: serving(file) })).toBe('opens');
+		// Without what the VM said of it, the prefix alone decides.
+		expect(await checkBackupHeader({ backup: entry(url), identity, fetchImpl: serving(file) })).toBe('opens');
+	});
+
+	it('refuses a pack sealed to another key, and one that is not the pack the VM reported', async () => {
+		const identity = await generateX25519Identity();
+		const gen = 'ab'.repeat(8);
+		const url = [`https://sp1.example/piece/${CID}`];
+		const other = await pack(await identityToRecipient(await generateX25519Identity()), gen, 3);
+		expect(await checkBackupHeader({ backup: { ...entry(url), kind: 'snapshot', gen, seq: 3 }, identity, fetchImpl: serving(other) })).toBe('refused');
+		const own = await pack(await identityToRecipient(identity), gen, 3);
+		expect(await checkBackupHeader({ backup: { ...entry(url), kind: 'snapshot', gen, seq: 4 }, identity, fetchImpl: serving(own) })).toBe('refused');
+		expect(await checkBackupHeader({ backup: { ...entry(url), kind: 'snapshot', gen: 'cd'.repeat(8), seq: 3 }, identity, fetchImpl: serving(own) })).toBe('refused');
+	});
 });

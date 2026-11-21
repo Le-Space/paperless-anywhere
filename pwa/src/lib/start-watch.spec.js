@@ -186,10 +186,23 @@ describe('watchStart', () => {
 			expect(e.step).toBe('silent');
 			expect(w.at()).toBeLessThanOrEqual(SILENT_LIMIT_MS + 20_000);
 		}
-		const w = watch(() => null, { fixed: false, running: async () => true });
+		const w = watch(() => null, { fixed: false, running: async () => false });
 		const e = await w.done.catch((x) => x);
 		expect(e.step).toBe('silentOne');
 		expect(w.at()).toBeLessThanOrEqual(SILENT_LIMIT_MS + 20_000);
+	});
+	it('without a fixed address (a trial) a VM the node runs is waited for longer too', async () => {
+		// 2026-11-21: a trial's only name is its 2n6 name; the app gave up at 20 minutes.
+		const w = watch(() => null, { fixed: false, running: async () => true });
+		const e = await w.done.catch((x) => x);
+		expect(e.step).toBe('silentRunning');
+		expect(w.at()).toBeGreaterThan(SILENT_RUNNING_LIMIT_MS);
+		expect(w.at()).toBeLessThanOrEqual(SILENT_RUNNING_LIMIT_MS + 20_000);
+		expect(w.said.some((x) => x.includes('2n6'))).toBe(true);
+	});
+	it('without a fixed address a late answer within the longer wait still ends the start', async () => {
+		const w = watch((_host, t) => (t > 30 * MIN ? { phase: 'ready' } : null), { fixed: false, running: async () => true });
+		expect((await w.done).phase).toBe('ready');
 	});
 	it('a VM that answered once and then fell silent is not waited for longer', async () => {
 		const w = watch((host, t) => (host === TWO_N6 && t < 5 * MIN ? { phase: 'starting', waiting: 'images' } : null), { running: async () => true });
