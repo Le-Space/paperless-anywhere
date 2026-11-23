@@ -29,7 +29,7 @@ Paperless-ngx usually lives on one machine at home. Paperless anywhere runs it o
 1. **Your image (once, and for each new version):** an attested builder in its own confidential VM seals the public base image with a passphrase from your vault. Your browser checks the builder's AMD report first, then stores the sealed image on Aleph. Included with a package or a voucher.
 2. **Start:** the app signs an INSTANCE message, asks for a confidential node, and checks the processor's report: the measurement of firmware, kernel, initrd and an owner line naming your app key, a fresh value, and the VM's TLS key. Only then does it send the image passphrase and the secrets, over a relay that forwards encrypted bytes only.
 3. **Restore:** the VM fetches your newest backup from the providers, checks every piece against its content address, decrypts it and imports it into an empty Paperless-ngx. A restoring start asks for no VM while no copy of the backup answers.
-4. **Run:** Paperless-ngx as you know it, on HTTPS. The VM checks every two hours whether something changed and backs it up; "Back up now" does it at once.
+4. **Run:** Paperless-ngx as you know it, on HTTPS. The VM looks every ten minutes whether something changed; once it has stayed quiet for 30 minutes, it backs it up, at most every few hours (six by default). "Back up now" does it at once.
 5. **Stop:** "Back up and stop" makes a last backup; once it is confirmed on the chain, the app deletes the VM.
 
 Every step as a sequence diagram, the attestation and unlock included: [docs/workflow.md](docs/workflow.md).
@@ -100,7 +100,7 @@ Paperless anywhere (the web app, the image builder and the VM image's own files)
 
 - The containers are pulled after the unlock, so the image stays small. They are pinned by digest and flattened to one layer each (`rootfs/images.txt`, `flat-images.yml`): Docker uses vfs and the host network, because the confidential guest kernel has no overlayfs or bridge.
 - Secrets, a restored backup, certificates and keys are written only to the data area the VM seals at every start with a key that never leaves it (`paperless-data-disk`, `paperless-require-sealed`); without it, Paperless-ngx does not start.
-- Every service binds to 127.0.0.1. The guest has no firewall and a public IPv6 address. Only Caddy faces the network, and sshd when a test sent a key with the unlock (the app never does); `paperless-anywhere-check` fails if anything else does.
+- Every service binds to 127.0.0.1. The guest has a public IPv6 address and no firewall for ports (only a filter against TCP packets with IP options, `paperless-net-hardening`). Only Caddy faces the network (on 443, and with the fixed address on the node's port for it), and sshd when a test sent a key with the unlock (the app never does); `paperless-anywhere-check` fails if anything else does.
 - `paperless-https <hostname>` writes the Caddyfile for `https://<hostname>`, restarts Caddy and recreates the Paperless container with `PAPERLESS_URL`. Without it, Django refuses logins from that origin (CSRF).
 - `paperless-manage <args>` runs a Paperless management command (`document_importer`, `document_thumbnails`, `shell`, …) in a one-off container. `docker exec` does not work in the confidential guest, because Docker runs inside the measured init's chroot. For the same reason the image's healthcheck is turned off.
 

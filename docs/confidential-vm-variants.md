@@ -108,7 +108,7 @@ image builds its own image at the next start.
   The app attests the builder before it sends the passphrase.
 - *State, exactly:* the builder is fixed in the app and started for each
   build. Builds, fetches through Le Space's relay and uploads from the browser
-  have run, in CI and in real use ([your own image](own-image.md#before-it-goes-live)).
+  have run, in CI and in real use ([your own image](own-image.md#what-has-run)).
 - *What it still does not give:* a measurement of the image's content at each
   start. The proof is indirect: measured builder, plus a secret only the
   vault has.
@@ -258,5 +258,5 @@ dm-verity (variant 3) is the stronger answer for a disk that does not change.
   and GRUB.
 
 Corrections with a source are welcome as an issue or a pull request. A
-weakness in Paperless anywhere itself: please report it privately to the
-maintainer, not in an issue.
+weakness in Paperless anywhere itself: please report it privately, never in
+a public issue ([SECURITY.md](../SECURITY.md)).

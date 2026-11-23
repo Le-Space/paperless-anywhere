@@ -3,7 +3,7 @@
 // A voucher's period, or a package that was cancelled, ends and does not
 // renew. After that the VM runs on Aleph's start reserve until the
 // sub-account's credits are used up (a 7-day voucher: about day 8), and Aleph
-// stops it; whatever came in since the last two-hourly backup would be lost.
+// stops it; whatever came in since the last scheduled backup would be lost.
 // So the app hands the VM the end (secret `period_end`, Unix seconds; "0" for
 // none), and the VM makes its last backup and stops Paperless an hour before
 // it (rootfs/files/paperless-period-end). The app warns before the end, and

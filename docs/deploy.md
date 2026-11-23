@@ -7,13 +7,16 @@ published to Aleph IPFS, and the domain pointed at that CID.
 
 ## Release
 
-A published GitHub release runs `.github/workflows/pwa-deploy.yml`, one job:
+A published GitHub release runs `.github/workflows/pwa-deploy.yml`, in three jobs:
 
-1. unit tests, build, browser tests with a mocked Aleph;
-2. pin the build on Aleph IPFS (the last three are kept);
-3. point `paperless.le-space.de` at the new CID and note the CID on the release.
+1. **build**, without any secret or write token: the places of the confidential nodes for
+   the landing page (`scripts/crn-places.mjs`), unit tests, build, browser tests with a
+   mocked Aleph;
+2. **deploy**, with only the built site and the key that signs and pays: pin the build on
+   Aleph IPFS (the last three are kept) and point `paperless.le-space.de` at the new CID;
+3. **note**, the only one that may write to the release: note the CID on it.
 
-The job runs on a GitHub-hosted runner: the repository is public, so nothing has to be
+The jobs run on GitHub-hosted runners: the repository is public, so nothing has to be
 started before a release. No workflow that a pull request can trigger runs on a
 self-hosted runner.
 

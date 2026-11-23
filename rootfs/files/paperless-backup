@@ -176,7 +176,7 @@ if [ ! -s "$secrets/backup_config" ]; then
 fi
 # A Paperless whose restore failed holds less than the backup it came from.
 # A backup of it would be the newest one, and the next start would restore
-# that. So none, neither the two-hourly check nor a requested one nor the
+# that. So none, neither a scheduled backup nor a requested one nor the
 # stop's last one: "refused", not "failed", since nothing is broken. The app
 # deletes such a VM without a backup, after asking. (Only "failed": a restore
 # that never wrote its outcome must not block every backup for good.)

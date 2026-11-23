@@ -55,8 +55,8 @@ const hex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0'))
 const base64url = (bytes) => btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 
 /**
- * The PWA's own Aleph key: the paying account authorizes it for INSTANCE and
- * FORGET only. A derived value outside [1, n) is practically impossible; the
+ * The PWA's own Aleph key: the paying account authorizes it for INSTANCE,
+ * FORGET and the port-forwarding AGGREGATE only. A derived value outside [1, n) is practically impossible; the
  * counter keeps the function total anyway.
  * @param {Uint8Array} master
  * @returns {`0x${string}`}

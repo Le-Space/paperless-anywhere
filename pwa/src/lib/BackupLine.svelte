@@ -18,7 +18,7 @@
 	 *   own?: boolean,
 	 *   included?: boolean,
 	 *   offer: ReturnType<typeof import('$lib/credits.js').backupOfferOf>,
-	 *   plan: { billing: 'stripe' | 'credits', renewsAt: string | null, periodEnd: string | null, cancelAtPeriodEnd: boolean } | null,
+	 *   plan: { billing: 'stripe' | 'voucher' | 'credits', renewsAt: string | null, periodEnd: string | null, cancelAtPeriodEnd: boolean } | null,
 	 *   withdrawal: { version: string, de: string, en: string } | null,
 	 *   termsRead: boolean,
 	 *   disabled?: boolean,

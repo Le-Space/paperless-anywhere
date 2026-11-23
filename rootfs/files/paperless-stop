@@ -48,7 +48,7 @@ while :; do
     if [ "$request" != "$handled" ]; then
       handled="$request"
       status running
-      # A backup that runs now (the two-hourly check, or one the app asked
+      # A backup that runs now (a scheduled one, or one the app asked
       # for) finishes first: pausing Paperless under it would break its
       # export. Up to 30 minutes, then the stop goes on as before. If it
       # backed up, the stop's own backup is a check: it uploads only what

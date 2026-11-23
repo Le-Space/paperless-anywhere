@@ -4,10 +4,11 @@ What the app keeps, where the money is, and what you need to get back in, or to 
 
 ## The short version
 
-- **Your money stays in your own wallet** (MetaMask or a hardware wallet): Aleph credits for the VMs and, on Filecoin, tFIL or FIL for gas and USDFC for storage. The app never sees that wallet's key.
-- **The app's own addresses hold no money.** Never send anything to them. They act for your wallet, with rights you can take back.
+- **Paying from your own wallet** (MetaMask or a hardware wallet): the money stays there, Aleph credits for the VMs and, on Filecoin, tFIL or FIL for gas and USDFC for storage. The app never sees that wallet's key.
+- **Paying through Le Space Credits**: the package's credits are booked to the app key's address, and its hours turn into Aleph credits there. Whoever opens the vault can spend them, on VMs and backups only.
+- **Otherwise the app's own addresses hold no money.** Send nothing to them, unless you chose "This app itself" in the setup and send it Aleph credits on purpose. They act for your wallet, with rights you can take back.
 - **The 24 words are the vault.** With them you open it on any device and any address, and they decrypt every backup the app made. Keep them on paper, away from your devices.
-- **A passkey is a convenience.** It belongs to one address (`localhost` today, the hosted app later) and one authenticator. Losing it costs nothing as long as you have the 24 words.
+- **A passkey is a convenience.** It belongs to one address (`paperless.le-space.de`, or `localhost` in development) and one authenticator. Losing it costs nothing as long as you have the 24 words.
 
 ## What exists, and where
 
@@ -50,7 +51,12 @@ flowchart TB
     M -->|"HKDF paperless-*"| PW["Paperless admin and DB passwords, secret key"]
     M -->|"HKDF profile-key"| PRK["profile key (AES-256-GCM)"]
     M -->|"HKDF backup-mark"| BM["backup mark key (HMAC-SHA256)"]
+    M -->|"HKDF image-passphrase/(image SHA-256)"| IMG["passphrase of your own image"]
+    M -->|"HKDF backup-key"| VBK["VM backup key (Le Space Credits), one per VM slot"]
+    M -->|"HKDF status-token, fixed-host"| ST["status page path, fixed address label"]
 ```
+
+The labels are in `pwa/src/lib/keys/derive.js` (`LABELS`). The key that names the files of incremental backups is an HMAC with the backup mark key (`paperless-anywhere/backup-dedup-key/v1`).
 
 ### Why a passkey can unlock at all
 
@@ -180,7 +186,7 @@ sequenceDiagram
 
 ### The VM's data area: a key nobody has
 
-The encrypted image is the same for every VM that uses it, so its disk key is too; each image version has a key of its own, which the app stores together with the image's hash. What a VM writes (documents, database, exports, Docker's images, Caddy's certificate key, the generated passwords) therefore goes into a **data area** sealed with a key of its own. At boot, the VM makes a random 512-bit key in memory and seals the area with it (dm-crypt, AES-XTS, `paperless-data-disk` in the image). The key never leaves the VM: not to the app, not to the profile, not to the node. That is enough, because the data lives one session (restored from the backup at the start, erased at the stop). What lasts is the backup, sealed with the backup key from the vault.
+An image's disk key is the same for every VM started from it: for everyone on the public image, for every VM of one vault on its own image. Each image version has a passphrase of its own, which the app keeps together with the image's hash (on your own image, derived from the master secret and that hash). What a VM writes (documents, database, exports, Docker's images, Caddy's certificate key, the generated passwords) therefore goes into a **data area** sealed with a key of its own. At boot, the VM makes a random 512-bit key in memory and seals the area with it (dm-crypt, AES-XTS, `paperless-data-disk` in the image). The key never leaves the VM: not to the app, not to the profile, not to the node. That is enough, because the data lives one session (restored from the backup at the start, erased at the stop). What lasts is the backup, sealed with the backup key from the vault.
 
 The area is a file on the image's disk, as large as the free space minus 2 GiB. The guest kernel has no loop driver to open a file as a disk, so the VM allocates the file without writing it, looks up where its blocks lie on the disk under the image's encryption, and maps exactly those blocks with dm-linear; dm-crypt goes on top of that. What lands there is encrypted with the VM's own key only. Read through the image's filesystem, the file stays empty. (A second, empty disk from Aleph would serve as well, and the image still takes one, but Aleph's measured boot picks its root disk by name, and with two disks a VM sometimes did not start; the app asks for none.)
 
@@ -223,6 +229,8 @@ The **app key** and the **session key** are delegates:
 - **Filecoin:** your wallet authorizes the session key for 30 days (step 3) to create data sets and add backups. Storage is paid from your wallet.
 
 Both rights can be taken back from your wallet at any time: "Withdraw the permission" (step 2) and "Withdraw" (step 3). After that the keys can do nothing, whoever has them.
+
+This holds when your wallet pays. With Le Space Credits, or with "This app itself", the app key's address does hold the credits that pay the VM (see the short version above).
 
 ## Passkeys and addresses
 

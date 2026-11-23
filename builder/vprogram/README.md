@@ -3,11 +3,10 @@
 How the builder ([docs/own-image.md](../../docs/own-image.md)) gets onto
 Aleph as a measured, confidential VM that anyone can attest.
 
-> **Status: a build has run on Aleph; the app does not use it yet.** Through
-> the workflow below the builder was published with the plain image as a
-> verified volume, an attested call to it verifies, and it sealed the real
-> image there. Not tried: the app fetching the whole sealed image through
-> an attest relay, and uploading it from a browser.
+> **Status: in use.** The app fixes the content of a builder published
+> through the workflow below (`BUILDER.program` in `pwa/src/lib/own-image.js`)
+> and starts a V-PROGRAM from it for each build
+> ([a builder for each build](../../docs/own-image.md#a-builder-for-each-build)).
 
 ## What runs
 
@@ -96,7 +95,8 @@ upload began, look at the account's V-PROGRAMs (`aleph vprogram list`)
 before starting it again, so that two builders do not run side by side.
 
 Updating the CLI: set `ALEPH_CLI_VERSION` and `ALEPH_CLI_SHA256` at the top
-of the workflow to a release of `aleph-im/aleph-rs` and the SHA-256 GitHub
+of `builder-publish.yml`, `image-retention.yml` and `forget-leftovers.yml`
+(keep the three equal) to a release of `aleph-im/aleph-rs` and the SHA-256 GitHub
 lists for `aleph-cli-linux-x86_64`.
 
 ## By hand
@@ -218,8 +218,10 @@ IMAGE=localhost/paperless-anywhere-image-builder:1
 
 `BUILDER` in `pwa/src/lib/own-image.js`:
 
-- `measurements`, `policy`: from the V-PROGRAM message (`aleph vprogram show <hash>`);
-- `route`: how the attest relay reaches the builder's attested endpoint;
+- `program`: the V-PROGRAM's content (`aleph vprogram show <hash>`, without `address` and `time`); each build starts a V-PROGRAM of its own from it;
+- `crn`: the node it is started on;
+- `measurements`, `policy`: from that V-PROGRAM;
+- `route`: only for a builder that keeps running, how the attest relay reaches its attested endpoint (a builder started for each build gets its route when it starts);
 - `plain`: the SHA-256 (and, to show it, the STORE hash and the commit) of the plain image this builder was published with.
 
 All of these are public values.

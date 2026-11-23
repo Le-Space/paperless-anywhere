@@ -6,9 +6,9 @@
 	// profile as v0.1: both read and write the same records.
 	//
 	// The shell: the way into the vault in plain words, the switch, the areas.
-	// Start and Sicherung (lib/v2/Paperless.svelte) and Paket (lib/v2/Plan.svelte)
-	// have their own design; the cards of System and Mehr are still the ones of
-	// v0.1. Every area stays mounted while another one shows, so a running start
+	// Start and Sicherung (lib/v2/Paperless.svelte), Paket (lib/v2/Plan.svelte)
+	// and System (lib/v2/System.svelte) have their own design; the cards of Mehr
+	// are still the ones of v0.1. Every area stays mounted while another one shows, so a running start
 	// is never torn down.
 	import { tick } from 'svelte';
 	import { refreshBalancesSoon } from '$lib/balance-refresh.js';

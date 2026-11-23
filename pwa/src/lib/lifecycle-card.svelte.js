@@ -192,11 +192,10 @@ export function createLifecycleCard(p) {
 		const t = setInterval(() => (nowTick = Date.now()), 60_000);
 		return () => clearInterval(t);
 	});
-	// Profiles from before this keep the last stop's backup.
 	// A profile from before keeps only the last stop's backup: said as such.
 	const fromStop = $derived(!profile.lastGoodBackup?.at && Boolean(profile.lastBackup?.date));
 	const lastGood = $derived(profile.lastGoodBackup?.at ? profile.lastGoodBackup : profile.lastBackup?.date ? { at: profile.lastBackup.date, copies: profile.lastBackup.copies?.length ?? null, pieceCid: profile.lastBackup.pieceCid ?? null } : null);
-	// Older images do not report their two-hourly backups; the chain lists
+	// Older images do not report their scheduled backups; the chain lists
 	// them (without a time). A newer piece than the one known here is said so.
 	const newerOnChain = $derived(Boolean(lastGood?.pieceCid && backups?.length && backups[0].pieceCid !== lastGood.pieceCid));
 	const goodStale = $derived(Boolean(lastGood && profile.running && !newerOnChain && nowTick - new Date(lastGood.at).getTime() > STALE_HOURS * 3600_000));
@@ -328,7 +327,7 @@ export function createLifecycleCard(p) {
 	let pickedCid = $state('');
 	const marked = (/** @type {any} */ b) => Boolean(b) && (profile.vaultBackups ?? []).includes(b.pieceCid);
 	// A production Paperless (role primary, mainnet) owns every backup in its
-	// wallet's data sets: the ones its stops made, and the two-hourly ones the
+	// wallet's data sets: the ones its stops made, and the scheduled ones the
 	// app never hears of. It starts from the newest, whoever made it. A test
 	// keeps to this vault's own (the test data sets hold other keys' backups).
 	const production = $derived(profile.role === 'primary' && profile.network === 'mainnet');
@@ -411,7 +410,7 @@ export function createLifecycleCard(p) {
 						syncingEnd = true;
 						syncPeriodEnd(master, $state.snapshot(profile), s).catch(() => {}).finally(() => (syncingEnd = false));
 					}
-					// The backups this VM made with this vault's mark, also the two-hourly ones.
+					// The backups this VM made with this vault's mark, also the scheduled ones.
 					const noted = await noteVaultBackups(master, $state.snapshot(profile), s);
 					if (noted) profile = noted;
 				})

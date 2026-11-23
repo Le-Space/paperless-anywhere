@@ -1,7 +1,9 @@
 # Security model: what a VM gets, and from whom
 
 Paperless anywhere runs one Paperless per vault, around the clock or on demand, in a confidential
-virtual machine (AMD SEV-SNP) on Aleph. Everyone runs the same image. This
+virtual machine (AMD SEV-SNP) on Aleph. Every image is built from the same
+public base image; real use runs on one's own copy of it, sealed with a
+passphrase from the vault ([own image](own-image.md)). This
 page describes where a VM's secrets come from, what the image contains, and
 why one person's VM, balance and backups stay separate from another's.
 
@@ -18,7 +20,7 @@ from that master with HKDF, each under its own label:
 
 | Derived from the master | Used for |
 |---|---|
-| the app key (an Ethereum address) | signs the VM's INSTANCE and FORGET on Aleph; is the *owner* written into the VM's measured boot command line; with "Diese App selbst" it also holds the Aleph credits that pay the VM; it is the address Le Space Credits are booked to |
+| the app key (an Ethereum address) | signs the VM's INSTANCE and FORGET on Aleph; is the *owner* written into the VM's measured boot command line; with "This app itself" ("Diese App selbst") it also holds the Aleph credits that pay the VM; it is the address Le Space Credits are booked to |
 | the profile key | seals the setup (image passphrase, backup settings, age identity, DNS token, running VM) before it is stored on Aleph |
 | the Paperless secrets | admin password, database password, `PAPERLESS_SECRET_KEY` |
 | the Filecoin session key | adds backup pieces to the owner's data sets; the owner's wallet authorizes it for a limited time |
@@ -195,7 +197,8 @@ every password manager that runs in a browser.
 
 What the app does on its side: every page carries a content security policy
 (`pwa/svelte.config.js`). It runs only the scripts of its own build (no inline
-script except the start-up one, by hash; no `eval`), loads no script, style,
+script except the start-up one, by hash; no `eval`, only the compiling of
+WebAssembly, `wasm-unsafe-eval`), loads no script, style,
 font or plugin from elsewhere, connects only over TLS, and frames nothing but
 the credits service's payment page. That narrows what an injected script
 could do; it does not stop an extension, which runs outside the page's policy.
@@ -214,7 +217,7 @@ What helps, in this order:
 
 ## Money
 
-- **Aleph credits** pay the VM. With "Diese App selbst", they sit on the
+- **Aleph credits** pay the VM. With "This app itself", they sit on the
   vault's app address, so whoever opens the vault can spend them.
 - **Le Space Credits** are booked to the same address (1 credit = 1 euro
   cent). Packages and extra hours turn them into Aleph credits on that
@@ -224,4 +227,4 @@ What helps, in this order:
 
 ## Reporting
 
-Please report a weakness privately to the maintainer, not in an issue.
+Please report a weakness privately, never in a public issue: [SECURITY.md](../SECURITY.md).

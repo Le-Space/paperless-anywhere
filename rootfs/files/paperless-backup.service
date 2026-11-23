@@ -1,5 +1,5 @@
 [Unit]
-Description=Back up Paperless every two hours if it changed (paperless-backup-loop)
+Description=Back up Paperless when it changed and stayed quiet (paperless-backup-loop)
 
 [Service]
 Type=simple

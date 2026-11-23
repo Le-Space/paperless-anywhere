@@ -31,7 +31,7 @@ on:
         description: SHA-256 of the plain image the builder holds (64 hex).
         required: true
       relay:
-        description: '"le-space" or "runner" (see the top of the workflow).'
+        description: '"le-space", "runner" or "package" (see the top of the workflow).'
         required: true
         default: le-space
         type: choice

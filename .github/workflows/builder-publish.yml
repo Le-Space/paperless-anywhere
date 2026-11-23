@@ -36,7 +36,7 @@ name: Image builder on Aleph
 # image workflow's summary, option "plain") decide which image this builder
 # is for, and a new image needs a new builder.
 #
-# Secret: ALEPH_PRIVATE_KEY signs and pays (publish, delete); a dry run also
+# Secret: ALEPH_PRIVATE_KEY signs and pays (publish, delete, again, pin); a dry run also
 # signs with it, since the CLI builds the whole message. GitHub-hosted runner
 # only. What the summary shows is public on Aleph anyway: the message, its
 # sender, the measurements.
@@ -45,7 +45,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: '"dry-run": measure only. "publish": start the builder (costs credits until deleted). "check": show a builder and call it, attested. "trial": have it seal the image once. "delete": stop one.'
+        description: '"dry-run": measure only. "publish": start the builder (costs credits until deleted). "check": show a builder and call it, attested. "trial": have it seal the image once. "delete": stop one. "again": start a second builder from the content of the one in "hash" (or "fixed"). "pin": pin "cid" again as a new STORE.'
         required: true
         default: dry-run
         type: choice
@@ -62,7 +62,7 @@ on:
         required: false
         default: ''
       hash:
-        description: The V-PROGRAM's item hash (64 hex), for "check", "trial" and "delete".
+        description: The V-PROGRAM's item hash (64 hex), for "check", "trial", "delete" and "again" ("fixed" for the one in own-image.js).
         required: false
         default: ''
       plain_store:

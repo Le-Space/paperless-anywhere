@@ -1,7 +1,7 @@
 // The daily watch over the storage providers (scripts/provider-watch.mjs,
 // .github/workflows/provider-watch.yml). It reads only public facts (the
 // registry, Warm Storage's approved list, each provider's PDP ping, and the
-// proofs of the newest data sets on the chain) and reports four things as
+// proofs of the newest data sets on the chain) and reports five things as
 // GitHub issues, one open issue per event:
 //
 //   down:<id>    a provider Le Space uses (approved, active, not blocked, in

@@ -43,3 +43,14 @@ are started from the Actions tab, never by a pull request.
 | Own image: fetch through a relay / upload from a browser | The image of its own: sealed by the builder, fetched, uploaded (`e2e-upload/`) |
 | Image builder on Aleph | Publishes the builder and calls it attested |
 | Measure who pays for a delegated INSTANCE | Aleph's billing and authorizations for a delegate key |
+
+## Maintenance workflows (no tests)
+
+Also started from the Actions tab, except the daily provider watch:
+
+| Workflow | What it does |
+|---|---|
+| Provider watch (`provider-watch.yml`) | Once a day: whether the storage providers are up and proving; opens an issue labelled `provider-watch` per event. Public data only |
+| Flat images (`flat-images.yml`) | Pushes a one-layer copy of each image in `rootfs/images.txt` to ghcr.io, for `rootfs/files/compose.yml` |
+| Image retention (`image-retention.yml`) | Which STOREs of older builder versions may be forgotten; a dry run first, then exactly that list |
+| Forget leftovers (`forget-leftovers.yml`) | Forgets the STOREs a refused builder publication left, guarded the same way |
