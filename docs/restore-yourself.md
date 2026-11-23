@@ -62,6 +62,10 @@ node backup.mjs restore <pieceCid> paperless-export.zip
 
 For a backup in parts, `<pieceCid>` is the first part's.
 
+## Incremental backups
+
+Everything above is for a full backup, the kind the VM makes unless "Back up only changes (incremental)" is switched on in the backup settings. An incremental backup is a *pack*: its piece starts with a public prefix of 64 bytes (`PA-SNAP/1 <generation> <number>`) before the age stream, and it holds only what changed since the pack before it. Restoring one takes every pack of its generation up to it. The VM does that with the backup tool's `restore-snapshot`; the guide, the ledger entry and **Fetch and decrypt** in the app do not handle packs yet.
+
 ## If an address does not answer
 
 Each backup is stored with more than one provider; the guide lists every copy the app knows. If the app knows no address for a piece, it says so in the file; open the app again later, it reads the addresses from the chain each time. A backup whose storage has run out and was removed by the providers cannot be fetched any more, by anyone.

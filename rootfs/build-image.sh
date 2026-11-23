@@ -3,8 +3,9 @@
 #
 # Debian 12 with systemd, Docker (+ the compose plugin), Caddy, age and the
 # compose stack in /opt/paperless. relay-button's aleph-confidential-rootfs
-# action then makes it confidential (its init, a systemctl replacement, the
-# SSH key) and encrypts it. The containers are pulled after the unlock, so
+# action then makes it confidential (its init, a systemctl replacement, and
+# root's authorized_keys, which rootfs.yml fills with a comment only: the image
+# carries no SSH key) and encrypts it. The containers are pulled after the unlock, so
 # the image stays small. Needs root and debootstrap.
 set -euo pipefail
 

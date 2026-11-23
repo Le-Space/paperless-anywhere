@@ -112,7 +112,6 @@ export function createSetupCard(p) {
 				// the first start (buildsImageFirst): the own image is the choice.
 				imageKind = buildsImageFirst(profile, BUILDER) ? 'own' : imageKindOf(profile, BUILDER);
 				loaded = true;
-				// A build's builder that a closed window left running: forget it now.
 				// What a closed window or a lost report left: its builder forgotten,
 				// its end reported to Le Space Credits, then the note goes.
 				if (profile.ownBuilder) {

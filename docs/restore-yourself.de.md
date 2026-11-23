@@ -62,6 +62,10 @@ node backup.mjs restore <pieceCid> paperless-export.zip
 
 Bei einer Sicherung in Teilen ist `<pieceCid>` die des ersten Teils.
 
+## Inkrementelle Sicherungen
+
+Alles oben gilt für eine vollständige Sicherung, wie sie die VM macht, solange „Nur Änderungen sichern (inkrementell)“ in den Sicherungseinstellungen nicht eingeschaltet ist. Eine inkrementelle Sicherung ist ein *Paket*: Sein Stück beginnt vor dem age-Strom mit einem öffentlichen Vorspann von 64 Bytes (`PA-SNAP/1 <Generation> <Nummer>`) und enthält nur, was sich seit dem Paket davor geändert hat. Wiederherstellen lässt sie sich nur mit jedem Paket ihrer Generation bis zu ihr. Die VM macht das mit `restore-snapshot` des Sicherungswerkzeugs; die Anleitung, der Eintrag und **Holen und entschlüsseln** in der App können Pakete noch nicht.
+
 ## Wenn eine Adresse nicht antwortet
 
 Jede Sicherung liegt bei mehr als einem Anbieter; die Anleitung nennt jede Kopie, die die App kennt. Kennt die App für ein Stück keine Adresse, steht das in der Datei; öffne die App später noch einmal, sie liest die Adressen jedes Mal von der Chain. Eine Sicherung, deren Speicher abgelaufen ist und die die Anbieter gelöscht haben, kann niemand mehr holen.

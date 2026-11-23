@@ -287,7 +287,6 @@ async function fetchImage({ open, job, size, pieceBytes, runBytes, lanes, runTri
 				// relay closed two connections during their attestation).
 				if (refusedAttestation(error) || (error instanceof BuilderError && error.code !== 'unreachable')) throw error;
 				last = error instanceof Error ? error.message : String(error);
-				// Pieces came back: the connection is slow, not gone. Count anew.
 				// Pieces came back: a relay's limit or a short break, not a dead
 				// line. Go on at once; only tries without any piece wait and count.
 				failures = at > before ? 0 : failures + 1;
@@ -320,11 +319,6 @@ async function fetchImage({ open, job, size, pieceBytes, runBytes, lanes, runTri
  */
 const fetched = { current: null };
 
-/**
- * Stores `image` on Aleph beside its signed STORE `message`, as the app's
- * own address, and says which content address the node made.
- * @param {Blob} image @param {object} message
- */
 /** The host of an API URL, for showing. @param {string} url */
 const apiHost = (url) => {
 	try {
@@ -334,6 +328,11 @@ const apiHost = (url) => {
 	}
 };
 
+/**
+ * Stores `image` on Aleph beside its signed STORE `message`, as the app's
+ * own address, and says which content address the node made.
+ * @param {Blob} image @param {object} message @param {string} [api]
+ */
 export async function storeOnAleph(image, message, api = ALEPH_API) {
 	const form = new FormData();
 	form.append('file', image, 'rootfs');

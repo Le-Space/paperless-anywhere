@@ -172,7 +172,8 @@ cannot be made to run a chosen program.
 
 The app shows, beside "Build my image", the values it has fixed: the
 plain image's SHA-256 and where it lies on Aleph, the commit it was built
-from, the builder's V-PROGRAM and its measurements. With them, anyone can
+from, and the builder's measurements (the content of its V-PROGRAM is
+fixed in `pwa/src/lib/own-image.js`, `BUILDER.program`). With them, anyone can
 check each link of the chain:
 
 1. **The plain image is the one the app names.** Download it and hash it:
@@ -214,8 +215,10 @@ check each link of the chain:
    digest or root hash, and what can be compared is their content, not their
    hash against a rebuild.
 
-3. **The builder is the one the app names.** Its V-PROGRAM message on Aleph
-   names the runtime, the workload volume and the measurements;
+3. **The builder is the one the app names.** Its V-PROGRAM content, fixed in
+   `own-image.js` (`BUILDER.program`), names the runtime, the workload and
+   plain-image volumes with their root hashes, and the app fixes its
+   measurements beside it (each build starts its own V-PROGRAM from it);
    [`builder/vprogram/`](../builder/vprogram/README.md) says how to verify the
    volume and call the builder attested.
 
@@ -274,7 +277,7 @@ docker run --rm --network none -v "$PWD/check-container.mjs:/opt/builder/check-c
   image-builder node check-container.mjs  # one whole job, without any network, as on Aleph
 ```
 
-## Before it goes live
+## What has run
 
 - **Measured** (2026-11-14, workflow *Paperless round trip* with an image
   of its own): the app's code, run on a GitHub runner, had a published
@@ -282,7 +285,8 @@ docker run --rm --network none -v "$PWD/check-container.mjs:/opt/builder/check-c
   10 minutes (1.4 MiB/s, every connection attested) and uploaded it in under
   a minute. A VM started from it, unlocked with the derived passphrase,
   backed up, and a second VM from the same image restored that backup.
-- **In a browser** (2026-11-14, `roundtrip.yml` with `own_in_browser`):
+- **In a browser** (2026-11-14, a round trip with `own_in_browser` on the branch
+  `test/own-image-browser`, not merged):
   Chromium ran the setup's code with the builder fixed in the app. Starting
   the builder until it answered took 238 s, sealing 24 s, fetching 868 MiB
   through Le Space's relay into the page 534 s, and uploading from the page
@@ -293,8 +297,8 @@ docker run --rm --network none -v "$PWD/check-container.mjs:/opt/builder/check-c
   image was restored in full in an own image (build paid by the app's
   address).
 - **The builder fixed in the app** (`BUILDER` in
-  `pwa/src/lib/own-image.js`) was published on 2026-11-14 for the plain
-  image `9c32bd…` (release image `e85b9c9a…`) and deleted again; its volumes
+  `pwa/src/lib/own-image.js`) was published on 2026-11-20 for the plain
+  image `7b2626…` (main b2ba00c) and deleted again; its volumes
   stay. A new plain image needs a new publication and a new `BUILDER`.
 
 ## A builder for each build
@@ -349,8 +353,10 @@ message only; the workflow's action **delete** with **forget_volumes** also
 forgets the volumes of a builder that is not the fixed one. It forgets only
 the STOREs that V-PROGRAM names, of the same account, smaller than any image
 (600 MiB), and not named in `own-image.js` or a release; one refusal forgets
-none of them (`pwa/src/lib/forget-guard.js`). There is no way to forget a
-hand-written list of STOREs: on 14 Nov 2026 such a list also forgot older
-Paperless images, one of which a vault still started from. A build takes
+none of them (`pwa/src/lib/forget-guard.js`). A hand-written list of STOREs
+is forgotten only by the workflow *Forget leftovers* (`forget-leftovers.yml`),
+for what a refused publication left: a dry run first, then exactly that list,
+and only STOREs nothing names (`leftoverRefusal` in `forget-guard.js`). On
+14 Nov 2026 an unguarded list also forgot older Paperless images, one of
+which a vault still started from. A build takes
 about 15 minutes and roughly 0.03 USD of builder time, plus the upload.
-- The landing page and the security model say so once all of this is true.

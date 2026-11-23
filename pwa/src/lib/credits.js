@@ -73,7 +73,6 @@ export async function creditsBalance(master, { baseUrl = CREDITS_URL, fetch: fet
 					periodStart: p.period_start ?? null,
 					periodEnd: p.period_end ?? null,
 					hoursLeft: p.hours_left == null ? null : Number(p.hours_left),
-					// A Stripe subscription (card, monthly invoice) or a plan paid from the balance.
 					// A Stripe subscription, a voucher's period (le-space-credits#73), or a plan paid from the balance.
 					billing: p.billing === 'stripe' ? 'stripe' : p.billing === 'voucher' ? 'voucher' : 'credits',
 					renewsAt: p.renews_at ?? null,
@@ -182,8 +181,7 @@ export function withdrawalOf(w) {
 }
 
 /**
- * The declaration's text in the UI's language. The app (/app) is German only;
- * `en` is there for the day it is not.
+ * The declaration's text in the UI's language; German by default.
  * @param {{ de: string, en: string }} w @param {'de' | 'en'} [lang]
  */
 export const withdrawalText = (w, lang = 'de') => (lang === 'en' ? w.en : w.de);

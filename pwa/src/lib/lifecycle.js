@@ -55,11 +55,6 @@ export class BackupFailedError extends Error {
 }
 
 /**
- * A stop whose backup reached fewer providers than requested (one refused the
- * piece; the others hold their copies). Paperless is paused and the VM waits
- * for the person: erase it anyway (eraseStopped) or keep it (resumeAfterPartial).
- */
-/**
  * An interrupted start Aleph rejected or forgot (or never got): nothing to
  * carry on with. The app drops it and offers a new start. `missing` names
  * what Aleph found missing, such as an image that was forgotten.
@@ -81,6 +76,11 @@ export function missingOf(answer) {
 	return (Array.isArray(errors) ? errors : []).map((e) => (typeof e === 'string' ? e : e?.hash ?? e?.item_hash ?? '')).filter((h) => /^[0-9a-f]{64}$/.test(h));
 }
 
+/**
+ * A stop whose backup reached fewer providers than requested (one refused the
+ * piece; the others hold their copies). Paperless is paused and the VM waits
+ * for the person: erase it anyway (eraseStopped) or keep it (resumeAfterPartial).
+ */
 export class BackupPartialError extends Error {
 	/** @param {any} status the VM's status page in phase "stop-partial" */
 	constructor(status) {
@@ -319,8 +319,9 @@ export async function startElsewhere({ fixed = null, pick, start, onRefused, tri
  * Whether the start builds this vault's own image first: a builder is fixed
  * in the app, Le Space pays (a package or a voucher, which pays or includes
  * the build) and the profile has no image at all (a new Paperless; Nico's
- * decision of 2026-11-15). An image entered by hand is never replaced, and a
- * wallet or the app's address paying is left to the setup's own button.
+ * decision of 2026-11-15); or a production Paperless (role primary) is not
+ * on its own image yet. Otherwise an image entered by hand is never replaced,
+ * and a wallet or the app's address paying is left to the setup's own button.
  * @param {Record<string, any>} profile @param {unknown} builder
  */
 export const buildsImageFirst = (profile, builder) =>
@@ -992,7 +993,7 @@ export async function eraseStopped(master, profile, status, onProgress, { forget
 
 /**
  * Keep the VM after a partial backup: Paperless starts again (paperless-stop
- * answers stop_resume, naming the partial stop's request, with "resumed"). The two-hourly check then backs up to
+ * answers stop_resume, naming the partial stop's request, with "resumed"). The next scheduled backup then goes to
  * every provider again.
  * @param {Uint8Array} master
  * @param {Record<string, any>} profile with `running`

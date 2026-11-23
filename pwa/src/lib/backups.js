@@ -393,7 +393,7 @@ export const defaultPlaces = (network) => (network === 'mainnet' ? DEFAULT_PLACE
  * to the data sets of the Mac's backups (label `paperless-backup`), so both
  * show up in one list; the guest backs up to mainnet only as a primary.
  * @param {string} network @param {string} recipient age1… of the profile's identity
- * @param {{ copies?: number, providerIds?: number[], regions?: string[] } | null} [places] copies and where, e.g. the current backupConfig
+ * @param {{ copies?: number, providerIds?: number[], regions?: string[], retention?: any, incremental?: { enabled?: boolean } } | null} [places] copies and where, e.g. the current backupConfig
  */
 export function backupConfigFor(network, recipient, places = defaultPlaces(network)) {
 	if (network !== 'calibration' && network !== 'mainnet') throw new Error(tr().backup.config.unknownNetwork(network));

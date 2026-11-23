@@ -97,9 +97,7 @@ export async function instanceMessage(a) {
 		crnHash: a.crnHash,
 		trustedExecution: a.trustedExecution
 	});
-	// Off for now: with Docker's vfs driver the images alone take about 36 GiB
-	// of the 40 GiB disk (measured 2026-10-25), too little for a restore and an
-	// export. Back on once the images are flattened (one layer each).
+	// Off (DATA_DISK, see there): the data area is a file on the image's disk.
 	if (DATA_DISK) content.volumes = [dataDiskVolume()];
 	const unsigned = await createUnsignedInstanceMessage({ sender: a.payer, content, hasher: sha256Hex, channel: CHANNEL });
 	return signAsDelegate(unsigned, a.app);
@@ -267,7 +265,6 @@ export async function listVms(appAddress, payer) {
 	return ownVms((await res.json()).messages ?? [], appAddress, payer);
 }
 
-/** @param {any[]} messages @param {string} appAddress @param {string} [payer] */
 /**
  * The INSTANCE `itemHash` as this app key signed it, checked here (content
  * hash and signature), so a stop after adopting it pins the measurements this
@@ -289,6 +286,7 @@ export async function checkOwnInstance(appAddress, itemHash, m) {
 	return JSON.parse(m.item_content);
 }
 
+/** @param {any[]} messages @param {string} appAddress @param {string} [payer] */
 export function ownVms(messages, appAddress, payer) {
 	const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
 	return messages

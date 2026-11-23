@@ -1,7 +1,10 @@
 # UI v0.2: "Standard" and "Technisch"
 
-Working papers for the relaunch of the PWA's interface. Status: **concept, waiting for
-approval**. Nothing in `pwa/` has changed yet.
+Working papers for the relaunch of the PWA's interface. Status: the concept was approved
+and is built: v0.2 runs at `/v0.2/` beside `/app/` (`pwa/src/routes/v0.2`, `pwa/src/lib/v2`),
+unlinked until the switch. The inventory and the mapping are the papers the build started
+from and describe the app as it was then; "Where the build differs from the concept" below
+says what was decided otherwise.
 
 The brief: one app for two audiences. "Standard" must be usable by someone who knows
 little about document management and nothing about confidential VMs; "Technisch" gives
