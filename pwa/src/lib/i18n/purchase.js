@@ -8,6 +8,8 @@
 // told so in one sentence (terms.germanNote).
 const TERMS_LEGAL = {
 	dueHint: 'Bis zur Zustimmung sind keine Käufe möglich; ein laufendes Paket endet zum Monatsende, statt sich zu verlängern.',
+	// A version due before it is in force (new customers, le-space-credits#115): a running package still renews.
+	dueNewHint: 'Bis zur Zustimmung sind keine Käufe möglich.',
 	announcedHint: 'Dein Paket läuft bis dahin zu den bisherigen Bedingungen. Stimmst du nicht zu, endet es zum Ende des Zeitraums; du kannst auch vorher kostenlos kündigen.',
 	consent: (/** @type {string} */ version) => `Ich habe die Fassung ${version} gelesen und stimme ihr zu.`
 };

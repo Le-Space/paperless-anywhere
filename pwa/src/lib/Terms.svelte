@@ -13,9 +13,12 @@
 	let busy = $state(false);
 	let error = $state('');
 	let read = $state(false);
-	// The version in force is asked for when it is not agreed, or when a
-	// purchase was refused for it (the announced one agreed alone, elsewhere).
-	const due = $derived(Boolean(terms?.current && (terms.due || ($termsRefused && terms.accepted?.version !== terms.current))));
+	// The version the service names as due (termsOf), or the one to agree to
+	// when a purchase was refused for the terms although none looked due.
+	const dueVersion = $derived(terms?.dueVersion ?? ($termsRefused && terms?.refusedVersion && terms.accepted?.version !== terms.refusedVersion ? terms.refusedVersion : null));
+	const due = $derived(Boolean(dueVersion));
+	// Due before it is in force (a new customer and a newly published version).
+	const dueEarly = $derived(Boolean(dueVersion && dueVersion !== terms?.current));
 	$effect(() => {
 		if (due || terms?.announced) creditsTerms().then((t) => (published = t)).catch(() => {});
 	});
@@ -23,9 +26,10 @@
 	// the version and its own page, so the notice never waits for it.
 	const fallback = (/** @type {string | null | undefined} */ version, /** @type {string | null} */ effectiveAt = null) =>
 		version ? { version, date: null, url: termsPage(version, null), sha256: '', changes: /** @type {string[]} */ ([]), effectiveAt } : null;
+	const publishedAs = (/** @type {string} */ version) => [published?.current, published?.pending].find((v) => v?.version === version) ?? null;
 	const target = $derived(
-		due
-			? published?.current?.version === terms?.current ? published?.current : fallback(terms?.current)
+		dueVersion
+			? (publishedAs(dueVersion) ?? fallback(dueVersion, dueVersion === terms?.pending?.version ? (terms?.pending?.effectiveAt ?? null) : null))
 			: terms?.announced
 				? published?.pending?.version === terms?.pending?.version ? published?.pending : fallback(terms?.pending?.version, terms?.pending?.effectiveAt ?? null)
 				: null
@@ -55,7 +59,7 @@
 	<div class="terms" class:due role="region" aria-label={x.label} data-testid="terms">
 		<p class="title">{due ? x.due : x.announced(day(target.effectiveAt))}</p>
 		{#if $lang !== 'de'}<p class="hint" data-testid="terms-german-note">{x.germanNote}</p>{/if}
-		<p class="hint" lang="de">{due ? x.legal.dueHint : x.legal.announcedHint}</p>
+		<p class="hint" lang="de">{due ? (dueEarly ? x.legal.dueNewHint : x.legal.dueHint) : x.legal.announcedHint}</p>
 		{#if target.changes.length}<ul lang="de">{#each target.changes as c (c)}<li>{c}</li>{/each}</ul>{/if}
 		{#if target.url}<p><a href={target.url} target="_blank" rel="noopener noreferrer" data-testid="terms-link">{x.read(target.version, day(target.date))}</a></p>{/if}
 		<label class="check"><input type="checkbox" bind:checked={read} data-testid="terms-read" /> <span lang="de">{x.legal.consent(target.version)}</span></label>

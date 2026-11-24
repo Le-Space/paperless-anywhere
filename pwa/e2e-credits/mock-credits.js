@@ -19,7 +19,7 @@ const RECEIVED_AT = '2026-11-11T10:15:00.000Z';
 const PAYER = '0x' + '5'.repeat(40);
 const OFFER = { month_credits: 150, month_price_cents: 150, year_price_cents: 1800, year_days: 365, copies: 3, quota_gib: 32, retention_days: 30 };
 // `backup`: null (the service pays no backups), 'none', 'line', 'paid', 'soon', 'week', 'ended' or 'over'.
-let state = { plan: true, cancelled: false, withdrawable: false, backup: null, offered: false, included: false, vouchers: false, termsDue: false, voucherRunning: false, voucherGranted: false, network: null, buildShort: false, terms7: false, acceptedTerms: '6' };
+let state = { plan: true, cancelled: false, withdrawable: false, backup: null, offered: false, included: false, vouchers: false, termsDue: false, voucherRunning: false, voucherGranted: false, network: null, buildShort: false, terms7: false, acceptedTerms: '6', newCustomer: false };
 // With `included`, the packages offered carry the backup in their price (le-space-credits#72).
 const PACKAGES_INCLUDED = [{ id: 'paperless-15-backup', hours: 15, price_credits: 640, backup_included: true }, { id: 'paperless-100-backup', hours: 100, price_credits: 1640, backup_included: true }, { id: 'paperless-always-backup', hours: 730, price_credits: 9050, backup_included: true }];
 const BACKUPS = {
@@ -44,7 +44,13 @@ const plan = () => (state.voucherRunning ? voucherPlan() : { id: 'paperless-30',
 const EFFECTIVE_7 = '2027-01-07T00:00:00.000Z';
 const TERMS_6 = { version: '6', date: '2026-11-01', url: 'https://credits.le-space.de/agb/6', sha256: 'ab', changes: [], effectiveAt: '2026-11-01T00:00:00.000Z' };
 const TERMS_7 = { version: '7', date: '2026-11-24', url: 'https://credits.le-space.de/agb', sha256: 'cd', changes: 'Example change for the test', effectiveAt: EFFECTIVE_7 };
-const balanceTerms = () => ({ accepted: { version: state.acceptedTerms, url: `https://credits.le-space.de/agb/${state.acceptedTerms}`, sha256: 'ab', accepted_at: RECEIVED_AT }, current: '6', pending: { version: '7', effectiveAt: EFFECTIVE_7 } });
+// `due` names the version to agree to (le-space-credits#115): 7 for a new customer (`newCustomer`), nothing for one who agreed to 6 before 7 was published.
+const balanceTerms = () => ({
+	accepted: state.acceptedTerms ? { version: state.acceptedTerms, url: `https://credits.le-space.de/agb/${state.acceptedTerms}`, sha256: 'ab', accepted_at: RECEIVED_AT } : null,
+	current: '6',
+	pending: { version: '7', effectiveAt: EFFECTIVE_7, publishedAt: '2026-11-24T00:00:00.000Z' },
+	due: state.acceptedTerms !== '7' && state.newCustomer ? '7' : null
+});
 
 /** @type {Record<string, (body: any) => [number, any]>} */
 const routes = {
@@ -121,7 +127,7 @@ const server = createServer(async (req, res) => {
 	const send = (status, json) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(json));
 	if (url.pathname === '/__requests') return send(200, requests);
 	if (url.pathname === '/__state' && req.method === 'POST') {
-		state = { plan: Boolean(body?.plan), cancelled: false, withdrawable: Boolean(body?.withdrawable), backup: body?.backup in BACKUPS ? body.backup : null, offered: Boolean(body?.offered), included: Boolean(body?.included), vouchers: Boolean(body?.vouchers), termsDue: Boolean(body?.termsDue), voucherRunning: false, voucherGranted: false, network: body?.network === 'mainnet' || body?.network === 'calibration' ? body.network : null, buildShort: Boolean(body?.buildShort), terms7: Boolean(body?.terms7), acceptedTerms: String(body?.acceptedTerms ?? '6') };
+		state = { plan: Boolean(body?.plan), cancelled: false, withdrawable: Boolean(body?.withdrawable), backup: body?.backup in BACKUPS ? body.backup : null, offered: Boolean(body?.offered), included: Boolean(body?.included), vouchers: Boolean(body?.vouchers), termsDue: Boolean(body?.termsDue), voucherRunning: false, voucherGranted: false, network: body?.network === 'mainnet' || body?.network === 'calibration' ? body.network : null, buildShort: Boolean(body?.buildShort), terms7: Boolean(body?.terms7), acceptedTerms: String(body?.acceptedTerms ?? '6'), newCustomer: Boolean(body?.newCustomer) };
 		requests = [];
 		return send(200, state);
 	}

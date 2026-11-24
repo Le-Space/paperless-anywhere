@@ -45,7 +45,7 @@ describe('signed requests', () => {
 describe('creditsBalance', () => {
 	it('shows a top-up as this vault’s paperless-anywhere balance, and a Belege top-up not at all', async () => {
 		const fetch = fakeService({ 'paperless-anywhere': { credits: 2000, reserved: 150 }, belege: { credits: 5000, reserved: 0 } });
-		expect(await creditsBalance(master, { baseUrl: 'https://credits.example.com', fetch })).toEqual({ credits: 2000, reserved: 150, lines: { ki: 0, vm: 0, transfer: 0 }, plan: null, terms: { accepted: null, current: null, pending: null, due: false, announced: false }, backup: null });
+		expect(await creditsBalance(master, { baseUrl: 'https://credits.example.com', fetch })).toEqual({ credits: 2000, reserved: 150, lines: { ki: 0, vm: 0, transfer: 0 }, plan: null, terms: { accepted: null, current: null, pending: null, dueVersion: null, refusedVersion: null, due: false, announced: false }, backup: null });
 		const onlyBelege = fakeService({ belege: { credits: 5000, reserved: 0 } });
 		expect((await creditsBalance(master, { baseUrl: 'https://credits.example.com', fetch: onlyBelege }))?.credits).toBe(0);
 	});
@@ -307,7 +307,7 @@ describe('purchases', () => {
 describe('terms', () => {
 	const baseUrl = 'https://credits.example.com';
 	it('says when the terms in force or an announced version still need consent', () => {
-		expect(termsOf(undefined)).toEqual({ accepted: null, current: null, pending: null, due: false, announced: false });
+		expect(termsOf(undefined)).toEqual({ accepted: null, current: null, pending: null, dueVersion: null, refusedVersion: null, due: false, announced: false });
 		const t = termsOf({ accepted: { version: '1', url: 'https://example.com/agb-1.pdf', sha256: 'ab', accepted_at: '2026-11-09T10:00:00Z' }, current: '2', pending: null });
 		expect(t.due).toBe(true);
 		expect(t.accepted?.url).toBe('https://example.com/agb-1.pdf');
@@ -325,14 +325,27 @@ describe('terms', () => {
 		expect(termsPage('../x', null)).toBeNull();
 		expect(termsOf({ accepted: { version: '6', url: 'https://credits.le-space.de/agb' }, current: '6' }).accepted?.url).toBe('https://credits.le-space.de/agb/6');
 	});
-	it('takes version 7 announced while 6 is in force (le-space-credits#114)', () => {
+	it('asks for the version the service names as due (le-space-credits#115)', () => {
+		const pending = { version: '7', effectiveAt: '2027-01-07T00:00:00.000Z', publishedAt: '2026-11-24T00:00:00.000Z' };
+		// A new customer: 7 before it is in force, and no second notice for it.
+		expect(termsOf({ accepted: null, current: '6', pending, due: '7' })).toMatchObject({ due: true, dueVersion: '7', announced: false, pending });
+		// 6 agreed after 7 was published: 7 still due.
+		expect(termsOf({ accepted: { version: '6' }, current: '6', pending, due: '7' })).toMatchObject({ due: true, dueVersion: '7', announced: false });
+		// 6 agreed before: nothing due, 7 announced; a refused purchase asks for 7.
+		expect(termsOf({ accepted: { version: '6' }, current: '6', pending, due: null })).toMatchObject({ due: false, dueVersion: null, announced: true, refusedVersion: '7' });
+		// Agreed to 7: nothing at all.
+		expect(termsOf({ accepted: { version: '7' }, current: '6', pending, due: null })).toMatchObject({ due: false, announced: false });
+		// The version in force named as due.
+		expect(termsOf({ accepted: { version: '5' }, current: '6', pending: null, due: '6' })).toMatchObject({ due: true, dueVersion: '6', refusedVersion: '6' });
+	});
+	it('takes version 7 announced while 6 is in force, from a service that names nothing due (le-space-credits#114)', () => {
 		const pending = { version: '7', effectiveAt: '2027-01-07T00:00:00.000Z' };
 		// Agreed to 6: nothing due, 7 announced with its day.
 		expect(termsOf({ accepted: { version: '6', url: 'https://credits.le-space.de/agb/6' }, current: '6', pending })).toMatchObject({ due: false, announced: true, pending });
 		// Agreed to 7 early (the newest acceptance): neither asked again.
 		expect(termsOf({ accepted: { version: '7', url: 'https://credits.le-space.de/agb/7' }, current: '6', pending })).toMatchObject({ due: false, announced: false });
 		// Never agreed: the version in force first.
-		expect(termsOf({ accepted: null, current: '6', pending })).toMatchObject({ due: true, announced: true });
+		expect(termsOf({ accepted: null, current: '6', pending })).toMatchObject({ due: true, dueVersion: '6', announced: true, refusedVersion: '6' });
 		// After the day: 7 is in force and nothing is pending.
 		expect(termsOf({ accepted: { version: '7' }, current: '7', pending: null })).toMatchObject({ due: false, announced: false });
 	});

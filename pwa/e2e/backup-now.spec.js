@@ -113,10 +113,14 @@ test.describe('German', () => {
 
 	test('a VM without a backup of its own shows the last known one, said as before this start', async ({ page }) => {
 		test.setTimeout(60_000);
-		const earlier = new Date(Date.now() - 2 * 3600_000);
-		earlier.setSeconds(0, 0);
-		const checked = new Date(Date.now() - 600_000);
-		const next = new Date(Date.now() + 6600_000);
+		// A fixed midday, so "two hours ago" is the same day at any hour the test runs
+		// (after midnight the app would rightly add the date).
+		const now = new Date();
+		now.setUTCHours(11, 0, 0, 0);
+		await page.clock.setFixedTime(now);
+		const earlier = new Date(now.getTime() - 2 * 3600_000);
+		const checked = new Date(now.getTime() - 600_000);
+		const next = new Date(now.getTime() + 6600_000);
 		const { phrase } = await setUp(
 			page,
 			{

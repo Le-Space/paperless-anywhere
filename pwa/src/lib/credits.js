@@ -87,20 +87,31 @@ export async function creditsBalance(master, { baseUrl = CREDITS_URL, fetch: fet
 
 /**
  * Which terms (AGB) this account accepted, which are in force, which are
- * announced (le-space-credits#36). `due` = in force and not accepted: buying
- * is refused (412 TERMS) until it is. Null fields while none are published.
+ * announced (le-space-credits#36). `due` = a version must be agreed before
+ * buying (412 TERMS until then), `dueVersion` which one. Null fields while
+ * none are published.
+ *
+ * The service names that version itself (`terms.due`, le-space-credits#115):
+ * a new customer takes a new version from its publication, before it is in
+ * force; a customer who agreed to the version in force before keeps buying
+ * under it. An older service sends no `due`: then it is the version in force
+ * when the newest acceptance is neither it nor the announced one.
+ * `refusedVersion`: the version to ask for when a purchase is refused
+ * nonetheless (412 TERMS decides): with the new rule the announced one
+ * (agreeing to it always clears the gate), else the one in force.
  * @param {any} t
  */
 export function termsOf(t) {
 	const accepted = t?.accepted?.version ? { version: String(t.accepted.version), url: termsPage(t.accepted.version, t.accepted.url), sha256: String(t.accepted.sha256 ?? ''), acceptedAt: t.accepted.accepted_at ?? null } : null;
 	const current = t?.current ? String(t.current) : null;
-	const pending = t?.pending?.version ? { version: String(t.pending.version), effectiveAt: t.pending.effectiveAt ?? null } : null;
-	// `accepted` is the newest acceptance only. Agreeing to the announced
-	// version early is the newest then, though the one in force was agreed
-	// before (the app asks for that one first): not due. Should the service
-	// still refuse a purchase (412 TERMS), termsRefused asks for it again.
+	const pending = t?.pending?.version ? { version: String(t.pending.version), effectiveAt: t.pending.effectiveAt ?? null, publishedAt: t.pending.publishedAt ?? null } : null;
+	const named = t != null && typeof t === 'object' && 'due' in t;
 	const early = Boolean(pending && accepted?.version === pending.version);
-	return { accepted, current, pending, due: Boolean(current && accepted?.version !== current && !early), announced: Boolean(pending && accepted?.version !== pending.version) };
+	const dueVersion = named
+		? (typeof t.due === 'string' || typeof t.due === 'number') && String(t.due) ? String(t.due) : null
+		: current && accepted?.version !== current && !early ? current : null;
+	const refusedVersion = named ? (pending?.version ?? current) : current;
+	return { accepted, current, pending, dueVersion, refusedVersion, due: Boolean(dueVersion), announced: Boolean(pending && accepted?.version !== pending.version && dueVersion !== pending.version) };
 }
 
 /** Where every version of the terms is published; the bare page shows the one in force. */

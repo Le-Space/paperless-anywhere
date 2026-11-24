@@ -315,3 +315,20 @@ test('terms version 7 announced: its date, its own page, agreed early, 6 still l
 	await expect(page.getByTestId('terms-accepted')).toContainText('Fassung 7, zugestimmt am 11.11.2026');
 	await expect(page.getByTestId('terms-accepted').getByRole('link')).toHaveAttribute('href', 'https://credits.le-space.de/agb/7');
 });
+
+test('a new customer agrees to version 7 at once, before it is in force (le-space-credits#115)', async ({ page }) => {
+	await openApp(page, { plan: false, terms7: true, acceptedTerms: '', newCustomer: true });
+	const notice = page.getByTestId('terms');
+	await expect(notice).toContainText('Neue Bedingungen (AGB): bitte zustimmen');
+	// A running package still renews: only that buying waits for the consent.
+	await expect(notice).toContainText('Bis zur Zustimmung sind keine Käufe möglich.');
+	await expect(notice).not.toContainText('endet zum Monatsende');
+	await expect(page.getByTestId('terms-link')).toHaveAttribute('href', 'https://credits.le-space.de/agb/7');
+	await expect(notice).toContainText('Ich habe die Fassung 7 gelesen und stimme ihr zu.');
+	await page.getByTestId('terms-read').check();
+	await page.getByTestId('terms-accept').click();
+	await expect.poll(async () => (await received('/v1/terms/accept')).map((r) => r.body.version)).toEqual(['7']);
+	// One notice only: 7 is not announced a second time, and 6 is not asked for.
+	await expect(notice).toHaveCount(0);
+	await expect(page.getByTestId('terms-accepted')).toContainText('Fassung 7');
+});
