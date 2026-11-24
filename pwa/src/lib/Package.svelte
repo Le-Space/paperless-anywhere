@@ -14,14 +14,16 @@
 	import { format, lang, t } from '$lib/i18n/index.js';
 
 	/** @type {{ master: Uint8Array, version?: number, onglance?: (g: { plan: boolean, hoursLeft: number | null, pays: string | null, low: boolean, endsAt: number | null } | null) => void }} */
-	let { master, version = 0, onglance = () => {}, onprofile = () => {} } = $props();
+	/** confirm: the page's own dialog, for a question whose yes concludes a purchase (`yes` names it); the browser's otherwise. */
+	let { master, version = 0, onglance = () => {}, onprofile = () => {}, confirm = undefined } = $props();
 
 	// What happens is in package-card.svelte.js; this component draws it.
 	const k = createPackageCard({
 		get master() { return master; },
 		get version() { return version; },
 		onglance: (...a) => onglance(...a),
-		onprofile: (...a) => onprofile(...a)
+		onprofile: (...a) => onprofile(...a),
+		get confirm() { return confirm; }
 	});
 	const { included, planTotal, readWithdrawal, pickPlan, dropPlan, payPlan, euro, day, perWeek, read, plan, portal, longDay, redeem, purchase, buyHours } = k;
 	const balance = $derived(k.balance);
@@ -173,7 +175,7 @@
 				<div class="step" data-testid="plan-step">
 					{#if chosen}<p class="hint">{$t.buy.step.for(`${x.planName(chosen.hours, chosen.hours >= 720)}, ${euro(planTotal(chosen))}`)}</p>{/if}
 					<Waiver {withdrawal} bind:checked={k.waivedPlan} testid="plan-waiver" />
-					<p class="row"><button class="small" onclick={payPlan} disabled={busy || planBlocked} data-testid="plan-pay">{$t.buy.step.pay}</button> <button class="link" onclick={dropPlan} disabled={busy} data-testid="plan-step-cancel">{$t.buy.step.cancel}</button></p>
+					<p class="row"><button class="small" onclick={payPlan} disabled={busy || planBlocked} data-testid="plan-pay">{$t.buy.paid}</button> <button class="link" onclick={dropPlan} disabled={busy} data-testid="plan-step-cancel">{$t.buy.step.cancel}</button></p>
 				</div>
 			{/if}
 		{/if}
@@ -188,7 +190,7 @@
 				<div class="group">
 					<p class="label">{x.moreHours}</p>
 					<p class="row">{#each [5, 10, 30] as h (h)}<button class="chip" onclick={() => buyHours(h)} disabled={busy || purchaseLocked(buying)} data-testid={`buy-${h}`}>{buying.phase === 'quoting' && buying.hours === h ? x.quoting : x.plusHours(h)}</button>{/each}</p>
-					<HourQuote quote={buying.phase === 'open' ? buying.quote : null} short={buying.phase === 'short'} hoursAsked={buying.hours} topUpHint={x.topUpHint} confirmLabel={x.buy} disabled={busy || buying.phase === 'buying'} onconfirm={() => purchase.confirm()} oncancel={() => purchase.cancel()} />
+					<HourQuote quote={buying.phase === 'open' ? buying.quote : null} short={buying.phase === 'short'} hoursAsked={buying.hours} topUpHint={x.topUpHint} confirmLabel={$t.buy.paid} disabled={busy || buying.phase === 'buying'} onconfirm={() => purchase.confirm()} oncancel={() => purchase.cancel()} />
 					{#if buying.error}<p class="warn" role="alert" data-testid="buy-error">{buying.error}</p>{/if}
 				</div>
 			{/if}

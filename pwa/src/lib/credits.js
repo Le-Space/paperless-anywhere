@@ -9,6 +9,7 @@
 // time in seconds. The service takes each timestamp once, within 5 minutes.
 import { privateKeyToAccount } from 'viem/accounts';
 import { alephPrivateKey, backupPrivateKey } from './keys/derive.js';
+import { writable } from 'svelte/store';
 import { currentLang, format, tr } from './i18n/index.js';
 
 export const CREDITS_PRODUCT = 'paperless-anywhere';
@@ -86,16 +87,56 @@ export async function creditsBalance(master, { baseUrl = CREDITS_URL, fetch: fet
 
 /**
  * Which terms (AGB) this account accepted, which are in force, which are
- * announced (le-space-credits#36). `due` = in force and not accepted: buying
- * is refused (412 TERMS) until it is. Null fields while none are published.
+ * announced (le-space-credits#36). `due` = a version must be agreed before
+ * buying (412 TERMS until then), `dueVersion` which one. Null fields while
+ * none are published.
+ *
+ * The service names that version itself (`terms.due`, le-space-credits#115):
+ * a new customer takes a new version from its publication, before it is in
+ * force; a customer who agreed to the version in force before keeps buying
+ * under it. An older service sends no `due`: then it is the version in force
+ * when the newest acceptance is neither it nor the announced one.
+ * `refusedVersion`: the version to ask for when a purchase is refused
+ * nonetheless (412 TERMS decides): with the new rule the announced one
+ * (agreeing to it always clears the gate), else the one in force.
  * @param {any} t
  */
 export function termsOf(t) {
-	const accepted = t?.accepted?.version ? { version: String(t.accepted.version), url: safeUrl(t.accepted.url), sha256: String(t.accepted.sha256 ?? ''), acceptedAt: t.accepted.accepted_at ?? null } : null;
+	const accepted = t?.accepted?.version ? { version: String(t.accepted.version), url: termsPage(t.accepted.version, t.accepted.url), sha256: String(t.accepted.sha256 ?? ''), acceptedAt: t.accepted.accepted_at ?? null } : null;
 	const current = t?.current ? String(t.current) : null;
-	const pending = t?.pending?.version ? { version: String(t.pending.version), effectiveAt: t.pending.effectiveAt ?? null } : null;
-	return { accepted, current, pending, due: Boolean(current && accepted?.version !== current), announced: Boolean(pending && accepted?.version !== pending.version) };
+	const pending = t?.pending?.version ? { version: String(t.pending.version), effectiveAt: t.pending.effectiveAt ?? null, publishedAt: t.pending.publishedAt ?? null } : null;
+	const named = t != null && typeof t === 'object' && 'due' in t;
+	const early = Boolean(pending && accepted?.version === pending.version);
+	const dueVersion = named
+		? (typeof t.due === 'string' || typeof t.due === 'number') && String(t.due) ? String(t.due) : null
+		: current && accepted?.version !== current && !early ? current : null;
+	const refusedVersion = named ? (pending?.version ?? current) : current;
+	return { accepted, current, pending, dueVersion, refusedVersion, due: Boolean(dueVersion), announced: Boolean(pending && accepted?.version !== pending.version && dueVersion !== pending.version) };
 }
+
+/** Where every version of the terms is published; the bare page shows the one in force. */
+export const TERMS_PAGE = 'https://credits.le-space.de/agb';
+/**
+ * The text of exactly this version: the service's https link where it names
+ * one of its own, else (none, or the bare page that follows the version in
+ * force) the version's own page, /agb/<version>.
+ * @param {unknown} version @param {unknown} url
+ */
+export function termsPage(version, url) {
+	const own = safeUrl(url);
+	const v = String(version ?? '');
+	const bare = own?.replace(/\/+$/, '') === TERMS_PAGE;
+	if (own && !bare) return own;
+	return /^[0-9A-Za-z._-]{1,32}$/.test(v) ? `${TERMS_PAGE}/${encodeURIComponent(v)}` : own;
+}
+
+/**
+ * The service refused a purchase for the terms (412 TERMS): the version in
+ * force is not agreed although the balance's newest acceptance looks fine
+ * (the announced one agreed alone, elsewhere). The terms notice asks for the
+ * version in force then; agreeing clears it.
+ */
+export const termsRefused = writable(false);
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const NETWORKS = ['calibration', 'mainnet'];
@@ -160,7 +201,7 @@ export async function creditsTerms({ baseUrl = CREDITS_URL, fetch: fetchImpl = f
 	const res = await fetchImpl(`${baseUrl}/v1/terms?product=${CREDITS_PRODUCT}`, { cache: 'no-store' });
 	if (!res.ok) throw new Error(tr().credits.answers(res.status));
 	const body = await res.json();
-	const one = (v) => (v?.version ? { version: String(v.version), date: v.date ?? null, url: safeUrl(v.url), sha256: String(v.sha256 ?? ''), changes: Array.isArray(v.changes) ? v.changes.map(String) : v.changes ? [String(v.changes)] : [], effectiveAt: v.effectiveAt ?? null } : null);
+	const one = (v) => (v?.version ? { version: String(v.version), date: v.date ?? null, url: termsPage(v.version, v.url), sha256: String(v.sha256 ?? ''), changes: Array.isArray(v.changes) ? v.changes.map(String) : v.changes ? [String(v.changes)] : [], effectiveAt: v.effectiveAt ?? null } : null);
 	return { current: one(body?.current), pending: one(body?.pending), withdrawal: withdrawalOf(body?.withdrawal) };
 }
 
@@ -211,7 +252,11 @@ export class TermsError extends Error {}
 export class WaiverError extends Error {}
 
 /** A 412 from the service: the declaration on withdrawal, or the terms. @param {any} answer */
-const preconditionError = (answer) => (answer?.code === 'WAIVER' ? new WaiverError(tr().credits.waiver) : new TermsError(tr().credits.terms));
+const preconditionError = (answer) => {
+	if (answer?.code === 'WAIVER') return new WaiverError(tr().credits.waiver);
+	termsRefused.set(true);
+	return new TermsError(tr().credits.terms);
+};
 
 /**
  * This vault's purchases for paperless-anywhere, newest first, each with the

@@ -39,6 +39,9 @@ test('v0.2 without a package: the state, the plans, the balance and topping up a
 	await expect(page.getByTestId('plan-none')).toHaveText('Noch kein Paket');
 	await expect(page.getByTestId('v2-plan-choose').getByRole('heading', { level: 2 })).toHaveText('Paket wählen');
 	await expect(page.getByTestId('plan-paperless-15-backup')).toBeVisible();
+	// The button that leads to the payment names the obligation to pay (§ 312j Abs. 3 BGB).
+	await page.getByTestId('plan-paperless-15-backup').click();
+	await expect(page.getByTestId('plan-pay')).toHaveText('Jetzt kostenpflichtig kaufen');
 	await expect(page.getByTestId('balance-euro')).toHaveText('12,34 €');
 	// Topping up is not inside a fold any more.
 	await expect(page.getByTestId('topup')).toBeVisible();

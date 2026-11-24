@@ -62,7 +62,8 @@ export function createLifecycleCard(p) {
 	const version = $derived(p.version);
 	const { onchange, onmissing, onglance, onbusy, oncopies } = p;
 	// A question to the person: the host's own dialog where it has one (v0.2), else the browser's.
-	const ask = async (/** @type {string} */ question) => (p.confirm ? p.confirm(question) : window.confirm(question));
+	// `yes`: the answer's own words where it concludes a paid purchase (§ 312j Abs. 3 BGB).
+	const ask = async (/** @type {string} */ question, /** @type {string | undefined} */ yes = undefined) => (p.confirm ? p.confirm(question, yes) : window.confirm(question));
 
 	/** @type {Record<string, any>} */
 	let profile = $state({});
@@ -615,7 +616,7 @@ export function createLifecycleCard(p) {
 			master,
 			profile: $state.snapshot(profile),
 			packagePays: Boolean(profile.leSpacePays),
-			confirm: (question) => ask(question),
+			confirm: (question, yes) => ask(question, yes),
 			save,
 			onProgress: (/** @type {{ step: string, detail?: string, data?: Record<string, any> }} */ { step, detail, data }) => {
 				progress = `${tr().card.progress.buildImage}: ${detail ?? step}`;

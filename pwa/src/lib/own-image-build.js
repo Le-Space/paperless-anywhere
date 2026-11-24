@@ -20,7 +20,7 @@ import { BUILDER, BuilderError, buildOnOwnBuilder, buildOwnImage, buildPaidByPac
  *   master: Uint8Array,
  *   profile: Record<string, any>,
  *   packagePays: boolean,
- *   confirm: (question: string) => boolean | Promise<boolean>,
+ *   confirm: (question: string, yes?: string) => boolean | Promise<boolean>,
  *   save: (patch: Record<string, any>) => Promise<any>,
  *   onProgress?: (p: { step: string, detail?: string }) => void,
  *   builder?: any,
@@ -75,7 +75,8 @@ async function buildOnce({ master, profile, packagePays, confirm, save, onProgre
 	const version = builder.plain?.sha256 ?? null;
 	const quote = await build(master, { quote: true, version });
 	const question = quote.included ? tr().ownImage.choice.confirmIncluded : tr().ownImage.choice.confirmPrice(format.euro(quote.chargedCredits ?? 0));
-	if (!(await confirm(question))) return null;
+	// A charge is asked with a button that names it (§ 312j Abs. 3 BGB); an included build with the plain yes.
+	if (!(await confirm(question, quote.included ? undefined : tr().buy.paid))) return null;
 	return paid({
 		...common,
 		builder,

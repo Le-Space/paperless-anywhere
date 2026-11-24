@@ -56,7 +56,7 @@
 		oncopies: (/** @type {any} */ c) => oncopies(c),
 		onpackage: () => onpackage(),
 		// The card's own questions (the price of a build, deleting without a backup) in the shell's dialog.
-		confirm: (/** @type {string} */ question) => confirm({ title: $t.v2.confirmTitle, text: question, yes: $t.v2.confirmYes, no: $t.v2.confirmNo })
+		confirm: (/** @type {string} */ question, /** @type {string | undefined} */ yes) => confirm({ title: $t.v2.confirmTitle, text: question, yes: yes ?? $t.v2.confirmYes, no: $t.v2.confirmNo })
 	});
 	const c = $derived(k.c);
 	const profile = $derived(k.profile);
@@ -153,7 +153,7 @@
 			<label class="field" for="v2-fund-hours">{c.fund.buyLabel}</label>
 			<select id="v2-fund-hours" bind:value={k.fundHours} disabled={locked} data-testid="fund-hours">{#each [5, 10, 30] as h (h)}<option value={h}>{h} h</option>{/each}</select>
 			<button class="cta" onclick={k.askToBuy} disabled={locked} data-testid="fund-start">{k.buying.phase === 'quoting' ? c.fund.quoting : c.fund.buyAndStart}</button>
-			<HourQuote quote={k.buying.phase === 'open' ? k.buying.quote : null} short={k.buying.phase === 'short'} hoursAsked={k.buying.hours} topUpHint={c.fund.topUpHint} confirmLabel={c.fund.buyAndStart} disabled={k.busy || k.buying.phase === 'buying'} onconfirm={() => k.purchase.confirm()} oncancel={() => k.purchase.cancel()} />
+			<HourQuote quote={k.buying.phase === 'open' ? k.buying.quote : null} short={k.buying.phase === 'short'} hoursAsked={k.buying.hours} topUpHint={c.fund.topUpHint} confirmLabel={$t.buy.paid} disabled={k.busy || k.buying.phase === 'buying'} onconfirm={() => k.purchase.confirm()} oncancel={() => k.purchase.cancel()} />
 			{#if k.buying.error}<p class="error" role="alert" data-testid="fund-error">{k.buying.error}</p>{/if}
 		{/if}
 	</div>

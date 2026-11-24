@@ -85,7 +85,7 @@
 		<div class="step" data-testid="topup-step">
 			<p class="hint">{$t.buy.step.for($t.buy.topup.button(chosen.credits / 100))}</p>
 			<Waiver {withdrawal} bind:checked={waived} testid="topup-waiver" />
-			<p class="row"><button class="small" onclick={() => buy(chosen.id)} disabled={busy || blocked} data-testid="topup-pay">{$t.buy.step.pay}</button> <button class="link" onclick={drop} disabled={busy} data-testid="topup-step-cancel">{$t.buy.step.cancel}</button></p>
+			<p class="row"><button class="small" onclick={() => buy(chosen.id)} disabled={busy || blocked} data-testid="topup-pay">{$t.buy.paid}</button> <button class="link" onclick={drop} disabled={busy} data-testid="topup-step-cancel">{$t.buy.step.cancel}</button></p>
 		</div>
 	{/if}
 	{#if status}<p class="hint" data-testid="topup-status">{status}</p>{/if}

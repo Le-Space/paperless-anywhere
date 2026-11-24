@@ -40,7 +40,7 @@
 		onglance: (/** @type {any} */ g) => onglance(g),
 		onprofile: () => onprofile(),
 		// Ending or changing a package, and paying from the balance instead: asked in the shell's dialog.
-		confirm: (/** @type {string} */ question) => confirm({ title: $t.v2.confirmTitle, text: question, yes: $t.v2.confirmYes, no: $t.v2.confirmNo })
+		confirm: (/** @type {string} */ question, /** @type {string | undefined} */ yes) => confirm({ title: $t.v2.confirmTitle, text: question, yes: yes ?? $t.v2.confirmYes, no: $t.v2.confirmNo })
 	});
 	const x = $derived(k.x);
 	const balance = $derived(k.balance);
@@ -154,7 +154,7 @@
 					<div class="step" data-testid="plan-step">
 						{#if chosen}<p>{$t.buy.step.for(`${x.planName(chosen.hours, chosen.hours >= 720)}, ${k.euro(k.planTotal(chosen))}`)}</p>{/if}
 						<Waiver withdrawal={k.withdrawal} bind:checked={k.waivedPlan} testid="plan-waiver" />
-						<button class="cta" onclick={k.payPlan} disabled={k.busy || k.planBlocked} data-testid="plan-pay">{$t.buy.step.pay}</button>
+						<button class="cta" onclick={k.payPlan} disabled={k.busy || k.planBlocked} data-testid="plan-pay">{$t.buy.paid}</button>
 						<button class="lnk" onclick={k.dropPlan} disabled={k.busy} data-testid="plan-step-cancel">{$t.buy.step.cancel}</button>
 					</div>
 				{/if}
@@ -178,7 +178,7 @@
 			{#if balance.plan && k.appPays}
 				<h3>{v.moreHours}</h3>
 				<p class="row">{#each [5, 10, 30] as h (h)}<button class="small" onclick={() => k.buyHours(h)} disabled={k.busy || purchaseLocked(k.buying)} data-testid={`buy-${h}`}>{k.buying.phase === 'quoting' && k.buying.hours === h ? x.quoting : x.plusHours(h)}</button>{/each}</p>
-				<HourQuote quote={k.buying.phase === 'open' ? k.buying.quote : null} short={k.buying.phase === 'short'} hoursAsked={k.buying.hours} topUpHint={x.topUpHint} confirmLabel={x.buy} disabled={k.busy || k.buying.phase === 'buying'} onconfirm={() => k.purchase.confirm()} oncancel={() => k.purchase.cancel()} />
+				<HourQuote quote={k.buying.phase === 'open' ? k.buying.quote : null} short={k.buying.phase === 'short'} hoursAsked={k.buying.hours} topUpHint={x.topUpHint} confirmLabel={$t.buy.paid} disabled={k.busy || k.buying.phase === 'buying'} onconfirm={() => k.purchase.confirm()} oncancel={() => k.purchase.cancel()} />
 				{#if k.buying.error}<p class="error" role="alert" data-testid="buy-error">{k.buying.error}</p>{/if}
 			{/if}
 		</div>

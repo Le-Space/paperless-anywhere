@@ -112,7 +112,7 @@
 				<summary data-testid="backup-add-summary">{x.addFold(euro(offer.monthCents))}</summary>
 				<p class="hint">{x.addHint(nextCharge, offer.retentionDays)}</p>
 				<Waiver {withdrawal} bind:checked={waivedAdd} testid="backup-add-waiver" />
-				<p class="row"><button class="small" onclick={add} disabled={disabled || busy || blocked(waivedAdd)} data-testid="backup-add">{x.addButton(euro(offer.monthCents))}</button></p>
+				<p class="row"><button class="small" onclick={add} disabled={disabled || busy || blocked(waivedAdd)} data-testid="backup-add">{$t.buy.paid}</button></p>
 			</details>
 		{:else if backup.renewsWithPlan}
 			<p class="hint">{x.remove.before}<button class="link" onclick={() => onportal()} disabled={disabled || busy} data-testid="backup-remove">{x.remove.link}</button>{x.remove.after(offer.retentionDays)}</p>
@@ -123,7 +123,7 @@
 			<p><strong>{x.keepStrong}</strong> {x.keep}</p>
 			<p class="hint">{x.yearHint(offer.yearDays)}</p>
 			<Waiver {withdrawal} bind:checked={waivedYear} testid="backup-year-waiver" />
-			<p class="row"><button class="small" onclick={year} disabled={disabled || busy || blocked(waivedYear)} data-testid="backup-year">{x.yearButton(euro(offer.yearCents))}</button></p>
+			<p class="row"><button class="small" onclick={year} disabled={disabled || busy || blocked(waivedYear)} data-testid="backup-year">{$t.buy.paid}</button></p>
 		</details>
 		{#if status.tone === 'soon' || status.tone === 'warn'}
 			<p class="hint" data-testid="backup-mail-note">{x.mailNote}</p>
