@@ -20,7 +20,7 @@
 	import { httpsUrl } from '$lib/evidence.js';
 
 	/** @type {{ master: Uint8Array, simple?: boolean, version?: number, onchange?: () => void, onadvanced?: () => void, onmissing?: (missing: string[]) => void, onglance?: (g: Glance) => void, onbusy?: (busy: boolean) => void, oncopies?: (c: { network: string, copies: { providerId: number, url?: string }[], wanted: number | null }) => void, reach?: import('$lib/backup-status.js').Level, onpackage?: () => void }} onpackage: shows the package where it is not on the same page; reach: the "Sicherungen erreichbar" light; oncopies: the newest backup's copies, for the lights */
-	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {}, onmissing = () => {}, onglance = () => {}, onbusy = () => {}, oncopies = () => {}, reach = 'unknown', onpackage = undefined } = $props();
+	let { master, simple = false, version = 0, onchange = () => {}, onadvanced = () => {}, onmissing = () => {}, onglance = () => {}, onbusy = () => {}, oncopies = () => {}, reach = 'unknown', onpackage = undefined, confirm = undefined } = $props();
 	/** @typedef {{ phase: string, host: string | null, lastGood: { at: string, copies: number | null } | null, backupsOn: boolean, pays: 'lespace' | 'app' | 'wallet' | null, fixedHost: boolean }} Glance */
 
 	// What happens is in lifecycle-card.svelte.js; this component draws it.
@@ -32,7 +32,9 @@
 		onglance: (g) => onglance(g),
 		onbusy: (b) => onbusy(b),
 		oncopies: (c) => oncopies(c),
-		get onpackage() { return onpackage; }
+		get onpackage() { return onpackage; },
+		// The page's own dialog, for a question whose yes concludes a purchase; the browser's otherwise.
+		get confirm() { return confirm; }
 	});
 	const { showCertificate, STEPS, typicalOf, minutes, goodWhen, rememberGood, checkAgain, pick, unmarkedPick, whenOf, wherePlaces, sizePart, copyPassword, startFromPackage, purchase, askToBuy, start, startWithoutBackup, startOnOldImage, rebuildBeforeStart, toPackage, rebuildImage, resume, startPrevious, discard, checkPlacesThen, acceptPlaces, placesAnyway, stop, discardFailed, answer, eraseAnyway, keepVm } = k;
 	const profile = $derived(k.profile);
@@ -150,7 +152,7 @@
 			<select bind:value={k.fundHours} disabled={locked} data-testid="fund-hours">{#each [5, 10, 30] as h (h)}<option value={h}>{h} h</option>{/each}</select></label>
 		<button onclick={askToBuy} disabled={locked} data-testid="fund-start">{buying.phase === 'quoting' ? c.fund.quoting : c.fund.buyAndStart}</button>
 	</div>
-	<HourQuote quote={buying.phase === 'open' ? buying.quote : null} short={buying.phase === 'short'} hoursAsked={buying.hours} topUpHint={c.fund.topUpHint} confirmLabel={c.fund.buyAndStart} disabled={busy || buying.phase === 'buying'} onconfirm={() => purchase.confirm()} oncancel={() => purchase.cancel()} />
+	<HourQuote quote={buying.phase === 'open' ? buying.quote : null} short={buying.phase === 'short'} hoursAsked={buying.hours} topUpHint={c.fund.topUpHint} confirmLabel={$i18n.buy.paid} disabled={busy || buying.phase === 'buying'} onconfirm={() => purchase.confirm()} oncancel={() => purchase.cancel()} />
 	{#if buying.error}<p class="error" role="alert" data-testid="fund-error">{buying.error}</p>{/if}
 	{/if}
 {/snippet}

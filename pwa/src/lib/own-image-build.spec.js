@@ -32,12 +32,15 @@ describe('building the own image for a vault', () => {
 		const { seen, deps: d } = deps();
 		const saved = [];
 		const asked = [];
-		const out = await buildImageForVault({ master, profile: {}, packagePays: true, confirm: (q) => (asked.push(q), true), save: async (p) => void saved.push(p), builder, deps: d });
+		const yes = [];
+		const out = await buildImageForVault({ master, profile: {}, packagePays: true, confirm: (q, y) => (asked.push(q), yes.push(y), true), save: async (p) => void saved.push(p), builder, deps: d });
 		expect(out).toBe(image);
 		expect(seen).toEqual(['relays', 'authorize', 'quote', 'paid']);
 		// The service learns which image version: the plain image's SHA-256.
 		expect(versions).toEqual(['ef'.repeat(32)]);
 		expect(asked[0]).toMatch(/abgebucht/);
+		// A charge is agreed with a button that names it (§ 312j Abs. 3 BGB).
+		expect(yes[0]).toBe('Jetzt kostenpflichtig kaufen');
 		expect(saved[0].ownBuilder).toMatchObject({ vprogram: '5e'.repeat(32), buildId: 'b1' });
 		expect(saved.at(-1)).toEqual({ ownBuilder: null });
 	});
@@ -45,8 +48,11 @@ describe('building the own image for a vault', () => {
 	it('says when a voucher includes the build, and builds nothing when the person declines', async () => {
 		const { seen, deps: d } = deps({ quote: { included: true, chargedCredits: 0 } });
 		const asked = [];
-		expect(await buildImageForVault({ master, profile: {}, packagePays: true, confirm: (q) => (asked.push(q), false), save: async () => {}, builder, deps: d })).toBeNull();
+		const yes = [];
+		expect(await buildImageForVault({ master, profile: {}, packagePays: true, confirm: (q, y) => (asked.push(q), yes.push(y), false), save: async () => {}, builder, deps: d })).toBeNull();
 		expect(asked[0]).toMatch(/Dieser Bau ist enthalten/);
+		// Nothing charged: the plain yes.
+		expect(yes[0]).toBeUndefined();
 		expect(seen).toEqual(['relays', 'authorize', 'quote']);
 	});
 

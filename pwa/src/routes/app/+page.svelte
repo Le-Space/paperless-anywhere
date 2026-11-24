@@ -21,6 +21,7 @@
 	import Balances from '$lib/Balances.svelte';
 	import VmList from '$lib/VmList.svelte';
 	import Package from '$lib/Package.svelte';
+	import Confirm from '$lib/v2/Confirm.svelte';
 	import { CREDITS_URL } from '$lib/credits.js';
 	import BuildInfo from '$lib/BuildInfo.svelte';
 	import Help from '$lib/Help.svelte';
@@ -248,6 +249,18 @@
 	/** @type {{ money: string, lasts: string, warnings: ('start' | 'backups')[] } | null} */
 	let summary = $state(null);
 	let balancesShown = $state(false);
+	// A question whose yes concludes a paid purchase gets a dialog whose button
+	// says so (§ 312j Abs. 3 BGB): the browser's own confirm() can only say "OK".
+	// Every other question stays with the browser's dialog.
+	/** @type {{ text: string, yes: string, resolve: (yes: boolean) => void } | null} */
+	let paying = $state(null);
+	/** @param {string} question @param {string | undefined} yes */
+	const askPaid = async (question, yes) => (yes ? new Promise((resolve) => (paying = { text: question, yes, resolve })) : window.confirm(question));
+	const answerPaid = (/** @type {boolean} */ yes) => {
+		const a = paying;
+		paying = null;
+		a?.resolve(yes);
+	};
 </script>
 
 <!-- Its own title: coming from the landing page, the tab would keep that one. -->
@@ -367,8 +380,8 @@
 						</ul>
 					</section>
 				{/if}
-				<div class="life" id="paperless"><Lifecycle {master} {simple} version={profileVersion} onchange={() => profileVersion++} onadvanced={openSetup} onmissing={(m) => { missing = m; if (m.length) setupOpen = true; }} onglance={(g) => (life = g)} onbusy={(b) => (acting = b)} oncopies={newestCopies} reach={reachLed} /></div>
-				{#if CREDITS_URL}<div class="pkg" id="paket"><Package {master} version={profileVersion} onglance={(g) => (pkg = g)} onprofile={() => profileVersion++} /></div>{/if}
+				<div class="life" id="paperless"><Lifecycle {master} {simple} version={profileVersion} onchange={() => profileVersion++} onadvanced={openSetup} onmissing={(m) => { missing = m; if (m.length) setupOpen = true; }} onglance={(g) => (life = g)} onbusy={(b) => (acting = b)} oncopies={newestCopies} reach={reachLed} confirm={askPaid} /></div>
+				{#if CREDITS_URL}<div class="pkg" id="paket"><Package {master} version={profileVersion} onglance={(g) => (pkg = g)} onprofile={() => profileVersion++} confirm={askPaid} /></div>{/if}
 			</div>
 		{/if}
 		<!-- "Technisch" (#105): what the everyday use does not need, folded, one
@@ -401,7 +414,7 @@
 				</details>
 				<details class="part" bind:open={setupOpen} data-testid="tech-setup">
 					<summary><span>{$t.app.tech.setup}</span><span class="chip" class:warn={missing.length > 0}>{missing.length ? $t.app.tech.missing : $t.app.tech.complete}</span></summary>
-					<Setup {master} version={profileVersion} onsaved={() => profileVersion++} />
+					<Setup {master} version={profileVersion} onsaved={() => profileVersion++} confirm={askPaid} />
 				</details>
 			{/if}
 		</section>
@@ -428,6 +441,7 @@
 	<Help t={$t.help} lang={$lang} faq={$lang === 'en' ? '/en/#faq' : '/#faq'} diagnosis={diagnose} />
 	<BuildInfo />
 </main>
+{#if paying}<Confirm open title={$t.v2.confirmTitle} text={paying.text} yes={paying.yes} no={$t.v2.confirmNo} onanswer={answerPaid} />{/if}
 
 <style>
 	.gh { display: inline-flex; align-items: center; color: var(--text-2); padding: 0.25rem; border-radius: 999px; }

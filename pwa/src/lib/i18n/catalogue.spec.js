@@ -24,6 +24,22 @@ describe('the app’s catalogue', () => {
 	});
 });
 
+describe('the buttons that conclude a paid purchase (§ 312j Abs. 3 BGB)', () => {
+	it('name the obligation to pay, in the words Nico chose', () => {
+		expect(catalogue.de.buy.paid).toBe('Jetzt kostenpflichtig kaufen');
+		expect(catalogue.en.buy.paid).toBe('Buy now (payment required)');
+	});
+	it('leave no older wording that a concluding button could still use', () => {
+		const pkg = /** @type {Record<string, unknown>} */ (catalogue.de.pkg);
+		const step = /** @type {Record<string, unknown>} */ (catalogue.de.buy.step);
+		const line = /** @type {Record<string, unknown>} */ (catalogue.de.buy.line);
+		expect(pkg.buy).toBeUndefined();
+		expect(step.pay).toBeUndefined();
+		expect(line.addButton).toBeUndefined();
+		expect(line.yearButton).toBeUndefined();
+	});
+});
+
 describe('the language', () => {
 	it('is German without a choice, and follows a choice at once', () => {
 		expect(savedLang()).toBe('de');

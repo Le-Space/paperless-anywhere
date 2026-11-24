@@ -251,7 +251,8 @@ test('the package card in English: prices, the declaration in English, legal but
 	await page.getByTestId('plan-paperless-15-backup').click();
 	await expect(page.getByTestId('plan-step')).toContainText('For this purchase: 15 hours a month, €6.40');
 	await expect(page.getByTestId('plan-waiver')).toContainText('Example withdrawal text');
-	await expect(page.getByTestId('plan-pay')).toHaveText('Continue to payment');
+	// The button that leads to the payment names the obligation to pay (§ 312j Abs. 3 BGB).
+	await expect(page.getByTestId('plan-pay')).toHaveText('Buy now (payment required)');
 	await shot(page, 'package-en', page.getByTestId('package'));
 	await page.getByTestId('plan-waiver-box').check();
 	await page.getByTestId('plan-pay').click();
@@ -281,12 +282,36 @@ test('the backup line, topping up and the terms notice in English', async ({ pag
 	await expect(page.getByTestId('backup-year-summary')).toHaveText('Book 1 year of keeping (€18.00, once)');
 	await page.getByTestId('backup-year-summary').click();
 	await expect(page.getByTestId('backup-year-fold')).toContainText('Keeping is not opening: Restoring needs compute time, that is a running package or extra hours.');
-	await expect(page.getByTestId('backup-year')).toHaveText('Pay €18.00 for 1 year');
+	await expect(page.getByTestId('backup-year')).toHaveText('Buy now (payment required)');
 	await expect(page.getByTestId('backup-mail-note')).toContainText('A reminder also comes by e-mail');
+	await page.getByTestId('backup-add-summary').click();
+	await expect(page.getByTestId('backup-add')).toHaveText('Buy now (payment required)');
 	await page.getByTestId('package-more').click();
 	await expect(page.getByTestId('topup-topup-20')).toHaveText('Top up €20');
-	// German again, word for word as before.
+	await page.getByTestId('topup-topup-20').click();
+	await expect(page.getByTestId('topup-pay')).toHaveText('Buy now (payment required)');
+	// German again, word for word as before; the concluding buttons name the obligation to pay.
 	await page.getByTestId('app-lang-de').click();
 	await expect(page.getByTestId('topup-topup-20')).toHaveText('20 € aufladen');
+	await expect(page.getByTestId('topup-pay')).toHaveText('Jetzt kostenpflichtig kaufen');
 	await expect(page.getByTestId('backup-year-summary')).toHaveText('1 Jahr Aufbewahrung buchen (18,00 €, einmalig)');
+	await expect(page.getByTestId('backup-year')).toHaveText('Jetzt kostenpflichtig kaufen');
+	await expect(page.getByTestId('backup-add')).toHaveText('Jetzt kostenpflichtig kaufen');
+});
+
+test('terms version 7 announced: its date, its own page, agreed early, 6 still linked as agreed', async ({ page }) => {
+	await openApp(page, { plan: true, terms7: true });
+	const notice = page.getByTestId('terms');
+	await expect(notice).toContainText('Neue Bedingungen (AGB) ab 07.01.2027');
+	await expect(notice).toContainText('Example change for the test');
+	// The link names the version asked for, not the page that follows the version in force.
+	await expect(page.getByTestId('terms-link')).toHaveAttribute('href', 'https://credits.le-space.de/agb/7');
+	await expect(page.getByTestId('terms-link')).toHaveText('Fassung 7 vom 24.11.2026 lesen und herunterladen');
+	await page.getByTestId('terms-read').check();
+	await page.getByTestId('terms-accept').click();
+	await expect.poll(async () => (await received('/v1/terms/accept')).map((r) => r.body.version)).toEqual(['7']);
+	// Agreed early: no notice any more, and version 6 is not asked for again.
+	await expect(notice).toHaveCount(0);
+	await expect(page.getByTestId('terms-accepted')).toContainText('Fassung 7, zugestimmt am 11.11.2026');
+	await expect(page.getByTestId('terms-accepted').getByRole('link')).toHaveAttribute('href', 'https://credits.le-space.de/agb/7');
 });

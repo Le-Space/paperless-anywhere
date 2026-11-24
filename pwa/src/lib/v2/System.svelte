@@ -35,7 +35,7 @@
 		get master() { return master; },
 		get version() { return version; },
 		onsaved: (...a) => onsaved(...a),
-		confirm: (/** @type {string} */ question) => confirm({ title: $t.v2.confirmTitle, text: question, yes: $t.v2.confirmYes, no: $t.v2.confirmNo })
+		confirm: (/** @type {string} */ question, /** @type {string | undefined} */ yes) => confirm({ title: $t.v2.confirmTitle, text: question, yes: yes ?? $t.v2.confirmYes, no: $t.v2.confirmNo })
 	});
 	const { pwaAddress, sessionAddress, backupKey, connect, changeNetwork, setPays, setRole, authorize, session, setBackupsByCredits, payBackups, authorizeBackupKey, saveRelay, saveAge, useVaultAge, toggleBackups, savePlaces, pushPlaces, saveOwner, saveImage, choosePublic, buildImage, removeOldImages, saveDns, titled, fundedUntil, until, goTo } = k;
 	const x = $derived(k.x);

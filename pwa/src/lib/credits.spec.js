@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { recoverMessageAddress } from 'viem';
-import { backupAuthorize, backupKeyAddress, backupOf, backupRevoke, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, TermsError, fundBackups, fundVm, quoteVm, QuoteUnsupportedError, vmAuthorize, imageBuild, imageBuildDone, IMAGE_BUILD_TYPES, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp, creditsTerms, withdrawalOf, withdrawalText, waiverOf, WaiverError, cancelSubscription, CancelUnsupportedError, cancellationRecord, contractName, cancelMailto, withdraw, withdrawableOf, withdrawalQuote, withdrawalRecord, WithdrawalUnsupportedError, BACKUP_MONTH_CREDITS, backupMonthCredits } from './credits.js';
+import { get } from 'svelte/store';
+import { backupAuthorize, backupKeyAddress, backupOf, backupRevoke, canonical, choosePlan, creditsAccount, creditsBalance, CREDITS_PRODUCT, CreditsShortError, creditsCatalog, creditsPurchases, acceptTerms, termsOf, termsPage, termsRefused, TermsError, fundBackups, fundVm, quoteVm, QuoteUnsupportedError, vmAuthorize, imageBuild, imageBuildDone, IMAGE_BUILD_TYPES, startSubscription, subscriptionPortal, waitForSubscription, stripeLink, payMessage, payUrl, signedHeaders, startCheckout, waitForTopUp, creditsTerms, withdrawalOf, withdrawalText, waiverOf, WaiverError, cancelSubscription, CancelUnsupportedError, cancellationRecord, contractName, cancelMailto, withdraw, withdrawableOf, withdrawalQuote, withdrawalRecord, WithdrawalUnsupportedError, BACKUP_MONTH_CREDITS, backupMonthCredits } from './credits.js';
 
 // A made-up vault: the ledger knows it by the address its Aleph key has.
 const master = new Uint8Array(32).fill(7);
@@ -311,7 +312,38 @@ describe('terms', () => {
 		expect(t.due).toBe(true);
 		expect(t.accepted?.url).toBe('https://example.com/agb-1.pdf');
 		expect(termsOf({ accepted: { version: '2' }, current: '2', pending: { version: '3', effectiveAt: '2026-12-21' } }).announced).toBe(true);
-		expect(termsOf({ accepted: { version: '1', url: 'javascript:alert(1)' }, current: '1' }).accepted?.url).toBeNull();
+		// An unsafe link is dropped; the version's own page stands in for it.
+		expect(termsOf({ accepted: { version: '1', url: 'javascript:alert(1)' }, current: '1' }).accepted?.url).toBe('https://credits.le-space.de/agb/1');
+	});
+	it('links the version agreed to, not the page that follows the version in force', () => {
+		expect(termsPage('6', 'https://credits.le-space.de/agb/6')).toBe('https://credits.le-space.de/agb/6');
+		expect(termsPage('6', 'https://credits.le-space.de/agb')).toBe('https://credits.le-space.de/agb/6');
+		expect(termsPage('6', 'https://credits.le-space.de/agb/')).toBe('https://credits.le-space.de/agb/6');
+		expect(termsPage('7', null)).toBe('https://credits.le-space.de/agb/7');
+		expect(termsPage('7', 'https://example.com/agb-7.pdf')).toBe('https://example.com/agb-7.pdf');
+		expect(termsPage('', 'https://credits.le-space.de/agb')).toBe('https://credits.le-space.de/agb');
+		expect(termsPage('../x', null)).toBeNull();
+		expect(termsOf({ accepted: { version: '6', url: 'https://credits.le-space.de/agb' }, current: '6' }).accepted?.url).toBe('https://credits.le-space.de/agb/6');
+	});
+	it('takes version 7 announced while 6 is in force (le-space-credits#114)', () => {
+		const pending = { version: '7', effectiveAt: '2027-01-07T00:00:00.000Z' };
+		// Agreed to 6: nothing due, 7 announced with its day.
+		expect(termsOf({ accepted: { version: '6', url: 'https://credits.le-space.de/agb/6' }, current: '6', pending })).toMatchObject({ due: false, announced: true, pending });
+		// Agreed to 7 early (the newest acceptance): neither asked again.
+		expect(termsOf({ accepted: { version: '7', url: 'https://credits.le-space.de/agb/7' }, current: '6', pending })).toMatchObject({ due: false, announced: false });
+		// Never agreed: the version in force first.
+		expect(termsOf({ accepted: null, current: '6', pending })).toMatchObject({ due: true, announced: true });
+		// After the day: 7 is in force and nothing is pending.
+		expect(termsOf({ accepted: { version: '7' }, current: '7', pending: null })).toMatchObject({ due: false, announced: false });
+	});
+	it('reads the published versions with their own pages, the coming one pending', async () => {
+		const entry = (v, extra = {}) => ({ version: v, date: '2026-11-24', url: `https://credits.le-space.de/agb/${v}`, sha256: 'ab', changes: 'Beispieländerung', ...extra });
+		const fetch = async () => new Response(JSON.stringify({ current: entry('6'), pending: entry('7', { effectiveAt: '2027-01-07T00:00:00.000Z' }) }));
+		const t = await creditsTerms({ baseUrl, fetch });
+		expect(t?.current).toMatchObject({ version: '6', url: 'https://credits.le-space.de/agb/6' });
+		expect(t?.pending).toMatchObject({ version: '7', url: 'https://credits.le-space.de/agb/7', effectiveAt: '2027-01-07T00:00:00.000Z', changes: ['Beispieländerung'] });
+		const bare = async () => new Response(JSON.stringify({ current: entry('6', { url: 'https://credits.le-space.de/agb' }), pending: null }));
+		expect((await creditsTerms({ baseUrl, fetch: bare }))?.current?.url).toBe('https://credits.le-space.de/agb/6');
 	});
 	it('accepts a version, signed as the ledger address', async () => {
 		const svc = jsonService(() => [200, { version: '2', sha256: 'ab', accepted_at: '2026-11-09T10:00:00Z' }]);
@@ -321,6 +353,9 @@ describe('terms', () => {
 	it('turns 412 TERMS into a TermsError', async () => {
 		const svc = jsonService(() => [412, { error: 'terms', code: 'TERMS' }]);
 		await expect(fundVm(master, 5, { baseUrl, fetch: svc.fetch })).rejects.toBeInstanceOf(TermsError);
+		// The notice then asks for the version in force, even where the balance looked fine.
+		expect(get(termsRefused)).toBe(true);
+		termsRefused.set(false);
 	});
 });
 

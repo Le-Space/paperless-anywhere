@@ -12,13 +12,15 @@
 	import { format, lang, t } from '$lib/i18n/index.js';
 
 	/** @type {{ master: Uint8Array, onsaved?: () => void }} */
-	let { master, version = 0, onsaved = () => {} } = $props();
+	/** confirm: the page's own dialog, for a question whose yes concludes a purchase (`yes` names it); the browser's otherwise. */
+	let { master, version = 0, onsaved = () => {}, confirm = undefined } = $props();
 
 	// What happens is in setup-card.svelte.js; this component draws it.
 	const k = createSetupCard({
 		get master() { return master; },
 		get version() { return version; },
-		onsaved: (...a) => onsaved(...a)
+		onsaved: (...a) => onsaved(...a),
+		get confirm() { return confirm; }
 	});
 	const { pwaAddress, sessionAddress, backupKey, connect, changeNetwork, setPays, setRole, authorize, session, setBackupsByCredits, payBackups, authorizeBackupKey, saveRelay, saveAge, useVaultAge, toggleBackups, savePlaces, pushPlaces, saveOwner, saveImage, choosePublic, buildImage, removeOldImages, saveDns, titled, fundedUntil, until, goTo } = k;
 	const x = $derived(k.x);

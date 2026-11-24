@@ -169,12 +169,13 @@ export function createPackageCard(p) {
 		}
 	}
 	// A question to the person: the host's own dialog where it has one (v0.2), else the browser's.
-	const ask = async (/** @type {string} */ question) => (p.confirm ? p.confirm(question) : window.confirm(question));
+	// `yes`: the answer's own words where it concludes a paid purchase (§ 312j Abs. 3 BGB).
+	const ask = async (/** @type {string} */ question, /** @type {string | undefined} */ yes = undefined) => (p.confirm ? p.confirm(question, yes) : window.confirm(question));
 	const plan = async (/** @type {string | null} */ id) => {
 		if (id === null && !(await ask(tr().pkg.endConfirm))) return;
 		// A change of package is asked first, with what it costs.
 		const next = id === null ? null : planOf(id, plans);
-		if (next && !(await ask(tr().pkg.changeConfirm(tr().pkg.upgrade(next.hours, next.hours >= 720, euro(next.priceCredits)))))) return;
+		if (next && !(await ask(tr().pkg.changeConfirm(tr().pkg.upgrade(next.hours, next.hours >= 720, euro(next.priceCredits))), tr().buy.paid))) return;
 		act(async () => {
 			const r = await choosePlan(master, id);
 			return id ? tr().pkg.chosen(day(r.periodEnd)) : tr().pkg.endsWithPeriod;
@@ -205,7 +206,7 @@ export function createPackageCard(p) {
 				// By the service's code, not by the words of its message: those follow the language.
 				const failure = /** @type {{ code?: string, status?: number } | null} */ (e);
 				if (!(failure?.code === 'PRICE_TAX' || failure?.code === 'STRIPE_OFF' || failure?.status === 404)) throw e;
-				if (!(await ask(tr().pkg.fromBalanceConfirm(msg)))) return '';
+				if (!(await ask(tr().pkg.fromBalanceConfirm(msg), tr().buy.paid))) return '';
 				const r = await choosePlan(master, id);
 				return tr().pkg.chosenFromBalance(day(r.periodEnd));
 			}

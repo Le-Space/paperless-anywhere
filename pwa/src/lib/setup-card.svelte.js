@@ -30,7 +30,8 @@ export function createSetupCard(p) {
 	const version = $derived(p.version);
 	const { onsaved } = p;
 	// A question to the person: the host's own dialog where it has one (v0.2), else the browser's.
-	const ask = async (/** @type {string} */ question) => (p.confirm ? p.confirm(question) : window.confirm(question));
+	// `yes`: the answer's own words where it concludes a paid purchase (§ 312j Abs. 3 BGB).
+	const ask = async (/** @type {string} */ question, /** @type {string | undefined} */ yes = undefined) => (p.confirm ? p.confirm(question, yes) : window.confirm(question));
 	// The first reading of the settings again, after it failed (v0.2 offers it).
 	let loadTry = $state(0);
 	const loadAgain = () => {
@@ -216,7 +217,7 @@ export function createSetupCard(p) {
 		if (offered === null) throw new Error(tr().setup.backups.notPaying);
 		if (offered && offered !== want) throw new Error(tr().setup.backups.errors.payOtherNetwork(netName(offered), netName(want)));
 		// A host with its own dialog (v0.2) asks before the balance is charged, with the price where the service names it.
-		if (p.confirm && !(await p.confirm(tr().v2.system.payMonthConfirm(catalog?.backup?.monthCents != null ? format.euro(catalog.backup.monthCents) : '')))) return;
+		if (p.confirm && !(await p.confirm(tr().v2.system.payMonthConfirm(catalog?.backup?.monthCents != null ? format.euro(catalog.backup.monthCents) : ''), tr().buy.paid))) return;
 		const r = await fundBackups(master, 1);
 		if (r.network && r.network !== want) throw new Error(tr().setup.backups.errors.fundNetwork(r.network, want));
 		await authorizeKey();
@@ -358,7 +359,7 @@ export function createSetupCard(p) {
 				master,
 				profile,
 				packagePays,
-				confirm: (question) => ask(question),
+				confirm: (question, yes) => ask(question, yes),
 				save,
 				onProgress: ({ detail }) => (ownStep = detail ?? '')
 			});
