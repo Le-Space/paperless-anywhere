@@ -189,13 +189,13 @@ The app's rule is that settings belong in the sealed profile (the vault's
 AGGREGATE), so they follow the person to other devices, and the VM needs the
 setting as a secret, handed over at the start like `period_end`.
 
-**Recommendation: the sealed profile.** The start reads the profile anyway
+**Decided (Nico, 2026-11-28): the sealed profile.** The start reads the profile anyway
 and hands the setting over from it; with localStorage a start from another
 device (or after the browser's data was cleared) would silently start
 without auto-stop, or with a different one, and the VM would stop at a time
 the person did not set on that device. Writing the profile is an AGGREGATE
 message, as every profile change already is. localStorage may cache the
-last choice for the form. Nico decides.
+last choice for the form.
 
 ## Cost view
 
@@ -264,4 +264,3 @@ missing: off. Phase 3 adds `"forget"`: the signed FORGET message.
    backup ledger entry, which the VM writes anyway, may be enough)?
 4. How long does a restore take per GiB, so the app can show the cost of a
    restart next to the hours saved?
-5. localStorage or the sealed profile (above): Nico decides.
