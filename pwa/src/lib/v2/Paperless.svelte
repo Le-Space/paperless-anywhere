@@ -13,6 +13,7 @@
 	import BackupChain from '$lib/BackupChain.svelte';
 	import BackupExport from '$lib/BackupExport.svelte';
 	import BackupNow from '$lib/BackupNow.svelte';
+	import AutoStop from '$lib/AutoStop.svelte';
 	import Evidence from '$lib/Evidence.svelte';
 	import FirstStart from '$lib/FirstStart.svelte';
 	import HourQuote from '$lib/HourQuote.svelte';
@@ -310,6 +311,7 @@
 	{#if technical && k.progress}<p class="tline" data-testid="progress">{k.progress} …</p>{/if}
 
 	{#if phase === 'running'}
+		{#if profile.backupConfig && !k.restoreFailed}<AutoStop {master} {profile} status={k.openStatus} compact save={k.saveAutoStop} postpone={k.postponeAutoStop} />{/if}
 		{#if attested}
 			<details class="proof" data-testid="v2-proof">
 				<summary><strong>{s.proofStrong}</strong> {s.proof} <span class="more">{s.proofWhat}</span></summary>
@@ -366,6 +368,7 @@
 	{#if k.goneNote}<p class="note" role="status" data-testid="start-gone">{k.goneNote}</p>{/if}
 	{#if k.nodeNote}<p class="note" role="status" data-testid="node-refused">{k.nodeNote}</p>{/if}
 	{#if k.periodEnded}<p class="note" role="status" data-testid="period-end-stopped">{c.periodEnd.stopped}</p>{/if}
+	{#if k.autoStopped}<p class="note" role="status" data-testid="auto-stopped">{$t.autoStop.stopped[k.autoStopped.stopReason === 'schedule' ? 'schedule' : 'idle']}</p>{/if}
 	{#if profile.backupRevokePending && !profile.running && technical}<p class="note" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 
 	{#if BUILDER && hasOwnImage(profile, BUILDER.plain.sha256) && !moving}<button class="lnk" onclick={k.showCertificate} data-testid="open-certificate">{s.certificate}</button>{/if}
@@ -420,6 +423,7 @@
 			{:else if phase !== 'running'}
 				<p class="hint" data-testid="v2-backup-only-running">{x.backupArea.onlyRunning}</p>
 			{/if}
+			{#if !k.restoreFailed}<AutoStop {master} {profile} status={k.openStatus} disabled={k.busy || k.stopChecking} save={k.saveAutoStop} postpone={k.postponeAutoStop} />{/if}
 		</div>
 	{:else if phase !== 'loading'}
 		<div class="alert" data-testid="v2-backups-off"><p><strong>{x.backupArea.off}</strong>{#if technical} {x.backupArea.offTechnical}{/if}</p></div>

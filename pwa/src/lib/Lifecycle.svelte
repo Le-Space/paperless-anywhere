@@ -5,6 +5,7 @@
 	import HourQuote from '$lib/HourQuote.svelte';
 	import BackupExport from '$lib/BackupExport.svelte';
 	import BackupNow from '$lib/BackupNow.svelte';
+	import AutoStop from '$lib/AutoStop.svelte';
 	import TrialRestore from '$lib/TrialRestore.svelte';
 	import ProviderHealth from '$lib/ProviderHealth.svelte';
 	import BackupChain from '$lib/BackupChain.svelte';
@@ -272,6 +273,7 @@
 				</div>
 			</div>
 			{#if profile.backupConfig && !restoreFailed}<BackupNow {master} {profile} known={lastGood} disabled={busy || stopChecking} guard={checkPlacesThen} onbusy={(b) => (k.backingUp = b)} ongood={rememberGood} />{/if}
+			{#if profile.backupConfig && !restoreFailed}<AutoStop {master} {profile} status={k.openStatus} disabled={busy || stopChecking} save={k.saveAutoStop} postpone={k.postponeAutoStop} />{/if}
 			<Evidence rows={evidence} t={evidenceT} onagain={busy ? null : checkAgain} />
 			{#if restoreFailed}<button class="secondary stop" onclick={discardFailed} disabled={busy} data-testid="simple-discard">{c.simple.discard}</button>
 			{:else}
@@ -309,6 +311,7 @@
 		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
 		{#if nodeNote}<p class="hint" role="status" data-testid="node-refused">{nodeNote}</p>{/if}
 		{#if periodEnded}<p class="hint" role="status" data-testid="period-end-stopped">{c.periodEnd.stopped}</p>{/if}
+		{#if k.autoStopped}<p class="hint" role="status" data-testid="auto-stopped">{$i18n.autoStop.stopped[k.autoStopped.stopReason === 'schedule' ? 'schedule' : 'idle']}</p>{/if}
 		{@render placesBox()}
 		{#if error}{@render errorBox()}{/if}
 		{#if error && !busy && !profile.running && profile.ownImage?.previous}<p class="hint" data-testid="previous-image"><button class="secondary" onclick={startPrevious} disabled={busy} data-testid="start-previous">{$i18n.ownImage.previousStart}</button> {$i18n.ownImage.previousHint}</p>{/if}
@@ -422,6 +425,7 @@
 		{#if goneNote}<p class="hint" role="status" data-testid="start-gone">{goneNote}</p>{/if}
 		{#if nodeNote}<p class="hint" role="status" data-testid="node-refused">{nodeNote}</p>{/if}
 		{#if periodEnded}<p class="hint" role="status" data-testid="period-end-stopped">{c.periodEnd.stopped}</p>{/if}
+		{#if k.autoStopped}<p class="hint" role="status" data-testid="auto-stopped">{$i18n.autoStop.stopped[k.autoStopped.stopReason === 'schedule' ? 'schedule' : 'idle']}</p>{/if}
 		{@render placesBox()}
 		{#if error}{@render errorBox()}{/if}
 		{#if error && !busy && !profile.running && profile.ownImage?.previous}<p class="hint" data-testid="previous-image"><button class="secondary" onclick={startPrevious} disabled={busy} data-testid="start-previous">{$i18n.ownImage.previousStart}</button> {$i18n.ownImage.previousHint}</p>{/if}

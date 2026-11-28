@@ -1,6 +1,7 @@
 # Auto-stop: the VM stops itself when nobody uses it
 
-Status: concept (2026-11-28), phase 1 (guest side) in the first PR. Roadmap:
+Status: concept (2026-11-28); phase 1 (guest side) merged, phase 2 (the app)
+in its own PR. Roadmap:
 #430; origin: #163 (idle shutdown).
 
 A Paperless VM runs, and costs credits, until someone presses "Back up and
@@ -241,8 +242,9 @@ missing: off. Phase 3 adds `"forget"`: the signed FORGET message.
    capability `autoStop: 1`. Unit tests in vitest. Needs a new image round
    (paid build, Nico's go); nothing changes for existing images.
 2. **App: the setting.** In the sealed profile, the form (Standard and
-   Technisch), hand-over at the start, with the backup places and on change
-   (only to images with `autoStop`), `OPTIONAL_SECRETS`, the notice before,
+   Technisch), hand-over at the start and with the backup places (an image
+   without `autoStop` ignores it), on change, and at an opening only to images
+   with `autoStop` that hold another setting; `OPTIONAL_SECRETS`, the notice before,
    postpone, "stops itself at about …", and the next opening erases a VM
    stopped with `idle`/`schedule` as after a period-end stop.
 3. **The VM ends its bill.** The app pre-signs the FORGET at the start and
