@@ -16,6 +16,9 @@
 	import Help from '$lib/Help.svelte';
 	import GitHubMark from '$lib/GitHubMark.svelte';
 	import { help } from '$lib/i18n/help.js';
+	import { linkManifest } from '$lib/web-manifest.js';
+	import Install from '$lib/Install.svelte';
+	import { install } from '$lib/i18n/install.js';
 
 	const APP = '/app/';
 	// Paperless anywhere's own source.
@@ -58,6 +61,7 @@
 	// After a change of page inside the site the shell's <html lang> follows.
 	$effect(() => {
 		document.documentElement.lang = lang;
+		linkManifest(lang);
 	});
 
 	// Le Space Credits: 100 credits are 1 €.
@@ -144,6 +148,8 @@
 		</h1>
 		<p class="lead">{t.hero.lead}</p>
 		<p class="actions"><a class="cta" href={APP}>{t.open} →</a><span class="hint">{t.openHint}</span></p>
+		<!-- Beside the way into the app: as an app of its own (shown in the browser only). -->
+		<div class="install"><Install t={install[lang]} place="landing" /></div>
 		<ul class="points">
 			{#each t.points as p}<li><h3>{p.t}</h3><p>{p.d}</p></li>{/each}
 		</ul>
@@ -351,6 +357,8 @@
 	.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; margin: 2rem 0; }
 	.cta { display: inline-block; padding: 0.85rem 1.5rem; border-radius: 999px; background: var(--cta-bg); color: var(--cta-text); font-weight: 600; text-decoration: none; }
 	.cta:hover { filter: brightness(1.08); }
+	.install:empty { display: none; }
+	.install { margin: 0.25rem 0 0; }
 	.hint { color: var(--text-2); font-size: 0.9rem; }
 	.disclaimer { color: var(--text-2); font-size: 0.8rem; max-width: 46rem; margin: 0.75rem 0 0; }
 

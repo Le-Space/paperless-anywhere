@@ -1,12 +1,13 @@
 // Runs at build time only (the site is static): the prerendered English pages
-// get lang="en" on <html>, which the shell otherwise fixes to German; the app
+// get lang="en" on <html>, which the shell otherwise fixes to German, and the
+// English web app manifest (src/lib/web-manifest.js); the app
 // (a vault behind a passkey, nothing to find) tells search engines to leave it out.
 // The v0.2 preview also loads the script that puts a chosen light or dark on
 // <html> before the first paint: a file of this build beside the icon, since the
 // page is rendered in the browser only and the policy allows no inline script.
 /** @param {string} html @param {string} path */
 export function pageChunk(html, path) {
-	if (path.startsWith('/en')) return html.replace('<html lang="de">', '<html lang="en">');
+	if (path.startsWith('/en')) return html.replace('<html lang="de">', '<html lang="en">').replace('manifest.webmanifest"', 'manifest.en.webmanifest"');
 	if (path.startsWith('/v0.2')) {
 		const assets = html.match(/href="([^"]*)\/favicon\.svg"/)?.[1] ?? '';
 		// After the content security policy, which stands before every script.

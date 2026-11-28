@@ -31,6 +31,8 @@
 	import NgxText from '$lib/NgxText.svelte';
 	import { texts } from '$lib/landing/i18n.js';
 	import { LANGS, format, lang, setLang, t, tr } from '$lib/i18n/index.js';
+	import { linkManifest } from '$lib/web-manifest.js';
+	import Install from '$lib/Install.svelte';
 	import { HOME, framed, sharedOrigin } from '$lib/shared-origin.js';
 	import BackupLeds from '$lib/BackupLeds.svelte';
 	import { forgetCopies, knownCopies, rememberCopies } from '$lib/backup-status.js';
@@ -161,6 +163,7 @@
 	// The shell's <html lang> follows the language chosen here.
 	$effect(() => {
 		document.documentElement.lang = $lang;
+		linkManifest($lang);
 	});
 	// A start, a backup or a stop under way in the lifecycle card.
 	let acting = $state(false);
@@ -272,6 +275,7 @@
 	<div class="bar">
 		<Logo href={LANDING} label={state === 'unlocked' ? $t.app.homeLocks : $t.app.home} onnavigate={leave}>{#snippet sub()}<NgxText text={texts[$lang].tagline} link />{/snippet}</Logo>
 		<div class="tools">
+			<Install t={$t.install} place="header" compact hints={false} />
 			<a class="gh" href="https://github.com/Le-Space/paperless-anywhere" target="_blank" rel="noopener" aria-label={$t.app.footer.source} title={$t.app.footer.source} data-testid="header-source"><GitHubMark size={20} /></a>
 			<!-- Changes the language at once; nothing reloads, so the vault stays open. -->
 			<div class="langs" role="group" aria-label={$t.app.langLabel}>
@@ -437,6 +441,8 @@
 	{/if}
 
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
+	<!-- How to install where the browser has no prompt; the button is in the header. -->
+	{#if !inFrame}<Install t={$t.install} place="app" button={false} />{/if}
 	<!-- Reachable in both views and with the vault locked; the footer links here. -->
 	<Help t={$t.help} lang={$lang} faq={$lang === 'en' ? '/en/#faq' : '/#faq'} diagnosis={diagnose} />
 	<BuildInfo />
