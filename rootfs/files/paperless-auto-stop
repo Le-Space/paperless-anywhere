@@ -1,0 +1,253 @@
+#!/bin/sh
+# paperless-auto-stop: is the stop the person chose in the app due now, after
+# a quiet time or at a daily hour (docs/auto-stop.md)? Prints the stop request
+# to make ("idle-<now>" or "schedule-<now>") when it is, nothing otherwise.
+# paperless-stop asks every five seconds (only while the secret is there) and
+# answers the printed request like one from the app: last backup, Paperless
+# paused. Each time it also writes auto-stop.json for the status pages.
+#
+# The setting comes from the app that started this VM, over the attested
+# channel like every secret: /tmp/secrets/auto_stop, JSON
+#   {"v":1,"idleMinutes":60,"dailyAt":"18:00","tz":"Europe/Berlin",
+#    "utcOffsetMinutes":60,"postponeUntil":0}
+# idleMinutes (15 to 1440) or dailyAt may be null; both null, or no secret:
+# off. Nothing is due before postponeUntil (Unix seconds).
+#
+# Quiet: no request to Paperless through Caddy (paperless-https logs the
+# Paperless site only, to memory), apart from the polls an open Paperless tab
+# makes by itself; counted from the latest of that request, the moment the
+# setting arrived, a finished restore, and a stop the person resumed. The
+# daily stop is due at the latest occurrence of the hour in the person's zone
+# if the setting was already here then, once Paperless has been quiet for
+# SCHEDULE_QUIET seconds. Neither while the consumption folder holds files or
+# Paperless's task queue is not empty; neither while a restore runs, nor
+# while a stop runs or after one ended (ready, partial). A stop of either kind
+# whose backup failed (Paperless runs again) is tried again after RETRY
+# seconds; a daily stop the person resumed is not repeated for the same hour.
+#
+# Usage: paperless-auto-stop [now] (now: Unix seconds, for the tests; the
+# tests also set PAPERLESS_AUTO_STOP_BUSY to "0" or "1" instead of asking
+# Paperless's queue)
+set -u
+dir="${PAPERLESS_RUN_DIR:-/run/paperless-anywhere}"
+secrets="${PAPERLESS_SECRETS_DIR:-/tmp/secrets}"
+log="${PAPERLESS_ACCESS_LOG:-/run/paperless-anywhere-activity/access.log}"
+consume="${PAPERLESS_CONSUME_DIR:-/srv/paperless/consume}"
+now="${1:-$(date +%s)}"
+case "$now" in ''|*[!0-9]*) echo "paperless-auto-stop: now must be Unix seconds" >&2; exit 2 ;; esac
+[ -s "$secrets/auto_stop" ] || exit 0
+exec python3 -I - "$now" "$dir" "$secrets/auto_stop" "$log" "$consume" <<'PY'
+import json, os, re, subprocess, sys
+from datetime import datetime, timedelta, timezone
+
+now, run, secret, log, consume = int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
+RETRY, SCHEDULE_QUIET, TAIL = 900, 600, 65536
+# Requests an open Paperless tab makes by itself, and the status pages (which
+# paperless-https keeps out of the log anyway).
+IGNORED = ("/anywhere/", "/ws/", "/api/tasks/", "/api/remote_version/", "/api/status/")
+
+def load(path):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+def mtime(path):
+    try:
+        return int(os.stat(path).st_mtime)
+    except OSError:
+        return None
+
+def iso(t):
+    return None if t is None else datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+def setting():
+    try:
+        with open(secret) as f:
+            raw = json.loads(f.read(4096))
+    except Exception:
+        return None
+    if not isinstance(raw, dict):
+        return None
+    idle = raw.get("idleMinutes")
+    if not (isinstance(idle, int) and not isinstance(idle, bool) and 15 <= idle <= 1440):
+        idle = None
+    daily = raw.get("dailyAt")
+    if not (isinstance(daily, str) and re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9]", daily)):
+        daily = None
+    tz = raw.get("tz") if isinstance(raw.get("tz"), str) and re.fullmatch(r"[A-Za-z0-9_+/-]{1,64}", raw.get("tz")) else None
+    offset = raw.get("utcOffsetMinutes")
+    if not (isinstance(offset, int) and not isinstance(offset, bool) and -840 <= offset <= 840):
+        offset = 0
+    postpone = raw.get("postponeUntil")
+    if not (isinstance(postpone, int) and not isinstance(postpone, bool) and postpone > 0):
+        postpone = 0
+    if idle is None and daily is None:
+        return None
+    return {"idleMinutes": idle, "dailyAt": daily, "tz": tz, "utcOffsetMinutes": offset, "postponeUntil": postpone}
+
+def zone(cfg):
+    if cfg["tz"]:
+        try:
+            from zoneinfo import ZoneInfo
+            return ZoneInfo(cfg["tz"])
+        except Exception:
+            pass
+    return timezone(timedelta(minutes=cfg["utcOffsetMinutes"]))
+
+def daily_at(cfg, at):
+    """The latest occurrence of the daily hour at or before `at`, Unix seconds."""
+    tz = zone(cfg)
+    h, m = (int(x) for x in cfg["dailyAt"].split(":"))
+    day = datetime.fromtimestamp(at, tz).date()
+    for back in range(0, 3):
+        d = day - timedelta(days=back)
+        # A wall time that does not exist (spring) comes out an hour later
+        # through the round trip over UTC; one that exists twice takes fold 0.
+        t = int(datetime(d.year, d.month, d.day, h, m, tzinfo=tz).timestamp())
+        if t <= at:
+            return t
+    return None
+
+def next_daily(cfg, at):
+    t = daily_at(cfg, at + 2 * 86400)
+    while t is not None:
+        earlier = daily_at(cfg, t - 1)
+        if earlier is None or earlier <= at:
+            return t
+        t = earlier
+    return None
+
+def last_request():
+    """Unix seconds of the last counted request in Caddy's access log (the
+    current file first, then the one Caddy rolled: access-<time>.log)."""
+    best = None
+    folder, name = os.path.split(log)
+    try:
+        rolled = sorted((n for n in os.listdir(folder) if n != name and n.startswith(name[:-4] + "-") and n.endswith(".log")), reverse=True)
+    except OSError:
+        rolled = []
+    for path in [log] + [os.path.join(folder, n) for n in rolled]:
+        try:
+            with open(path, "rb") as f:
+                f.seek(0, 2)
+                size = f.tell()
+                f.seek(max(0, size - TAIL))
+                lines = f.read().splitlines()
+        except OSError:
+            continue
+        for line in reversed(lines):
+            try:
+                e = json.loads(line)
+                uri = str(e.get("request", {}).get("uri", ""))
+                ts = int(float(e.get("ts")))
+            except Exception:
+                continue
+            if uri.startswith(IGNORED):
+                continue
+            best = ts if best is None else max(best, ts)
+            break
+        if best is not None:
+            break
+    return best
+
+def busy():
+    forced = os.environ.get("PAPERLESS_AUTO_STOP_BUSY")
+    if forced in ("0", "1"):
+        return forced == "1"
+    try:
+        if any(not n.startswith(".") for n in os.listdir(consume)):
+            return True
+    except OSError:
+        pass
+    # Paperless's queue (Celery over Valkey): waiting tasks and running ones.
+    try:
+        conf = open("/etc/paperless-anywhere/valkey.conf").read()
+        pw = re.search(r"^requirepass (\S+)$", conf, re.M).group(1)
+    except Exception:
+        return False
+    for args in (["llen", "celery"], ["hlen", "unacked"]):
+        try:
+            out = subprocess.run(["docker", "exec", "-e", "REDISCLI_AUTH=" + pw, "-e", "VALKEYCLI_AUTH=" + pw, "paperless-valkey-1", "valkey-cli", *args],
+                                 capture_output=True, text=True, timeout=15).stdout.strip()
+            if out.isdigit() and int(out) > 0:
+                return True
+        except Exception:
+            pass
+    return False
+
+cfg = setting()
+restore, stop = load(os.path.join(run, "restore.json")), load(os.path.join(run, "stop.json"))
+status = stop.get("status") if isinstance(stop, dict) else None
+request = stop.get("request", "") if isinstance(stop, dict) and isinstance(stop.get("request"), str) else ""
+stop_at = mtime(os.path.join(run, "stop.json"))
+# When this setting first arrived: a hand-over of the same setting again (with
+# the backup places, or a postpone) does not start the count anew.
+seen_path = os.path.join(run, "auto-stop-seen.json")
+seen = load(seen_path)
+same = {k: v for k, v in cfg.items() if k != "postponeUntil"} if cfg else None
+arrived = None
+if cfg:
+    if isinstance(seen, dict) and seen.get("setting") == same and isinstance(seen.get("since"), int) and seen["since"] <= now:
+        arrived = seen["since"]
+    else:
+        arrived = now
+        try:
+            with open(seen_path + ".tmp", "w") as f:
+                json.dump({"setting": same, "since": now}, f)
+            os.replace(seen_path + ".tmp", seen_path)
+        except OSError:
+            pass
+request_at = last_request()
+floor = [t for t in (arrived, request_at) if t is not None]
+if isinstance(restore, dict) and restore.get("status") == "done":
+    t = mtime(os.path.join(run, "restore.json"))
+    if t is not None:
+        floor.append(t)
+if status == "resumed" and stop_at is not None:
+    floor.append(stop_at)
+active = max(floor) if floor else now
+
+idle_at = active + cfg["idleMinutes"] * 60 if cfg and cfg["idleMinutes"] else None
+latest_daily = daily_at(cfg, now) if cfg and cfg["dailyAt"] else None
+due, reason = None, None
+blocked = cfg is None or now < (cfg["postponeUntil"] if cfg else 0) \
+    or (isinstance(restore, dict) and restore.get("status") == "running") \
+    or status in ("running", "ready", "partial")
+tried = 0
+m = re.fullmatch(r"(idle|schedule)-([0-9]+)", request)
+if m:
+    tried = int(m.group(2))
+    if status == "failed" and now < tried + RETRY:
+        blocked = True
+if not blocked:
+    if latest_daily is not None and arrived is not None and arrived < latest_daily \
+            and now >= active + SCHEDULE_QUIET \
+            and not (m and m.group(1) == "schedule" and status == "resumed" and tried >= latest_daily):
+        reason = "schedule"
+    elif idle_at is not None and now >= idle_at:
+        reason = "idle"
+    # Only now ask Paperless whether it still works on something.
+    if reason and busy():
+        reason = None
+
+try:
+    state = {
+        "setting": cfg,
+        "lastRequest": iso(request_at),
+        "quietSince": iso(active),
+        "idleAt": iso(idle_at),
+        "dailyAt": iso(next_daily(cfg, now)) if cfg and cfg["dailyAt"] else None,
+        "postponeUntil": iso(cfg["postponeUntil"]) if cfg and cfg["postponeUntil"] else None,
+        "at": iso(now),
+    }
+    with open(os.path.join(run, "auto-stop.json.tmp"), "w") as f:
+        json.dump(state, f)
+        f.write("\n")
+    os.replace(os.path.join(run, "auto-stop.json.tmp"), os.path.join(run, "auto-stop.json"))
+except OSError:
+    pass
+if reason:
+    print(f"{reason}-{now}")
+PY

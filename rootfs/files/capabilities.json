@@ -4,5 +4,6 @@
   "incremental": "pa-snap-1",
   "restoreUnmarked": true,
   "restoreMemory": true,
-  "helpersPausedForImport": true
+  "helpersPausedForImport": true,
+  "autoStop": 1
 }

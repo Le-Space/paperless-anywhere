@@ -176,6 +176,10 @@ The status pages say `stopReason` (`app` or `period-end`) while a stop runs or a
 
 The overview and the package card warn three days before the end, urgently on the last day.
 
+### Auto-stop (concept, guest side only)
+
+The person may let the VM stop itself after a quiet time or daily at an hour (`docs/auto-stop.md`). The app will hand the setting over as the secret `auto_stop`; `paperless-auto-stop` decides when it is due (no request to Paperless through Caddy for the chosen minutes, apart from the polls of an open tab; or the daily hour in the person's time zone, after ten quiet minutes; never while Paperless still consumes or a restore runs), and `paperless-stop` makes the same stop as above with the reason `idle` or `schedule`, after the period end. Images that can do this say `autoStop` in their capabilities. The app does not send the setting yet: that is phase 2, and only a FORGET (phase 3) ends what the paused VM costs.
+
 ### Backup now, while Paperless runs
 
 "Back up now" in the overview takes the same way as the stop: attest again, then inject `backup_request`, signed by the app key. `paperless-backup-loop` sees the new value within seconds and runs `paperless-backup run` (or `check`, when another backup holds the lock or finished after the request came, so the same state is not uploaded twice). The VM keeps running. The private status page carries `backupRequest` (the request's outcome), `lastBackup` (the last backup that ran, done, partial or failed, kept across the checks that find nothing new) and `backupSchedule.nextCheck`; the overview reads them every minute.
