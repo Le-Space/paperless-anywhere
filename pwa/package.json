@@ -12,7 +12,8 @@
 		"test": "vitest run",
 		"e2e": "playwright test",
 		"e2e:credits": "playwright test -c playwright.credits.config.js",
-		"e2e:upload": "playwright test -c playwright.upload.config.js"
+		"e2e:upload": "playwright test -c playwright.upload.config.js",
+		"screens": "playwright test -c playwright.screens.config.js && node scripts/screens.mjs"
 	},
 	"dependencies": {
 		"@chainsafe/libp2p-noise": "17.0.0",

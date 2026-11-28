@@ -165,6 +165,8 @@ test('link previews find title, description and image in the HTML itself, withou
 	expect(manifest.name).toBe('Paperless anywhere');
 	expect(manifest.short_name).toBe('Paperless anywhere');
 	for (const icon of manifest.icons) expect((await request.get(icon.src)).ok()).toBe(true);
+	// The English page links the English manifest (e2e/install.spec.js has the rest).
+	expect(await (await request.get('/en/')).text()).toContain('manifest.en.webmanifest');
 });
 
 test('the landing page shows who holds which key, what is attested and where to check it', async ({ page }) => {

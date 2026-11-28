@@ -18,4 +18,10 @@ describe('what the build writes into a delivered page', () => {
 		expect(pageChunk(shell('.'), '/')).toBe(shell('.'));
 		expect(pageChunk(shell('..'), '/en/')).toContain('<html lang="en">');
 	});
+	it('links the English web app manifest from the English pages, the German one elsewhere', () => {
+		const head = (/** @type {string} */ assets) => `<html lang="de">\n\t<head>\n\t\t<link rel="manifest" href="${assets}/manifest.webmanifest" />\n\t</head>`;
+		expect(pageChunk(head('..'), '/en/')).toContain('href="../manifest.en.webmanifest"');
+		expect(pageChunk(head('.'), '/')).toContain('href="./manifest.webmanifest"');
+		expect(pageChunk(head('..'), '/app/')).toContain('href="../manifest.webmanifest"');
+	});
 });

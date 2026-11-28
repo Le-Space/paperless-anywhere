@@ -12,6 +12,14 @@ Paperless-ngx usually lives on one machine at home. Paperless anywhere runs it o
 - **Your own image.** For real use, an attested builder seals the system with a passphrase from your vault. Neither Le Space nor Aleph Cloud holds a key that opens your disk.
 - **No fixed computer, no password file.** A passkey (WebAuthn PRF), or the 24 words written down at the start, opens a vault in the browser. Every key the app needs is derived from it.
 
+<p>
+  <img src="pwa/static/screenshots/running-narrow-en.png" width="260" alt="Paperless-ngx runs in your confidential VM; at the top, the lights of your backups">
+  <img src="pwa/static/screenshots/backups-narrow-en.png" width="260" alt="Every copy of your backup, checked on the Filecoin chain by the app itself">
+  <img src="pwa/static/screenshots/evidence-narrow-en.png" width="260" alt="The evidence of the VM: what the app checked itself and what is only reported">
+</p>
+
+<sub>Made-up data from the screen tour (<code>pwa/e2e-screens/tour.spec.js</code>, <code>pnpm build && pnpm screens</code>); the same pictures, in German and English, are the install dialog's screenshots.</sub>
+
 ## How it fits together
 
 ```

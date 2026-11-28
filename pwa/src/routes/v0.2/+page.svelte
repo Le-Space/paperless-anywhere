@@ -28,6 +28,7 @@
 	import { knownCopies, rememberCopies } from '$lib/backup-status.js';
 	import { endWarning } from '$lib/period-end.js';
 	import { LANGS, format, lang, setLang, t } from '$lib/i18n/index.js';
+	import { linkManifest } from '$lib/web-manifest.js';
 	import { HOME } from '$lib/shared-origin.js';
 	import { VIEWS, setView, technical, view } from '$lib/v2/view.js';
 	import { THEMES, releaseTheme, setTheme, theme } from '$lib/v2/theme.js';
@@ -40,6 +41,7 @@
 	const LANDING = $derived($lang === 'en' ? '/en/' : '/');
 	$effect(() => {
 		document.documentElement.lang = $lang;
+		linkManifest($lang);
 	});
 	// Back in this window (a top-up elsewhere): every balance anew (balance-refresh.js).
 	$effect(() => {
