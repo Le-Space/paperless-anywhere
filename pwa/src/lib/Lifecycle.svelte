@@ -312,6 +312,7 @@
 		{#if nodeNote}<p class="hint" role="status" data-testid="node-refused">{nodeNote}</p>{/if}
 		{#if periodEnded}<p class="hint" role="status" data-testid="period-end-stopped">{c.periodEnd.stopped}</p>{/if}
 		{#if k.autoStopped}<p class="hint" role="status" data-testid="auto-stopped">{$i18n.autoStop.stopped[k.autoStopped.stopReason === 'schedule' ? 'schedule' : 'idle']}</p>{/if}
+		{#if k.selfForgot}<p class="hint" role="status" data-testid="auto-stop-self-forgot">{$i18n.autoStop.selfForgot(k.selfForgot.at ? format.dateTime(k.selfForgot.at) : '')}</p>{/if}
 		{@render placesBox()}
 		{#if error}{@render errorBox()}{/if}
 		{#if error && !busy && !profile.running && profile.ownImage?.previous}<p class="hint" data-testid="previous-image"><button class="secondary" onclick={startPrevious} disabled={busy} data-testid="start-previous">{$i18n.ownImage.previousStart}</button> {$i18n.ownImage.previousHint}</p>{/if}
@@ -426,6 +427,7 @@
 		{#if nodeNote}<p class="hint" role="status" data-testid="node-refused">{nodeNote}</p>{/if}
 		{#if periodEnded}<p class="hint" role="status" data-testid="period-end-stopped">{c.periodEnd.stopped}</p>{/if}
 		{#if k.autoStopped}<p class="hint" role="status" data-testid="auto-stopped">{$i18n.autoStop.stopped[k.autoStopped.stopReason === 'schedule' ? 'schedule' : 'idle']}</p>{/if}
+		{#if k.selfForgot}<p class="hint" role="status" data-testid="auto-stop-self-forgot">{$i18n.autoStop.selfForgot(k.selfForgot.at ? format.dateTime(k.selfForgot.at) : '')}</p>{/if}
 		{@render placesBox()}
 		{#if error}{@render errorBox()}{/if}
 		{#if error && !busy && !profile.running && profile.ownImage?.previous}<p class="hint" data-testid="previous-image"><button class="secondary" onclick={startPrevious} disabled={busy} data-testid="start-previous">{$i18n.ownImage.previousStart}</button> {$i18n.ownImage.previousHint}</p>{/if}

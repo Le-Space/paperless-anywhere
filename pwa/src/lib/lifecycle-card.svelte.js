@@ -9,7 +9,7 @@ import { ownImagePatch } from '$lib/own-image-check.js';
 import { balancesRound, onceThisRound } from '$lib/balance-refresh.js';
 import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
 import { noteError, noteState } from '$lib/diagnosis.js';
-import { AlephShortError, BackupPartialError, StartGoneError, startElsewhere, pushBackupPlaces, attestRunning, confirmPeriodEndBackup, confirmStopBackup, eraseStopped, syncPeriodEnd, syncAutoStop, sendAutoStop, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst, revokeBackupKey } from '$lib/lifecycle.js';
+import { AlephShortError, BackupPartialError, StartGoneError, startElsewhere, pushBackupPlaces, attestRunning, confirmPeriodEndBackup, confirmStopBackup, eraseStopped, syncPeriodEnd, syncAutoStop, sendAutoStop, finishSelfForgotten, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst, revokeBackupKey } from '$lib/lifecycle.js';
 import { buildImageForVault } from '$lib/own-image-build.js';
 import { BUILDER, hasOwnImage, imageStatus } from '$lib/own-image.js';
 import { onImageBuild } from '$lib/image-build-request.js';
@@ -400,6 +400,19 @@ export function createLifecycleCard(p) {
 			vmStatus(profile.running.host, statusToken(master))
 				.then(async (s) => {
 					openStatus = s;
+					// No answer: the VM may have forgotten itself after a stop of
+					// its own and its backup (paperless-self-forget); then the
+					// profile lets it go.
+					if (!s) {
+						if (!busy && !selfForgotTried) {
+							selfForgotTried = true;
+							const found = await finishSelfForgotten(master, $state.snapshot(profile)).catch(() => null);
+							if (found) {
+								selfForgot = found;
+								profile = await loadProfile(master);
+							}
+						}
+					}
 					if (s?.phase === 'stop-partial' && !busy && !partial) partial = new BackupPartialError(s);
 					// The VM stopped itself at the end of the paid time, with its
 					// last backup: erased now, once that backup is on the chain.
@@ -1048,6 +1061,9 @@ export function createLifecycleCard(p) {
 	let periodEnded = $state(null);
 	/** @type {any} the status page of a VM that stopped itself after a quiet time or at the daily hour */
 	let autoStopped = $state(null);
+	/** @type {{ forget: string, at: string | null } | null} the VM forgot itself after its own stop (paperless-self-forget) */
+	let selfForgot = $state(null);
+	let selfForgotTried = false;
 	/** @type {any} the running VM's status page as read at the opening (auto-stop: what it holds) */
 	let openStatus = $state(null);
 	/**
@@ -1323,6 +1339,7 @@ export function createLifecycleCard(p) {
 		eraseAnyway,
 		get periodEnded() { return periodEnded; },
 		get autoStopped() { return autoStopped; },
+		get selfForgot() { return selfForgot; },
 		get openStatus() { return openStatus; },
 		saveAutoStop,
 		postponeAutoStop,

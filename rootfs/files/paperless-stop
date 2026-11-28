@@ -29,7 +29,10 @@
 # The auto-stop the person chose in the app (paperless-auto-stop, after a
 # quiet time or at a daily hour) is the same stop again, after the period
 # end: "reason":"idle" or "schedule". The app erases the VM at its next
-# opening, as after a period-end stop (docs/auto-stop.md).
+# opening, as after a period-end stop (docs/auto-stop.md). With the FORGET
+# the app signed for it (in auto_stop), the VM sends it itself after such a
+# stop and its complete backup, so it stops costing then
+# (paperless-self-forget).
 set -u
 dir=/run/paperless-anywhere
 mkdir -p "$dir"
@@ -84,6 +87,12 @@ while :; do
            status failed ",\"backup\":$(cat "$dir/backup.json" 2>/dev/null || echo null)" ;;
       esac
     fi
+  fi
+  # After a stop this VM made by itself, with a complete backup: the FORGET
+  # the app signed for it goes to Aleph, and the bill ends
+  # (paperless-self-forget decides, and when to try again).
+  if [ -s /tmp/secrets/auto_stop ] && grep -q '"status":"ready"' "$dir/stop.json" 2>/dev/null; then
+    paperless-self-forget >/dev/null 2>&1 || true
   fi
   # The person keeps the VM after a partial backup: Paperless runs again.
   if [ -s /tmp/secrets/stop_resume ]; then

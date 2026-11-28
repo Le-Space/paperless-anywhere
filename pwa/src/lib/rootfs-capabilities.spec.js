@@ -14,7 +14,7 @@ const status = file('rootfs/files/paperless-status');
 
 describe('the image’s capabilities', () => {
 	it('names only what is checked here, in version 1', () => {
-		expect(caps).toEqual({ v: 1, fullPart: true, incremental: 'pa-snap-1', restoreUnmarked: true, restoreMemory: true, helpersPausedForImport: true, autoStop: 1 });
+		expect(caps).toEqual({ v: 1, fullPart: true, incremental: 'pa-snap-1', restoreUnmarked: true, restoreMemory: true, helpersPausedForImport: true, autoStop: 1, selfForget: 1 });
 	});
 
 	it('fullPart: the restore takes a part of 1,000,000,000 bytes and more (9d2da9b)', () => {

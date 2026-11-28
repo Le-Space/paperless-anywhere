@@ -101,3 +101,70 @@ describe('handing the setting to the running VM', () => {
 		expect(send).not.toHaveBeenCalled();
 	});
 });
+
+describe('the FORGET the VM sends itself (phase 3)', async () => {
+	const { privateKeyToAccount } = await import('viem/accounts');
+	const { alephPrivateKey } = await import('./keys/derive.js');
+	const { SELF_FORGET_REASON, selfForgotten } = await import('./vm.js');
+	const { finishSelfForgotten } = await import('./lifecycle.js');
+	const { createHash } = await import('node:crypto');
+	const master = new Uint8Array(32).fill(9);
+	const app = privateKeyToAccount(alephPrivateKey(master));
+	const payer = '0x' + 'b'.repeat(40);
+	const instance = 'c'.repeat(64);
+	const base = { backupConfig: { network: 'calibration' }, autoStop: IDLE, running: { instanceHash: instance, host: 'h', payer } };
+
+	it('goes with the setting, signed by the app key for the payer, naming only this VM', async () => {
+		const send = vi.fn(async () => {});
+		const secret = JSON.parse(await sendAutoStop(master, base, { send, now: WINTER }));
+		expect(secret.forget.api).toBe('https://api2.aleph.im');
+		const m = secret.forget.message;
+		expect(m).toMatchObject({ type: 'FORGET', sender: app.address });
+		const content = JSON.parse(m.item_content);
+		expect(content).toMatchObject({ address: payer, hashes: [instance], reason: SELF_FORGET_REASON });
+		expect(m.item_hash).toBe(createHash('sha256').update(m.item_content).digest('hex'));
+		expect(m.signature).toMatch(/^0x[0-9a-f]{130}$/);
+		// Off still carries it (for the period end); without backups there is none.
+		expect(JSON.parse(await sendAutoStop(master, { ...base, autoStop: null }, { send })).forget.message.type).toBe('FORGET');
+		expect(JSON.parse(await sendAutoStop(master, { ...base, backupConfig: null }, { send }))).not.toHaveProperty('forget');
+	});
+
+	/** Aleph's answers by URL. @param {Record<string, any>} pages */
+	const get = (pages) => async (/** @type {string} */ url) => {
+		const key = Object.keys(pages).find((k) => url.endsWith(k));
+		return key ? new Response(JSON.stringify(pages[key]), { status: 200 }) : new Response('{}', { status: 404 });
+	};
+	const forgetHash = 'a'.repeat(64);
+	const forgetMessage = (/** @type {Record<string, any>} */ o = {}) => ({ status: 'processed', reception_time: '2027-01-15T17:12:00Z', message: { type: 'FORGET', sender: app.address, item_content: JSON.stringify({ address: payer, hashes: [instance], reason: SELF_FORGET_REASON, time: 1 }), ...o } });
+
+	it('is recognised at the next opening only when this app key forgot the VM for itself', async () => {
+		expect(await selfForgotten(app.address, instance, { get: get({ [instance]: { status: 'forgotten', forgotten_by: [forgetHash] }, [forgetHash]: forgetMessage() }) })).toEqual({ forget: forgetHash, at: '2027-01-15T17:12:00Z' });
+		expect(await selfForgotten(app.address, instance, { get: get({ [instance]: { status: 'processed' } }) })).toBe(false);
+		// Forgotten by the app's own stop, or by someone else: not this.
+		const other = { [instance]: { status: 'forgotten', forgotten_by: [forgetHash] } };
+		expect(await selfForgotten(app.address, instance, { get: get({ ...other, [forgetHash]: forgetMessage({ item_content: JSON.stringify({ address: payer, hashes: [instance], reason: 'paperless-anywhere stop' }) }) }) })).toBe(false);
+		expect(await selfForgotten(app.address, instance, { get: get({ ...other, [forgetHash]: forgetMessage({ sender: '0x' + '1'.repeat(40) }) }) })).toBe(false);
+		// Aleph does not answer: nothing known.
+		expect(await selfForgotten(app.address, instance, { get: async () => null })).toBeNull();
+	});
+
+	it('lets the VM go from the profile and revokes the backup key, and nothing else', async () => {
+		let stored = { ...base, lastGoodBackup: { at: 'x' } };
+		const update = vi.fn(async (_m, change) => (stored = change(stored)));
+		const revoke = vi.fn(async () => 'revoked');
+		const found = { forget: forgetHash, at: null };
+		expect(await finishSelfForgotten(master, base, { check: async () => found, update, revoke })).toBe(found);
+		expect(stored).not.toHaveProperty('running');
+		expect(stored.lastGoodBackup).toEqual({ at: 'x' });
+		expect(revoke).toHaveBeenCalledWith(master, base, instance);
+		// Not forgotten by itself, or Aleph silent: the profile stays as it is.
+		const untouched = vi.fn();
+		expect(await finishSelfForgotten(master, base, { check: async () => false, update: untouched, revoke })).toBeNull();
+		expect(await finishSelfForgotten(master, base, { check: async () => null, update: untouched, revoke })).toBeNull();
+		expect(untouched).not.toHaveBeenCalled();
+		// A newer start meanwhile (another device): its VM stays in the profile.
+		stored = { ...base, running: { instanceHash: 'd'.repeat(64) } };
+		await finishSelfForgotten(master, base, { check: async () => found, update, revoke });
+		expect(stored.running.instanceHash).toBe('d'.repeat(64));
+	});
+});

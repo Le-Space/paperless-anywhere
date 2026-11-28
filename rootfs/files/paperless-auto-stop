@@ -65,7 +65,7 @@ def iso(t):
 def setting():
     try:
         with open(secret) as f:
-            raw = json.loads(f.read(4096))
+            raw = json.loads(f.read(16384))
     except Exception:
         return None
     if not isinstance(raw, dict):

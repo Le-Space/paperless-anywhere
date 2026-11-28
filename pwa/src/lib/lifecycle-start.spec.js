@@ -173,6 +173,13 @@ describe('the secrets of a start fit what the guest takes', () => {
 		expect(src).not.toMatch(/secrets\.backup_dedup_key/);
 		expect(src).toMatch(/periodEnd !== '0'/);
 	});
+	it('a start hands the VM its own FORGET with the auto-stop, also when only the period end stops it (docs/auto-stop.md)', async () => {
+		const src = (await import('node:fs')).readFileSync(new URL('./lifecycle.js', import.meta.url), 'utf8');
+		expect(src).toContain("if (autoStop || (profile.backupConfig && periodEnd != null && periodEnd !== '0')) {");
+		expect(src).toContain('secrets.auto_stop = autoStopSecret(autoStop, { forget: await selfForget(app, payer, instanceHash) });');
+		// Left out for lack of room: said only when the person chose an auto-stop.
+		expect(src).toContain('if (autoStop && !fitted.auto_stop) report(');
+	});
 });
 
 describe('an empty start while backups exist', () => {

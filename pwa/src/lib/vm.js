@@ -239,10 +239,50 @@ export async function vmStatus(host, token) {
 
 /** FORGET the instance on behalf of the payer (the node then stops it). */
 export async function forgetInstance(app, payer, itemHash, reason = 'paperless-anywhere stop') {
-	const unsigned = await createUnsignedForgetMessage({ sender: payer, hashes: [itemHash], reason, hasher: sha256Hex, channel: CHANNEL });
-	const signed = await signAsDelegate(unsigned, app);
+	const signed = await signedForget(app, payer, itemHash, reason);
 	// The FORGET's own hash, for its link under "Nachweis".
 	return { ...(await broadcast(signed)), itemHash: String(signed.item_hash) };
+}
+
+/** The reason of the FORGET a VM sends for itself after its own stop (docs/auto-stop.md). */
+export const SELF_FORGET_REASON = 'paperless-anywhere: stopped itself after a backup';
+
+/**
+ * A FORGET of the INSTANCE `itemHash`, signed by the app key on behalf of
+ * `payer`, not sent. The VM gets it at the start (auto_stop.forget) and sends
+ * it itself after a stop of its own with a complete backup; Aleph checks the
+ * delegation when it processes it, and an older `time` is accepted.
+ * @param {import('viem').LocalAccount} app @param {string} payer @param {string} itemHash @param {string} [reason]
+ */
+export async function signedForget(app, payer, itemHash, reason = SELF_FORGET_REASON) {
+	const unsigned = await createUnsignedForgetMessage({ sender: payer, hashes: [itemHash], reason, hasher: sha256Hex, channel: CHANNEL });
+	return signAsDelegate(unsigned, app);
+}
+
+/**
+ * Whether the INSTANCE `itemHash` was forgotten by the FORGET its VM sent
+ * for itself: Aleph says "forgotten", by a FORGET this app key signed with
+ * SELF_FORGET_REASON. Null when Aleph cannot be asked; false otherwise.
+ * @param {string} appAddress @param {string} itemHash @param {{ get?: (url: string) => Promise<Response | null> }} [deps]
+ * @returns {Promise<{ forget: string, at: string | null } | false | null>}
+ */
+export async function selfForgotten(appAddress, itemHash, { get = (url) => fetch(url, { cache: 'no-store' }).catch(() => null) } = {}) {
+	const res = await get(`${ALEPH_API}/api/v0/messages/${itemHash}`);
+	if (!res?.ok) return null;
+	const answer = await res.json().catch(() => null);
+	if (answer?.status !== 'forgotten') return false;
+	const by = [...(answer.forgotten_by ?? []), ...(answer.message?.forgotten_by ?? [])].filter((h) => typeof h === 'string' && /^[0-9a-f]{64}$/.test(h));
+	for (const hash of by) {
+		const r = await get(`${ALEPH_API}/api/v0/messages/${hash}`);
+		const f = r?.ok ? await r.json().catch(() => null) : null;
+		const m = f?.message ?? f;
+		const content = typeof m?.content === 'object' && m.content ? m.content : (() => { try { return JSON.parse(m?.item_content ?? 'null'); } catch { return null; } })();
+		if (String(m?.sender ?? '').toLowerCase() === appAddress.toLowerCase() && content?.reason === SELF_FORGET_REASON && (content?.hashes ?? []).includes(itemHash)) {
+			const t = Number(m?.time ?? content?.time);
+			return { forget: hash, at: f?.reception_time ?? (Number.isFinite(t) ? new Date(t * 1000).toISOString() : null) };
+		}
+	}
+	return false;
 }
 
 /**

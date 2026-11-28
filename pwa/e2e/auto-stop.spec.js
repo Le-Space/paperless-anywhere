@@ -15,7 +15,7 @@ import { PROFILE_KEY } from '../src/lib/profile.js';
 const HOST = 'vm.example.test:24000';
 
 /** A vault in the Aleph mock, with backups on, running or not. */
-async function vault(page, extra = {}, status = null) {
+async function vault(page, extra = {}, status = null, before = async (/** @type {string} */ _app) => {}) {
 	const aggregates = await alephMock()(page.context());
 	const master = newMasterSecret();
 	const phrase = newSeedPhrase();
@@ -26,24 +26,26 @@ async function vault(page, extra = {}, status = null) {
 	aggregates.set(app, { [PROFILE_KEY]: { v: 1, box: await seal(new TextEncoder().encode(JSON.stringify(profile)), key, 'profile') } });
 	await page.context().route(/^https?:\/\/(?!localhost|api2\.aleph\.im)/, (route) => route.abort());
 	if (status) await page.context().route(`https://${HOST}/anywhere/**`, (route) => route.fulfill({ json: status, headers: { 'access-control-allow-origin': '*' } }));
+	await before(app);
 	await page.goto('/v0.2/');
 	await page.getByTestId('v2-have-vault').click();
 	await page.getByTestId('v2-words').fill(phrase);
 	await page.getByTestId('v2-open-words').click();
 	await expect(page.getByTestId('v2-state')).toHaveText('unlocked');
 	const saved = async () => JSON.parse(new TextDecoder().decode(await unseal(aggregates.get(app)[PROFILE_KEY].box, key, 'profile')));
-	return { saved };
+	return { saved, app };
 }
 
 test.use({ locale: 'de-DE', timezoneId: 'Europe/Berlin' });
 
-test('the form keeps the setting in the sealed profile, with the browser’s time zone, and says that a pause still costs', async ({ page }) => {
+test('the form keeps the setting in the sealed profile, with the browser’s time zone, and says what it costs', async ({ page }) => {
 	test.setTimeout(60_000);
 	const { saved } = await vault(page);
 	await page.getByTestId('v2-area-backup').click();
 	const form = page.getByTestId('auto-stop');
 	await expect(form).toBeVisible();
-	await expect(form).toContainText('kostet die Maschine noch so viel wie laufend');
+	await expect(form).toContainText('löscht sich die Maschine selbst und kostet ab dann nichts mehr');
+	await expect(form).toContainText('älteren Image hält nur an und kostet weiter');
 	await expect(form).toContainText('Zeitzone: Europe/Berlin');
 	// Another value out of range is refused before anything is written.
 	await page.getByTestId('auto-stop-idle').selectOption('other');
@@ -80,4 +82,21 @@ test('while the VM runs, the start area says when it stops itself, and warns ten
 	await page.getByTestId('v2-area-backup').click();
 	await expect(page.getByTestId('auto-stop').getByTestId('auto-stop-idle')).toHaveValue('60');
 	if (process.env.AUTO_STOP_SHOTS) await page.getByTestId('auto-stop').screenshot({ path: `${process.env.AUTO_STOP_SHOTS}/form.png` });
+});
+
+test('a VM that forgot itself after its own stop and backup: the app lets it go and says so', async ({ page }) => {
+	test.setTimeout(60_000);
+	const instance = 'c'.repeat(64);
+	const forget = 'a'.repeat(64);
+	const running = { instanceHash: instance, crnHash: 'd'.repeat(64), host: HOST, payer: '0x00000000000000000000000000000000000000bb', trustedExecution: {} };
+	const { saved } = await vault(page, { running }, null, async (app) => {
+		// The VM is gone: no status page. Aleph says who forgot it.
+		await page.context().route(`https://${HOST}/anywhere/**`, (route) => route.fulfill({ status: 404, body: '' }));
+		await page.context().route(`https://api2.aleph.im/api/v0/messages/${instance}`, (route) => route.fulfill({ json: { status: 'forgotten', item_hash: instance, forgotten_by: [forget] } }));
+		const content = JSON.stringify({ address: running.payer, hashes: [instance], reason: 'paperless-anywhere: stopped itself after a backup', time: 1 });
+		await page.context().route(`https://api2.aleph.im/api/v0/messages/${forget}`, (route) => route.fulfill({ json: { status: 'processed', reception_time: '2027-01-15T17:12:00Z', message: { type: 'FORGET', sender: app, item_content: content } } }));
+	});
+	await expect(page.getByTestId('auto-stop-self-forgot').first()).toContainText('die Maschine selbst gelöscht');
+	await expect(page.getByTestId('auto-stop-self-forgot').first()).toContainText('15.01.2027');
+	expect((await saved()).running).toBeUndefined();
 });
