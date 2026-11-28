@@ -369,6 +369,7 @@
 	{#if k.nodeNote}<p class="note" role="status" data-testid="node-refused">{k.nodeNote}</p>{/if}
 	{#if k.periodEnded}<p class="note" role="status" data-testid="period-end-stopped">{c.periodEnd.stopped}</p>{/if}
 	{#if k.autoStopped}<p class="note" role="status" data-testid="auto-stopped">{$t.autoStop.stopped[k.autoStopped.stopReason === 'schedule' ? 'schedule' : 'idle']}</p>{/if}
+	{#if k.selfForgot}<p class="note" role="status" data-testid="auto-stop-self-forgot">{$t.autoStop.selfForgot(k.selfForgot.at ? format.dateTime(k.selfForgot.at) : '')}</p>{/if}
 	{#if profile.backupRevokePending && !profile.running && technical}<p class="note" data-testid="revoke-pending">{c.revokePending}</p>{/if}
 
 	{#if BUILDER && hasOwnImage(profile, BUILDER.plain.sha256) && !moving}<button class="lnk" onclick={k.showCertificate} data-testid="open-certificate">{s.certificate}</button>{/if}

@@ -29,7 +29,7 @@ import { unlockDetail } from './unlock-progress.js';
 import { updateProfile, vmPayer } from './profile.js';
 import { ALEPH_API, readFetch } from './aleph.js';
 import { format, tr } from './i18n/index.js';
-import { crnAddress, credits, estimateCreditsPerHour, FIXED_HOST_DOMAIN, forgetInstance, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, runsOnNode, sendInstance, vmStatus, eraseOnNode } from './vm.js';
+import { crnAddress, credits, estimateCreditsPerHour, FIXED_HOST_DOMAIN, forgetInstance, signedForget, selfForgotten, forward443, hostname, instanceMessage, mapped443, notifyNode, PAPERLESS_VM, publicAddress, runsOnNode, sendInstance, vmStatus, eraseOnNode } from './vm.js';
 
 /** Aleph would refuse the start: the payer holds less than a day of reserve. */
 export class AlephShortError extends Error {
@@ -627,9 +627,13 @@ async function bringUp(master, profile, starting, wasm, onProgress, { resumed = 
 		const periodEnd = await within(periodEndFor(master, profile), ASK_MS).catch(() => null);
 		// "0" (it renews, or nothing to stop for) is what a missing one means too.
 		if (periodEnd != null && periodEnd !== '0') secrets.period_end = periodEnd;
-		// The auto-stop the person chose (auto-stop.js); an image without it ignores it.
+		// The auto-stop the person chose (auto-stop.js), with the FORGET the VM
+		// sends itself after a stop of its own (also the period end's) and a
+		// complete backup; an image without it ignores it.
 		const autoStop = wantedAutoStop(profile);
-		if (autoStop) secrets.auto_stop = autoStopSecret(autoStop);
+		if (autoStop || (profile.backupConfig && periodEnd != null && periodEnd !== '0')) {
+			secrets.auto_stop = autoStopSecret(autoStop, { forget: await selfForget(app, payer, instanceHash) });
+		}
 		const keys = debugKeysFor(profile);
 		if (keys) secrets.authorized_keys = keys;
 		if (profile.restoreEntry && profile.ageIdentity && own) {
@@ -641,7 +645,7 @@ async function bringUp(master, profile, starting, wasm, onProgress, { resumed = 
 			if (unmarked === true) secrets.restore_unmarked = String(entry.pieceCid);
 		}
 		const fitted = fitSecrets(secrets);
-		if (secrets.auto_stop && !fitted.auto_stop) report({ step: 'unlock', detail: tr().life.progress.autoStopLeftOut });
+		if (autoStop && !fitted.auto_stop) report({ step: 'unlock', detail: tr().life.progress.autoStopLeftOut });
 		return fitted;
 	};
 
@@ -750,7 +754,7 @@ export async function pushBackupPlaces(master, profile, { send = sendToGuest, pl
 	const periodEnd = await periodEndFor(master, profile);
 	if (periodEnd != null) secrets.period_end = periodEnd;
 	const autoStop = wantedAutoStop(profile);
-	if (autoStop) secrets.auto_stop = autoStopSecret(autoStop);
+	if (autoStop || (periodEnd != null && periodEnd !== '0')) secrets.auto_stop = autoStopSecret(autoStop, { forget: await selfForgetOf(master, profile) });
 	await send(master, profile, secrets);
 	return Object.keys(secrets);
 }
@@ -798,6 +802,25 @@ export async function syncPeriodEnd(master, profile, status, { send = sendToGues
 const wantedAutoStop = (profile) => (profile.backupConfig ? autoStopSetting(profile.autoStop) : null);
 
 /**
+ * The FORGET of this VM, signed by the app key for whoever pays it, for the
+ * VM to send itself after a stop of its own and a complete backup
+ * (paperless-self-forget, docs/auto-stop.md). Null when it cannot be signed:
+ * the VM then stays paused, and the app erases it at its next opening.
+ * @param {import('viem').LocalAccount} app @param {string | null | undefined} payer @param {string} instanceHash
+ * @returns {Promise<{ api: string, message: any } | null>}
+ */
+async function selfForget(app, payer, instanceHash) {
+	if (!payer || !instanceHash) return null;
+	return signedForget(app, payer, instanceHash).then((message) => ({ api: ALEPH_API, message }), () => null);
+}
+
+/** The same for the running VM of `profile`. @param {Uint8Array} master @param {Record<string, any>} profile */
+function selfForgetOf(master, profile) {
+	const app = privateKeyToAccount(alephPrivateKey(master));
+	return selfForget(app, profile.running?.payer ?? vmPayer(profile, app.address), profile.running?.instanceHash);
+}
+
+/**
  * The auto-stop setting to the running VM (auto-stop.js): after the person
  * changed or postponed it, the "off" value when they turned it off.
  * @param {Uint8Array} master @param {Record<string, any>} profile with `running`
@@ -806,7 +829,7 @@ const wantedAutoStop = (profile) => (profile.backupConfig ? autoStopSetting(prof
  */
 export async function sendAutoStop(master, profile, { send = sendToGuest, now = Date.now() } = {}) {
 	if (!profile.running?.instanceHash) throw new Error(tr().life.errors.noVm);
-	const secret = autoStopSecret(wantedAutoStop(profile), { now });
+	const secret = autoStopSecret(wantedAutoStop(profile), { now, forget: profile.backupConfig ? await selfForgetOf(master, profile) : null });
 	await send(master, profile, { auto_stop: secret });
 	return secret;
 }
@@ -823,6 +846,31 @@ export async function syncAutoStop(master, profile, status, { send = sendToGuest
 	if (!profile.running?.instanceHash || !status || ['stopping', 'stopped', 'stop-partial'].includes(status.phase)) return null;
 	if (!autoStopChanged(status, wantedAutoStop(profile))) return null;
 	return sendAutoStop(master, profile, { send, now });
+}
+
+/**
+ * At an opening whose running VM does not answer: did it forget itself after
+ * a stop of its own and a complete backup (paperless-self-forget)? Then the
+ * profile lets it go, as after a stop the app erased, and the backup key is
+ * revoked. Returns when Aleph took the FORGET, or null when the VM did not
+ * forget itself (or Aleph could not be asked): then nothing changes.
+ * @param {Uint8Array} master @param {Record<string, any>} profile with `running`
+ * @param {{ check?: typeof selfForgotten, revoke?: typeof revokeBackupKey, update?: typeof updateProfile }} [deps]
+ * @returns {Promise<{ forget: string, at: string | null } | null>}
+ */
+export async function finishSelfForgotten(master, profile, { check = selfForgotten, revoke = revokeBackupKey, update = updateProfile } = {}) {
+	const run = profile.running;
+	if (!run?.instanceHash) return null;
+	const app = privateKeyToAccount(alephPrivateKey(master));
+	const found = await check(app.address, run.instanceHash).catch(() => null);
+	if (!found) return null;
+	await update(master, (now) => {
+		if (now.running?.instanceHash !== run.instanceHash) return now;
+		const { running, ...rest } = now;
+		return rest;
+	});
+	await revoke(master, profile, run.instanceHash).catch(() => 'later');
+	return found;
 }
 
 /**

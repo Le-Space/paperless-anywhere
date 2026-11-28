@@ -1,12 +1,13 @@
 // The automatic stop (AutoStop.svelte, auto-stop.js): after a quiet time or
-// daily at an hour. Until the VM can delete itself (docs/auto-stop.md, phase
-// 3), the texts say plainly that a paused Paperless still costs until the app
-// is opened again. German is the original; English beside it, key for key.
+// daily at an hour. After the backup the VM deletes itself (docs/auto-stop.md,
+// phase 3); an image older than that only pauses and costs until the app is
+// opened again, and the texts say so. German is the original; English beside
+// it, key for key.
 export const autoStop = {
 	de: {
 		title: 'Automatisch beenden',
 		lede: 'Paperless sichert sich und hält an, wenn du es eine Weile nicht benutzt oder zu einer festen Uhrzeit. Die Einstellung liegt in deinem Tresor und gilt auf jedem Gerät.',
-		honest: 'Angehalten kostet die Maschine noch so viel wie laufend. Erst wenn du die App wieder öffnest, löscht sie die Maschine nach der Sicherung, und dann kostet sie nichts mehr.',
+		honest: 'Nach der Sicherung löscht sich die Maschine selbst und kostet ab dann nichts mehr; beim nächsten Start kommt alles aus dieser Sicherung zurück. Eine Maschine mit einem älteren Image hält nur an und kostet weiter, bis du die App wieder öffnest.',
 		idle: 'Nach Ruhezeit',
 		idleOff: 'nie',
 		minutes: (/** @type {number} */ n) => (n % 60 === 0 ? `${n / 60} ${n === 60 ? 'Stunde' : 'Stunden'}` : `${n} Minuten`),
@@ -30,13 +31,14 @@ export const autoStop = {
 			idle: 'Paperless hat sich nach der Ruhezeit gesichert und angehalten. Die App löscht die Maschine, sobald diese Sicherung auf der Chain steht; beim nächsten Start kommt alles aus dieser Sicherung zurück.',
 			schedule: 'Paperless hat sich zur gewählten Uhrzeit gesichert und angehalten. Die App löscht die Maschine, sobald diese Sicherung auf der Chain steht; beim nächsten Start kommt alles aus dieser Sicherung zurück.'
 		},
+		selfForgot: (/** @type {string} */ at) => `Paperless hat sich ${at ? `am ${at} ` : ''}gesichert, angehalten und die Maschine selbst gelöscht. Seitdem kostet sie nichts mehr; beim nächsten Start kommt alles aus dieser Sicherung zurück.`,
 		confirming: 'Letzte Sicherung vor dem automatischen Beenden auf der Chain prüfen',
 		noBackups: 'Die Maschine hat sich selbst angehalten, aber ohne Sicherungen kann die App nichts prüfen. Lösche sie selbst in der VM-Liste unter „Technisch“.'
 	},
 	en: {
 		title: 'Stop automatically',
 		lede: 'Paperless backs itself up and pauses when you have not used it for a while, or at a set time. The setting lives in your vault and applies on every device.',
-		honest: 'Paused, the machine still costs as much as running. Only when you open the app again does it delete the machine after the backup, and from then on it costs nothing.',
+		honest: 'After the backup the machine deletes itself and costs nothing from then on; the next start brings everything back from that backup. A machine on an older image only pauses and keeps costing until you open the app again.',
 		idle: 'After a quiet time',
 		idleOff: 'never',
 		minutes: (/** @type {number} */ n) => (n % 60 === 0 ? `${n / 60} ${n === 60 ? 'hour' : 'hours'}` : `${n} minutes`),
@@ -60,6 +62,7 @@ export const autoStop = {
 			idle: 'Paperless backed itself up and paused after the quiet time. The app deletes the machine once that backup is on the chain; the next start brings everything back from it.',
 			schedule: 'Paperless backed itself up and paused at the chosen time. The app deletes the machine once that backup is on the chain; the next start brings everything back from it.'
 		},
+		selfForgot: (/** @type {string} */ at) => `Paperless backed itself up${at ? ` on ${at}` : ''}, paused and deleted the machine itself. It has cost nothing since; the next start brings everything back from that backup.`,
 		confirming: 'Checking the last backup before the automatic stop on the chain',
 		noBackups: 'The machine paused itself, but without backups the app has nothing to check. Delete it yourself in the VM list under “Technical”.'
 	}

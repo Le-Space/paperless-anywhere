@@ -1,0 +1,128 @@
+#!/bin/sh
+# paperless-self-forget: after a stop this VM made by itself (reason idle,
+# schedule or period-end) whose last backup is complete, send the FORGET of
+# this VM's INSTANCE that the app signed for it at the start, so Aleph stops
+# billing it (docs/auto-stop.md, phase 3). The VM holds no key: only that one
+# signed message, which can forget nothing but this VM. Aleph then stops it.
+#
+# The message comes inside the secret auto_stop, over the attested channel:
+#   "forget": {"api": "https://api2.aleph.im", "message": {...signed FORGET...}}
+# It is sent only when all of this holds:
+#   - stop.json says "ready" with the reason idle, schedule or period-end (the
+#     app's own stop is erased by the app);
+#   - its backup is "done" or "unchanged" (nothing new since a complete one);
+#     never "partial", "failed", "skipped" (no backups) or "empty";
+#   - no restore runs and none failed;
+#   - the message is a FORGET with an item hash, the API an https URL.
+# The outcome goes to self-forget.json (the private status page shows it):
+# "sent" while Aleph has not processed it yet, "done" once it has, "refused"
+# when Aleph rejected it (the delegation was revoked, say: then the VM stays
+# paused and the app erases it at its next opening, as before), "failed"
+# when Aleph could not be reached (tried again after RETRY seconds).
+# paperless-stop calls this every five seconds after such a stop.
+#
+# Usage: paperless-self-forget [now] (now: Unix seconds, for the tests; the
+# tests set PAPERLESS_SELF_FORGET_DRY=1 to decide and write without sending,
+# or PAPERLESS_SELF_FORGET_TEST_API to send to a local stand-in for Aleph)
+set -u
+dir="${PAPERLESS_RUN_DIR:-/run/paperless-anywhere}"
+secrets="${PAPERLESS_SECRETS_DIR:-/tmp/secrets}"
+now="${1:-$(date +%s)}"
+case "$now" in ''|*[!0-9]*) echo "paperless-self-forget: now must be Unix seconds" >&2; exit 2 ;; esac
+[ -s "$secrets/auto_stop" ] || exit 0
+[ -s "$dir/stop.json" ] || exit 0
+exec python3 -I - "$now" "$dir" "$secrets" <<'PY'
+import json, os, re, sys, urllib.request
+
+now, run, secrets = int(sys.argv[1]), sys.argv[2], sys.argv[3]
+RETRY, POLL = 300, 30
+DRY = os.environ.get("PAPERLESS_SELF_FORGET_DRY") == "1"
+
+def load(path, limit=None):
+    try:
+        with open(path) as f:
+            return json.loads(f.read(limit) if limit else f.read())
+    except Exception:
+        return None
+
+def save(value):
+    value["at"] = now
+    with open(os.path.join(run, "self-forget.json.tmp"), "w") as f:
+        json.dump(value, f)
+        f.write("\n")
+    os.replace(os.path.join(run, "self-forget.json.tmp"), os.path.join(run, "self-forget.json"))
+
+stop = load(os.path.join(run, "stop.json"))
+if not isinstance(stop, dict) or stop.get("status") != "ready" or stop.get("reason") not in ("idle", "schedule", "period-end"):
+    sys.exit(0)
+backup = stop.get("backup")
+if not isinstance(backup, dict) or backup.get("status") not in ("done", "unchanged"):
+    sys.exit(0)
+restore = load(os.path.join(run, "restore.json"))
+if isinstance(restore, dict) and restore.get("status") in ("running", "failed"):
+    sys.exit(0)
+
+cfg = load(os.path.join(secrets, "auto_stop"), 16384)
+forget = cfg.get("forget") if isinstance(cfg, dict) else None
+message = forget.get("message") if isinstance(forget, dict) else None
+api = forget.get("api") if isinstance(forget, dict) else None
+item = message.get("item_hash") if isinstance(message, dict) else None
+if not (isinstance(message, dict) and message.get("type") == "FORGET" and isinstance(item, str) and re.fullmatch(r"[0-9a-f]{64}", item)
+        and isinstance(api, str) and re.fullmatch(r"https://[A-Za-z0-9.-]+(:[0-9]{1,5})?", api)):
+    sys.exit(0)
+api = os.environ.get("PAPERLESS_SELF_FORGET_TEST_API") or api
+
+state = load(os.path.join(run, "self-forget.json"))
+if isinstance(state, dict) and state.get("itemHash") == item:
+    s, at = state.get("status"), state.get("at") if isinstance(state.get("at"), int) else 0
+    if s in ("done", "refused"):
+        sys.exit(0)
+    if s == "failed" and now < at + RETRY:
+        sys.exit(0)
+    if s == "sent" and now < at + POLL:
+        sys.exit(0)
+else:
+    state = None
+
+def request(method, path, body=None):
+    data = None if body is None else json.dumps(body).encode()
+    req = urllib.request.Request(api + path, data=data, method=method, headers={"Content-Type": "application/json"} if data else {})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.status, json.loads(r.read(65536) or b"null")
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read(65536) or b"null")
+        except Exception:
+            return e.code, None
+
+if DRY:
+    save({"status": "sent" if state is None else state.get("status"), "itemHash": item, "dry": True})
+    print(item)
+    sys.exit(0)
+
+try:
+    if state is None or state.get("status") == "failed":
+        code, _ = request("POST", "/api/v0/messages", {"sync": False, "message": message})
+        if code >= 500:
+            save({"status": "failed", "itemHash": item, "reason": f"Aleph answered {code}"})
+            sys.exit(0)
+        if code >= 400:
+            save({"status": "refused", "itemHash": item, "reason": f"Aleph refused the FORGET ({code})"})
+            sys.exit(0)
+        save({"status": "sent", "itemHash": item})
+        sys.exit(0)
+    # Sent: has Aleph processed it?
+    code, answer = request("GET", f"/api/v0/messages/{item}")
+    status = answer.get("status") if isinstance(answer, dict) else None
+    if status == "processed":
+        save({"status": "done", "itemHash": item})
+    elif status == "rejected":
+        save({"status": "refused", "itemHash": item, "reason": "Aleph rejected the FORGET"})
+    elif code == 404:
+        save({"status": "failed", "itemHash": item, "reason": "Aleph does not know the FORGET yet"})
+    else:
+        save({"status": "sent", "itemHash": item})
+except Exception as e:
+    save({"status": "failed", "itemHash": item, "reason": str(e)[:200]})
+PY

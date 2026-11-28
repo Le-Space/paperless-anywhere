@@ -1,7 +1,7 @@
 # Auto-stop: the VM stops itself when nobody uses it
 
-Status: concept (2026-11-28); phase 1 (guest side) merged, phase 2 (the app)
-in its own PR. Roadmap:
+Status: phases 1 (guest side) and 2 (the app) merged; phase 3 (the VM's own
+FORGET) in its own PR, unproven against a real VM until the paid round trip. Roadmap:
 #430; origin: #163 (idle shutdown).
 
 A Paperless VM runs, and costs credits, until someone presses "Back up and
@@ -102,8 +102,10 @@ Phase 3 adds the pre-signed FORGET, so the VM ends its own bill after the
 backup. (c) stays a fallback if (b) does not hold in the real test. The same
 FORGET then also ends the period-end stop's time on the start reserve.
 
-Until phase 3 the app must say honestly what the setting does: "backs up and
-pauses; the VM is deleted, and stops costing, when you open the app again".
+Until phase 3 the app had to say: "backs up and pauses; the VM is deleted,
+and stops costing, when you open the app again". With phase 3 it says that
+the VM deletes itself after the backup, and that a VM on an older image only
+pauses.
 
 ## How "quiet" is measured
 
@@ -247,12 +249,23 @@ missing: off. Phase 3 adds `"forget"`: the signed FORGET message.
    with `autoStop` that hold another setting; `OPTIONAL_SECRETS`, the notice before,
    postpone, "stops itself at about …", and the next opening erases a VM
    stopped with `idle`/`schedule` as after a period-end stop.
-3. **The VM ends its bill.** The app pre-signs the FORGET at the start and
-   hands it over in `auto_stop.forget`; `paperless-stop` sends it after a
-   ready, confirmed backup, and leaves a note for the app first. The app,
-   finding its VM forgotten, reads the note and the chain and marks the
-   profile stopped. One paid round trip with Nico's go. The period-end stop
-   uses it too.
+3. **The VM ends its bill.** The app signs the FORGET at the start (and at
+   each later hand-over of `auto_stop`) and hands it over in
+   `auto_stop.forget` (`{ api, message }`), whenever an auto-stop is chosen
+   or the period ends; it is kept nowhere else. `paperless-self-forget`
+   sends it after a `ready` stop with the reason `idle`, `schedule` or
+   `period-end` whose backup is `done` or `unchanged` (never partial,
+   failed, skipped or empty, never around a restore), then asks Aleph until
+   it is processed; a refusal (a revoked delegation) leaves the VM paused for
+   the app to erase as before; an unreachable Aleph is tried again every
+   five minutes. `self-forget.json` shows the outcome on the private page;
+   capability `selfForget: 1`. There is no separate note for the app: at an
+   opening whose VM does not answer, the app asks Aleph who forgot it; a
+   FORGET from this app key with the reason `paperless-anywhere: stopped
+   itself after a backup` means the VM did it after its backup, so the app
+   lets it go from the profile, revokes the backup key and says so. The next
+   start restores the newest backup as always. One paid round trip with
+   Nico's go confirms it on a real VM. The period-end stop uses it too.
 4. **If (b) fails:** (c) with Le Space Credits, in their session.
 
 ## Open questions
@@ -261,8 +274,5 @@ missing: off. Phase 3 adds `"forget"`: the signed FORGET message.
    those excluded? (Watch the access log on a test VM.)
 2. Does the API node accept a FORGET signed an hour before it is sent (phase 3
    test), and how fast does the CRN stop the VM?
-3. Where does the VM leave its note for the app before it forgets itself (a
-   POST from the app key's delegation is not possible without a key; the
-   backup ledger entry, which the VM writes anyway, may be enough)?
-4. How long does a restore take per GiB, so the app can show the cost of a
+3. How long does a restore take per GiB, so the app can show the cost of a
    restart next to the hours saved?

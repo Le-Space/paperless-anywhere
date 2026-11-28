@@ -71,18 +71,23 @@ export function utcOffsetMinutes(tz, now) {
 
 /**
  * The secret `auto_stop` for a setting; with null, the "off" value (both
- * null), which a VM holding a setting takes as off.
- * @param {AutoStop | null} setting @param {{ now?: number }} [o]
+ * null), which a VM holding a setting takes as off. `forget`: the signed
+ * FORGET of the VM and the API to send it to (paperless-self-forget).
+ * @param {AutoStop | null} setting @param {{ now?: number, forget?: { api: string, message: any } | null }} [o]
  */
-export function autoStopSecret(setting, { now = Date.now() } = {}) {
-	if (!setting) return JSON.stringify({ v: 1, idleMinutes: null, dailyAt: null });
+export function autoStopSecret(setting, { now = Date.now(), forget = null } = {}) {
+	// The FORGET the VM sends itself after a stop of its own (phase 3), also when
+	// only the period end stops it.
+	const more = forget ? { forget } : {};
+	if (!setting) return JSON.stringify({ v: 1, idleMinutes: null, dailyAt: null, ...more });
 	return JSON.stringify({
 		v: 1,
 		idleMinutes: setting.idleMinutes,
 		dailyAt: setting.dailyAt,
 		tz: setting.tz,
 		utcOffsetMinutes: utcOffsetMinutes(setting.tz, now),
-		postponeUntil: setting.postponeUntil ?? 0
+		postponeUntil: setting.postponeUntil ?? 0,
+		...more
 	});
 }
 
