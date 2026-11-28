@@ -20,6 +20,7 @@ import { pinnedTrustedExecution } from './runtime-pin.js';
 import { alephPrivateKey, backupMarkKey, backupPrivateKey, pieceMark, filecoinSessionPrivateKey, fixedHostLabel, paperlessSecrets, statusToken } from './keys/derive.js';
 import { backupAuthorize, backupKeyAddress, backupRevoke, creditsAccount, creditsBalance, CREDITS_PRODUCT, CREDITS_URL } from './credits.js';
 import { paidUntil, periodEndChanged, periodEndPiece, periodEndSecret } from './period-end.js';
+import { autoStopChanged, autoStopSecret, autoStopSetting } from './auto-stop.js';
 import { confidentialCreditsPerHour, RESERVE_HOURS, runningCreditsPerHour } from './balances.js';
 import { relayTransports } from './attest-p2p.js';
 import { backupFacts, pieceCidOfStop, reportedMarks, restoreFitsImage, vaultBound, vmBackupSecrets, withVaultBackups } from './backups.js';
@@ -467,7 +468,8 @@ export async function resumeStart(master, profile, onProgress, { lookUpTries = 2
 /** What the guest's agent takes at most in one hand-over (relay-button's attest agent). */
 export const MAX_GUEST_SECRETS = 16;
 /** Left out first when a hand-over would be too large: neither is needed to start and run. */
-const OPTIONAL_SECRETS = ['period_end', 'authorized_keys'];
+// The auto-stop goes first: without it Paperless only runs until someone stops it.
+const OPTIONAL_SECRETS = ['auto_stop', 'period_end', 'authorized_keys'];
 
 /**
  * The secrets of one hand-over, within what the guest takes: optional ones
@@ -625,6 +627,9 @@ async function bringUp(master, profile, starting, wasm, onProgress, { resumed = 
 		const periodEnd = await within(periodEndFor(master, profile), ASK_MS).catch(() => null);
 		// "0" (it renews, or nothing to stop for) is what a missing one means too.
 		if (periodEnd != null && periodEnd !== '0') secrets.period_end = periodEnd;
+		// The auto-stop the person chose (auto-stop.js); an image without it ignores it.
+		const autoStop = wantedAutoStop(profile);
+		if (autoStop) secrets.auto_stop = autoStopSecret(autoStop);
 		const keys = debugKeysFor(profile);
 		if (keys) secrets.authorized_keys = keys;
 		if (profile.restoreEntry && profile.ageIdentity && own) {
@@ -635,7 +640,9 @@ async function bringUp(master, profile, starting, wasm, onProgress, { resumed = 
 			// it as such: the VM takes it only when this names its piece.
 			if (unmarked === true) secrets.restore_unmarked = String(entry.pieceCid);
 		}
-		return fitSecrets(secrets);
+		const fitted = fitSecrets(secrets);
+		if (secrets.auto_stop && !fitted.auto_stop) report({ step: 'unlock', detail: tr().life.progress.autoStopLeftOut });
+		return fitted;
 	};
 
 	// The attestation with the relay that carried it (not attested itself; it forwards encrypted bytes).
@@ -742,6 +749,8 @@ export async function pushBackupPlaces(master, profile, { send = sendToGuest, pl
 	// The end of the paid time with every hand-over, as at the start.
 	const periodEnd = await periodEndFor(master, profile);
 	if (periodEnd != null) secrets.period_end = periodEnd;
+	const autoStop = wantedAutoStop(profile);
+	if (autoStop) secrets.auto_stop = autoStopSecret(autoStop);
 	await send(master, profile, secrets);
 	return Object.keys(secrets);
 }
@@ -779,6 +788,41 @@ export async function syncPeriodEnd(master, profile, status, { send = sendToGues
 	if (!periodEndChanged(status, wanted === '0' ? null : Number(wanted) * 1000)) return null;
 	await send(master, profile, { period_end: wanted });
 	return wanted;
+}
+
+/**
+ * The auto-stop this Paperless gets: the profile's, and only with backups (a
+ * stop without one would leave nothing to start from again).
+ * @param {Record<string, any>} profile
+ */
+const wantedAutoStop = (profile) => (profile.backupConfig ? autoStopSetting(profile.autoStop) : null);
+
+/**
+ * The auto-stop setting to the running VM (auto-stop.js): after the person
+ * changed or postponed it, the "off" value when they turned it off.
+ * @param {Uint8Array} master @param {Record<string, any>} profile with `running`
+ * @param {{ send?: typeof sendToGuest, now?: number }} [deps]
+ * @returns {Promise<string>} the secret sent
+ */
+export async function sendAutoStop(master, profile, { send = sendToGuest, now = Date.now() } = {}) {
+	if (!profile.running?.instanceHash) throw new Error(tr().life.errors.noVm);
+	const secret = autoStopSecret(wantedAutoStop(profile), { now });
+	await send(master, profile, { auto_stop: secret });
+	return secret;
+}
+
+/**
+ * At an opening, with the VM's status page read: when the VM holds another
+ * auto-stop than the profile (changed on another device, or left out at the
+ * start), it is told. Only images that can stop themselves; never during a
+ * stop. Returns the secret sent, or null when nothing was.
+ * @param {Uint8Array} master @param {Record<string, any>} profile with `running` @param {any} status
+ * @param {{ send?: typeof sendToGuest, now?: number }} [deps]
+ */
+export async function syncAutoStop(master, profile, status, { send = sendToGuest, now = Date.now() } = {}) {
+	if (!profile.running?.instanceHash || !status || ['stopping', 'stopped', 'stop-partial'].includes(status.phase)) return null;
+	if (!autoStopChanged(status, wantedAutoStop(profile))) return null;
+	return sendAutoStop(master, profile, { send, now });
 }
 
 /**

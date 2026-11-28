@@ -9,13 +9,14 @@ import { ownImagePatch } from '$lib/own-image-check.js';
 import { balancesRound, onceThisRound } from '$lib/balance-refresh.js';
 import { backupListing, loadProfile, updateProfile } from '$lib/profile.js';
 import { noteError, noteState } from '$lib/diagnosis.js';
-import { AlephShortError, BackupPartialError, StartGoneError, startElsewhere, pushBackupPlaces, attestRunning, confirmPeriodEndBackup, confirmStopBackup, eraseStopped, syncPeriodEnd, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst, revokeBackupKey } from '$lib/lifecycle.js';
+import { AlephShortError, BackupPartialError, StartGoneError, startElsewhere, pushBackupPlaces, attestRunning, confirmPeriodEndBackup, confirmStopBackup, eraseStopped, syncPeriodEnd, syncAutoStop, sendAutoStop, noteVaultBackups, resumeAfterPartial, resumeStart, retryBackupRevoke, startPaperless, startRequirements, stopPaperless, pickNode, buildsImageFirst, revokeBackupKey } from '$lib/lifecycle.js';
 import { buildImageForVault } from '$lib/own-image-build.js';
 import { BUILDER, hasOwnImage, imageStatus } from '$lib/own-image.js';
 import { onImageBuild } from '$lib/image-build-request.js';
 import { fetchPercent, stationOfBuildStep } from '$lib/first-start.js';
 import { crnAddress, eraseOnNode, forgetInstance, vmStatus } from '$lib/vm.js';
 import { stoppedAtPeriodEnd } from '$lib/period-end.js';
+import { autoStopSetting, postponed, stoppedItself } from '$lib/auto-stop.js';
 import { statusToken } from '$lib/keys/derive.js';
 import { CREDITS_URL, creditsBalance, fundVm, quoteVm, vmAuthorize } from '$lib/credits.js';
 import { hourPurchase } from '$lib/purchase.js';
@@ -398,18 +399,22 @@ export function createLifecycleCard(p) {
 		if (profile.running)
 			vmStatus(profile.running.host, statusToken(master))
 				.then(async (s) => {
+					openStatus = s;
 					if (s?.phase === 'stop-partial' && !busy && !partial) partial = new BackupPartialError(s);
 					// The VM stopped itself at the end of the paid time, with its
 					// last backup: erased now, once that backup is on the chain.
 					// A running one hears a changed end (a new voucher, a renewal).
-					if (stoppedAtPeriodEnd(s)) {
+					// The same for a VM that stopped itself as the person chose
+					// (auto-stop.js). A running one hears a changed setting.
+					if (stoppedAtPeriodEnd(s) || stoppedItself(s)) {
 						if (!busy && !periodEndTried) {
 							periodEndTried = true;
 							eraseAtPeriodEnd(s);
 						}
 					} else if (!busy && !syncingEnd) {
 						syncingEnd = true;
-						syncPeriodEnd(master, $state.snapshot(profile), s).catch(() => {}).finally(() => (syncingEnd = false));
+						const snap = $state.snapshot(profile);
+						Promise.allSettled([syncPeriodEnd(master, snap, s), syncAutoStop(master, snap, s)]).finally(() => (syncingEnd = false));
 					}
 					// The backups this VM made with this vault's mark, also the scheduled ones.
 					const noted = await noteVaultBackups(master, $state.snapshot(profile), s);
@@ -1041,14 +1046,39 @@ export function createLifecycleCard(p) {
 	let syncingEnd = false;
 	/** @type {any} the status page of a VM stopped at the period's end */
 	let periodEnded = $state(null);
+	/** @type {any} the status page of a VM that stopped itself after a quiet time or at the daily hour */
+	let autoStopped = $state(null);
+	/** @type {any} the running VM's status page as read at the opening (auto-stop: what it holds) */
+	let openStatus = $state(null);
+	/**
+	 * The person's auto-stop setting: into the sealed profile, and to the
+	 * running VM at once. Returns whether a VM was told.
+	 * @param {import('$lib/auto-stop.js').AutoStop | null} setting
+	 */
+	const saveAutoStop = async (setting) => {
+		profile = await updateProfile(master, (now) => ({ ...now, autoStop: setting }));
+		if (!profile.running?.instanceHash) return false;
+		await sendAutoStop(master, $state.snapshot(profile));
+		return true;
+	};
+	/** "1 hour later": the next stop moves, kept in the profile so a later hand-over keeps it. */
+	const postponeAutoStop = async (/** @type {any} */ status) => {
+		const setting = autoStopSetting(profile.autoStop);
+		if (!setting) return null;
+		const next = postponed(setting, status);
+		await saveAutoStop(next);
+		return next;
+	};
 	const eraseAtPeriodEnd = (/** @type {any} */ s) => run(async () => {
-		periodEnded = s;
+		const auto = stoppedItself(s);
+		if (auto) autoStopped = s;
+		else periodEnded = s;
 		const on = track('stop');
 		stopSent = true;
 		vmPage = s;
-		progress = c.periodEnd.confirming;
+		progress = auto ? tr().autoStop.confirming : c.periodEnd.confirming;
 		const onChain = backupsOnChain();
-		if (!onChain) throw new Error(c.periodEnd.noBackups);
+		if (!onChain) throw new Error(auto ? tr().autoStop.noBackups : c.periodEnd.noBackups);
 		await confirmPeriodEndBackup(s, { onChain, known: profile.ownBackups ?? [] });
 		await finishStop(await eraseStopped(master, $state.snapshot(profile), s, on));
 	}, () => eraseAtPeriodEnd(s));
@@ -1292,6 +1322,10 @@ export function createLifecycleCard(p) {
 		answer,
 		eraseAnyway,
 		get periodEnded() { return periodEnded; },
+		get autoStopped() { return autoStopped; },
+		get openStatus() { return openStatus; },
+		saveAutoStop,
+		postponeAutoStop,
 		set periodEnded(v) { periodEnded = v; },
 		keepVm,
 		get image() { return image; },

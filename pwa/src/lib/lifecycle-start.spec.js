@@ -131,6 +131,10 @@ describe('handing backup places to the running VM', () => {
 		expect(JSON.parse(got.backup_config).providerIds).toEqual([43, 38]);
 		// Not paid by a package: no end for the VM.
 		expect(got.period_end).toBe('0');
+		// No auto-stop chosen: none sent; with one, the same as at the start.
+		expect(got).not.toHaveProperty('auto_stop');
+		await pushBackupPlaces(master, { ...own, autoStop: { idleMinutes: 60, dailyAt: null, tz: 'Europe/Berlin' } }, { send: async (_m, _p, secrets) => void (got = secrets) });
+		expect(JSON.parse(got.auto_stop)).toMatchObject({ v: 1, idleMinutes: 60, dailyAt: null, tz: 'Europe/Berlin' });
 		await expect(pushBackupPlaces(master, base, { send: async () => {} })).rejects.toThrow(/eigenen Image/);
 		// A region goes as named providers, as at the start.
 		const region = { ...own, backupConfig: { ...own.backupConfig, copies: 3, providerIds: [], regions: ['EUROPE'] } };
@@ -148,7 +152,7 @@ describe('the secrets of a start fit what the guest takes', () => {
 				'https_hostname', 'paperless_role', 'paperless_admin_password', 'paperless_db_password', 'paperless_secret_key', 'status_token',
 				'backup_mark_key', 'backup_config', 'backup_key',
 				'restore_ledger_entry', 'age_identity', 'restore_unmarked',
-				'period_end', 'authorized_keys'
+				'period_end', 'authorized_keys', 'auto_stop'
 			].map((k) => [k, 'x'])
 		);
 		const fit = fitSecrets(largest);
@@ -156,6 +160,8 @@ describe('the secrets of a start fit what the guest takes', () => {
 		// What a start needs stays; the end goes first.
 		for (const k of ['dns_cloudflare_token', 'backup_config', 'backup_key', 'restore_ledger_entry', 'age_identity', 'restore_unmarked', 'backup_mark_key']) expect(fit).toHaveProperty(k);
 		expect(fit).not.toHaveProperty('period_end');
+		// The auto-stop before it (auto-stop.js): the app says so at the start.
+		expect(fit).not.toHaveProperty('auto_stop');
 	});
 	it('says so plainly instead of the guest refusing', async () => {
 		const { fitSecrets } = await import('./lifecycle.js');

@@ -73,6 +73,7 @@ export const life = {
 			lookUp: 'VM bei Aleph nachsehen',
 			network: 'Port 443 und Adresse',
 			withoutBackups: (/** @type {string} */ reason) => `Ohne Sicherungen: ${reason}`,
+			autoStopLeftOut: 'Diese VM bekommt das automatische Beenden nicht mit: es sind schon zu viele Angaben für einen Start. Beende sie selbst, wenn du sie nicht mehr brauchst.',
 			unlock: 'VM prüfen (AMD) und entsperren',
 			unlockPhase: {
 				attest: 'Die VM wird geprüft (AMD)',
@@ -235,6 +236,7 @@ export const life = {
 			lookUp: 'Looking up the VM on Aleph',
 			network: 'Port 443 and address',
 			withoutBackups: (/** @type {string} */ reason) => `Without backups: ${reason}`,
+			autoStopLeftOut: 'This VM does not get the automatic stop: a start already carries too many values. Stop it yourself when you no longer need it.',
 			unlock: 'Checking the VM (AMD) and unlocking',
 			unlockPhase: {
 				attest: 'Checking the VM (AMD)',
