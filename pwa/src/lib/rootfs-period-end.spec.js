@@ -76,7 +76,7 @@ describe('paperless-stop', () => {
 	const stop = source('paperless-stop');
 	it('asks paperless-period-end when the app sent no new request', () => {
 		expect(stop).toMatch(/request="\$\(paperless-period-end 2>\/dev\/null \|\| true\)"/);
-		expect(stop).toMatch(/\[ -n "\$request" \] && reason=period-end/);
+		expect(stop).toMatch(/if \[ -n "\$request" \]; then\n\s+reason=period-end/);
 	});
 	it('names the reason in stop.json', () => {
 		expect(stop).toMatch(/"reason":"%s"/);

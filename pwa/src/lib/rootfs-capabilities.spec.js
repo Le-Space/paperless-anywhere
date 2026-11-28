@@ -14,7 +14,7 @@ const status = file('rootfs/files/paperless-status');
 
 describe('the image’s capabilities', () => {
 	it('names only what is checked here, in version 1', () => {
-		expect(caps).toEqual({ v: 1, fullPart: true, incremental: 'pa-snap-1', restoreUnmarked: true, restoreMemory: true, helpersPausedForImport: true });
+		expect(caps).toEqual({ v: 1, fullPart: true, incremental: 'pa-snap-1', restoreUnmarked: true, restoreMemory: true, helpersPausedForImport: true, autoStop: 1 });
 	});
 
 	it('fullPart: the restore takes a part of 1,000,000,000 bytes and more (9d2da9b)', () => {
@@ -35,6 +35,13 @@ describe('the image’s capabilities', () => {
 	it('restoreMemory, helpersPausedForImport (#403)', () => {
 		expect(restore).toMatch(/status done ".*\$\(memory\)"$/m);
 		expect(restore).toContain('pause_helpers ||');
+	});
+
+	it('autoStop 1: paperless-stop asks paperless-auto-stop, installed with tzdata (docs/auto-stop.md)', () => {
+		expect(file('rootfs/files/paperless-stop')).toContain('request="$(paperless-auto-stop 2>/dev/null || true)"');
+		expect(build).toMatch(/\bpaperless-auto-stop\b/);
+		expect(build).toMatch(/--include=[^ ]*\btzdata\b/);
+		expect(status).toContain('"idle", "schedule"');
 	});
 
 	it('does not claim swap, and the image sets none up: the guest kernel has none', () => {

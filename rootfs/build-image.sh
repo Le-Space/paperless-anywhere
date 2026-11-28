@@ -37,7 +37,7 @@ trap 'rm -rf "$work"' EXIT
 keyring=/usr/share/keyrings/debian-archive-keyring.gpg
 [ -s "$keyring" ] || { echo "missing $keyring (apt install debian-archive-keyring)" >&2; exit 1; }
 debootstrap --variant=minbase --keyring="$keyring" \
-  --include=systemd,systemd-sysv,dbus,python3,openssh-server,docker.io,caddy,age,ca-certificates,curl,iproute2,procps,e2fsprogs,util-linux,kmod,jq,less,cryptsetup-bin,dmsetup,nftables \
+  --include=systemd,systemd-sysv,dbus,python3,tzdata,openssh-server,docker.io,caddy,age,ca-certificates,curl,iproute2,procps,e2fsprogs,util-linux,kmod,jq,less,cryptsetup-bin,dmsetup,nftables \
   bookworm "$root" https://deb.debian.org/debian >/dev/null
 
 # Debian's security fixes on top: sshd, Caddy and Docker face the network.
@@ -103,7 +103,7 @@ install -D -m 644 "$here/files/paperless-stop.service" "$root/etc/systemd/system
 install -D -m 644 "$here/files/paperless-forget-passphrase.service" "$root/etc/systemd/system/paperless-forget-passphrase.service"
 install -D -m 644 "$here/files/paperless-fixed-address.service" "$root/etc/systemd/system/paperless-fixed-address.service"
 install -D -m 644 "$here/files/paperless-2n6-ask.service" "$root/etc/systemd/system/paperless-2n6-ask.service"
-for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-backup-loop paperless-backup-due paperless-net-hardening paperless-status paperless-stop paperless-period-end paperless-stack-up paperless-data-disk paperless-file-extents paperless-forget-passphrase paperless-fixed-address paperless-dns-records paperless-ssh-allowed paperless-require-sealed paperless-dedup-key paperless-2n6-ask; do
+for script in paperless-secrets paperless-https paperless-anywhere-check paperless-manage paperless-restore paperless-backup paperless-backup-loop paperless-backup-due paperless-net-hardening paperless-status paperless-stop paperless-period-end paperless-auto-stop paperless-stack-up paperless-data-disk paperless-file-extents paperless-forget-passphrase paperless-fixed-address paperless-dns-records paperless-ssh-allowed paperless-require-sealed paperless-dedup-key paperless-2n6-ask; do
   install -D -m 755 "$here/files/$script" "$root/usr/local/sbin/$script"
 done
 # paperless-restore checks every download host with it.

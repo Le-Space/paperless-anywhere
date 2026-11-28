@@ -61,6 +61,10 @@ fi
 # it, and a 2n6 name is new at every start anyway. The fixed address's
 # certificate comes from the sealed area as files.
 install -d -m 700 -o caddy -g caddy "$R/run/caddy" 2>/dev/null || install -d -m 700 "$R/run/caddy"
+# Caddy's access log of the Paperless site, for the auto-stop's quiet time
+# (paperless-auto-stop): in memory, time, method and path (the query cut
+# off), no client addresses, no headers; rolled at 1 MiB, one old file kept.
+install -d -m 750 -o caddy -g caddy "$R/run/paperless-anywhere-activity" 2>/dev/null || install -d -m 750 "$R/run/paperless-anywhere-activity"
 global="  admin off
   auto_https disable_redirects
   storage file_system {
@@ -84,6 +88,7 @@ status_routes() {
   # origin: in public only the phase; the details (restore, backups, stop,
   # disks) at /anywhere/s/<token>.json, a path the app derives from its vault.
   handle /anywhere/status.json {
+    skip_log
     header Access-Control-Allow-Origin "*"
     header Cache-Control "no-store"
     root * /run/paperless-anywhere/public
@@ -92,6 +97,7 @@ status_routes() {
   }
   @detail path_regexp detail ^/anywhere/s/([0-9a-f]{32})\.json$
   handle @detail {
+    skip_log
     header Access-Control-Allow-Origin "*"
     header Cache-Control "no-store"
     root * /run/paperless-anywhere/public
@@ -99,6 +105,34 @@ status_routes() {
     file_server
   }
 ROUTES
+}
+access_log() {
+  cat <<'LOG'
+  log {
+    output file /run/paperless-anywhere-activity/access.log {
+      roll_size 1MiB
+      roll_keep 1
+    }
+    format filter {
+      wrap json
+      fields {
+        request>uri regexp \?.*$ ?
+        request>remote_ip delete
+        request>remote_port delete
+        request>client_ip delete
+        request>proto delete
+        request>host delete
+        request>headers delete
+        request>tls delete
+        user_id delete
+        resp_headers delete
+        bytes_read delete
+        size delete
+        duration delete
+      }
+    }
+  }
+LOG
 }
 two_n6_site() {
   cat <<CADDY
@@ -162,6 +196,7 @@ CADDY
 fi
 if [ -n "$serve" ]; then
   status_routes >> "$new"
+  access_log >> "$new"
   printf '  reverse_proxy 127.0.0.1:8000\n}\n' >> "$new"
   [ -z "$fixed" ] || two_n6_site >> "$new"
 fi
