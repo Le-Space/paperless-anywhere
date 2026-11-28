@@ -30,7 +30,7 @@ on:
           - browser
           - node
       api:
-        description: 'The API node that takes the upload: "api2" (the app's first try; a retry goes to api3) or "api3" (a core channel node of its own).'
+        description: 'The API node that takes the upload: "api2" (the app''s first try; a retry goes to api3) or "api3" (a core channel node of its own).'
         required: true
         default: api2
         type: choice
